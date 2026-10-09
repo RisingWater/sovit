@@ -39,7 +39,7 @@ const V03_GOODS: GoodID[] = [
   'fine_flour', 'white_bread', 'sugarcane', 'sugar', 'pastry',
   'flax', 'cotton', 'dye', 'coarse_cloth', 'fine_cloth',
   'coarse_clothes', 'common_clothes', 'luxury_clothes', 'leather_clothes',
-  'hide', 'meat', 'fish', 'smoked_fish', 'dried_meat', 'pottery', 'porcelain', 'domestic_service',
+  'hide', 'meat', 'fish', 'smoked_fish', 'dried_meat', 'pottery', 'porcelain', 'domestic_service', 'entertainment',
   'wood', 'stone', 'clay', 'firewood', 'brick',
 ]
 const V03_BUILDINGS: BuildingID[] = [
@@ -47,7 +47,7 @@ const V03_BUILDINGS: BuildingID[] = [
   'fine_mill', 'white_bakery', 'sugarcane_farm', 'sugar_works', 'pastry_shop',
   'flax_farm', 'cotton_farm', 'dye_farm', 'coarse_weaver', 'fine_weaver',
   'coarse_clothes_shop', 'common_clothes_shop', 'luxury_clothes_shop', 'leather_shop',
-  'hunting_camp', 'fishery', 'smokehouse', 'dried_meat_works', 'pottery_works', 'porcelain_works', 'domestic_service',
+  'hunting_camp', 'fishery', 'smokehouse', 'dried_meat_works', 'pottery_works', 'porcelain_works', 'domestic_service', 'theater',
   'lumberjack', 'quarry', 'clay_pit', 'firewood_works', 'brick_kiln',
 ]
 const V03_CLASSES: ClassID[] = ['poor', 'middle', 'rich', 'boss']
@@ -97,7 +97,12 @@ export function getPack(id: PackID): ContentPack {
 export function isLuxuryGood(gid: GoodID): boolean {
   const g = ALL_GOODS[gid]
   if (!g) return false
-  return g.category === 'clothing' || g.category === 'household' || g.id === 'pastry'
+  return (
+    g.category === 'clothing' ||
+    g.category === 'household' ||
+    g.category === 'entertainment' ||
+    g.id === 'pastry'
+  )
 }
 
 export interface ContentContext {

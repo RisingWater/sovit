@@ -218,6 +218,16 @@ function decideGrowth(state: GameState, ctx: ContentContext): Action[] {
         ['domestic_service', servants],
       )
     }
+    // 剧院：服务中产/富/老板，阶层越高需求越大
+    if (has('middle') || has('rich') || has('boss')) {
+      const entDemand =
+        (classCount['middle'] ?? 0) * 0.1 +
+        (classCount['rich'] ?? 0) * 0.3 +
+        (classCount['boss'] ?? 0) * 0.6
+      if (entDemand > 0 && ctx.buildingSet.has('theater')) {
+        chain.push(['theater', Math.max(1, Math.ceil(entDemand / 5))])
+      }
+    }
     for (const [id, n] of chain) {
       if ((counts[id] ?? 0) < n && ctx.buildingSet.has(id)) {
         chosen = { type: 'build', buildingId: id }

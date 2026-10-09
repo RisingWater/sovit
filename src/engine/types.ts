@@ -25,6 +25,7 @@ export type GoodCategory =
   | 'housing'
   | 'investment'
   | 'service'
+  | 'entertainment'
 
 export type BuildingTier = 1 | 2 | 3
 export type ShopStatus = 'green' | 'yellow' | 'red'

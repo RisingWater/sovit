@@ -26,6 +26,7 @@ const list: ClassDef[] = [
       { good: 'meat', perCapita: 0.2, fallbacks: ['fish', 'smoked_fish', 'dried_meat'] },
       { good: 'coarse_clothes', perCapita: 0.05, fallbacks: ['common_clothes'] },
       { good: 'pottery', perCapita: 0.03 },
+      { good: 'entertainment', perCapita: 0.1 },
     ],
   },
   {
@@ -36,6 +37,7 @@ const list: ClassDef[] = [
       { good: 'pastry', perCapita: 0.3, fallbacks: ['white_bread'] },
       { good: 'porcelain', perCapita: 0.05 },
       { good: 'domestic_service', perCapita: 0.3 },
+      { good: 'entertainment', perCapita: 0.3 },
       { good: 'common_clothes', perCapita: 0.1, fallbacks: ['coarse_clothes'] },
       { good: 'luxury_clothes', perCapita: 0.05, fallbacks: ['common_clothes'] },
       { good: 'leather_clothes', perCapita: 0.05, fallbacks: ['common_clothes'] },
@@ -49,6 +51,7 @@ const list: ClassDef[] = [
       { good: 'pastry', perCapita: 0.3 },
       { good: 'porcelain', perCapita: 0.1 },
       { good: 'domestic_service', perCapita: 0.5 },
+      { good: 'entertainment', perCapita: 0.6 },
       { good: 'luxury_clothes', perCapita: 0.1 },
     ],
   },
