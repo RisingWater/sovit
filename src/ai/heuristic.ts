@@ -83,16 +83,6 @@ function commonActions(
   // 租金：常态维持默认值（提价只会压缩居民购买力，反噬财政）。
   actions.push({ type: 'set_rent', value: ECONOMY.defaultRent })
 
-  // 移民放行：按粮食缓冲节流，避免人口增长冲过粮食产能（防止饥饿尖峰）。
-  const popNow = state.residents.length
-  const foodPerCap =
-    ((state.goods['coarse_bread'] ?? 0) + (state.goods['vegetable'] ?? 0)) / Math.max(1, popNow)
-  const arrivals = state.arrivals ?? 0
-  let allow = arrivals
-  if (foodPerCap < 0.5) allow = Math.min(arrivals, Math.floor(popNow * 0.01))
-  else if (foodPerCap < 2) allow = Math.min(arrivals, Math.floor(popNow * 0.03))
-  actions.push({ type: 'set_immigration', value: allow })
-
   // 累进税：财政为负时提高最高档税率；盈余充足时回落。
   const bs = state.government.taxBrackets
   const topIdx = bs.length - 1
@@ -257,7 +247,7 @@ function decideGrowth(state: GameState, ctx: ContentContext): Action[] {
     picked.add(key)
   }
 
-  // 1. 材料瓶颈：木材偏低时补伐木场
+  // 1. 木材（通用建材）：木材偏低时补伐木场
   if ((state.goods['wood'] ?? 0) < pop * 2) pushExpand('lumberjack')
 
   // 2. 必需食品：蔬菜 / 粗面包，按最缺的扩产
@@ -343,7 +333,7 @@ function decideGrowth(state: GameState, ctx: ContentContext): Action[] {
 
   // 6. 岗位：仅当"岗位比住房更缺"时建产线（优先建材/资源，顺带产砖与建造力）
   if (jobRoom <= housingRoom) {
-    const jobOrder = ['lumberjack', 'quarry', 'clay_pit', 'firewood_works', 'brick_kiln', 'construction_works', 'coarse_mill', 'coarse_bakery'].filter((id) =>
+    const jobOrder = ['lumberjack', 'quarry', 'clay_pit', 'firewood_works', 'brick_kiln', 'construction_works'].filter((id) =>
       ctx.buildingSet.has(id),
     )
     jobOrder.sort((a, b) => (counts[a] ?? 0) - (counts[b] ?? 0))
@@ -351,6 +341,31 @@ function decideGrowth(state: GameState, ctx: ContentContext): Action[] {
       if (picks.length >= MAX_PICKS) break
       pushBuild(id, (counts[id] ?? 0) + 1)
     }
+    // 粮食链：补最弱环节，保持 小麦 : 磨坊 : 面包房 均衡（避免只堆磨坊/面包房）
+    const breadLinks = ['wheat_farm', 'coarse_mill', 'coarse_bakery'].filter((id) =>
+      ctx.buildingSet.has(id),
+    )
+    if (breadLinks.length > 0) {
+      let weakest = breadLinks[0]
+      for (const id of breadLinks) if (weakest && levelSum(id) < levelSum(weakest)) weakest = id
+      if (weakest) pushBuild(weakest, (counts[weakest] ?? 0) + 1)
+    }
+    if (ctx.buildingSet.has('vegetable_farm')) {
+      pushBuild('vegetable_farm', (counts['vegetable_farm'] ?? 0) + 1)
+    }
+  }
+
+  // 移民放行：以「粮食产能 vs 需求」判断（库存天然≈当日产销，不能作为紧缺信号）。
+  {
+    const arrivalsNow = state.arrivals ?? 0
+    const foodCapOk =
+      productionCapacity('coarse_bread') >= pop * 1.1 &&
+      productionCapacity('vegetable') >= pop * 0.55
+    let allow = arrivalsNow
+    if (!foodCapOk || hungry > pop * 0.03) {
+      allow = Math.floor(pop * 0.03)
+    }
+    actions.push({ type: 'set_immigration', value: allow })
   }
 
   for (const a of picks) actions.push(a)
