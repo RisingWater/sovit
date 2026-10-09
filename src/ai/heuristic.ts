@@ -333,7 +333,7 @@ function decideGrowth(state: GameState, ctx: ContentContext): Action[] {
 
   // 6. 岗位：仅当"岗位比住房更缺"时建产线（优先建材/资源，顺带产砖与建造力）
   if (jobRoom <= housingRoom) {
-    const jobOrder = ['lumberjack', 'quarry', 'clay_pit', 'firewood_works', 'brick_kiln', 'construction_works', 'wheat_farm', 'vegetable_farm'].filter((id) =>
+    const jobOrder = ['lumberjack', 'quarry', 'clay_pit', 'firewood_works', 'brick_kiln', 'construction_works', 'coarse_mill', 'coarse_bakery'].filter((id) =>
       ctx.buildingSet.has(id),
     )
     jobOrder.sort((a, b) => (counts[a] ?? 0) - (counts[b] ?? 0))

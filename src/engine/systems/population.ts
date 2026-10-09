@@ -74,7 +74,9 @@ export function updatePopulation(
   const housingRoom = Math.max(0, housingCapacity(state, ctx) - pop)
   const vacancies = Math.max(0, jobCapacity(state, ctx) - pop)
   const room = Math.min(housingRoom, vacancies)
-  if (hungry === 0 && avgSat >= th && room > 0) {
+  // 容忍少量因“存款为 0 买不起”的个别人挨饿，不因此完全冻结移民。
+  const hungerTolerance = Math.max(1, Math.floor(pop * 0.02))
+  if (hungry <= hungerTolerance && avgSat >= th && room > 0) {
     const expected = Math.min(
       room,
       (pop * ECONOMY.immigrationRate * (avgSat - th)) / (100 - th),

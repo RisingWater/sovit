@@ -195,7 +195,7 @@ export function runPrivateHousingMarket(
         if (r.homeowner) continue
         if (r.classId === 'poor') continue // 只有中产及以上才会私有化
         if (ECONOMY.classHousingLevel[r.classId] !== def.quality) continue // 对应等级住房
-        if (r.savings < price) continue
+        if (r.savings < price + 5) continue // 留足口粮缓冲，避免买房后吃不上饭
         if (r.satisfaction < ECONOMY.privateHousingNeedThreshold) continue
         if (!buyer || r.savings > buyer.savings) buyer = r
       }
