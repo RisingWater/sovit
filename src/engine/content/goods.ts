@@ -40,6 +40,7 @@ const list: GoodDef[] = [
   { id: 'leather_clothes', nameZh: '皮衣', tier: 2, category: 'clothing', storable: true, baseValue: 7 },
   { id: 'smoked_fish', nameZh: '熏鱼', tier: 2, category: 'food', storable: true, baseValue: 4 },
   { id: 'dried_meat', nameZh: '肉干', tier: 2, category: 'food', storable: true, baseValue: 5 },
+  { id: 'porcelain', nameZh: '瓷器', tier: 2, category: 'household', storable: true, baseValue: 9 },
 
   // ---- tier 3: 投资品 ---------------------------------------------------
   { id: 'build_power', nameZh: '建造力', tier: 3, category: 'investment', storable: true, baseValue: 6 },

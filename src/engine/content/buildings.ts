@@ -42,6 +42,7 @@ const list: BuildingDef[] = [
   { id: 'firewood_works', nameZh: '木柴坊', tier: 2, workers: 2, recipe: 'r_firewood_works', buildCost: TIER2_COST },
   { id: 'brick_kiln', nameZh: '砖窑', tier: 2, workers: 2, recipe: 'r_brick_kiln', buildCost: TIER2_COST },
   { id: 'pottery_works', nameZh: '陶器坊', tier: 2, workers: 3, recipe: 'r_pottery_works', buildCost: TIER2_COST },
+  { id: 'porcelain_works', nameZh: '瓷窑', tier: 2, workers: 3, recipe: 'r_porcelain_works', buildCost: TIER2_COST },
   { id: 'smokehouse', nameZh: '熏鱼坊', tier: 2, workers: 3, recipe: 'r_smokehouse', buildCost: TIER2_COST },
   { id: 'dried_meat_works', nameZh: '肉干坊', tier: 2, workers: 3, recipe: 'r_dried_meat_works', buildCost: TIER2_COST },
 

@@ -209,7 +209,7 @@ function decideGrowth(state: GameState, ctx: ContentContext): Action[] {
       chain.push(
         ['sugarcane_farm', 1], ['sugar_works', 1], ['pastry_shop', 1], ['cotton_farm', 1],
         ['fine_weaver', 1], ['common_clothes_shop', 1], ['dye_farm', 1],
-        ['luxury_clothes_shop', 1], ['leather_shop', 1],
+        ['luxury_clothes_shop', 1], ['leather_shop', 1], ['porcelain_works', 1],
       )
     }
     for (const [id, n] of chain) {
