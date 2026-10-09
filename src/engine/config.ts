@@ -74,7 +74,7 @@ export const ECONOMY: EconomyConfig = {
   expandMoneyBase: 80,
   maxBuildingSlots: Infinity,
   constructionDays: 2,
-  defaultRent: 0.1,
+  defaultRent: 0.05,
   privateHousingSatBonus: 12,
   privateTenantSatBonus: 4,
   rentSatPenalty: 25,

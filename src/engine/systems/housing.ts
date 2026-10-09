@@ -2,7 +2,7 @@ import type { GameState, LogEntry } from '../types.ts'
 import type { ContentContext } from '../content/index.ts'
 import { ALL_GOODS } from '../content/index.ts'
 import { ECONOMY } from '../config.ts'
-import { round2 } from '../util.ts'
+import { clamp, round2 } from '../util.ts'
 
 // ---------------------------------------------------------------------------
 // 住房系统
@@ -76,8 +76,9 @@ export function assignTenure(state: GameState, ctx: ContentContext): void {
 
 /**
  * 征收租金：
- * - 国有住房住户 → 交给政府；
- * - 私有住房房客 → 交给房主（房东均分）。
+ * - 国有住房住户 → 全额交给政府；
+ * - 私有住房房客 → 交给房主，但**租金收入同样征所得税**（与工资同税率），
+ *   税款归政府，余额分给房主。这样堵住「租金退出政府循环」的赤字漏点。
  * 住户交租以存款为限（不足则拖欠，不产生负储蓄）。
  */
 export function collectRent(state: GameState, ctx: ContentContext, day: number): LogEntry[] {
@@ -102,18 +103,26 @@ export function collectRent(state: GameState, ctx: ContentContext, day: number):
     r.savings = round2(r.savings - pay)
     privateTotal += pay
   }
-  if (owners.length > 0 && privateTotal > 0) {
-    const share = privateTotal / owners.length
+
+  const taxRate = clamp(state.government.taxRate, 0, 0.95)
+  const rentTax = round2(privateTotal * taxRate)
+  const netToOwners = round2(privateTotal - rentTax)
+  if (owners.length > 0 && netToOwners > 0) {
+    const share = netToOwners / owners.length
     for (const o of owners) o.savings = round2(o.savings + share)
   }
 
-  state.government.money = round2(state.government.money + govTotal)
+  state.government.money = round2(state.government.money + govTotal + rentTax)
   const logs: LogEntry[] = []
   if (govTotal > 0.01) {
-    logs.push({ day, kind: 'finance', text: `征收国有住房租金 ¥${round2(govTotal)}（${stateTenants.length} 人）` })
+    logs.push({ day, kind: 'finance', text: `国有住房租金 ¥${round2(govTotal)}（${stateTenants.length} 人）` })
   }
   if (privateTotal > 0.01) {
-    logs.push({ day, kind: 'finance', text: `私有住房租金 ¥${round2(privateTotal)} 流向 ${owners.length} 位房主` })
+    logs.push({
+      day,
+      kind: 'finance',
+      text: `私有住房租金 ¥${round2(privateTotal)}：房东得 ¥${netToOwners}，租金所得税 ¥${rentTax}`,
+    })
   }
   return logs
 }
