@@ -1,4 +1,4 @@
-import { ALL_BUILDINGS, ALL_GOODS, ALL_RECIPES, isLuxuryGood } from '../engine/index.ts'
+import { ALL_BUILDINGS, ALL_GOODS, ALL_RECIPES, buildContext, isLuxuryGood } from '../engine/index.ts'
 import type { ObserveShop } from '../engine/index.ts'
 import { useGame } from './store.ts'
 import { goodIcon, iconOf } from './icons.ts'
@@ -308,6 +308,102 @@ export function PolicyPanel() {
         })}
       </div>
       <div className="hint">必需品涨了会少收且饿人；奢侈品（标「奢」）可狠涨来抽富人。</div>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// 建造面板
+// ---------------------------------------------------------------------------
+export function BuildPanel() {
+  const state = useGame((s) => s.state)
+  const run = useGame((s) => s.run)
+  const ctx = buildContext(state.pack)
+
+  const matsOf = (cost?: Partial<Record<string, number>>): Array<[string, number]> =>
+    Object.entries(cost ?? {}).filter(([g, q]) => q && ctx.goodSet.has(g)) as Array<[string, number]>
+  const canAfford = (mats: Array<[string, number]>) =>
+    mats.every(([g, q]) => (state.goods[g] ?? 0) >= q)
+
+  const Cost = ({ mats }: { mats: Array<[string, number]> }) => (
+    <span style={{ color: 'var(--muted)', fontSize: 11 }}>
+      {mats.map(([g, q]) => {
+        const ok = (state.goods[g] ?? 0) >= q
+        return (
+          <span key={g} style={{ marginLeft: 6, color: ok ? 'var(--muted)' : 'var(--red)' }}>
+            {goodIcon(g)}
+            {q}
+          </span>
+        )
+      })}
+    </span>
+  )
+
+  return (
+    <div className="panel">
+      <h3>🔨 建造</h3>
+      <div className="lab" style={{ marginBottom: 4 }}>建筑</div>
+      {ctx.pack.buildings.map((id) => {
+        const def = ALL_BUILDINGS[id]
+        if (!def) return null
+        const mats = matsOf(def.buildCost)
+        const ok = canAfford(mats)
+        return (
+          <div className="field" key={id}>
+            <span className="lab">
+              {iconOf(id)} {def.nameZh}
+              <Cost mats={mats} />
+            </span>
+            <button
+              className="btn"
+              disabled={!ok}
+              style={ok ? undefined : { opacity: 0.45, cursor: 'not-allowed' }}
+              onClick={() => run([{ type: 'build', buildingId: id }])}
+            >
+              建造
+            </button>
+          </div>
+        )
+      })}
+
+      <div className="lab" style={{ marginTop: 12, marginBottom: 4 }}>住房</div>
+      {ctx.pack.housing.map((gid) => {
+        const hdef = ctx.housing[gid]
+        if (!hdef) return null
+        const mats = matsOf(hdef.buildCost)
+        const ok = canAfford(mats)
+        return (
+          <div className="field" key={gid}>
+            <span className="lab">
+              {goodIcon(gid)} {hdef.nameZh}（容量 {hdef.capacity}）
+              <Cost mats={mats} />
+            </span>
+            <button
+              className="btn"
+              disabled={!ok}
+              style={ok ? undefined : { opacity: 0.45, cursor: 'not-allowed' }}
+              onClick={() => run([{ type: 'build_housing', goodId: gid }])}
+            >
+              建造
+            </button>
+          </div>
+        )
+      })}
+
+      <div className="lab" style={{ marginTop: 12, marginBottom: 4 }}>
+        在建（{state.construction.length}）
+      </div>
+      {state.construction.length === 0 ? (
+        <div className="hint">无</div>
+      ) : (
+        state.construction.map((c, i) => (
+          <div className="field" key={i}>
+            <span className="lab">{iconOf(c.buildingId)} {ALL_BUILDINGS[c.buildingId]?.nameZh ?? c.buildingId}</span>
+            <span className="tag">还需 {c.daysLeft} 天</span>
+          </div>
+        ))
+      )}
+      <div className="hint">建店要走施工队列；建房立即生效并提升人口上限。材料不足会显示红色。</div>
     </div>
   )
 }

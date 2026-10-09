@@ -30,18 +30,7 @@ const START_LAYOUT: Record<PackID, Array<[string, number]>> = {
     ['quarry', 1],
     ['clay_pit', 1],
   ],
-  'v0.3': [
-    ['wheat_farm', 1],
-    ['coarse_mill', 1],
-    ['coarse_bakery', 1],
-    ['vegetable_farm', 1],
-    ['lumberjack', 2],
-    ['quarry', 1],
-    ['clay_pit', 1],
-    ['firewood_works', 1],
-    ['brick_kiln', 1],
-    ['construction_works', 1],
-  ],
+  'v0.3': [], // 空开局：只有资源与几间茅屋，其余全靠建造
   'v1.0': [
     ['wheat_farm', 1],
     ['coarse_mill', 1],
@@ -64,15 +53,36 @@ const START_GOODS: Record<string, number> = {
   clay: 15,
 }
 
+/** v0.3 空开局：给大量资源，让玩家自己建。 */
+const START_GOODS_V03: Record<string, number> = {
+  coarse_bread: 200,
+  vegetable: 100,
+  wood: 300,
+  stone: 150,
+  clay: 150,
+  firewood: 80,
+  brick: 80,
+  build_power: 80,
+}
+
 /** 开局住房存量：足够容纳初始人口的茅屋。 */
 const START_HOUSING: Record<string, number> = { hut: 6 }
+const START_HOUSING_V03: Record<string, number> = { hut: 3 }
 
 /** 各 pack 的初始人口。 */
 const START_POP_BY_PACK: Record<PackID, number> = {
   'v0.1': 16,
   'v0.2': 24,
-  'v0.3': 24,
+  'v0.3': 12,
   'v1.0': 16,
+}
+
+/** 各 pack 的初始资金。 */
+const START_MONEY_BY_PACK: Record<PackID, number> = {
+  'v0.1': 1000,
+  'v0.2': 1000,
+  'v0.3': 2000,
+  'v1.0': 1000,
 }
 
 /** 开局阶层分布：v0.1 只启用穷人。 */
@@ -91,10 +101,11 @@ export function createInitialState(options: CreateOptions = {}): GameState {
   const ctx = buildContext(packId)
   const rng = createRng(seed)
 
+  const startGoods = packId === 'v0.3' ? START_GOODS_V03 : START_GOODS
   const goods: Record<string, number> = {}
   const prices: Record<string, number> = {}
   for (const gid of ctx.pack.goods) {
-    goods[gid] = START_GOODS[gid] ?? 0
+    goods[gid] = startGoods[gid] ?? 0
     if (ALL_GOODS[gid]?.category === 'housing') continue
     prices[gid] = ALL_GOODS[gid]?.baseValue ?? 1
   }
@@ -103,10 +114,11 @@ export function createInitialState(options: CreateOptions = {}): GameState {
     prices[gid] = ctx.housing[gid]?.salePrice ?? ALL_GOODS[gid]?.baseValue ?? 1
   }
 
+  const startHousing = packId === 'v0.3' ? START_HOUSING_V03 : START_HOUSING
   const housing: Record<string, number> = {}
   const privateHousing: Record<string, number> = {}
   for (const gid of ctx.pack.housing) {
-    housing[gid] = START_HOUSING[gid] ?? 0
+    housing[gid] = startHousing[gid] ?? 0
     privateHousing[gid] = 0
   }
 
@@ -145,7 +157,7 @@ export function createInitialState(options: CreateOptions = {}): GameState {
     })
   }
 
-  const money = options.money ?? 1000
+  const money = options.money ?? START_MONEY_BY_PACK[packId]
 
   return {
     pack: packId,

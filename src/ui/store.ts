@@ -12,11 +12,13 @@ interface GameStore {
   state: GameState
   obs: Observation
   selected: string | null
+  tab: 'build' | 'detail' | 'policy'
   /** 立即应用一组动作（不含 end_turn，不推进天数）。 */
   run: (actions: Action[]) => void
   /** 结算一天。 */
   nextDay: () => void
   select: (id: string | null) => void
+  setTab: (t: 'build' | 'detail' | 'policy') => void
   reset: () => void
 }
 
@@ -24,6 +26,7 @@ export const useGame = create<GameStore>((set) => ({
   state: initial,
   obs: observe(initial),
   selected: null,
+  tab: 'build',
   run: (actions) =>
     set((s) => {
       const next = advanceDay(s.state, actions).state
@@ -34,7 +37,8 @@ export const useGame = create<GameStore>((set) => ({
       const next = advanceDay(s.state, [{ type: 'end_turn' }]).state
       return { state: next, obs: observe(next) }
     }),
-  select: (id) => set({ selected: id }),
+  select: (id) => set((s) => ({ selected: id, tab: id ? 'detail' : s.tab })),
+  setTab: (t) => set({ tab: t }),
   reset: () =>
     set(() => {
       const fresh = createInitialState({ pack: 'v0.3', seed: Math.floor(Math.random() * 1e6) })

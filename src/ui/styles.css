@@ -183,10 +183,37 @@ button {
 
 /* ---------------- side panel ---------------- */
 .side {
-  display: grid;
-  grid-template-rows: auto 1fr;
+  display: flex;
+  flex-direction: column;
   gap: 10px;
   min-height: 0;
+}
+.tabs {
+  display: flex;
+  gap: 6px;
+}
+.tabs button {
+  flex: 1;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--muted);
+  border-radius: 9px;
+  padding: 8px 6px;
+  font-size: 13px;
+}
+.tabs button.on {
+  background: linear-gradient(180deg, #2b3c58, #223046);
+  color: var(--text);
+  border-color: var(--accent);
+  font-weight: 700;
+}
+.tabbody {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+.tabbody > .panel {
+  flex: 1;
 }
 .panel {
   background: linear-gradient(180deg, var(--panel), #161d29);

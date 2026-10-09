@@ -252,7 +252,10 @@ function decideGrowth(state: GameState, ctx: ContentContext): Action[] {
   // 1. 木材（通用建材）：木材偏低时补伐木场
   if ((state.goods['wood'] ?? 0) < pop * 2) pushExpand('lumberjack')
 
-  // 2. 必需食品：蔬菜 / 粗面包，按最缺的扩产
+  // 2. 必需食品：先补齐缺失的粮食链建筑，再按最缺的扩产
+  for (const id of ['wheat_farm', 'coarse_mill', 'coarse_bakery', 'vegetable_farm']) {
+    if (ctx.buildingSet.has(id)) pushBuild(id, 1)
+  }
   const breadRatio = productionCapacity('coarse_bread') / Math.max(1, pop * 1.15)
   const vegRatio = productionCapacity('vegetable') / Math.max(1, pop * 0.6)
   if (vegRatio < 1 && vegRatio <= breadRatio) pushExpand('vegetable_farm')
