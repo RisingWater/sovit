@@ -6,9 +6,32 @@ import { ALL_GOODS } from '../content/index.ts'
 // 用工分配
 //
 // 全国有：目标用工由玩家 / AI 设定，实际分配受人口约束。
-// 规则：优先满足「食品链」建筑（保证吃饭），剩余劳动力再按需求比例分给其余。
-// 这样即便扩产过快、人口暂时不足，也不会先饿死。
+// 规则：优先满足「食品产业链」建筑（从食品成品回溯到上游原料，保证吃饭），
+// 剩余劳动力再按需求比例分给其余。这样即便扩产过快，也不会先饿死。
 // ---------------------------------------------------------------------------
+
+/** 食品产业链上的所有商品（食品成品 + 其上游投入，递归）。 */
+function foodChainGoods(ctx: ContentContext): Set<string> {
+  const set = new Set<string>()
+  for (const gid of ctx.pack.goods) {
+    if (ALL_GOODS[gid]?.category === 'food') set.add(gid)
+  }
+  let changed = true
+  while (changed) {
+    changed = false
+    for (const recipe of Object.values(ctx.recipes)) {
+      const outputs = Object.keys(recipe.output)
+      if (!outputs.some((g) => set.has(g))) continue
+      for (const inp of Object.keys(recipe.inputs)) {
+        if (!set.has(inp) && ctx.goodSet.has(inp)) {
+          set.add(inp)
+          changed = true
+        }
+      }
+    }
+  }
+  return set
+}
 
 export function assignLabor(state: GameState, ctx: ContentContext): void {
   for (const r of state.residents) {
@@ -17,6 +40,7 @@ export function assignLabor(state: GameState, ctx: ContentContext): void {
   }
 
   const pop = state.residents.length
+  const foodChain = foodChainGoods(ctx)
 
   const info = state.shops.map((shop) => {
     const def = ctx.buildings[shop.defId]
@@ -28,7 +52,7 @@ export function assignLabor(state: GameState, ctx: ContentContext): void {
       const recipe = ctx.recipes[def.recipe]
       if (recipe) {
         for (const gid of Object.keys(recipe.output)) {
-          if (ALL_GOODS[gid]?.category === 'food') priority = true
+          if (foodChain.has(gid)) priority = true
         }
       }
     }

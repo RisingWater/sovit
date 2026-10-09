@@ -62,9 +62,8 @@ function commonActions(
     actions.push({ type: 'set_price', goodId: gid, value: Math.round(def.baseValue * mul * 100) / 100 })
   }
 
-  // 租金：常态维持默认；财政吃紧时适度上调。
-  const rent = money < 100 ? ECONOMY.defaultRent * 2 : ECONOMY.defaultRent
-  actions.push({ type: 'set_rent', value: Math.round(rent * 100) / 100 })
+  // 租金：常态维持默认值（提价只会压缩居民购买力，反噬财政）。
+  actions.push({ type: 'set_rent', value: ECONOMY.defaultRent })
 
   return actions
 }

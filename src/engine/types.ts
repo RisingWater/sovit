@@ -139,8 +139,10 @@ export interface Resident {
   jobShopId?: string
   /** 是否被雇佣。 */
   employed: boolean
-  /** 是否已拥有私有住房（满足不了重复购买）。 */
+  /** 是否已拥有私有住房（房主 / 房东）。 */
   homeowner?: boolean
+  /** 是否租住在私有住房（房客，向房主交租）。 */
+  privateTenant?: boolean
 }
 
 export interface Construction {
@@ -299,6 +301,9 @@ export interface Observation {
     capacity: number
     stateOwned: number
     privateOwned: number
+    owners: number
+    privateTenants: number
+    stateTenants: number
     rent: number
   }
   history: DaySnapshot[]

@@ -7,9 +7,10 @@ import { round2 } from '../util.ts'
 // ---------------------------------------------------------------------------
 // 住房系统
 //
-// - 国有住房：居住者按人头交租（政府收入，租金玩家可调）。
-// - 私有住房：高层需求。居民在满足低级需求（满意度达标）且存款足够时，
-//   按玩家设定的价格购买国有住房，转为私有；私有住房提升满意度。
+// - 国有住房：住户按人头向政府交租（租金玩家可调）。
+// - 私有住房：最高层需求。居民在满意度达标且存款足够时，按玩家设定的价格
+//   向政府购买住房，成为房主（房东）；房客向房主交租。
+// - 私有住房提升居住者满意度（房主 > 房客 > 国有住户）。
 // ---------------------------------------------------------------------------
 
 /** 总住房容量（国有 + 私有）。 */
@@ -52,22 +53,69 @@ export function splitOccupancy(state: GameState, ctx: ContentContext): Occupancy
   }
 }
 
-/** 征收国有住房租金：只向非房主按人头收取，回流政府。 */
+/**
+ * 分配住房占用（按人）：
+ * - 房主（已购房）占用私有住房名额；
+ * - 其余私有住房名额分配给非房主作为房客（优先满意度高者）；
+ * - 剩余居民为国有住房住户。
+ */
+export function assignTenure(state: GameState, ctx: ContentContext): void {
+  for (const r of state.residents) r.privateTenant = false
+  const owners = state.residents.filter((r) => r.homeowner).length
+  let tenantSlots = Math.max(0, privateCapacity(state, ctx) - owners)
+
+  const candidates = state.residents
+    .filter((r) => !r.homeowner)
+    .sort((a, b) => b.satisfaction - a.satisfaction)
+  for (const r of candidates) {
+    if (tenantSlots <= 0) break
+    r.privateTenant = true
+    tenantSlots--
+  }
+}
+
+/**
+ * 征收租金：
+ * - 国有住房住户 → 交给政府；
+ * - 私有住房房客 → 交给房主（房东均分）。
+ * 住户交租以存款为限（不足则拖欠，不产生负储蓄）。
+ */
 export function collectRent(state: GameState, ctx: ContentContext, day: number): LogEntry[] {
   const rent = state.government.rent
   if (rent <= 0 || state.residents.length === 0) return []
-  // 没有任何住房的内容包（如 v0.1）不征收房租。
   if (housingCapacity(state, ctx) <= 0) return []
 
-  const nonOwners = state.residents.filter((r) => !r.homeowner)
-  if (nonOwners.length === 0) return []
+  const owners = state.residents.filter((r) => r.homeowner)
+  const privateTenants = state.residents.filter((r) => r.privateTenant && !r.homeowner)
+  const stateTenants = state.residents.filter((r) => !r.homeowner && !r.privateTenant)
 
-  const total = round2(nonOwners.length * rent)
-  for (const r of nonOwners) {
-    r.savings = round2(Math.max(0, r.savings - rent))
+  let govTotal = 0
+  for (const r of stateTenants) {
+    const pay = Math.min(rent, r.savings)
+    r.savings = round2(r.savings - pay)
+    govTotal += pay
   }
-  state.government.money = round2(state.government.money + total)
-  return [{ day, kind: 'finance', text: `征收房租 ¥${total}（国有住房 ${nonOwners.length} 人）` }]
+
+  let privateTotal = 0
+  for (const r of privateTenants) {
+    const pay = Math.min(rent, r.savings)
+    r.savings = round2(r.savings - pay)
+    privateTotal += pay
+  }
+  if (owners.length > 0 && privateTotal > 0) {
+    const share = privateTotal / owners.length
+    for (const o of owners) o.savings = round2(o.savings + share)
+  }
+
+  state.government.money = round2(state.government.money + govTotal)
+  const logs: LogEntry[] = []
+  if (govTotal > 0.01) {
+    logs.push({ day, kind: 'finance', text: `征收国有住房租金 ¥${round2(govTotal)}（${stateTenants.length} 人）` })
+  }
+  if (privateTotal > 0.01) {
+    logs.push({ day, kind: 'finance', text: `私有住房租金 ¥${round2(privateTotal)} 流向 ${owners.length} 位房主` })
+  }
+  return logs
 }
 
 /**

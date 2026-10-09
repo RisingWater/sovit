@@ -1,20 +1,20 @@
-import type { ClassID, GameState, LogEntry } from '../types.ts'
+import type { GameState, LogEntry } from '../types.ts'
 import type { ContentContext } from '../content/index.ts'
 import { ALL_GOODS } from '../content/index.ts'
 import { ECONOMY } from '../config.ts'
-import { clamp, round2, sum } from '../util.ts'
+import { clamp, round2 } from '../util.ts'
 
 // ---------------------------------------------------------------------------
-// 消费
+// 消费（逐居民）
 //
-// 各阶层按需求购买商品；首选商品缺货时尝试 fallbacks。
-// 需求受价格弹性影响，购买力受储蓄约束。付款回流政府（全国有）。
+// 每个小人按自己阶层的需求、用**自己的存款**购买；买不起就少买（记为饥饿）。
+// 逐居民结算保证：没有跨居民补贴，货币严格守恒（居民付出 = 政府收入）。
 // ---------------------------------------------------------------------------
 
 export interface ConsumptionResult {
-  /** 各阶层食物满足率 0-1。 */
+  /** 各阶层平均食物满足率 0-1。 */
   foodScore: Record<string, number>
-  /** 各阶层价格分数 0-1。 */
+  /** 各阶层平均价格分数 0-1。 */
   priceScore: Record<string, number>
   /** 饥饿人数。 */
   hungry: number
@@ -40,72 +40,64 @@ export function runConsumption(
   let revenue = 0
 
   for (const classId of ctx.pack.classes) {
-    const members = state.residents.filter((r) => r.classId === classId)
-    if (members.length === 0) {
-      foodScore[classId] = 1
-      priceScoreMap[classId] = 1
-      continue
-    }
     const def = ctx.classes[classId]
-    if (!def) {
+    const members = state.residents.filter((r) => r.classId === classId)
+    if (!def || members.length === 0) {
       foodScore[classId] = 1
       priceScoreMap[classId] = 1
       continue
     }
 
-    const totalSavings = sum(members.map((m) => m.savings))
-    let remaining = totalSavings
-    let spent = 0
-    let needed = 0
-    let consumed = 0
-    let priceNum = 0
-    let priceDen = 0
+    let foodSum = 0
+    let priceSum = 0
 
-    for (const need of def.needs) {
-      const candidates = [need.good, ...(need.fallbacks ?? [])].filter((g) =>
-        ctx.goodSet.has(g),
-      )
-      if (candidates.length === 0) continue
+    for (const r of members) {
+      let needed = 0
+      let consumed = 0
+      let priceNum = 0
+      let priceDen = 0
 
-      const demand = need.perCapita * members.length
-      const target =
-        candidates.find((g) => (state.goods[g] ?? 0) > 0.001) ?? candidates[0]!
-      const gdef = ALL_GOODS[target]
-      const base = gdef?.baseValue ?? 1
-      const price = Math.max(0.01, state.prices[target] ?? base)
-      const factor = clamp(Math.pow(base / price, ECONOMY.priceElasticity), 0.2, 1.5)
+      for (const need of def.needs) {
+        const candidates = [need.good, ...(need.fallbacks ?? [])].filter((g) =>
+          ctx.goodSet.has(g),
+        )
+        if (candidates.length === 0) continue
 
-      const desired = demand * factor
-      const affordable = price > 0 ? remaining / price : desired
-      const want = Math.min(desired, affordable)
-      const sold = Math.min(want, state.goods[target] ?? 0)
+        const demand = need.perCapita
+        const target =
+          candidates.find((g) => (state.goods[g] ?? 0) > 0.001) ?? candidates[0]!
+        const gdef = ALL_GOODS[target]
+        const base = gdef?.baseValue ?? 1
+        const price = Math.max(0.01, state.prices[target] ?? base)
+        const factor = clamp(Math.pow(base / price, ECONOMY.priceElasticity), 0.2, 1.5)
 
-      state.goods[target] = round2((state.goods[target] ?? 0) - sold)
-      const cost = sold * price
-      remaining -= cost
-      spent += cost
-      revenue += cost
+        const desired = demand * factor
+        const affordable = price > 0 ? r.savings / price : desired
+        const want = Math.min(desired, affordable)
+        const sold = Math.min(want, state.goods[target] ?? 0)
 
-      needed += demand
-      consumed += sold
-      soldByGood[target] = (soldByGood[target] ?? 0) + sold
+        state.goods[target] = round2((state.goods[target] ?? 0) - sold)
+        const cost = sold * price
+        r.savings = round2(Math.max(0, r.savings - cost))
+        revenue += cost
 
-      const ps = priceScore(price, base)
-      priceNum += ps * demand
-      priceDen += demand
-    }
+        needed += demand
+        consumed += sold
+        soldByGood[target] = (soldByGood[target] ?? 0) + sold
 
-    if (spent > 0 && totalSavings > 0) {
-      for (const m of members) {
-        const share = (m.savings / totalSavings) * spent
-        m.savings = round2(Math.max(0, m.savings - share))
+        const ps = priceScore(price, base)
+        priceNum += ps * demand
+        priceDen += demand
       }
+
+      const f = needed > 0 ? clamp(consumed / needed, 0, 1) : 1
+      foodSum += f
+      priceSum += priceDen > 0 ? priceNum / priceDen : 1
+      if (f < 0.9) hungry += 1
     }
 
-    const food = needed > 0 ? clamp(consumed / needed, 0, 1) : 1
-    foodScore[classId] = food
-    priceScoreMap[classId] = priceDen > 0 ? priceNum / priceDen : 1
-    hungry += Math.round((1 - food) * members.length)
+    foodScore[classId] = foodSum / members.length
+    priceScoreMap[classId] = priceSum / members.length
   }
 
   state.government.money = round2(state.government.money + revenue)

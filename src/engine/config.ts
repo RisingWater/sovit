@@ -38,8 +38,10 @@ export interface EconomyConfig {
   constructionDays: number
   /** 默认人均日租金（国有住房）。 */
   defaultRent: number
-  /** 私有住房带来的满意度加成（点数）。 */
+  /** 私有住房（房主）带来的满意度加成（点数）。 */
   privateHousingSatBonus: number
+  /** 租住私有住房（房客）带来的满意度加成（点数）。 */
+  privateTenantSatBonus: number
   /** 租金负担导致的满意度惩罚上限（点数）。 */
   rentSatPenalty: number
   /** 追求私有住房所需的满意度门槛（高层需求：先满足低级需求）。 */
@@ -72,8 +74,9 @@ export const ECONOMY: EconomyConfig = {
   expandMoneyBase: 80,
   maxBuildingSlots: Infinity,
   constructionDays: 2,
-  defaultRent: 0.2,
+  defaultRent: 0.1,
   privateHousingSatBonus: 12,
+  privateTenantSatBonus: 4,
   rentSatPenalty: 25,
   privateHousingNeedThreshold: 80,
   privateHousingPerDay: 2,

@@ -45,7 +45,9 @@ export function updateSatisfaction(
 
     const housingAdj = r.homeowner
       ? ECONOMY.privateHousingSatBonus
-      : -rentPressure * ECONOMY.rentSatPenalty
+      : r.privateTenant
+        ? ECONOMY.privateTenantSatBonus - rentPressure * ECONOMY.rentSatPenalty
+        : -rentPressure * ECONOMY.rentSatPenalty
 
     const target = clamp(base + housingAdj, 0, 100)
     r.satisfaction = clamp(
