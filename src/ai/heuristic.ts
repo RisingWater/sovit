@@ -309,8 +309,8 @@ function decideGrowth(state: GameState, ctx: ContentContext): Action[] {
     }
   }
 
-  // 5. 住房：按阶层建对应等级（缺口大的优先，可一次多建）
-  if (ctx.pack.housing.length > 0) {
+  // 5. 住房：仅当"住房比岗位更缺"时才建房（人口上限 = min(住房, 岗位)）
+  if (ctx.pack.housing.length > 0 && housingRoom <= jobRoom) {
     const requiredLevel = ECONOMY.classHousingLevel
     const cands: Array<{ gid: string; deficit: number; popForType: number }> = []
     for (const gid of ctx.pack.housing) {
@@ -330,13 +330,16 @@ function decideGrowth(state: GameState, ctx: ContentContext): Action[] {
     }
   }
 
-  // 6. 岗位不足 → 建产线建筑（各建筑数量均衡）
-  if (jobRoom < 1) {
-    const order = ['wheat_farm', 'coarse_mill', 'coarse_bakery', 'vegetable_farm'].filter((id) =>
+  // 6. 岗位：仅当"岗位比住房更缺"时建产线（优先建材/资源，顺带产砖与建造力）
+  if (jobRoom <= housingRoom) {
+    const jobOrder = ['lumberjack', 'quarry', 'clay_pit', 'firewood_works', 'brick_kiln', 'construction_works', 'wheat_farm', 'vegetable_farm'].filter((id) =>
       ctx.buildingSet.has(id),
     )
-    order.sort((a, b) => (counts[a] ?? 0) - (counts[b] ?? 0))
-    if (order[0]) pushBuild(order[0], (counts[order[0]] ?? 0) + 1)
+    jobOrder.sort((a, b) => (counts[a] ?? 0) - (counts[b] ?? 0))
+    for (const id of jobOrder) {
+      if (picks.length >= MAX_PICKS) break
+      pushBuild(id, (counts[id] ?? 0) + 1)
+    }
   }
 
   for (const a of picks) actions.push(a)

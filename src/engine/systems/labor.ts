@@ -11,11 +11,17 @@ import { ECONOMY } from '../config.ts'
 // 剩余劳动力再按需求比例分给其余。这样即便扩产过快，也不会先饿死。
 // ---------------------------------------------------------------------------
 
-/** 食品产业链上的所有商品（食品成品 + 其上游投入，递归）。 */
+/** 基本口粮链：以最低阶层的食物需求为种子，向上游回溯（保证不饿死，但不含奢侈食品）。 */
 function foodChainGoods(ctx: ContentContext): Set<string> {
   const set = new Set<string>()
-  for (const gid of ctx.pack.goods) {
-    if (ALL_GOODS[gid]?.category === 'food') set.add(gid)
+  const poor = ctx.classes['poor']
+  if (poor) {
+    for (const n of poor.needs) {
+      if (ALL_GOODS[n.good]?.category === 'food') set.add(n.good)
+    }
+  }
+  if (set.size === 0) {
+    for (const gid of ctx.pack.goods) if (ALL_GOODS[gid]?.category === 'food') set.add(gid)
   }
   let changed = true
   while (changed) {
