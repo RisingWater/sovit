@@ -1,7 +1,7 @@
 import type { Action, GameState } from '../engine/types.ts'
 import { ALL_GOODS, ECONOMY, buildContext, housingCapacity, isLuxuryGood } from '../engine/index.ts'
 import type { ContentContext } from '../engine/index.ts'
-import { sum } from '../engine/util.ts'
+import { clamp, sum } from '../engine/util.ts'
 
 // ---------------------------------------------------------------------------
 // 启发式基线 AI
@@ -61,15 +61,22 @@ function commonActions(
     actions.push({ type: 'set_wage_cap', shopId: shop.id, value: cap })
   }
 
-  const mul = hungry > 0 ? 0.95 : 1
   for (const gid of ctx.pack.goods) {
     const def = ALL_GOODS[gid]
     if (!def || def.category === 'housing') continue
-    // 奢侈品高定价：把中产/富人的存款抽回政府。
-    const value = isLuxuryGood(gid)
-      ? def.baseValue * ECONOMY.luxuryPriceMarkup
-      : def.baseValue * mul
-    actions.push({ type: 'set_price', goodId: gid, value: Math.round(value * 100) / 100 })
+    const base = def.baseValue
+    const cur = state.prices[gid] ?? base
+    let level = base > 0 ? cur / base : 1
+    if (isLuxuryGood(gid)) {
+      // 奢侈品（低弹性）：财政为负 → 提价抽取富人；盈余 → 回落。
+      if (money < 0) level *= 1.05
+      else if (money > 300) level *= 0.98
+      level = clamp(level, ECONOMY.luxuryPriceMarkup, 15)
+    } else {
+      // 必需品（高弹性）：维持基准价；闹饥荒时略降，绝不提价（提价只会少收 + 饿死人）。
+      level = hungry > 0 ? 0.95 : 1
+    }
+    actions.push({ type: 'set_price', goodId: gid, value: Math.round(base * level * 100) / 100 })
   }
 
   // 租金：常态维持默认值（提价只会压缩居民购买力，反噬财政）。
