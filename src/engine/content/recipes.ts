@@ -42,7 +42,7 @@ const list: RecipeDef[] = [
 
   // ---- tier 3: 三级投资 -------------------------------------------------
   { id: 'r_construction_works', building: 'construction_works', inputs: { wood: 6, stone: 4, brick: 2 }, output: { build_power: 4 }, baseRate: 1 },
-  { id: 'r_housing_works', building: 'housing_works', inputs: { wood: 8, brick: 4 }, output: { hut: 1 }, baseRate: 1 },
+  { id: 'r_housing_works', building: 'housing_works', inputs: { wood: 6, brick: 3 }, output: { hut: 1 }, baseRate: 1 },
 ]
 
 export const ALL_RECIPES: Record<RecipeID, RecipeDef> = Object.fromEntries(

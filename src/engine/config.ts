@@ -29,9 +29,11 @@ export interface EconomyConfig {
   hungerDeathRate: number
   /** 最低人口保护。 */
   minPopulation: number
-  /** 新建 / 扩产的金钱成本。 */
+  /** 新建 / 扩产的金钱成本（当建筑无可用的实物 buildCost 时的兜底）。 */
   buildMoneyByTier: Record<BuildingTier, number>
   expandMoneyBase: number
+  /** 土地上限：建筑总数（含在建）不得超过该值。 */
+  maxBuildingSlots: number
   /** 施工天数。 */
   constructionDays: number
   /** 熟练度每日增长与上限。 */
@@ -58,6 +60,7 @@ export const ECONOMY: EconomyConfig = {
   minPopulation: 4,
   buildMoneyByTier: { 1: 100, 2: 250, 3: 500 },
   expandMoneyBase: 80,
+  maxBuildingSlots: 40,
   constructionDays: 2,
   skillGainPerDay: 0.5,
   skillMax: 100,

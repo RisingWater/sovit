@@ -22,6 +22,17 @@ const V01_GOODS: GoodID[] = ['wheat', 'coarse_flour', 'coarse_bread', 'vegetable
 const V01_BUILDINGS: BuildingID[] = ['wheat_farm', 'coarse_mill', 'coarse_bakery', 'vegetable_farm']
 const V01_CLASSES: ClassID[] = ['poor']
 
+// v0.2：在 v0.1 之上加入「木材 / 粘土 → 燃料 / 砖 → 住房」建材链，解锁人口增长。
+const V02_GOODS: GoodID[] = [
+  'wheat', 'coarse_flour', 'coarse_bread', 'vegetable',
+  'wood', 'stone', 'clay', 'firewood', 'brick', 'hut',
+]
+const V02_BUILDINGS: BuildingID[] = [
+  'wheat_farm', 'coarse_mill', 'coarse_bakery', 'vegetable_farm',
+  'lumberjack', 'quarry', 'clay_pit', 'firewood_works', 'brick_kiln',
+]
+const V02_CLASSES: ClassID[] = ['poor']
+
 export const PACKS: Record<PackID, ContentPack> = {
   'v0.1': {
     id: 'v0.1',
@@ -30,6 +41,14 @@ export const PACKS: Record<PackID, ContentPack> = {
     buildings: V01_BUILDINGS,
     classes: V01_CLASSES,
     housing: [],
+  },
+  'v0.2': {
+    id: 'v0.2',
+    nameZh: 'v0.2 住房与建材',
+    goods: V02_GOODS,
+    buildings: V02_BUILDINGS,
+    classes: V02_CLASSES,
+    housing: ['hut'],
   },
   'v1.0': {
     id: 'v1.0',

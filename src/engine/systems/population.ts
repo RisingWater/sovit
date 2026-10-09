@@ -21,6 +21,16 @@ function jobCapacity(state: GameState, ctx: ContentContext): number {
   return total
 }
 
+/** 住房容量：已建成住房可容纳的人口上限。 */
+export function housingCapacity(state: GameState, ctx: ContentContext): number {
+  let cap = 0
+  for (const [gid, count] of Object.entries(state.housing)) {
+    const def = ctx.housing[gid]
+    if (def) cap += def.capacity * Math.floor(count)
+  }
+  return cap
+}
+
 function nextResidentIndex(state: GameState): number {
   let max = state.residents.length
   for (const r of state.residents) {
@@ -72,11 +82,13 @@ export function updatePopulation(
   const avgSat = sum(state.residents.map((r) => r.satisfaction)) / pop
   const th = ECONOMY.immigrationSatThreshold
 
-  // ---- 迁入（受岗位空缺限制） -------------------------------------------
+  // ---- 迁入（同时受住房容量与岗位空缺限制） -----------------------------
+  const housingRoom = Math.max(0, housingCapacity(state, ctx) - pop)
   const vacancies = Math.max(0, jobCapacity(state, ctx) - pop)
-  if (hungry === 0 && avgSat >= th && vacancies > 0) {
+  const room = Math.min(housingRoom, vacancies)
+  if (hungry === 0 && avgSat >= th && room > 0) {
     const expected = Math.min(
-      vacancies,
+      room,
       (pop * ECONOMY.immigrationRate * (avgSat - th)) / (100 - th),
     )
     const whole = Math.floor(expected)

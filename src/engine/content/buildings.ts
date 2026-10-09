@@ -6,9 +6,11 @@ import type { BuildingDef, BuildingID } from '../types.ts'
 // workers 严格按产业链文档；buildCost 为建店 / 扩产的材料消耗（含建造力）。
 // ---------------------------------------------------------------------------
 
-const TIER1_COST = { build_power: 4 }
-const TIER2_COST = { build_power: 8, wood: 4 }
-const TIER3_COST = { build_power: 16, wood: 8, stone: 4, brick: 4 }
+// 建造成本以「可再生产的实物原料」为主，避免在建店时出现鸡生蛋死锁：
+// 一级只花木材；二级需要木材 + 石块；三级再加粘土。
+const TIER1_COST = { wood: 4 }
+const TIER2_COST = { wood: 6, stone: 3 }
+const TIER3_COST = { wood: 8, stone: 6, clay: 4 }
 
 const list: BuildingDef[] = [
   // ---- tier 1: 一级产业 -------------------------------------------------

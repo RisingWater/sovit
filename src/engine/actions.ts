@@ -1,7 +1,7 @@
 import type { Action, AppliedAction, GameState } from './types.ts'
 import type { ContentContext } from './content/index.ts'
 import { clamp, round2 } from './util.ts'
-import { tryBuild, tryExpand } from './systems/investment.ts'
+import { tryBuild, tryBuildHousing, tryExpand } from './systems/investment.ts'
 
 // ---------------------------------------------------------------------------
 // 动作应用
@@ -74,6 +74,12 @@ export function applyActions(
 
       case 'build': {
         const res = tryBuild(state, ctx, action.buildingId)
+        applied.push({ type: action.type, ok: res.ok, reason: res.reason })
+        break
+      }
+
+      case 'build_housing': {
+        const res = tryBuildHousing(state, ctx, action.goodId)
         applied.push({ type: action.type, ok: res.ok, reason: res.reason })
         break
       }

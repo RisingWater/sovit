@@ -1,6 +1,7 @@
 import type { GameState, Observation, ObserveShop, Shop, ShopStatus } from './types.ts'
 import { ALL_BUILDINGS } from './content/index.ts'
 import { buildContext } from './content/index.ts'
+import { housingCapacity } from './systems/population.ts'
 import { sum } from './util.ts'
 
 // ---------------------------------------------------------------------------
@@ -63,6 +64,7 @@ export function observe(state: GameState): Observation {
       avgSatisfaction: Math.round(avgSat * 10) / 10,
       employed,
       unemployed: total - employed,
+      housingCapacity: housingCapacity(state, ctx),
     },
     shops,
     market: { prices, inventory },

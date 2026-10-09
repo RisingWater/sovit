@@ -1,4 +1,4 @@
-import { advanceDay, createInitialState } from '../src/engine/index.ts'
+import { PACKS, advanceDay, createInitialState } from '../src/engine/index.ts'
 import type { GameState, PackID } from '../src/engine/index.ts'
 import { decide } from '../src/ai/heuristic.ts'
 
@@ -54,11 +54,13 @@ function run(pack: PackID, seed: number, days: number): RunResult {
 function main(): void {
   const days = Number(process.argv[2] ?? '100')
   const seed = Number(process.argv[3] ?? '12345')
-  const pack = (process.argv[4] as PackID | undefined) ?? 'v0.1'
+  const pack = (process.argv[4] as PackID | undefined) ?? 'v0.2'
 
-  console.log(`\n=== Sovit 引擎 100 天验收  pack=${pack} seed=${seed} days=${days} ===\n`)
+  console.log(`\n=== Sovit 引擎验收  pack=${pack} seed=${seed} days=${days} ===\n`)
   const result = run(pack, seed, days)
   const finalSnap = result.final.history[result.final.history.length - 1]!
+
+  const hasHousing = PACKS[pack].housing.length > 0
 
   // ---- 断言 -------------------------------------------------------------
   const checks: Array<{ name: string; ok: boolean; detail: string }> = [
@@ -83,6 +85,14 @@ function main(): void {
       detail: '',
     },
   ]
+
+  if (hasHousing) {
+    checks.push({
+      name: '人口增长（住房 + 建材链，≥ 开局 1.3 倍）',
+      ok: finalSnap.population >= result.startPop * 1.3,
+      detail: `${result.startPop} → ${finalSnap.population}`,
+    })
+  }
 
   // 复现性：再跑一次，比较终局快照
   const rerun = run(pack, seed, days)

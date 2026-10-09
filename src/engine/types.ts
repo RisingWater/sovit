@@ -4,7 +4,7 @@
 // 纯数据 + 纯类型。引擎不依赖任何 UI / 框架 / Node API。
 // ---------------------------------------------------------------------------
 
-export type PackID = 'v0.1' | 'v1.0'
+export type PackID = 'v0.1' | 'v0.2' | 'v1.0'
 
 // 商品、建筑、配方都用字符串 id，便于内容表扩展。
 export type GoodID = string
@@ -92,6 +92,8 @@ export interface HousingDef {
   /** 每单位住房容纳人口。 */
   capacity: number
   classId: ClassID
+  /** 建造该住房所需的实物材料（占用一个土地名额）。 */
+  buildCost?: Partial<Record<GoodID, number>>
 }
 
 export interface ContentPack {
@@ -198,6 +200,8 @@ export interface GameState {
   government: Government
   /** 中央仓库库存。 */
   goods: Record<GoodID, number>
+  /** 已建成住房存量（按住房商品计），决定人口上限。 */
+  housing: Record<GoodID, number>
   /** 售价（居民购买价）。 */
   prices: Record<GoodID, number>
 
@@ -221,6 +225,7 @@ export type Action =
   | { type: 'expand'; shopId: string }
   | { type: 'toggle'; shopId: string; active: boolean }
   | { type: 'build'; buildingId: BuildingID }
+  | { type: 'build_housing'; goodId: GoodID }
   | { type: 'sell_shop'; shopId: string }
   | { type: 'retake_shop'; shopId: string }
   | { type: 'set_tax'; value: number }
@@ -273,6 +278,7 @@ export interface Observation {
     avgSatisfaction: number
     employed: number
     unemployed: number
+    housingCapacity: number
   }
   shops: ObserveShop[]
   market: {

@@ -1,11 +1,13 @@
 import type { GameState } from '../types.ts'
 import type { ContentContext } from '../content/index.ts'
+import { ALL_GOODS } from '../content/index.ts'
 
 // ---------------------------------------------------------------------------
 // 用工分配
 //
-// 全国有：岗位全部由国家提供。按 shop 顺序，把未就业居民依次填满岗位。
-// 未就业居民仍可动用储蓄消费，但失去工资收入（影响满意度）。
+// 全国有：目标用工由玩家 / AI 设定，实际分配受人口约束。
+// 规则：优先满足「食品链」建筑（保证吃饭），剩余劳动力再按需求比例分给其余。
+// 这样即便扩产过快、人口暂时不足，也不会先饿死。
 // ---------------------------------------------------------------------------
 
 export function assignLabor(state: GameState, ctx: ContentContext): void {
@@ -14,26 +16,76 @@ export function assignLabor(state: GameState, ctx: ContentContext): void {
     r.jobShopId = undefined
   }
 
-  let cursor = 0
-  for (const shop of state.shops) {
-    if (!shop.active) {
-      shop.skill = 0
-      continue
-    }
+  const pop = state.residents.length
+
+  const info = state.shops.map((shop) => {
     const def = ctx.buildings[shop.defId]
-    if (!def) continue
-    const want = Math.max(0, Math.min(shop.targetWorkers, def.workers))
-    const assigned: number[] = []
-    while (assigned.length < want && cursor < state.residents.length) {
+    const want = shop.active && def
+      ? Math.max(0, Math.min(shop.targetWorkers, def.workers))
+      : 0
+    let priority = false
+    if (def) {
+      const recipe = ctx.recipes[def.recipe]
+      if (recipe) {
+        for (const gid of Object.keys(recipe.output)) {
+          if (ALL_GOODS[gid]?.category === 'food') priority = true
+        }
+      }
+    }
+    return { want, priority }
+  })
+
+  const assign = new Array<number>(state.shops.length).fill(0)
+  let budget = pop
+
+  // 1. 食品链优先，逐一满足目标用工
+  for (let i = 0; i < info.length; i++) {
+    if (!info[i]!.priority) continue
+    const a = Math.min(info[i]!.want, budget)
+    assign[i] = a
+    budget -= a
+  }
+
+  // 2. 其余建筑按需求比例分配剩余劳动力
+  const others = info.map((_, i) => i).filter((i) => !info[i]!.priority)
+  const totalWant = others.reduce((a, i) => a + info[i]!.want, 0)
+  if (budget > 0 && totalWant > 0) {
+    if (totalWant <= budget) {
+      for (const i of others) assign[i] = info[i]!.want
+    } else {
+      const remainders: Array<{ i: number; rem: number }> = []
+      let used = 0
+      for (const i of others) {
+        const exact = (info[i]!.want * budget) / totalWant
+        const base = Math.floor(exact)
+        assign[i] = base
+        used += base
+        remainders.push({ i, rem: exact - base })
+      }
+      remainders.sort((a, b) => b.rem - a.rem || a.i - b.i)
+      for (const { i } of remainders) {
+        if (used >= budget) break
+        if (assign[i]! < info[i]!.want) {
+          assign[i] = assign[i]! + 1
+          used++
+        }
+      }
+    }
+  }
+
+  // 应用到居民（按建筑顺序依次占用）
+  let cursor = 0
+  state.shops.forEach((shop, i) => {
+    const want = assign[i]!
+    const skills: number[] = []
+    for (let k = 0; k < want && cursor < state.residents.length; k++) {
       const r = state.residents[cursor++]!
       r.employed = true
       r.jobShopId = shop.id
-      assigned.push(r.skill)
+      skills.push(r.skill)
     }
-    shop.skill = assigned.length > 0
-      ? assigned.reduce((a, b) => a + b, 0) / assigned.length
-      : 0
-  }
+    shop.skill = skills.length > 0 ? skills.reduce((a, b) => a + b, 0) / skills.length : 0
+  })
 }
 
 /** 某店铺当前实际到岗人数。 */
