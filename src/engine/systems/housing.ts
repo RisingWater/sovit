@@ -1,4 +1,4 @@
-import type { GameState, LogEntry } from '../types.ts'
+import type { ClassID, GameState, LogEntry } from '../types.ts'
 import type { ContentContext } from '../content/index.ts'
 import { ALL_GOODS } from '../content/index.ts'
 import { ECONOMY } from '../config.ts'
@@ -54,23 +54,61 @@ export function splitOccupancy(state: GameState, ctx: ContentContext): Occupancy
 }
 
 /**
- * 分配住房占用（按人）：
- * - 房主（已购房）占用私有住房名额；
- * - 其余私有住房名额分配给非房主作为房客（优先满意度高者）；
- * - 剩余居民为国有住房住户。
+ * 分配住房占用（按人、按阶层）：
+ * - 房主占用自己名下的住房（等级 = ownedQuality）；
+ * - 其余名额先私有后国有、从高等级往下分配，优先满足高阶层；
+ * - `housingQuality` 记录每名居民实际居住等级，用于满意度（阶层需住对应等级）。
  */
 export function assignTenure(state: GameState, ctx: ContentContext): void {
-  for (const r of state.residents) r.privateTenant = false
-  const owners = state.residents.filter((r) => r.homeowner).length
-  let tenantSlots = Math.max(0, privateCapacity(state, ctx) - owners)
+  for (const r of state.residents) {
+    r.privateTenant = false
+    r.housingQuality = r.homeowner ? r.ownedQuality ?? 1 : 0
+  }
 
-  const candidates = state.residents
+  const ownerByQuality: Record<number, number> = { 1: 0, 2: 0, 3: 0 }
+  for (const r of state.residents) {
+    if (r.homeowner) {
+      const q = r.ownedQuality ?? 1
+      ownerByQuality[q] = (ownerByQuality[q] ?? 0) + 1
+    }
+  }
+
+  const privateSlots: Record<number, number> = { 1: 0, 2: 0, 3: 0 }
+  const stateSlots: Record<number, number> = { 1: 0, 2: 0, 3: 0 }
+  for (const [gid, count] of Object.entries(state.housing)) {
+    const def = ctx.housing[gid]
+    if (!def) continue
+    const n = Math.floor(count)
+    const priv = Math.min(n, Math.floor(state.privateHousing[gid] ?? 0))
+    privateSlots[def.quality] = (privateSlots[def.quality] ?? 0) + priv * def.capacity
+    stateSlots[def.quality] = (stateSlots[def.quality] ?? 0) + (n - priv) * def.capacity
+  }
+  for (let q = 1; q <= 3; q++) {
+    privateSlots[q] = Math.max(0, (privateSlots[q] ?? 0) - (ownerByQuality[q] ?? 0))
+  }
+
+  const order: ClassID[] = ['poor', 'middle', 'rich', 'boss']
+  const tenants = state.residents
     .filter((r) => !r.homeowner)
-    .sort((a, b) => b.satisfaction - a.satisfaction)
-  for (const r of candidates) {
-    if (tenantSlots <= 0) break
-    r.privateTenant = true
-    tenantSlots--
+    .sort((a, b) => order.indexOf(b.classId) - order.indexOf(a.classId))
+
+  for (const r of tenants) {
+    let assigned = false
+    for (let q = 3; q >= 1 && !assigned; q--) {
+      if ((privateSlots[q] ?? 0) > 0) {
+        privateSlots[q] = privateSlots[q]! - 1
+        r.privateTenant = true
+        r.housingQuality = q
+        assigned = true
+      }
+    }
+    for (let q = 3; q >= 1 && !assigned; q--) {
+      if ((stateSlots[q] ?? 0) > 0) {
+        stateSlots[q] = stateSlots[q]! - 1
+        r.housingQuality = q
+        assigned = true
+      }
+    }
   }
 }
 
@@ -128,8 +166,9 @@ export function collectRent(state: GameState, ctx: ContentContext, day: number):
 }
 
 /**
- * 私有住房市场：需求驱动。
- * 居民需同时满足「满意度 ≥ 门槛」与「存款 ≥ 售价」，且尚未拥有住房。
+ * 私有住房市场：需求驱动，分层。
+ * 只有 **中产及以上** 才能购买；且只能购买与本阶层要求等级对应的住房
+ * （中产→木屋，富/老板→砖房）。穷人只住国有住房。
  */
 export function runPrivateHousingMarket(
   state: GameState,
@@ -140,7 +179,9 @@ export function runPrivateHousingMarket(
   let soldTotal = 0
 
   for (const gid of ctx.pack.housing) {
-    const price = state.prices[gid] ?? ALL_GOODS[gid]?.baseValue ?? 0
+    const def = ctx.housing[gid]
+    if (!def) continue
+    const price = state.prices[gid] ?? def.salePrice ?? ALL_GOODS[gid]?.baseValue ?? 0
     if (price <= 0) continue
 
     let stateOwned = Math.floor((state.housing[gid] ?? 0) - (state.privateHousing[gid] ?? 0))
@@ -150,6 +191,8 @@ export function runPrivateHousingMarket(
       let buyer: (typeof state.residents)[number] | undefined
       for (const r of state.residents) {
         if (r.homeowner) continue
+        if (r.classId === 'poor') continue // 只有中产及以上才会私有化
+        if (ECONOMY.classHousingLevel[r.classId] !== def.quality) continue // 对应等级住房
         if (r.savings < price) continue
         if (r.satisfaction < ECONOMY.privateHousingNeedThreshold) continue
         if (!buyer || r.savings > buyer.savings) buyer = r
@@ -158,6 +201,7 @@ export function runPrivateHousingMarket(
 
       buyer.savings = round2(buyer.savings - price)
       buyer.homeowner = true
+      buyer.ownedQuality = def.quality
       state.government.money = round2(state.government.money + price)
       state.privateHousing[gid] = (state.privateHousing[gid] ?? 0) + 1
       stateOwned--

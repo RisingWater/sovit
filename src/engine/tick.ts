@@ -77,7 +77,7 @@ export function runDay(state: GameState, ctx: ContentContext): LogEntry[] {
   const consumption = runConsumption(state, ctx, day)
   logs.push(...consumption.logs)
 
-  updateSatisfaction(state, ctx, consumption.foodScore, consumption.priceScore)
+  updateSatisfaction(state, ctx, consumption.foodScore, consumption.comfortScore, consumption.priceScore)
   logs.push(...updatePopulation(state, ctx, rng, consumption.hungry, day))
   logs.push(...processConstruction(state, ctx, day))
   logs.push(...runPrivateHousingMarket(state, ctx, day))

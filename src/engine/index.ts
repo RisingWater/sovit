@@ -20,6 +20,7 @@ export {
   ALL_CLASSES,
   CLASS_IDS,
   ALL_HOUSING,
+  isLuxuryGood,
 } from './content/index.ts'
 export type { ContentContext } from './content/index.ts'
 export { createInitialState } from './state.ts'

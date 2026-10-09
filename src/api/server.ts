@@ -14,7 +14,7 @@ import type { Action, GameState, PackID } from '../engine/index.ts'
 // 单会话：服务进程内保存一份 GameState。
 // ---------------------------------------------------------------------------
 
-let state: GameState = createInitialState({ pack: 'v0.2', seed: 12345 })
+let state: GameState = createInitialState({ pack: 'v0.3', seed: 12345 })
 
 const CORS = {
   'access-control-allow-origin': '*',
@@ -60,7 +60,7 @@ async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> 
 
   if (method === 'POST' && url === '/reset') {
     const body = await readJson(req)
-    const pack = (body.pack as PackID | undefined) ?? 'v0.2'
+    const pack = (body.pack as PackID | undefined) ?? 'v0.3'
     const seed = typeof body.seed === 'number' ? body.seed : 12345
     state = createInitialState({ pack, seed })
     send(res, 200, { observation: observe(state) })

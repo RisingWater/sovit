@@ -1,5 +1,5 @@
 import type { Action, GameState } from '../engine/types.ts'
-import { ALL_GOODS, ECONOMY, buildContext, housingCapacity } from '../engine/index.ts'
+import { ALL_GOODS, ECONOMY, buildContext, housingCapacity, isLuxuryGood } from '../engine/index.ts'
 import type { ContentContext } from '../engine/index.ts'
 import { sum } from '../engine/util.ts'
 
@@ -59,7 +59,11 @@ function commonActions(
   for (const gid of ctx.pack.goods) {
     const def = ALL_GOODS[gid]
     if (!def || def.category === 'housing') continue
-    actions.push({ type: 'set_price', goodId: gid, value: Math.round(def.baseValue * mul * 100) / 100 })
+    // 奢侈品高定价：把中产/富人的存款抽回政府。
+    const value = isLuxuryGood(gid)
+      ? def.baseValue * ECONOMY.luxuryPriceMarkup
+      : def.baseValue * mul
+    actions.push({ type: 'set_price', goodId: gid, value: Math.round(value * 100) / 100 })
   }
 
   // 租金：常态维持默认值（提价只会压缩居民购买力，反噬财政）。
@@ -81,6 +85,8 @@ function decideGrowth(state: GameState, ctx: ContentContext): Action[] {
   const shopOf = (defId: string) => state.shops.find((s) => s.defId === defId)
   const counts: Record<string, number> = {}
   for (const s of state.shops) counts[s.defId] = (counts[s.defId] ?? 0) + 1
+  // 在建的也算进去，避免重复建店
+  for (const c of state.construction) counts[c.buildingId] = (counts[c.buildingId] ?? 0) + 1
 
   const expand = (defId: string): Action | undefined => {
     const s = shopOf(defId)
@@ -120,11 +126,25 @@ function decideGrowth(state: GameState, ctx: ContentContext): Action[] {
         return expand(weakest)
       }
     }
+    // 高级食品（白面包 / 糕点）链：中产富人需要，产能不足时补上游（小麦共享）
+    if (productionCapacity('white_bread') + productionCapacity('pastry') < pop * 0.5) {
+      const links = ['wheat_farm', 'fine_mill', 'white_bakery', 'pastry_shop'].filter((id) =>
+        ctx.buildingSet.has(id),
+      )
+      let weakest = links[0]
+      if (weakest) {
+        for (const id of links) if (levelSum(id) < levelSum(weakest)) weakest = id
+        return expand(weakest)
+      }
+    }
     if (productionCapacity('vegetable') < pop * 0.6) return expand('vegetable_farm')
     return undefined
   }
 
   let chosen: Action | undefined
+
+  const classCount: Record<string, number> = {}
+  for (const r of state.residents) classCount[r.classId] = (classCount[r.classId] ?? 0) + 1
 
   // 1. 缺粮 → 优先补食品产能
   if (hungry > 0) chosen = foodExpansion()
@@ -149,9 +169,61 @@ function decideGrowth(state: GameState, ctx: ContentContext): Action[] {
   // 3. 食品储备见底 → 扩产
   if (!chosen) chosen = foodExpansion()
 
-  // 4. 住房触顶 → 建住房（人口最终瓶颈）
-  if (!chosen && housingRoom < 1 && ctx.pack.housing.length > 0) {
-    chosen = { type: 'build_housing', goodId: ctx.pack.housing[0]! }
+  // 3.5 保证中产 / 富人消费链（让奢侈品有产量，才能从富人身上抽税）
+  if (!chosen) {
+    const has = (c: string) => (classCount[c] ?? 0) > 0
+    const chain: Array<[string, number]> = []
+    if (has('middle')) {
+      chain.push(
+        ['fine_mill', 1], ['white_bakery', 1], ['flax_farm', 1], ['coarse_weaver', 1],
+        ['coarse_clothes_shop', 1], ['hunting_camp', 1], ['pottery_works', 1],
+      )
+    }
+    if (has('rich') || has('boss')) {
+      chain.push(
+        ['sugarcane_farm', 1], ['sugar_works', 1], ['pastry_shop', 1], ['cotton_farm', 1],
+        ['fine_weaver', 1], ['common_clothes_shop', 1], ['dye_farm', 1],
+        ['luxury_clothes_shop', 1], ['leather_shop', 1],
+      )
+    }
+    for (const [id, n] of chain) {
+      if ((counts[id] ?? 0) < n && ctx.buildingSet.has(id)) {
+        chosen = { type: 'build', buildingId: id }
+        break
+      }
+    }
+  }
+
+  // 4. 住房不足 → 按阶层建对应等级住房（茅屋/木屋/砖房）
+  if (!chosen && ctx.pack.housing.length > 0) {
+    const requiredLevel = ECONOMY.classHousingLevel
+    let pick: string | undefined
+    let worst = 0
+    let largest = 0
+    let largestGid: string | undefined
+    for (const gid of ctx.pack.housing) {
+      const def = ctx.housing[gid]
+      if (!def) continue
+      let popForType = 0
+      for (const r of state.residents) {
+        if ((requiredLevel[r.classId] ?? 1) === def.quality) popForType++
+      }
+      const need = Math.ceil(popForType / def.capacity)
+      const built = Math.floor(state.housing[gid] ?? 0)
+      const deficit = need - built
+      if (deficit > worst) {
+        worst = deficit
+        pick = gid
+      }
+      if (popForType > largest) {
+        largest = popForType
+        largestGid = gid
+      }
+    }
+    if (pick) chosen = { type: 'build_housing', goodId: pick }
+    else if (housingRoom < 4 && largestGid) {
+      chosen = { type: 'build_housing', goodId: largestGid }
+    }
   }
 
   // 5. 岗位触顶 → 建产线建筑（各建筑数量均衡）

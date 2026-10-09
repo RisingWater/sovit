@@ -31,7 +31,7 @@ const list: GoodDef[] = [
   { id: 'pottery', nameZh: '陶器', tier: 1, category: 'household', storable: true, baseValue: 3.5 },
 
   // ---- tier 2: 消费品 ---------------------------------------------------
-  { id: 'coarse_bread', nameZh: '粗面包', tier: 2, category: 'food', storable: true, baseValue: 1.7 },
+  { id: 'coarse_bread', nameZh: '粗面包', tier: 2, category: 'food', storable: true, baseValue: 1.3 },
   { id: 'white_bread', nameZh: '白面包', tier: 2, category: 'food', storable: true, baseValue: 3 },
   { id: 'pastry', nameZh: '糕点', tier: 2, category: 'food', storable: true, baseValue: 5 },
   { id: 'coarse_clothes', nameZh: '粗布衣', tier: 2, category: 'clothing', storable: true, baseValue: 4 },

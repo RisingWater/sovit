@@ -4,7 +4,7 @@
 // 纯数据 + 纯类型。引擎不依赖任何 UI / 框架 / Node API。
 // ---------------------------------------------------------------------------
 
-export type PackID = 'v0.1' | 'v0.2' | 'v1.0'
+export type PackID = 'v0.1' | 'v0.2' | 'v0.3' | 'v1.0'
 
 // 商品、建筑、配方都用字符串 id，便于内容表扩展。
 export type GoodID = string
@@ -143,6 +143,10 @@ export interface Resident {
   homeowner?: boolean
   /** 是否租住在私有住房（房客，向房主交租）。 */
   privateTenant?: boolean
+  /** 当前居住的住房等级（1 茅屋 / 2 木屋 / 3 砖房）。 */
+  housingQuality?: number
+  /** 作为房主所拥有住房的等级。 */
+  ownedQuality?: number
 }
 
 export interface Construction {

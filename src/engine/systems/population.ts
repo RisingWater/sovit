@@ -45,17 +45,14 @@ function makeResident(state: GameState, rng: Rng, classId: ClassID): Resident {
   }
 }
 
-/** 阶层晋升：存款与满意度达标的居民向上流动。 */
-function updateMobility(state: GameState): void {
+/** 按财富（存款）分层：穷人 / 中产 / 富人 / 老板；不超过本 pack 允许的最高阶层。 */
+function updateClasses(state: GameState, ctx: ContentContext): void {
+  const { middle, rich, boss } = ECONOMY.classWealth
   const order: ClassID[] = ['poor', 'middle', 'rich', 'boss']
+  const maxIdx = Math.max(0, ...ctx.pack.classes.map((c) => order.indexOf(c)))
   for (const r of state.residents) {
-    if (r.savings < ECONOMY.promotionSavings) continue
-    if (r.satisfaction < ECONOMY.promotionSatThreshold) continue
-    const idx = order.indexOf(r.classId)
-    if (idx >= 0 && idx < order.length - 1) {
-      r.classId = order[idx + 1]!
-      r.savings = round2(r.savings * 0.5)
-    }
+    const wealth = r.savings >= boss ? 3 : r.savings >= rich ? 2 : r.savings >= middle ? 1 : 0
+    r.classId = order[Math.min(wealth, maxIdx)]!
   }
 }
 
@@ -115,6 +112,6 @@ export function updatePopulation(
     }
   }
 
-  updateMobility(state)
+  updateClasses(state, ctx)
   return logs
 }

@@ -54,7 +54,7 @@ function run(pack: PackID, seed: number, days: number): RunResult {
 function main(): void {
   const days = Number(process.argv[2] ?? '100')
   const seed = Number(process.argv[3] ?? '12345')
-  const pack = (process.argv[4] as PackID | undefined) ?? 'v0.2'
+  const pack = (process.argv[4] as PackID | undefined) ?? 'v0.3'
 
   console.log(`\n=== Sovit 引擎验收  pack=${pack} seed=${seed} days=${days} ===\n`)
   const result = run(pack, seed, days)

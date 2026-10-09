@@ -16,11 +16,13 @@ export function updateSatisfaction(
   state: GameState,
   ctx: ContentContext,
   foodScore: Record<string, number>,
+  comfortScore: Record<string, number>,
   priceScoreMap: Record<string, number>,
 ): void {
   void ctx
   const { weights, refWage, satisfactionSmoothing } = ECONOMY
-  const weightSum = weights.food + weights.wage + weights.price + weights.employment
+  const weightSum =
+    weights.food + weights.wage + weights.price + weights.employment + weights.comfort
   const wageByShop = new Map<string, number>()
   for (const s of state.shops) wageByShop.set(s.id, s.wage)
   const welfare = ECONOMY.refWage * ECONOMY.welfareRate
@@ -29,6 +31,7 @@ export function updateSatisfaction(
 
   for (const r of state.residents) {
     const food = foodScore[r.classId] ?? 1
+    const comfort = comfortScore[r.classId] ?? 1
     const price = priceScoreMap[r.classId] ?? 1
     const employed = r.employed && r.jobShopId !== undefined
     const wage = employed ? wageByShop.get(r.jobShopId!) ?? 0 : welfare
@@ -40,16 +43,24 @@ export function updateSatisfaction(
         (weights.food * food +
           weights.wage * wageScore +
           weights.price * price +
-          weights.employment * employmentScore)) /
+          weights.employment * employmentScore +
+          weights.comfort * comfort)) /
       weightSum
 
-    const housingAdj = r.homeowner
-      ? ECONOMY.privateHousingSatBonus
-      : r.privateTenant
-        ? ECONOMY.privateTenantSatBonus - rentPressure * ECONOMY.rentSatPenalty
-        : -rentPressure * ECONOMY.rentSatPenalty
+    const required = ECONOMY.classHousingLevel[r.classId] ?? 1
+    const quality = r.housingQuality ?? 1
+    const qualityPenalty =
+      quality < required ? -(required - quality) * ECONOMY.housingQualityPenalty : 0
 
-    const target = clamp(base + housingAdj, 0, 100)
+    const housingAdj =
+      (r.homeowner
+        ? ECONOMY.privateHousingSatBonus
+        : r.privateTenant
+          ? ECONOMY.privateTenantSatBonus - rentPressure * ECONOMY.rentSatPenalty
+          : -rentPressure * ECONOMY.rentSatPenalty) + qualityPenalty
+
+    const classBonus = ECONOMY.classSatBonus[r.classId] ?? 0
+    const target = clamp(base + housingAdj + classBonus, 0, 100)
     r.satisfaction = clamp(
       r.satisfaction + (target - r.satisfaction) * satisfactionSmoothing,
       0,

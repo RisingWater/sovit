@@ -1,19 +1,24 @@
 import type { GameState, LogEntry } from '../types.ts'
 import type { ContentContext } from '../content/index.ts'
-import { ALL_GOODS } from '../content/index.ts'
+import { ALL_GOODS, CLASS_IDS, isLuxuryGood } from '../content/index.ts'
 import { ECONOMY } from '../config.ts'
 import { clamp, round2 } from '../util.ts'
 
 // ---------------------------------------------------------------------------
 // 消费（逐居民）
 //
-// 每个小人按自己阶层的需求、用**自己的存款**购买；买不起就少买（记为饥饿）。
-// 逐居民结算保证：没有跨居民补贴，货币严格守恒（居民付出 = 政府收入）。
+// 每个小人按自己阶层的需求、用**自己的存款**购买。
+// 需求分两类：
+//  - 食物类需求 → 决定「食物满足率」，买不起就挨饿（食物满足率 < 1）；
+//  - 非食物需求（衣物 / 陶器…）→ 决定「舒适度」，缺货只降满意度，不饿死。
+// 逐居民结算保证货币守恒（居民付出 = 政府收入）。
 // ---------------------------------------------------------------------------
 
 export interface ConsumptionResult {
   /** 各阶层平均食物满足率 0-1。 */
   foodScore: Record<string, number>
+  /** 各阶层平均舒适度 0-1。 */
+  comfortScore: Record<string, number>
   /** 各阶层平均价格分数 0-1。 */
   priceScore: Record<string, number>
   /** 饥饿人数。 */
@@ -28,39 +33,52 @@ function priceScore(price: number, base: number): number {
   return clamp(ECONOMY.priceIntercept - ECONOMY.priceSlope * ratio, 0, 1)
 }
 
+const BASIC_FOODS = ['coarse_bread', 'vegetable']
+
 export function runConsumption(
   state: GameState,
   ctx: ContentContext,
   day: number,
 ): ConsumptionResult {
   const foodScore: Record<string, number> = {}
+  const comfortScore: Record<string, number> = {}
   const priceScoreMap: Record<string, number> = {}
   const soldByGood: Record<string, number> = {}
   let hungry = 0
   let revenue = 0
 
-  for (const classId of ctx.pack.classes) {
+  // 遍历所有阶层：财富分层会产生新阶层，必须一并结算。
+  for (const classId of CLASS_IDS) {
     const def = ctx.classes[classId]
     const members = state.residents.filter((r) => r.classId === classId)
     if (!def || members.length === 0) {
       foodScore[classId] = 1
+      comfortScore[classId] = 1
       priceScoreMap[classId] = 1
       continue
     }
 
     let foodSum = 0
+    let comfortSum = 0
     let priceSum = 0
 
     for (const r of members) {
-      let needed = 0
-      let consumed = 0
+      let foodNeeded = 0
+      let foodConsumed = 0
+      let comfortNeeded = 0
+      let comfortConsumed = 0
       let priceNum = 0
       let priceDen = 0
 
       for (const need of def.needs) {
-        const candidates = [need.good, ...(need.fallbacks ?? [])].filter((g) =>
-          ctx.goodSet.has(g),
-        )
+        const isFood = ALL_GOODS[need.good]?.category === 'food'
+        let candidates = [need.good, ...(need.fallbacks ?? [])].filter((g) => ctx.goodSet.has(g))
+        // 食物需求兜底到基础食物，避免高级食物缺货时被“饿死”。
+        if (isFood) {
+          for (const b of BASIC_FOODS) {
+            if (ctx.goodSet.has(b) && !candidates.includes(b)) candidates.push(b)
+          }
+        }
         if (candidates.length === 0) continue
 
         const demand = need.perCapita
@@ -69,7 +87,8 @@ export function runConsumption(
         const gdef = ALL_GOODS[target]
         const base = gdef?.baseValue ?? 1
         const price = Math.max(0.01, state.prices[target] ?? base)
-        const factor = clamp(Math.pow(base / price, ECONOMY.priceElasticity), 0.2, 1.5)
+        const elastic = isLuxuryGood(target) ? ECONOMY.luxuryElasticity : ECONOMY.priceElasticity
+        const factor = clamp(Math.pow(base / price, elastic), 0.2, 1.5)
 
         const desired = demand * factor
         const affordable = price > 0 ? r.savings / price : desired
@@ -81,8 +100,13 @@ export function runConsumption(
         r.savings = round2(Math.max(0, r.savings - cost))
         revenue += cost
 
-        needed += demand
-        consumed += sold
+        if (isFood) {
+          foodNeeded += demand
+          foodConsumed += sold
+        } else {
+          comfortNeeded += demand
+          comfortConsumed += sold
+        }
         soldByGood[target] = (soldByGood[target] ?? 0) + sold
 
         const ps = priceScore(price, base)
@@ -90,13 +114,16 @@ export function runConsumption(
         priceDen += demand
       }
 
-      const f = needed > 0 ? clamp(consumed / needed, 0, 1) : 1
+      const f = foodNeeded > 0 ? clamp(foodConsumed / foodNeeded, 0, 1) : 1
+      const c = comfortNeeded > 0 ? clamp(comfortConsumed / comfortNeeded, 0, 1) : 1
       foodSum += f
+      comfortSum += c
       priceSum += priceDen > 0 ? priceNum / priceDen : 1
       if (f < 0.9) hungry += 1
     }
 
     foodScore[classId] = foodSum / members.length
+    comfortScore[classId] = comfortSum / members.length
     priceScoreMap[classId] = priceSum / members.length
   }
 
@@ -114,5 +141,12 @@ export function runConsumption(
     })
   }
 
-  return { foodScore, priceScore: priceScoreMap, hungry, revenue: round2(revenue), logs }
+  return {
+    foodScore,
+    comfortScore,
+    priceScore: priceScoreMap,
+    hungry,
+    revenue: round2(revenue),
+    logs,
+  }
 }

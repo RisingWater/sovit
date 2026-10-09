@@ -20,7 +20,11 @@ export function payWages(state: GameState, day: number): LogEntry[] {
   let taxTotal = 0
   for (const r of state.residents) {
     const employed = r.employed && r.jobShopId
-    const gross = employed ? wageByShop.get(r.jobShopId!) ?? 0 : welfareGross
+    const baseWage = employed ? wageByShop.get(r.jobShopId!) ?? 0 : welfareGross
+    // 技能挂钩收入：熟练者更富，形成阶层流动。
+    const gross = employed
+      ? baseWage * (ECONOMY.skillIncomeBase + Math.min(ECONOMY.skillMax, r.skill) / 100)
+      : baseWage
     const tax = gross * taxRate
     r.savings = round2(r.savings + gross - tax)
     grossTotal += gross

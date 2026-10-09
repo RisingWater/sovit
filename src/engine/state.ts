@@ -30,6 +30,17 @@ const START_LAYOUT: Record<PackID, Array<[string, number]>> = {
     ['quarry', 1],
     ['clay_pit', 1],
   ],
+  'v0.3': [
+    ['wheat_farm', 1],
+    ['coarse_mill', 1],
+    ['coarse_bakery', 1],
+    ['vegetable_farm', 1],
+    ['lumberjack', 2],
+    ['quarry', 1],
+    ['clay_pit', 1],
+    ['firewood_works', 1],
+    ['brick_kiln', 1],
+  ],
   'v1.0': [
     ['wheat_farm', 1],
     ['coarse_mill', 1],
@@ -58,6 +69,7 @@ const START_HOUSING: Record<string, number> = { hut: 6 }
 const START_POP_BY_PACK: Record<PackID, number> = {
   'v0.1': 16,
   'v0.2': 24,
+  'v0.3': 24,
   'v1.0': 16,
 }
 
@@ -72,7 +84,7 @@ export interface CreateOptions {
 }
 
 export function createInitialState(options: CreateOptions = {}): GameState {
-  const packId = options.pack ?? 'v0.2'
+  const packId = options.pack ?? 'v0.3'
   const seed = options.seed ?? 12345
   const ctx = buildContext(packId)
   const rng = createRng(seed)
