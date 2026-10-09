@@ -16,12 +16,12 @@
 npm install
 
 npm run typecheck   # 类型检查
-npm run sim         # 无头验收（默认 v0.2，100 天）
+npm test            # 类型检查 + 无头验收（当前最新版 v0.3，100 天）
+npm run sim         # 只跑无头验收（默认最新版 v0.3）
 npm run api         # 启动 AI HTTP 接口（http://localhost:8787）
 ```
 
-`npm run sim` 支持参数：`npm run sim -- [天数] [种子] [内容包]`，例如
-`npm run sim -- 1000 777 v0.2`。
+> 只测试**最新内容包**（当前 `v0.3`）。要跑其它包或时长：`npm run sim -- [天数] [种子] [内容包]`。
 
 ---
 
@@ -52,7 +52,7 @@ scripts/simulate.ts        # 无头验收脚本
 ```ts
 import { createInitialState, advanceDay, observe } from './src/engine/index.ts'
 
-let state = createInitialState({ pack: 'v0.2', seed: 12345 })
+let state = createInitialState({ pack: 'v0.3', seed: 12345 })
 
 state = advanceDay(state, [
   { type: 'set_wage', shopId: 'coarse_bakery#1', value: 3 },
@@ -123,6 +123,7 @@ curl -X POST http://localhost:8787/act \
 | `v1.0` | 全量商品 / 配方 / 建筑 | 四阶层（含建筑工坊等） |
 
 全量内容始终存在于 `src/engine/content/`，`ContentPack` 只决定「本局允许出现什么」。
+`v0.1` / `v0.2` 为早期内容包（保留但不参与日常测试）；**日常只测试当前最新版 `v0.3`**。
 完整的资源 / 产业链 / 阶层 / 住房 / 配置数值清单见 [`docs/content.md`](docs/content.md)。
 
 ---
