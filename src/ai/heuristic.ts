@@ -68,12 +68,13 @@ function commonActions(
     const cur = state.prices[gid] ?? base
     let level = base > 0 ? cur / base : 1
     if (isLuxuryGood(gid)) {
-      // 奢侈品（低弹性）：财政为负 → 提价抽取富人；盈余 → 回落。
-      if (money < 0) level *= 1.05
-      else if (money > 300) level *= 0.98
+      // 带迟滞的区间控制：允许赤字扩产。
+      // 财政跌破 -1000 → 提价；回到 0 以上 → 回落到正常价；中间保持不变。
+      if (money < -1000) level = Math.min(15, level * 1.05)
+      else if (money > 0) level = Math.max(ECONOMY.luxuryPriceMarkup, level * 0.98)
       level = clamp(level, ECONOMY.luxuryPriceMarkup, 15)
     } else {
-      // 必需品（高弹性）：维持基准价；闹饥荒时略降，绝不提价（提价只会少收 + 饿死人）。
+      // 必需品（高弹性）：维持基准价；缺粮时略降，绝不提价（提价只会少收 + 饿死人）。
       level = hungry > 0 ? 0.95 : 1
     }
     actions.push({ type: 'set_price', goodId: gid, value: Math.round(base * level * 100) / 100 })
