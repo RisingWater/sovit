@@ -1,4 +1,4 @@
-import type { BuildingTier, ClassID } from './types.ts'
+import type { BuildingTier, ClassID, TaxBracket } from './types.ts'
 
 // ---------------------------------------------------------------------------
 // 经济参数（集中调参）
@@ -9,10 +9,8 @@ export interface EconomyConfig {
   refWage: number
   /** 失业者领取的保障金 = refWage × welfareRate。 */
   welfareRate: number
-  /** 默认所得税基础税率。政府借此回收工资，闭合货币循环。 */
-  defaultTaxRate: number
-  /** 累进所得税：边际分档。税率 = 基础税率 × rateMultipliers[i]。 */
-  progressiveTax: { thresholds: number[]; rateMultipliers: number[] }
+  /** 默认累进所得税税表（AI/玩家可运行时调整）。 */
+  defaultTaxBrackets: TaxBracket[]
   /** 需求价格弹性：价格越高需求越低。 */
   priceElasticity: number
   /** 奢侈品价格弹性（低弹性 → 提价反而多赚，用于抽取富人财富）。 */
@@ -77,8 +75,11 @@ export interface EconomyConfig {
 export const ECONOMY: EconomyConfig = {
   refWage: 3,
   welfareRate: 1.0,
-  defaultTaxRate: 0.12,
-  progressiveTax: { thresholds: [3, 8], rateMultipliers: [1, 2.2, 3.6] },
+  defaultTaxBrackets: [
+    { upTo: 2, rate: 0.08 },
+    { upTo: 3.5, rate: 0.22 },
+    { upTo: null, rate: 0.42 },
+  ],
   priceElasticity: 1.2,
   luxuryElasticity: 0.4,
   luxuryPriceMarkup: 2.5,

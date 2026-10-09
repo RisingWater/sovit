@@ -75,6 +75,26 @@ function commonActions(
   // 租金：常态维持默认值（提价只会压缩居民购买力，反噬财政）。
   actions.push({ type: 'set_rent', value: ECONOMY.defaultRent })
 
+  // 累进税：财政为负时提高最高档税率；盈余充足时回落。
+  const bs = state.government.taxBrackets
+  const topIdx = bs.length - 1
+  const top = bs[topIdx]
+  if (top) {
+    if (money < 0) {
+      actions.push({
+        type: 'set_tax_bracket',
+        index: topIdx,
+        rate: Math.min(0.8, Math.round((top.rate + 0.02) * 100) / 100),
+      })
+    } else if (money > 500 && top.rate > 0.15) {
+      actions.push({
+        type: 'set_tax_bracket',
+        index: topIdx,
+        rate: Math.round((top.rate - 0.02) * 100) / 100,
+      })
+    }
+  }
+
   return actions
 }
 

@@ -161,12 +161,19 @@ export interface Construction {
 
 export interface Government {
   money: number
-  /** 税率 0-1，v0.1 固定 0。 */
-  taxRate: number
+  /** 累进所得税税表（可运行时调整）。最后一段 upTo 为 null 表示无上限。 */
+  taxBrackets: TaxBracket[]
   /** 国有住房人均日租金（玩家可调）。 */
   rent: number
   /** 日补贴预算，v0.1 未启用。 */
   subsidyBudget: number
+}
+
+export interface TaxBracket {
+  /** 该档收入上限；null = 无上限（最后一档）。 */
+  upTo: number | null
+  /** 该档边际税率 0-0.95。 */
+  rate: number
 }
 
 export interface DaySnapshot {
@@ -246,6 +253,7 @@ export type Action =
   | { type: 'sell_shop'; shopId: string }
   | { type: 'retake_shop'; shopId: string }
   | { type: 'set_tax'; value: number }
+  | { type: 'set_tax_bracket'; index: number; upTo?: number | null; rate?: number }
   | { type: 'set_rent'; value: number }
   | { type: 'subsidy'; shopId?: string; amount: number }
   | { type: 'end_turn' }
@@ -289,7 +297,7 @@ export interface ObserveClass {
 export interface Observation {
   day: number
   pack: PackID
-  government: { money: number; taxRate: number; rent: number }
+  government: { money: number; taxBrackets: TaxBracket[]; rent: number }
   population: {
     total: number
     byClass: Record<string, number>

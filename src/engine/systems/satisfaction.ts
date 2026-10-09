@@ -2,6 +2,7 @@ import type { GameState } from '../types.ts'
 import type { ContentContext } from '../content/index.ts'
 import { ECONOMY } from '../config.ts'
 import { clamp } from '../util.ts'
+import { progressiveTax } from './finance.ts'
 
 // ---------------------------------------------------------------------------
 // 满意度
@@ -26,7 +27,7 @@ export function updateSatisfaction(
   const wageByShop = new Map<string, number>()
   for (const s of state.shops) wageByShop.set(s.id, s.wage)
   const welfare = ECONOMY.refWage * ECONOMY.welfareRate
-  const netIncome = ECONOMY.refWage * (1 - state.government.taxRate)
+  const netIncome = ECONOMY.refWage - progressiveTax(ECONOMY.refWage, state.government.taxBrackets)
   const rentPressure = clamp(state.government.rent / Math.max(0.1, netIncome), 0, 1)
 
   for (const r of state.residents) {

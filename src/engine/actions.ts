@@ -1,7 +1,22 @@
-import type { Action, AppliedAction, GameState } from './types.ts'
+import type { Action, AppliedAction, GameState, TaxBracket } from './types.ts'
 import type { ContentContext } from './content/index.ts'
 import { clamp, round2 } from './util.ts'
 import { tryBuild, tryBuildHousing, tryExpand } from './systems/investment.ts'
+
+/** 规范化税表：保证 upTo 递增、最后一档为 null、税率合法。 */
+function sanitizeBrackets(bs: TaxBracket[]): void {
+  for (let i = 0; i < bs.length; i++) {
+    bs[i]!.rate = clamp(bs[i]!.rate, 0, 0.95)
+    if (i === bs.length - 1) {
+      bs[i]!.upTo = null
+    } else {
+      const prev = i > 0 ? bs[i - 1]!.upTo ?? 0 : 0
+      let up = bs[i]!.upTo ?? prev + 1
+      if (up <= prev) up = round2(prev + 1)
+      bs[i]!.upTo = up
+    }
+  }
+}
 
 // ---------------------------------------------------------------------------
 // 动作应用
@@ -96,7 +111,26 @@ export function applyActions(
       }
 
       case 'set_tax': {
-        state.government.taxRate = clamp(action.value, 0, 0.95)
+        // 简化为单一税率（扁平税）；细粒度请用 set_tax_bracket。
+        state.government.taxBrackets = [{ upTo: null, rate: clamp(action.value, 0, 0.95) }]
+        applied.push({ type: action.type, ok: true })
+        break
+      }
+
+      case 'set_tax_bracket': {
+        const bs = state.government.taxBrackets
+        const i = Math.round(action.index)
+        if (i < 0 || i >= bs.length) {
+          applied.push({ type: action.type, ok: false, reason: '档位不存在' })
+          break
+        }
+        if (action.upTo !== undefined) {
+          bs[i]!.upTo = action.upTo === null ? null : round2(Math.max(0, action.upTo))
+        }
+        if (action.rate !== undefined) {
+          bs[i]!.rate = clamp(action.rate, 0, 0.95)
+        }
+        sanitizeBrackets(bs)
         applied.push({ type: action.type, ok: true })
         break
       }

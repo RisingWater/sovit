@@ -150,7 +150,12 @@ export function createInitialState(options: CreateOptions = {}): GameState {
     seed,
     rngState: rng.state,
     day: 0,
-    government: { money, taxRate: ECONOMY.defaultTaxRate, rent: ECONOMY.defaultRent, subsidyBudget: 0 },
+    government: {
+      money,
+      taxBrackets: ECONOMY.defaultTaxBrackets.map((b) => ({ ...b })),
+      rent: ECONOMY.defaultRent,
+      subsidyBudget: 0,
+    },
     goods,
     housing,
     privateHousing,

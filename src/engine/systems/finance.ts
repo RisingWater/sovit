@@ -1,26 +1,24 @@
-import type { GameState, LogEntry } from '../types.ts'
+import type { GameState, LogEntry, TaxBracket } from '../types.ts'
 import { ECONOMY } from '../config.ts'
 import { clamp, round2 } from '../util.ts'
 
 // ---------------------------------------------------------------------------
 // 财政
 //
-// 累进所得税：按边际分档，收入越高税率越高（工资与租金收入同规则）。
+// 累进所得税：按可运行时调整的税表分档计征（工资与租金收入同规则）。
 // 政府付 gross（工资/保障金），按累进税率代扣，余额给居民。
 // ---------------------------------------------------------------------------
 
-/** 累进所得税：对一笔收入按边际分档征税。 */
-export function progressiveTax(income: number, baseRate: number): number {
-  const { thresholds, rateMultipliers } = ECONOMY.progressiveTax
+/** 累进所得税：对一笔收入按税表分档计征。 */
+export function progressiveTax(income: number, brackets: TaxBracket[]): number {
   let tax = 0
   let prev = 0
-  for (let i = 0; i < rateMultipliers.length; i++) {
-    const upper = i < thresholds.length ? thresholds[i]! : Infinity
+  for (const b of brackets) {
+    const upper = b.upTo ?? Infinity
     const slice = Math.max(0, Math.min(income, upper) - prev)
-    if (slice <= 0) break
-    const rate = Math.min(0.95, baseRate * rateMultipliers[i]!)
-    tax += slice * rate
+    if (slice > 0) tax += slice * clamp(b.rate, 0, 0.95)
     prev = upper
+    if (income <= upper) break
   }
   return round2(tax)
 }
@@ -32,7 +30,7 @@ export function payWages(state: GameState, day: number): LogEntry[] {
     wageByShop.set(s.id, s.wage)
     capByShop.set(s.id, s.wageCap)
   }
-  const baseRate = clamp(state.government.taxRate, 0, 0.95)
+  const brackets = state.government.taxBrackets
   const welfareGross = round2(ECONOMY.refWage * ECONOMY.welfareRate)
 
   let grossTotal = 0
@@ -49,7 +47,7 @@ export function payWages(state: GameState, day: number): LogEntry[] {
       const cap = capByShop.get(r.jobShopId!) ?? 0
       if (cap > 0) gross = Math.min(gross, cap)
     }
-    const tax = progressiveTax(gross, baseRate)
+    const tax = progressiveTax(gross, brackets)
     r.savings = round2(r.savings + gross - tax)
     grossTotal += gross
     taxTotal += tax

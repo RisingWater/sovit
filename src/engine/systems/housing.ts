@@ -143,9 +143,9 @@ export function collectRent(state: GameState, ctx: ContentContext, day: number):
     privateTotal += pay
   }
 
-  const baseRate = clamp(state.government.taxRate, 0, 0.95)
+  const brackets = state.government.taxBrackets
   const grossShare = owners.length > 0 ? privateTotal / owners.length : 0
-  const taxPerOwner = owners.length > 0 ? progressiveTax(grossShare, baseRate) : 0
+  const taxPerOwner = owners.length > 0 ? progressiveTax(grossShare, brackets) : 0
   const rentTax = round2(taxPerOwner * owners.length)
   const netShare = round2(grossShare - taxPerOwner)
   if (owners.length > 0 && netShare > 0) {

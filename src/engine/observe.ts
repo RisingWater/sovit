@@ -57,7 +57,11 @@ export function observe(state: GameState): Observation {
   return {
     day: state.day,
     pack: state.pack,
-    government: { money: state.government.money, taxRate: state.government.taxRate, rent: state.government.rent },
+    government: {
+      money: state.government.money,
+      taxBrackets: state.government.taxBrackets,
+      rent: state.government.rent,
+    },
     population: {
       total,
       byClass,
