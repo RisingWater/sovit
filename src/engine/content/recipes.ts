@@ -38,6 +38,7 @@ const list: RecipeDef[] = [
   { id: 'r_brick_kiln', building: 'brick_kiln', inputs: { clay: 8 }, output: { brick: 6 }, baseRate: 1, fuel: 4 },
   { id: 'r_pottery_works', building: 'pottery_works', inputs: { clay: 8 }, output: { pottery: 6 }, baseRate: 1, fuel: 3 },
   { id: 'r_porcelain_works', building: 'porcelain_works', inputs: { clay: 6 }, output: { porcelain: 4 }, baseRate: 1, fuel: 6 },
+  { id: 'r_domestic_service', building: 'domestic_service', inputs: {}, output: { domestic_service: 4 }, baseRate: 1 },
   { id: 'r_smokehouse', building: 'smokehouse', inputs: { fish: 10 }, output: { smoked_fish: 8 }, baseRate: 1, fuel: 4 },
   { id: 'r_dried_meat_works', building: 'dried_meat_works', inputs: { meat: 6 }, output: { dried_meat: 5 }, baseRate: 1, fuel: 4 },
 

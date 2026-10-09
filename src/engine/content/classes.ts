@@ -35,6 +35,7 @@ const list: ClassDef[] = [
     needs: [
       { good: 'pastry', perCapita: 0.3, fallbacks: ['white_bread'] },
       { good: 'porcelain', perCapita: 0.05 },
+      { good: 'domestic_service', perCapita: 0.3 },
       { good: 'common_clothes', perCapita: 0.1, fallbacks: ['coarse_clothes'] },
       { good: 'luxury_clothes', perCapita: 0.05, fallbacks: ['common_clothes'] },
       { good: 'leather_clothes', perCapita: 0.05, fallbacks: ['common_clothes'] },
@@ -47,6 +48,7 @@ const list: ClassDef[] = [
     needs: [
       { good: 'pastry', perCapita: 0.3 },
       { good: 'porcelain', perCapita: 0.1 },
+      { good: 'domestic_service', perCapita: 0.5 },
       { good: 'luxury_clothes', perCapita: 0.1 },
     ],
   },

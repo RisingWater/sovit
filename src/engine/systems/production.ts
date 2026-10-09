@@ -15,6 +15,17 @@ function goodValue(gid: string, qty: number): number {
   return (ALL_GOODS[gid]?.baseValue ?? 0) * qty
 }
 
+/** 损耗：非耐储商品每日按 perishRate 折损（服务 perishRate=1 → 当天不结转）。 */
+export function applySpoilage(state: GameState, ctx: ContentContext): void {
+  for (const gid of ctx.pack.goods) {
+    const def = ALL_GOODS[gid]
+    if (!def || !def.perishRate || def.perishRate <= 0) continue
+    const cur = state.goods[gid] ?? 0
+    if (cur <= 0) continue
+    state.goods[gid] = round2(cur * (1 - Math.min(1, def.perishRate)))
+  }
+}
+
 export function runProduction(state: GameState, ctx: ContentContext, day: number): LogEntry[] {
   const logs: LogEntry[] = []
 

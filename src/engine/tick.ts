@@ -6,6 +6,7 @@ import { sum } from './util.ts'
 import { applyActions } from './actions.ts'
 import { assignLabor } from './systems/labor.ts'
 import { runProduction } from './systems/production.ts'
+import { applySpoilage } from './systems/production.ts'
 import { payWages } from './systems/finance.ts'
 import { collectRent, assignTenure, runPrivateHousingMarket } from './systems/housing.ts'
 import { runConsumption } from './systems/consumption.ts'
@@ -81,6 +82,7 @@ export function runDay(state: GameState, ctx: ContentContext): LogEntry[] {
   logs.push(...updatePopulation(state, ctx, rng, consumption.hungry, day))
   logs.push(...processConstruction(state, ctx, day))
   logs.push(...runPrivateHousingMarket(state, ctx, day))
+  applySpoilage(state, ctx)
 
   state.day = day
   state.rngState = rng.state

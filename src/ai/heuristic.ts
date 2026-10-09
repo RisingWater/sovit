@@ -206,10 +206,16 @@ function decideGrowth(state: GameState, ctx: ContentContext): Action[] {
       )
     }
     if (has('rich') || has('boss')) {
+      // 家政工坊数量按富/老板的需求产能匹配
+      const servants = Math.max(
+        1,
+        Math.ceil(((classCount['rich'] ?? 0) * 0.3 + (classCount['boss'] ?? 0) * 0.5) / 4),
+      )
       chain.push(
         ['sugarcane_farm', 1], ['sugar_works', 1], ['pastry_shop', 1], ['cotton_farm', 1],
         ['fine_weaver', 1], ['common_clothes_shop', 1], ['dye_farm', 1],
         ['luxury_clothes_shop', 1], ['leather_shop', 1], ['porcelain_works', 1],
+        ['domestic_service', servants],
       )
     }
     for (const [id, n] of chain) {
