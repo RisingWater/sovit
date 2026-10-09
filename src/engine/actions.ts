@@ -141,6 +141,12 @@ export function applyActions(
         break
       }
 
+      case 'set_immigration': {
+        state.government.immigrationAllowance = Math.max(0, Math.floor(action.value))
+        applied.push({ type: action.type, ok: true })
+        break
+      }
+
       case 'subsidy':
       case 'sell_shop':
       case 'retake_shop': {

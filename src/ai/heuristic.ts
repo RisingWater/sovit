@@ -83,6 +83,16 @@ function commonActions(
   // 租金：常态维持默认值（提价只会压缩居民购买力，反噬财政）。
   actions.push({ type: 'set_rent', value: ECONOMY.defaultRent })
 
+  // 移民放行：按粮食缓冲节流，避免人口增长冲过粮食产能（防止饥饿尖峰）。
+  const popNow = state.residents.length
+  const foodPerCap =
+    ((state.goods['coarse_bread'] ?? 0) + (state.goods['vegetable'] ?? 0)) / Math.max(1, popNow)
+  const arrivals = state.arrivals ?? 0
+  let allow = arrivals
+  if (foodPerCap < 0.5) allow = Math.min(arrivals, Math.floor(popNow * 0.01))
+  else if (foodPerCap < 2) allow = Math.min(arrivals, Math.floor(popNow * 0.03))
+  actions.push({ type: 'set_immigration', value: allow })
+
   // 累进税：财政为负时提高最高档税率；盈余充足时回落。
   const bs = state.government.taxBrackets
   const topIdx = bs.length - 1

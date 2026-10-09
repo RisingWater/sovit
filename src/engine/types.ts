@@ -169,6 +169,8 @@ export interface Government {
   rent: number
   /** 日补贴预算，v0.1 未启用。 */
   subsidyBudget: number
+  /** 本回合允许迁入的人数上限（AI/玩家可调；默认不限）。 */
+  immigrationAllowance: number
 }
 
 export interface TaxBracket {
@@ -237,6 +239,8 @@ export interface GameState {
   history: DaySnapshot[]
   log: LogEntry[]
   alerts: Alert[]
+  /** 本回合"想来"的移民人数（由引擎按满意度等计算）。 */
+  arrivals: number
 }
 
 // ---------------------------------------------------------------------------
@@ -257,6 +261,7 @@ export type Action =
   | { type: 'set_tax'; value: number }
   | { type: 'set_tax_bracket'; index: number; upTo?: number | null; rate?: number }
   | { type: 'set_rent'; value: number }
+  | { type: 'set_immigration'; value: number }
   | { type: 'subsidy'; shopId?: string; amount: number }
   | { type: 'end_turn' }
 
@@ -308,6 +313,9 @@ export interface Observation {
     employed: number
     unemployed: number
     housingCapacity: number
+    /** 本回合想来的移民人数，以及本回合允许上限。 */
+    arrivals: number
+    immigrationAllowance: number
   }
   shops: ObserveShop[]
   market: {

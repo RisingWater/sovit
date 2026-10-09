@@ -70,6 +70,8 @@ export function observe(state: GameState): Observation {
       employed,
       unemployed: total - employed,
       housingCapacity: housingCapacity(state, ctx),
+      arrivals: state.arrivals,
+      immigrationAllowance: state.government.immigrationAllowance,
     },
     shops,
     market: { prices, inventory },

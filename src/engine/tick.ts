@@ -11,7 +11,7 @@ import { payWages } from './systems/finance.ts'
 import { collectRent, assignTenure, runPrivateHousingMarket } from './systems/housing.ts'
 import { runConsumption } from './systems/consumption.ts'
 import { updateSatisfaction } from './systems/satisfaction.ts'
-import { updatePopulation } from './systems/population.ts'
+import { updatePopulation, applyAdmission, computeArrivals } from './systems/population.ts'
 import { processConstruction } from './systems/investment.ts'
 
 // ---------------------------------------------------------------------------
@@ -80,9 +80,11 @@ export function runDay(state: GameState, ctx: ContentContext): LogEntry[] {
 
   updateSatisfaction(state, ctx, consumption.foodScore, consumption.comfortScore, consumption.priceScore)
   logs.push(...updatePopulation(state, ctx, rng, consumption.hungry, day))
+  logs.push(...applyAdmission(state, ctx, rng, day))
   logs.push(...processConstruction(state, ctx, day))
   logs.push(...runPrivateHousingMarket(state, ctx, day))
   applySpoilage(state, ctx)
+  computeArrivals(state)
 
   state.day = day
   state.rngState = rng.state

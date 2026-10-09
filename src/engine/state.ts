@@ -157,6 +157,7 @@ export function createInitialState(options: CreateOptions = {}): GameState {
       taxBrackets: ECONOMY.defaultTaxBrackets.map((b) => ({ ...b })),
       rent: ECONOMY.defaultRent,
       subsidyBudget: 0,
+      immigrationAllowance: 1e9,
     },
     goods,
     housing,
@@ -177,5 +178,6 @@ export function createInitialState(options: CreateOptions = {}): GameState {
     ],
     log: [],
     alerts: [],
+    arrivals: 0,
   }
 }

@@ -70,26 +70,7 @@ export function updatePopulation(
   const avgSat = sum(state.residents.map((r) => r.satisfaction)) / pop
   const th = ECONOMY.immigrationSatThreshold
 
-  // ---- 迁入（同时受住房容量与岗位空缺限制） -----------------------------
-  const housingRoom = Math.max(0, housingCapacity(state, ctx) - pop)
-  const vacancies = Math.max(0, jobCapacity(state, ctx) - pop)
-  const room = Math.min(housingRoom, vacancies)
-  // 容忍少量因“存款为 0 买不起”的个别人挨饿，不因此完全冻结移民。
-  const hungerTolerance = Math.max(1, Math.floor(pop * 0.02))
-  if (hungry <= hungerTolerance && avgSat >= th && room > 0) {
-    const expected = Math.min(
-      room,
-      (pop * ECONOMY.immigrationRate * (avgSat - th)) / (100 - th),
-    )
-    const whole = Math.floor(expected)
-    const arrivals = whole + (rng.next() < expected - whole ? 1 : 0)
-    if (arrivals > 0) {
-      for (let i = 0; i < arrivals; i++) {
-        state.residents.push(makeResident(state, rng, 'poor'))
-      }
-      logs.push({ day, kind: 'population', text: `${arrivals} 人迁徙而来` })
-    }
-  }
+  // 迁入改由 applyAdmission 处理（“想来的人数”由 computeArrivals 写入 state.arrivals）。
 
   // ---- 死亡（饥饿） → 存款充公 -------------------------------------------
   if (hungry > 0) {
@@ -134,4 +115,47 @@ export function updatePopulation(
 
   updateClasses(state, ctx)
   return logs
+}
+
+/** 计算本回合“想来”的移民人数（写入 state.arrivals），供下一回合由 AI 决定放行多少。 */
+export function computeArrivals(state: GameState): void {
+  const pop = state.residents.length
+  const th = ECONOMY.immigrationSatThreshold
+  if (pop === 0) {
+    state.arrivals = 0
+    return
+  }
+  const avgSat = sum(state.residents.map((r) => r.satisfaction)) / pop
+  if (avgSat < th) {
+    state.arrivals = 0
+    return
+  }
+  state.arrivals = Math.max(
+    0,
+    Math.round((pop * ECONOMY.immigrationRate * (avgSat - th)) / (100 - th)),
+  )
+}
+
+/** 放行移民：最多放行 min(想来人数, 允许上限, 住房余量, 岗位余量) 人。 */
+export function applyAdmission(
+  state: GameState,
+  ctx: ContentContext,
+  rng: Rng,
+  day: number,
+): LogEntry[] {
+  const pop = state.residents.length
+  if (pop === 0 || state.arrivals <= 0) return []
+  const room = Math.max(
+    0,
+    Math.min(housingCapacity(state, ctx) - pop, jobCapacity(state, ctx) - pop),
+  )
+  const allow = Math.max(0, Math.floor(state.government.immigrationAllowance))
+  const admit = Math.min(state.arrivals, allow, room)
+  if (admit <= 0) return []
+  for (let i = 0; i < admit; i++) {
+    state.residents.push(makeResident(state, rng, 'poor'))
+  }
+  return [
+    { day, kind: 'population', text: `${admit} 人获准迁入（本回合想来 ${state.arrivals} 人）` },
+  ]
 }
