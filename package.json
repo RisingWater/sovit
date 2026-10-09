@@ -1,0 +1,17 @@
+{
+  "name": "sovit",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Turn-based state-owned economy sandbox — engine + AI interface",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "sim": "node --experimental-strip-types scripts/simulate.ts",
+    "api": "node --experimental-strip-types src/api/server.ts",
+    "test": "node --experimental-strip-types scripts/simulate.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "typescript": "^5.7.0"
+  }
+}
