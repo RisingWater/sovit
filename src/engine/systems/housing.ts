@@ -3,6 +3,7 @@ import type { ContentContext } from '../content/index.ts'
 import { ALL_GOODS } from '../content/index.ts'
 import { ECONOMY } from '../config.ts'
 import { clamp, round2 } from '../util.ts'
+import { progressiveTax } from './finance.ts'
 
 // ---------------------------------------------------------------------------
 // 住房系统
@@ -142,12 +143,13 @@ export function collectRent(state: GameState, ctx: ContentContext, day: number):
     privateTotal += pay
   }
 
-  const taxRate = clamp(state.government.taxRate, 0, 0.95)
-  const rentTax = round2(privateTotal * taxRate)
-  const netToOwners = round2(privateTotal - rentTax)
-  if (owners.length > 0 && netToOwners > 0) {
-    const share = netToOwners / owners.length
-    for (const o of owners) o.savings = round2(o.savings + share)
+  const baseRate = clamp(state.government.taxRate, 0, 0.95)
+  const grossShare = owners.length > 0 ? privateTotal / owners.length : 0
+  const taxPerOwner = owners.length > 0 ? progressiveTax(grossShare, baseRate) : 0
+  const rentTax = round2(taxPerOwner * owners.length)
+  const netShare = round2(grossShare - taxPerOwner)
+  if (owners.length > 0 && netShare > 0) {
+    for (const o of owners) o.savings = round2(o.savings + netShare)
   }
 
   state.government.money = round2(state.government.money + govTotal + rentTax)
@@ -159,7 +161,7 @@ export function collectRent(state: GameState, ctx: ContentContext, day: number):
     logs.push({
       day,
       kind: 'finance',
-      text: `私有住房租金 ¥${round2(privateTotal)}：房东得 ¥${netToOwners}，租金所得税 ¥${rentTax}`,
+      text: `私有住房租金 ¥${round2(privateTotal)}：房东得 ¥${round2(netShare * owners.length)}，租金累进税 ¥${rentTax}`,
     })
   }
   return logs

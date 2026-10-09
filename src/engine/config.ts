@@ -9,8 +9,10 @@ export interface EconomyConfig {
   refWage: number
   /** 失业者领取的保障金 = refWage × welfareRate。 */
   welfareRate: number
-  /** 默认所得税率。政府借此回收工资，闭合货币循环。 */
+  /** 默认所得税基础税率。政府借此回收工资，闭合货币循环。 */
   defaultTaxRate: number
+  /** 累进所得税：边际分档。税率 = 基础税率 × rateMultipliers[i]。 */
+  progressiveTax: { thresholds: number[]; rateMultipliers: number[] }
   /** 需求价格弹性：价格越高需求越低。 */
   priceElasticity: number
   /** 奢侈品价格弹性（低弹性 → 提价反而多赚，用于抽取富人财富）。 */
@@ -73,7 +75,8 @@ export interface EconomyConfig {
 export const ECONOMY: EconomyConfig = {
   refWage: 3,
   welfareRate: 1.0,
-  defaultTaxRate: 0.2,
+  defaultTaxRate: 0.12,
+  progressiveTax: { thresholds: [3, 8], rateMultipliers: [1, 2.2, 3.6] },
   priceElasticity: 1.2,
   luxuryElasticity: 0.4,
   luxuryPriceMarkup: 2.5,
