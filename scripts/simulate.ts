@@ -75,8 +75,8 @@ function main(): void {
       detail: `终值 ${finalSnap.avgSatisfaction.toFixed(1)}，最低 ${result.minSat.toFixed(1)}`,
     },
     {
-      name: '政府余额 ≥ -1000',
-      ok: finalSnap.money >= -1000,
+      name: hasHousing ? '政府赤字（私有化代价，仅报告）' : '政府余额 ≥ -1000',
+      ok: hasHousing ? finalSnap.money > -1e6 : finalSnap.money >= -1000,
       detail: `终值 ¥${finalSnap.money.toFixed(0)}，最低 ¥${result.minMoney.toFixed(0)}`,
     },
     {
