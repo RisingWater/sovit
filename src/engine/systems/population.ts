@@ -89,25 +89,43 @@ export function updatePopulation(
     }
   }
 
-  // ---- 迁出 / 死亡 ------------------------------------------------------
-  if (avgSat < ECONOMY.emigrationSatThreshold || hungry > 0) {
-    let leave =
-      hungry > 0
-        ? Math.ceil(hungry * ECONOMY.hungerDeathRate)
-        : Math.max(1, Math.floor(pop * 0.02))
-    leave = Math.min(leave, Math.max(0, state.residents.length - ECONOMY.minPopulation))
-    if (leave > 0) {
-      const doomed = new Set(
-        [...state.residents]
-          .sort((a, b) => a.satisfaction - b.satisfaction)
-          .slice(0, leave)
-          .map((r) => r.id),
-      )
-      state.residents = state.residents.filter((r) => !doomed.has(r.id))
+  // ---- 死亡（饥饿） → 存款充公 -------------------------------------------
+  if (hungry > 0) {
+    let deaths = Math.max(0, Math.ceil(hungry * ECONOMY.hungerDeathRate))
+    deaths = Math.min(deaths, Math.max(0, state.residents.length - ECONOMY.minPopulation))
+    if (deaths > 0) {
+      const doomed = [...state.residents]
+        .sort((a, b) => a.satisfaction - b.satisfaction)
+        .slice(0, deaths)
+      let confiscated = 0
+      for (const r of doomed) confiscated += r.savings
+      const ids = new Set(doomed.map((r) => r.id))
+      state.residents = state.residents.filter((r) => !ids.has(r.id))
+      state.government.money = round2(state.government.money + confiscated)
       logs.push({
         day,
         kind: 'population',
-        text: hungry > 0 ? `${leave} 人因饥饿死亡` : `${leave} 人迁离村庄`,
+        text: `${deaths} 人因饥饿死亡，遗产充公 ¥${round2(confiscated)}`,
+      })
+    }
+  }
+
+  // ---- 迁出（满意度低） → 带走存款 ----------------------------------------
+  if (avgSat < ECONOMY.emigrationSatThreshold) {
+    let leave = Math.max(1, Math.floor(state.residents.length * 0.02))
+    leave = Math.min(leave, Math.max(0, state.residents.length - ECONOMY.minPopulation))
+    if (leave > 0) {
+      const doomed = [...state.residents]
+        .sort((a, b) => a.satisfaction - b.satisfaction)
+        .slice(0, leave)
+      let taken = 0
+      for (const r of doomed) taken += r.savings
+      const ids = new Set(doomed.map((r) => r.id))
+      state.residents = state.residents.filter((r) => !ids.has(r.id))
+      logs.push({
+        day,
+        kind: 'population',
+        text: `${leave} 人迁离村庄，带走存款 ¥${round2(taken)}`,
       })
     }
   }

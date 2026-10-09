@@ -6,11 +6,11 @@ import type { BuildingDef, BuildingID } from '../types.ts'
 // workers 严格按产业链文档；buildCost 为建店 / 扩产的材料消耗（含建造力）。
 // ---------------------------------------------------------------------------
 
-// 建造成本以「可再生产的实物原料」为主，避免在建店时出现鸡生蛋死锁：
-// 一级只花木材；二级需要木材 + 石块；三级再加粘土。
-const TIER1_COST = { wood: 4 }
-const TIER2_COST = { wood: 6, stone: 3 }
-const TIER3_COST = { wood: 8, stone: 6, clay: 4 }
+// 建造成本 = 实物原料 + 建造力（来自建筑工坊的工人劳动）。
+// 建筑工坊本身只用原料，避免"没有建造力就造不出建筑工坊"的死锁。
+const TIER1_COST = { wood: 4, build_power: 1 }
+const TIER2_COST = { wood: 6, stone: 3, build_power: 2 }
+const TIER3_COST = { wood: 8, stone: 6, clay: 4, build_power: 4 }
 
 const list: BuildingDef[] = [
   // ---- tier 1: 一级产业 -------------------------------------------------
@@ -49,7 +49,7 @@ const list: BuildingDef[] = [
   { id: 'dried_meat_works', nameZh: '肉干坊', tier: 2, workers: 3, recipe: 'r_dried_meat_works', buildCost: TIER2_COST },
 
   // ---- tier 3: 三级投资 -------------------------------------------------
-  { id: 'construction_works', nameZh: '建筑工坊', tier: 3, workers: 3, recipe: 'r_construction_works', buildCost: TIER3_COST },
+  { id: 'construction_works', nameZh: '建筑工坊', tier: 3, workers: 3, recipe: 'r_construction_works', buildCost: { wood: 6, stone: 4 } },
   { id: 'housing_works', nameZh: '住房坊', tier: 3, workers: 4, recipe: 'r_housing_works', buildCost: TIER3_COST },
 ]
 

@@ -40,6 +40,7 @@ const START_LAYOUT: Record<PackID, Array<[string, number]>> = {
     ['clay_pit', 1],
     ['firewood_works', 1],
     ['brick_kiln', 1],
+    ['construction_works', 1],
   ],
   'v1.0': [
     ['wheat_farm', 1],
@@ -49,6 +50,7 @@ const START_LAYOUT: Record<PackID, Array<[string, number]>> = {
     ['lumberjack', 1],
     ['quarry', 1],
     ['clay_pit', 1],
+    ['construction_works', 1],
   ],
 }
 

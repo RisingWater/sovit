@@ -183,6 +183,7 @@ function decideGrowth(state: GameState, ctx: ContentContext): Action[] {
       ['clay_pit', 1],
       ['firewood_works', 1],
       ['brick_kiln', 1],
+      ['construction_works', 2],
     ]
     for (const [id, n] of chain) {
       if ((counts[id] ?? 0) < n && ctx.buildingSet.has(id)) {

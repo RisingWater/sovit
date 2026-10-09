@@ -40,7 +40,7 @@ const V03_GOODS: GoodID[] = [
   'flax', 'cotton', 'dye', 'coarse_cloth', 'fine_cloth',
   'coarse_clothes', 'common_clothes', 'luxury_clothes', 'leather_clothes',
   'hide', 'meat', 'fish', 'smoked_fish', 'dried_meat', 'pottery', 'porcelain', 'domestic_service', 'entertainment',
-  'wood', 'stone', 'clay', 'firewood', 'brick',
+  'wood', 'stone', 'clay', 'firewood', 'brick', 'build_power',
 ]
 const V03_BUILDINGS: BuildingID[] = [
   'wheat_farm', 'coarse_mill', 'coarse_bakery', 'vegetable_farm',
@@ -48,7 +48,7 @@ const V03_BUILDINGS: BuildingID[] = [
   'flax_farm', 'cotton_farm', 'dye_farm', 'coarse_weaver', 'fine_weaver',
   'coarse_clothes_shop', 'common_clothes_shop', 'luxury_clothes_shop', 'leather_shop',
   'hunting_camp', 'fishery', 'smokehouse', 'dried_meat_works', 'pottery_works', 'porcelain_works', 'domestic_service', 'theater',
-  'lumberjack', 'quarry', 'clay_pit', 'firewood_works', 'brick_kiln',
+  'lumberjack', 'quarry', 'clay_pit', 'firewood_works', 'brick_kiln', 'construction_works',
 ]
 const V03_CLASSES: ClassID[] = ['poor', 'middle', 'rich', 'boss']
 
