@@ -117,8 +117,10 @@ export interface Shop {
   owner: OwnerID
   /** 目标用工数（0..def.workers）。 */
   targetWorkers: number
-  /** 每名工人每日工资。 */
+  /** 每名工人每日工资（基础工资）。 */
   wage: number
+  /** 每人实际工资上限（含技能系数后的封顶）；0 表示不限。 */
+  wageCap: number
   /** 等级，每级 ×level 产能。 */
   level: number
   active: boolean
@@ -234,6 +236,7 @@ export interface GameState {
 
 export type Action =
   | { type: 'set_wage'; shopId: string; value: number }
+  | { type: 'set_wage_cap'; shopId: string; value: number }
   | { type: 'set_workers'; shopId: string; value: number }
   | { type: 'set_price'; goodId: GoodID; value: number }
   | { type: 'expand'; shopId: string }
@@ -270,6 +273,7 @@ export interface ObserveShop {
   workers: number
   maxWorkers: number
   wage: number
+  wageCap: number
   level: number
   active: boolean
   profit: number

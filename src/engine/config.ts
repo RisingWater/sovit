@@ -56,6 +56,8 @@ export interface EconomyConfig {
   privateHousingPerDay: number
   /** 收入 = 岗位工资 × (skillIncomeBase + 技能/100)。 */
   skillIncomeBase: number
+  /** 各工坊默认的每人实际工资上限（0 表示不限）。 */
+  defaultWageCap: number
   /** 财富分层阈值：[中产, 富人, 老板] 的下界。 */
   classWealth: { middle: number; rich: number; boss: number }
   /** 各阶层满意度加成。 */
@@ -100,6 +102,7 @@ export const ECONOMY: EconomyConfig = {
   privateHousingNeedThreshold: 80,
   privateHousingPerDay: 2,
   skillIncomeBase: 0.5,
+  defaultWageCap: 6,
   classWealth: { middle: 40, rich: 120, boss: 300 },
   classSatBonus: { poor: 0, middle: 4, rich: 8, boss: 12 },
   housingQualityPenalty: 8,

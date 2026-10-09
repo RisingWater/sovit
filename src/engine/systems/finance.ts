@@ -27,7 +27,11 @@ export function progressiveTax(income: number, baseRate: number): number {
 
 export function payWages(state: GameState, day: number): LogEntry[] {
   const wageByShop = new Map<string, number>()
-  for (const s of state.shops) wageByShop.set(s.id, s.wage)
+  const capByShop = new Map<string, number>()
+  for (const s of state.shops) {
+    wageByShop.set(s.id, s.wage)
+    capByShop.set(s.id, s.wageCap)
+  }
   const baseRate = clamp(state.government.taxRate, 0, 0.95)
   const welfareGross = round2(ECONOMY.refWage * ECONOMY.welfareRate)
 
@@ -37,9 +41,14 @@ export function payWages(state: GameState, day: number): LogEntry[] {
     const employed = r.employed && r.jobShopId
     const wageBase = employed ? wageByShop.get(r.jobShopId!) ?? 0 : welfareGross
     // 技能挂钩收入：熟练者更富，形成阶层流动。
-    const gross = employed
+    let gross = employed
       ? wageBase * (ECONOMY.skillIncomeBase + Math.min(ECONOMY.skillMax, r.skill) / 100)
       : wageBase
+    // 工坊工资上限：封顶每人实际工资。
+    if (employed) {
+      const cap = capByShop.get(r.jobShopId!) ?? 0
+      if (cap > 0) gross = Math.min(gross, cap)
+    }
     const tax = progressiveTax(gross, baseRate)
     r.savings = round2(r.savings + gross - tax)
     grossTotal += gross

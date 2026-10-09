@@ -38,6 +38,7 @@ export function observe(state: GameState): Observation {
       workers: state.residents.filter((r) => r.jobShopId === s.id).length,
       maxWorkers: def?.workers ?? 0,
       wage: s.wage,
+      wageCap: s.wageCap,
       level: s.level,
       active: s.active,
       profit: s.profit,

@@ -120,6 +120,7 @@ export function createInitialState(options: CreateOptions = {}): GameState {
         owner: 'state',
         targetWorkers: def.workers,
         wage: ECONOMY.refWage,
+        wageCap: ECONOMY.defaultWageCap,
         level: 1,
         active: true,
         profit: 0,

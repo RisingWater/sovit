@@ -165,6 +165,7 @@ export function processConstruction(
       owner: 'state',
       targetWorkers: def.workers,
       wage: ECONOMY.refWage,
+      wageCap: ECONOMY.defaultWageCap,
       level: 1,
       active: true,
       profit: 0,

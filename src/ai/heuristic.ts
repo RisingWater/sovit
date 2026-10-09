@@ -55,6 +55,12 @@ function commonActions(
     actions.push({ type: 'set_wage', shopId: shop.id, value: wage })
   }
 
+  // 工坊工资上限：常态给默认上限；财政为负时收紧到岗位工资。
+  const cap = money < 0 ? ECONOMY.refWage : ECONOMY.defaultWageCap
+  for (const shop of state.shops) {
+    actions.push({ type: 'set_wage_cap', shopId: shop.id, value: cap })
+  }
+
   const mul = hungry > 0 ? 0.95 : 1
   for (const gid of ctx.pack.goods) {
     const def = ALL_GOODS[gid]

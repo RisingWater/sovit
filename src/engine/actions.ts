@@ -33,6 +33,17 @@ export function applyActions(
         break
       }
 
+      case 'set_wage_cap': {
+        const shop = state.shops.find((s) => s.id === action.shopId)
+        if (!shop) {
+          applied.push({ type: action.type, ok: false, reason: '建筑不存在' })
+          break
+        }
+        shop.wageCap = round2(clamp(action.value, 0, 999))
+        applied.push({ type: action.type, ok: true })
+        break
+      }
+
       case 'set_workers': {
         const shop = state.shops.find((s) => s.id === action.shopId)
         const def = shop ? ctx.buildings[shop.defId] : undefined
