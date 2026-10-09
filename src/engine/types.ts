@@ -94,6 +94,8 @@ export interface HousingDef {
   classId: ClassID
   /** 建造该住房所需的实物材料（占用一个土地名额）。 */
   buildCost?: Partial<Record<GoodID, number>>
+  /** 私有化售价（玩家可调，默认取此值）。 */
+  salePrice?: number
 }
 
 export interface ContentPack {
@@ -137,6 +139,8 @@ export interface Resident {
   jobShopId?: string
   /** 是否被雇佣。 */
   employed: boolean
+  /** 是否已拥有私有住房（满足不了重复购买）。 */
+  homeowner?: boolean
 }
 
 export interface Construction {
@@ -151,6 +155,8 @@ export interface Government {
   money: number
   /** 税率 0-1，v0.1 固定 0。 */
   taxRate: number
+  /** 国有住房人均日租金（玩家可调）。 */
+  rent: number
   /** 日补贴预算，v0.1 未启用。 */
   subsidyBudget: number
 }
@@ -202,6 +208,8 @@ export interface GameState {
   goods: Record<GoodID, number>
   /** 已建成住房存量（按住房商品计），决定人口上限。 */
   housing: Record<GoodID, number>
+  /** 其中已私有化的住房数量（⊆ housing）。 */
+  privateHousing: Record<GoodID, number>
   /** 售价（居民购买价）。 */
   prices: Record<GoodID, number>
 
@@ -229,6 +237,7 @@ export type Action =
   | { type: 'sell_shop'; shopId: string }
   | { type: 'retake_shop'; shopId: string }
   | { type: 'set_tax'; value: number }
+  | { type: 'set_rent'; value: number }
   | { type: 'subsidy'; shopId?: string; amount: number }
   | { type: 'end_turn' }
 
@@ -270,7 +279,7 @@ export interface ObserveClass {
 export interface Observation {
   day: number
   pack: PackID
-  government: { money: number; taxRate: number }
+  government: { money: number; taxRate: number; rent: number }
   population: {
     total: number
     byClass: Record<string, number>
@@ -286,5 +295,11 @@ export interface Observation {
     inventory: Record<string, number>
   }
   alerts: Alert[]
+  housing: {
+    capacity: number
+    stateOwned: number
+    privateOwned: number
+    rent: number
+  }
   history: DaySnapshot[]
 }

@@ -1,7 +1,7 @@
 import type { GameState, Observation, ObserveShop, Shop, ShopStatus } from './types.ts'
 import { ALL_BUILDINGS } from './content/index.ts'
 import { buildContext } from './content/index.ts'
-import { housingCapacity } from './systems/population.ts'
+import { housingCapacity } from './systems/housing.ts'
 import { sum } from './util.ts'
 
 // ---------------------------------------------------------------------------
@@ -56,7 +56,7 @@ export function observe(state: GameState): Observation {
   return {
     day: state.day,
     pack: state.pack,
-    government: { money: state.government.money, taxRate: state.government.taxRate },
+    government: { money: state.government.money, taxRate: state.government.taxRate, rent: state.government.rent },
     population: {
       total,
       byClass,
@@ -69,6 +69,12 @@ export function observe(state: GameState): Observation {
     shops,
     market: { prices, inventory },
     alerts: state.alerts,
+    housing: {
+      capacity: housingCapacity(state, ctx),
+      stateOwned: sum(Object.values(state.housing)) - sum(Object.values(state.privateHousing)),
+      privateOwned: sum(Object.values(state.privateHousing)),
+      rent: state.government.rent,
+    },
     history: state.history.slice(-30),
   }
 }

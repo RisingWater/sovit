@@ -3,11 +3,12 @@ import type { ContentContext } from '../content/index.ts'
 import type { Rng } from '../rng.ts'
 import { ECONOMY } from '../config.ts'
 import { round2, sum } from '../util.ts'
+import { housingCapacity } from './housing.ts'
 
 // ---------------------------------------------------------------------------
 // 人口
 //
-// 满意度高、无饥饿、且存在岗位空缺时 → 迁入（移民来填补岗位）；
+// 满意度高、无饥饿、且存在住房与岗位空缺时 → 迁入；
 // 满意度低或有人饥饿 → 迁出 / 死亡。新居民默认进入穷人阶层。
 // ---------------------------------------------------------------------------
 
@@ -19,16 +20,6 @@ function jobCapacity(state: GameState, ctx: ContentContext): number {
     if (def) total += def.workers
   }
   return total
-}
-
-/** 住房容量：已建成住房可容纳的人口上限。 */
-export function housingCapacity(state: GameState, ctx: ContentContext): number {
-  let cap = 0
-  for (const [gid, count] of Object.entries(state.housing)) {
-    const def = ctx.housing[gid]
-    if (def) cap += def.capacity * Math.floor(count)
-  }
-  return cap
 }
 
 function nextResidentIndex(state: GameState): number {
@@ -47,7 +38,7 @@ function makeResident(state: GameState, rng: Rng, classId: ClassID): Resident {
   return {
     id: `res#${nextResidentIndex(state)}`,
     classId,
-    savings: 5,
+    savings: 12,
     satisfaction: 60,
     skill: 30 + Math.floor(rng.next() * 30),
     employed: false,

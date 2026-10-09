@@ -81,12 +81,19 @@ export function createInitialState(options: CreateOptions = {}): GameState {
   const prices: Record<string, number> = {}
   for (const gid of ctx.pack.goods) {
     goods[gid] = START_GOODS[gid] ?? 0
+    if (ALL_GOODS[gid]?.category === 'housing') continue
     prices[gid] = ALL_GOODS[gid]?.baseValue ?? 1
+  }
+  // 住房售价（私有化价格，玩家可调）
+  for (const gid of ctx.pack.housing) {
+    prices[gid] = ctx.housing[gid]?.salePrice ?? ALL_GOODS[gid]?.baseValue ?? 1
   }
 
   const housing: Record<string, number> = {}
+  const privateHousing: Record<string, number> = {}
   for (const gid of ctx.pack.housing) {
     housing[gid] = START_HOUSING[gid] ?? 0
+    privateHousing[gid] = 0
   }
 
   const shops: Shop[] = []
@@ -130,9 +137,10 @@ export function createInitialState(options: CreateOptions = {}): GameState {
     seed,
     rngState: rng.state,
     day: 0,
-    government: { money, taxRate: ECONOMY.defaultTaxRate, subsidyBudget: 0 },
+    government: { money, taxRate: ECONOMY.defaultTaxRate, rent: ECONOMY.defaultRent, subsidyBudget: 0 },
     goods,
     housing,
+    privateHousing,
     prices,
     shops,
     residents,

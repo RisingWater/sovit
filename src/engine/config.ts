@@ -32,10 +32,20 @@ export interface EconomyConfig {
   /** 新建 / 扩产的金钱成本（当建筑无可用的实物 buildCost 时的兜底）。 */
   buildMoneyByTier: Record<BuildingTier, number>
   expandMoneyBase: number
-  /** 土地上限：建筑总数（含在建）不得超过该值。 */
+  /** 土地上限：建筑总数（含在建、住房）不得超过该值。 */
   maxBuildingSlots: number
   /** 施工天数。 */
   constructionDays: number
+  /** 默认人均日租金（国有住房）。 */
+  defaultRent: number
+  /** 私有住房带来的满意度加成（点数）。 */
+  privateHousingSatBonus: number
+  /** 租金负担导致的满意度惩罚上限（点数）。 */
+  rentSatPenalty: number
+  /** 追求私有住房所需的满意度门槛（高层需求：先满足低级需求）。 */
+  privateHousingNeedThreshold: number
+  /** 每日最多私有化成交户数。 */
+  privateHousingPerDay: number
   /** 熟练度每日增长与上限。 */
   skillGainPerDay: number
   skillMax: number
@@ -60,8 +70,13 @@ export const ECONOMY: EconomyConfig = {
   minPopulation: 4,
   buildMoneyByTier: { 1: 100, 2: 250, 3: 500 },
   expandMoneyBase: 80,
-  maxBuildingSlots: 40,
+  maxBuildingSlots: Infinity,
   constructionDays: 2,
+  defaultRent: 0.2,
+  privateHousingSatBonus: 12,
+  rentSatPenalty: 25,
+  privateHousingNeedThreshold: 80,
+  privateHousingPerDay: 2,
   skillGainPerDay: 0.5,
   skillMax: 100,
   promotionSavings: 50,

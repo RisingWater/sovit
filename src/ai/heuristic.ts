@@ -58,9 +58,14 @@ function commonActions(
   const mul = hungry > 0 ? 0.95 : 1
   for (const gid of ctx.pack.goods) {
     const def = ALL_GOODS[gid]
-    if (!def) continue
+    if (!def || def.category === 'housing') continue
     actions.push({ type: 'set_price', goodId: gid, value: Math.round(def.baseValue * mul * 100) / 100 })
   }
+
+  // 租金：常态维持默认；财政吃紧时适度上调。
+  const rent = money < 100 ? ECONOMY.defaultRent * 2 : ECONOMY.defaultRent
+  actions.push({ type: 'set_rent', value: Math.round(rent * 100) / 100 })
+
   return actions
 }
 

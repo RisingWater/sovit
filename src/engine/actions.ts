@@ -46,7 +46,7 @@ export function applyActions(
       }
 
       case 'set_price': {
-        if (!ctx.goodSet.has(action.goodId)) {
+        if (!ctx.goodSet.has(action.goodId) && !ctx.pack.housing.includes(action.goodId)) {
           applied.push({ type: action.type, ok: false, reason: '商品不在当前内容包内' })
           break
         }
@@ -86,6 +86,12 @@ export function applyActions(
 
       case 'set_tax': {
         state.government.taxRate = clamp(action.value, 0, 0.95)
+        applied.push({ type: action.type, ok: true })
+        break
+      }
+
+      case 'set_rent': {
+        state.government.rent = round2(clamp(action.value, 0, 99))
         applied.push({ type: action.type, ok: true })
         break
       }
