@@ -52,7 +52,7 @@ export function assignLabor(state: GameState, ctx: ContentContext): void {
   const info = state.shops.map((shop) => {
     const def = ctx.buildings[shop.defId]
     const want = shop.active && def
-      ? Math.max(0, Math.min(shop.targetWorkers, def.workers))
+      ? Math.max(0, Math.min(shop.targetWorkers, def.maxWorkers ?? def.workers))
       : 0
     let priority = false
     if (def) {

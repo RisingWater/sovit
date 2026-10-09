@@ -72,8 +72,10 @@ export interface BuildingDef {
   id: BuildingID
   nameZh: string
   tier: BuildingTier
-  /** 满员工人数。 */
+  /** 参照满员工人数（决定每人产出基准）。 */
   workers: number
+  /** 工位上限（最多容纳多少工人）；缺省 = workers。产出随实际用工人数线性增长。 */
+  maxWorkers?: number
   recipe: RecipeID
   /** 建造成本（材料 / 建造力）；v0.1 仅扩产使用。 */
   buildCost?: Partial<Record<GoodID, number>>

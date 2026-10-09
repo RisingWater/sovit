@@ -66,7 +66,7 @@ export function applyActions(
           applied.push({ type: action.type, ok: false, reason: '建筑不存在' })
           break
         }
-        shop.targetWorkers = Math.round(clamp(action.value, 0, def.workers))
+        shop.targetWorkers = Math.round(clamp(action.value, 0, def.maxWorkers ?? def.workers))
         applied.push({ type: action.type, ok: true })
         break
       }

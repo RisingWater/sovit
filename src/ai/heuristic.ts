@@ -40,10 +40,12 @@ function commonActions(
 ): Action[] {
   const actions: Action[] = []
   const money = state.government.money
+  const pop = state.residents.length
 
   for (const shop of state.shops) {
     const def = ctx.buildings[shop.defId]
     if (!def) continue
+    // 基线 AI 只用参照用工（稳定）；矿场/林场等可由玩家/AI 用 set_workers 逐步加人（上限 = 工位）。
     actions.push({ type: 'set_workers', shopId: shop.id, value: def.workers })
   }
 

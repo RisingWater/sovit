@@ -45,7 +45,7 @@ export function runProduction(state: GameState, ctx: ContentContext, day: number
       continue
     }
 
-    const staffing = Math.min(1, workers / def.workers)
+    const staffing = workers / def.workers // 不封顶：工坊多派人就多产
     const skillEff = 0.6 + 0.4 * (shop.skill / 100)
     const scale = staffing * skillEff * shop.level
 

@@ -20,9 +20,9 @@ const list: BuildingDef[] = [
   { id: 'cotton_farm', nameZh: '棉花农场', tier: 1, workers: 4, recipe: 'r_cotton_farm', buildCost: TIER1_COST },
   { id: 'sugarcane_farm', nameZh: '甘蔗园', tier: 1, workers: 4, recipe: 'r_sugarcane_farm', buildCost: TIER1_COST },
   { id: 'dye_farm', nameZh: '染料园', tier: 1, workers: 3, recipe: 'r_dye_farm', buildCost: TIER1_COST },
-  { id: 'lumberjack', nameZh: '伐木场', tier: 1, workers: 3, recipe: 'r_lumberjack', buildCost: TIER1_COST },
-  { id: 'quarry', nameZh: '采石场', tier: 1, workers: 3, recipe: 'r_quarry', buildCost: TIER1_COST },
-  { id: 'clay_pit', nameZh: '粘土坑', tier: 1, workers: 3, recipe: 'r_clay_pit', buildCost: TIER1_COST },
+  { id: 'lumberjack', nameZh: '伐木场', tier: 1, workers: 3, maxWorkers: 100, recipe: 'r_lumberjack', buildCost: TIER1_COST },
+  { id: 'quarry', nameZh: '采石场', tier: 1, workers: 3, maxWorkers: 100, recipe: 'r_quarry', buildCost: TIER1_COST },
+  { id: 'clay_pit', nameZh: '粘土坑', tier: 1, workers: 3, maxWorkers: 100, recipe: 'r_clay_pit', buildCost: TIER1_COST },
   { id: 'hunting_camp', nameZh: '狩猎营地', tier: 1, workers: 3, recipe: 'r_hunting_camp', buildCost: TIER1_COST },
   { id: 'fishery', nameZh: '渔场', tier: 1, workers: 4, recipe: 'r_fishery', buildCost: TIER1_COST },
 

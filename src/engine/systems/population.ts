@@ -17,7 +17,8 @@ function jobCapacity(state: GameState, ctx: ContentContext): number {
   for (const shop of state.shops) {
     if (!shop.active) continue
     const def = ctx.buildings[shop.defId]
-    if (def) total += def.workers
+    // 岗位 = 该店实际开出的用工数（工位上限只是容量）
+    if (def) total += Math.min(shop.targetWorkers, def.maxWorkers ?? def.workers)
   }
   return total
 }
