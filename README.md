@@ -123,6 +123,7 @@ curl -X POST http://localhost:8787/act \
 | `v1.0` | 全量商品 / 配方 / 建筑 | 四阶层（含建筑工坊等） |
 
 全量内容始终存在于 `src/engine/content/`，`ContentPack` 只决定「本局允许出现什么」。
+完整的资源 / 产业链 / 阶层 / 住房 / 配置数值清单见 [`docs/content.md`](docs/content.md)。
 
 ---
 
