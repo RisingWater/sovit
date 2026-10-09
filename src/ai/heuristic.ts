@@ -140,19 +140,26 @@ function decideGrowth(state: GameState, ctx: ContentContext): Action[] {
   const levelSum = (defId: string): number =>
     state.shops.reduce((a, s) => a + (s.defId === defId && s.active ? s.level : 0), 0)
 
-  // 食品扩产：按产能对比，扩最弱且真正不足的一环（保持链条均衡）。
+  // 食品扩产：优先补**最缺的必需食物**（蔬菜 / 粗面包），再考虑高级食品。
   const foodExpansion = (): Action | undefined => {
-    if (productionCapacity('coarse_bread') < pop * 1.15) {
+    const breadRatio = productionCapacity('coarse_bread') / Math.max(1, pop * 1.15)
+    const vegRatio = productionCapacity('vegetable') / Math.max(1, pop * 0.6)
+
+    if (vegRatio < 1 && vegRatio <= breadRatio) return expand('vegetable_farm')
+    if (breadRatio < 1) {
       const links = ['wheat_farm', 'coarse_mill', 'coarse_bakery'].filter((id) =>
         ctx.buildingSet.has(id),
       )
       let weakest = links[0]
       if (weakest) {
         for (const id of links) if (levelSum(id) < levelSum(weakest)) weakest = id
-        return expand(weakest)
+        const a = expand(weakest)
+        if (a) return a
       }
     }
-    // 高级食品（白面包 / 糕点）链：中产富人需要，产能不足时补上游（小麦共享）
+    if (vegRatio < 1) return expand('vegetable_farm')
+
+    // 高级食品（白面包 / 糕点）链：中产富人需要，产能不足时补上游
     if (productionCapacity('white_bread') + productionCapacity('pastry') < pop * 0.5) {
       const links = ['wheat_farm', 'fine_mill', 'white_bakery', 'pastry_shop'].filter((id) =>
         ctx.buildingSet.has(id),
@@ -160,90 +167,145 @@ function decideGrowth(state: GameState, ctx: ContentContext): Action[] {
       let weakest = links[0]
       if (weakest) {
         for (const id of links) if (levelSum(id) < levelSum(weakest)) weakest = id
-        return expand(weakest)
+        const a = expand(weakest)
+        if (a) return a
       }
     }
-    if (productionCapacity('vegetable') < pop * 0.6) return expand('vegetable_farm')
     return undefined
   }
-
-  let chosen: Action | undefined
 
   const classCount: Record<string, number> = {}
   for (const r of state.residents) classCount[r.classId] = (classCount[r.classId] ?? 0) + 1
 
-  // 1. 缺粮 → 优先补食品产能
-  if (hungry > 0) chosen = foodExpansion()
+  // 本回合可执行多个建设 / 扩产动作；每个都先查负担，避免卡在"建不起的建筑"上空转。
+  const picks: Action[] = []
+  const MAX_PICKS = 6
+  const picked = new Set<string>()
+  const budget: Record<string, number> = {}
+  const afford = (g: string, q: number) => (budget[g] ?? state.goods[g] ?? 0) >= q
+  const spend = (g: string, q: number) => {
+    budget[g] = (budget[g] ?? state.goods[g] ?? 0) - q
+  }
+  const matsOf = (cost?: Partial<Record<string, number>>): Array<[string, number]> =>
+    Object.entries(cost ?? {}).filter(([g, q]) => q && ctx.goodSet.has(g)) as Array<[string, number]>
+  const canAfford = (mats: Array<[string, number]>) => mats.every(([g, q]) => afford(g, q))
+  const payMats = (mats: Array<[string, number]>) => mats.forEach(([g, q]) => spend(g, q))
 
-  // 2. 保证建材链最小规模
-  if (!chosen) {
-    const chain: Array<[string, number]> = [
-      ['lumberjack', 2],
-      ['quarry', 1],
-      ['clay_pit', 1],
-      ['firewood_works', 1],
-      ['brick_kiln', 1],
-      ['construction_works', 2],
-    ]
-    for (const [id, n] of chain) {
-      if ((counts[id] ?? 0) < n && ctx.buildingSet.has(id)) {
-        chosen = { type: 'build', buildingId: id }
-        break
-      }
+  const pushExpand = (defId: string): void => {
+    if (picks.length >= MAX_PICKS) return
+    const shop = shopOf(defId)
+    if (!shop || shop.level >= 8) return
+    const key = 'e:' + shop.id
+    if (picked.has(key)) return
+    const def = ctx.buildings[defId]
+    if (!def) return
+    const mats = matsOf(def.buildCost).map(([g, q]) => [g, q * shop.level] as [string, number])
+    if (mats.length > 0) {
+      if (!canAfford(mats)) return
+      payMats(mats)
+    } else if (state.government.money < ECONOMY.expandMoneyBase * shop.level) {
+      return
     }
+    picks.push({ type: 'expand', shopId: shop.id })
+    picked.add(key)
+  }
+  const pushBuild = (id: string, n: number): void => {
+    if (picks.length >= MAX_PICKS) return
+    if ((counts[id] ?? 0) >= n || !ctx.buildingSet.has(id)) return
+    const key = 'b:' + id
+    if (picked.has(key)) return
+    const def = ctx.buildings[id]
+    if (!def) return
+    const mats = matsOf(def.buildCost)
+    if (mats.length > 0) {
+      if (!canAfford(mats)) return
+      payMats(mats)
+    } else if (state.government.money < (ECONOMY.buildMoneyByTier[def.tier] ?? 0)) {
+      return
+    }
+    picks.push({ type: 'build', buildingId: id })
+    picked.add(key)
+  }
+  const pushHouse = (gid: string): void => {
+    if (picks.length >= MAX_PICKS) return
+    const key = 'h:' + gid
+    if (picked.has(key)) return
+    const def = ctx.housing[gid]
+    if (!def) return
+    const mats = matsOf(def.buildCost)
+    if (!canAfford(mats)) return
+    payMats(mats)
+    picks.push({ type: 'build_housing', goodId: gid })
+    picked.add(key)
   }
 
-  // 3. 食品储备见底 → 扩产
-  if (!chosen) chosen = foodExpansion()
+  // 1. 材料瓶颈：木材偏低时补伐木场
+  if ((state.goods['wood'] ?? 0) < pop * 2) pushExpand('lumberjack')
 
-  // 3.5 保证中产 / 富人消费链（让奢侈品有产量，才能从富人身上抽税）
-  if (!chosen) {
+  // 2. 必需食品：蔬菜 / 粗面包，按最缺的扩产
+  const breadRatio = productionCapacity('coarse_bread') / Math.max(1, pop * 1.15)
+  const vegRatio = productionCapacity('vegetable') / Math.max(1, pop * 0.6)
+  if (vegRatio < 1 && vegRatio <= breadRatio) pushExpand('vegetable_farm')
+  if (breadRatio < 1) {
+    const links = ['wheat_farm', 'coarse_mill', 'coarse_bakery'].filter((id) =>
+      ctx.buildingSet.has(id),
+    )
+    let weakest = links[0]
+    for (const id of links) if (weakest && levelSum(id) < levelSum(weakest)) weakest = id
+    if (weakest) pushExpand(weakest)
+  }
+  if (vegRatio < 1) pushExpand('vegetable_farm')
+
+  // 3. 建材 / 建造力链最小规模
+  const minChain: Array<[string, number]> = [
+    ['lumberjack', 3],
+    ['quarry', 1],
+    ['clay_pit', 1],
+    ['firewood_works', 1],
+    ['brick_kiln', 1],
+    ['construction_works', 2],
+  ]
+  for (const [id, n] of minChain) pushBuild(id, n)
+
+  // 4. 高级食品 / 奢侈品 / 服务链：保证产量，才能从富人身上抽税
+  if (productionCapacity('white_bread') + productionCapacity('pastry') < pop * 0.5) {
+    const links = ['wheat_farm', 'fine_mill', 'white_bakery', 'pastry_shop'].filter((id) =>
+      ctx.buildingSet.has(id),
+    )
+    let weakest = links[0]
+    for (const id of links) if (weakest && levelSum(id) < levelSum(weakest)) weakest = id
+    if (weakest) pushExpand(weakest)
+  }
+  {
     const has = (c: string) => (classCount[c] ?? 0) > 0
-    const chain: Array<[string, number]> = []
     if (has('middle')) {
-      chain.push(
-        ['fine_mill', 1], ['white_bakery', 1], ['flax_farm', 1], ['coarse_weaver', 1],
-        ['coarse_clothes_shop', 1], ['hunting_camp', 1], ['pottery_works', 1],
-      )
+      for (const id of ['fine_mill', 'white_bakery', 'flax_farm', 'coarse_weaver', 'coarse_clothes_shop', 'hunting_camp', 'pottery_works']) {
+        pushBuild(id, 1)
+      }
     }
     if (has('rich') || has('boss')) {
-      // 家政工坊数量按富/老板的需求产能匹配
       const servants = Math.max(
         1,
         Math.ceil(((classCount['rich'] ?? 0) * 0.3 + (classCount['boss'] ?? 0) * 0.5) / 4),
       )
-      chain.push(
-        ['sugarcane_farm', 1], ['sugar_works', 1], ['pastry_shop', 1], ['cotton_farm', 1],
-        ['fine_weaver', 1], ['common_clothes_shop', 1], ['dye_farm', 1],
-        ['luxury_clothes_shop', 1], ['leather_shop', 1], ['porcelain_works', 1],
-        ['domestic_service', servants],
-      )
+      for (const id of ['sugarcane_farm', 'sugar_works', 'pastry_shop', 'cotton_farm', 'fine_weaver', 'common_clothes_shop', 'dye_farm', 'luxury_clothes_shop', 'leather_shop', 'porcelain_works']) {
+        pushBuild(id, 1)
+      }
+      pushBuild('domestic_service', servants)
     }
-    // 剧院：服务中产/富/老板，阶层越高需求越大
     if (has('middle') || has('rich') || has('boss')) {
       const entDemand =
         (classCount['middle'] ?? 0) * 0.1 +
         (classCount['rich'] ?? 0) * 0.3 +
         (classCount['boss'] ?? 0) * 0.6
-      if (entDemand > 0 && ctx.buildingSet.has('theater')) {
-        chain.push(['theater', Math.max(1, Math.ceil(entDemand / 5))])
-      }
-    }
-    for (const [id, n] of chain) {
-      if ((counts[id] ?? 0) < n && ctx.buildingSet.has(id)) {
-        chosen = { type: 'build', buildingId: id }
-        break
-      }
+      if (entDemand > 0) pushBuild('theater', Math.max(1, Math.ceil(entDemand / 5)))
     }
   }
 
-  // 4. 住房不足 → 按阶层建对应等级住房（茅屋/木屋/砖房）
-  if (!chosen && ctx.pack.housing.length > 0) {
+  // 5. 住房：按阶层建对应等级（缺口大的优先，可一次多建）
+  if (ctx.pack.housing.length > 0) {
     const requiredLevel = ECONOMY.classHousingLevel
-    let pick: string | undefined
-    let worst = 0
-    let largest = 0
-    let largestGid: string | undefined
+    const cands: Array<{ gid: string; deficit: number; popForType: number }> = []
     for (const gid of ctx.pack.housing) {
       const def = ctx.housing[gid]
       if (!def) continue
@@ -251,37 +313,26 @@ function decideGrowth(state: GameState, ctx: ContentContext): Action[] {
       for (const r of state.residents) {
         if ((requiredLevel[r.classId] ?? 1) === def.quality) popForType++
       }
-      const need = Math.ceil(popForType / def.capacity)
-      const built = Math.floor(state.housing[gid] ?? 0)
-      const deficit = need - built
-      if (deficit > worst) {
-        worst = deficit
-        pick = gid
-      }
-      if (popForType > largest) {
-        largest = popForType
-        largestGid = gid
-      }
+      const deficit = Math.ceil(popForType / def.capacity) - Math.floor(state.housing[gid] ?? 0)
+      cands.push({ gid, deficit, popForType })
     }
-    if (pick) chosen = { type: 'build_housing', goodId: pick }
-    else if (housingRoom < 4 && largestGid) {
-      chosen = { type: 'build_housing', goodId: largestGid }
+    cands.sort((a, b) => b.deficit - a.deficit || b.popForType - a.popForType)
+    for (const c of cands) {
+      if (c.deficit > 0) pushHouse(c.gid)
+      else if (housingRoom < 4 && c.popForType > 0) pushHouse(c.gid)
     }
   }
 
-  // 5. 岗位触顶 → 建产线建筑（各建筑数量均衡）
-  if (!chosen && jobRoom < 1 && ctx.buildingSet.has('wheat_farm')) {
+  // 6. 岗位不足 → 建产线建筑（各建筑数量均衡）
+  if (jobRoom < 1) {
     const order = ['wheat_farm', 'coarse_mill', 'coarse_bakery', 'vegetable_farm'].filter((id) =>
       ctx.buildingSet.has(id),
     )
-    if (order.length > 0) {
-      let pick = order[0]!
-      for (const id of order) if ((counts[id] ?? 0) < (counts[pick] ?? 0)) pick = id
-      chosen = { type: 'build', buildingId: pick }
-    }
+    order.sort((a, b) => (counts[a] ?? 0) - (counts[b] ?? 0))
+    if (order[0]) pushBuild(order[0], (counts[order[0]] ?? 0) + 1)
   }
 
-  if (chosen) actions.push(chosen)
+  for (const a of picks) actions.push(a)
   actions.push({ type: 'end_turn' })
   return actions
 }
