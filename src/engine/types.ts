@@ -259,6 +259,8 @@ export interface GameState {
   hour: number
   /** 待生效命令队列：在次日 06:00（dawnHour）排产时统一应用。 */
   pending: Action[]
+  /** 当日已计划消耗的原料（剩余锁定）；可用花料量 = goods − reserved。 */
+  reserved: Record<GoodID, number>
 
   government: Government
   /** 中央仓库库存。 */

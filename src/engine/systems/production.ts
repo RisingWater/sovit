@@ -42,6 +42,7 @@ export function planProduction(state: GameState, ctx: ContentContext): void {
 
   const items: Item[] = []
   const demand: Record<string, number> = {}
+  const reserved: Record<string, number> = {}
 
   for (const shop of state.shops) {
     if (!shop.active) continue
@@ -82,6 +83,9 @@ export function planProduction(state: GameState, ctx: ContentContext): void {
     for (const g of Object.keys(it.inputPer)) f = Math.min(f, factor[g] ?? 1)
     const planned = it.desired * f
     it.shop.planned = planned
+    for (const [g, q] of Object.entries(it.inputPer)) {
+      reserved[g] = (reserved[g] ?? 0) + q * planned
+    }
 
     let outVal = 0
     for (const [g, q] of Object.entries(it.output)) if (q) outVal += goodValue(g, q * planned)
@@ -90,6 +94,8 @@ export function planProduction(state: GameState, ctx: ContentContext): void {
     const wages = assignedWorkers(state, it.shop.id) * it.shop.wage
     it.shop.profit = round2(outVal - inVal - wages)
   }
+
+  state.reserved = reserved
 }
 
 /** 白天按小时执行今日计划的一部分（fraction = 1 / 工作小时数）。 */
@@ -103,10 +109,14 @@ export function runProductionStep(state: GameState, ctx: ContentContext, fractio
 
     const batches = shop.planned * fraction
     for (const [g, q] of Object.entries(recipe.inputs)) {
-      if (q && q > 0) state.goods[g] = (state.goods[g] ?? 0) - q * batches
+      if (q && q > 0) {
+        state.goods[g] = (state.goods[g] ?? 0) - q * batches
+        state.reserved[g] = Math.max(0, (state.reserved[g] ?? 0) - q * batches)
+      }
     }
     if (recipe.fuel && recipe.fuel > 0) {
       state.goods['firewood'] = (state.goods['firewood'] ?? 0) - recipe.fuel * batches
+      state.reserved['firewood'] = Math.max(0, (state.reserved['firewood'] ?? 0) - recipe.fuel * batches)
     }
     for (const [g, q] of Object.entries(recipe.output)) {
       if (q && q > 0) state.goods[g] = (state.goods[g] ?? 0) + q * batches

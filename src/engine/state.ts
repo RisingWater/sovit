@@ -87,6 +87,7 @@ export function createInitialState(options: CreateOptions = {}): GameState {
     day: 0,
     hour: 0,
     pending: [],
+    reserved: {},
     government: {
       money,
       taxBrackets: ECONOMY.defaultTaxBrackets.map((b) => ({ ...b })),

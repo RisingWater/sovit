@@ -15,6 +15,17 @@ func enqueue(actions: Array) -> void:
 	for a in actions:
 		s["pending"].append(a)
 
+# 可用花料量 = 库存 − 当日已锁定（计划）消耗。
+func available(gid: String) -> float:
+	return float(s["goods"].get(gid, 0.0)) - float(s["reserved"].get(gid, 0.0))
+
+# 实时花料（铺地板用）：只能花未计划的部分；不足则拒绝。
+func spend(gid: String, qty: float) -> bool:
+	if available(gid) < qty:
+		return false
+	s["goods"][gid] = float(s["goods"].get(gid, 0.0)) - qty
+	return true
+
 # ===========================================================================
 # 初始状态
 # ===========================================================================
@@ -81,7 +92,7 @@ func new_game(pack_id: String, seed_value: int) -> void:
 	var money = float(start["money"])
 	s = {
 		"pack": pack_id, "seed": seed_value, "rngState": rng.state,
-		"day": 0, "hour": 0, "pending": [],
+		"day": 0, "hour": 0, "pending": [], "reserved": {},
 		"government": {
 			"money": money,
 			"taxBrackets": _dup_brackets(db.economy["defaultTaxBrackets"]),
@@ -140,6 +151,7 @@ func _run_night() -> Array:
 	_apply_spoilage()
 	_grow_skills()
 	_compute_arrivals()
+	s["reserved"] = {}
 
 	s["history"].append(_make_snapshot(cons["hungry"]))
 	if s["history"].size() > 400:
@@ -258,6 +270,7 @@ func _plan_production() -> void:
 
 	var items := []
 	var demand := {}
+	var reserved := {}
 	for shop in s["shops"]:
 		if not bool(shop["active"]):
 			continue
@@ -294,6 +307,8 @@ func _plan_production() -> void:
 			f = minf(f, float(factor[g]))
 		var planned = float(it["desired"]) * f
 		it["shop"]["planned"] = planned
+		for g in (it["inputPer"] as Dictionary).keys():
+			reserved[g] = float(reserved.get(g, 0.0)) + float(it["inputPer"][g]) * planned
 		var out_val = 0.0
 		for g in (it["output"] as Dictionary).keys():
 			out_val += _good_value(g, float(it["output"][g]) * planned)
@@ -302,6 +317,8 @@ func _plan_production() -> void:
 			in_val += _good_value(g, float(it["inputPer"][g]) * planned)
 		var wages = float(_assigned_workers(it["shop"]["id"])) * float(it["shop"]["wage"])
 		it["shop"]["profit"] = SimUtil.r2(out_val - in_val - wages)
+
+	s["reserved"] = reserved
 
 func _run_production_step(fraction: float) -> void:
 	for shop in s["shops"]:
@@ -314,9 +331,11 @@ func _run_production_step(fraction: float) -> void:
 			var q = float(recipe["inputs"][g])
 			if q > 0.0:
 				s["goods"][g] = float(s["goods"].get(g, 0.0)) - q * batches
+				s["reserved"][g] = maxf(0.0, float(s["reserved"].get(g, 0.0)) - q * batches)
 		var fuel = float(recipe.get("fuel", 0.0))
 		if fuel > 0.0:
 			s["goods"]["firewood"] = float(s["goods"].get("firewood", 0.0)) - fuel * batches
+			s["reserved"]["firewood"] = maxf(0.0, float(s["reserved"].get("firewood", 0.0)) - fuel * batches)
 		for g in (recipe["output"] as Dictionary).keys():
 			var q = float(recipe["output"][g])
 			if q > 0.0:

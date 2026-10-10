@@ -90,6 +90,7 @@ export function runNight(state: GameState, ctx: ContentContext, rng: ReturnType<
   applySpoilage(state, ctx)
   growSkills(state)
   computeArrivals(state)
+  state.reserved = {}
 
   state.history.push(makeSnapshot(state, consumption.hungry))
   if (state.history.length > 400) state.history = state.history.slice(-400)
