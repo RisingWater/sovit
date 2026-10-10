@@ -111,7 +111,7 @@ func _build_warehouse() -> void:
 func _camera_setup() -> void:
 	camera = Camera2D.new()
 	camera.position = Vector2(map.center.x * TILE, map.center.y * TILE)
-	camera.zoom = Vector2(0.6, 0.6)
+	camera.zoom = Vector2(1.0, 1.0)
 	add_child(camera)
 	camera.make_current()
 
@@ -365,9 +365,9 @@ func _assign_homes() -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton:
 		if event.button_index == MOUSE_BUTTON_WHEEL_UP and event.pressed:
-			camera.zoom = (camera.zoom * 1.15).clamp(Vector2(0.1, 0.1), Vector2(3, 3))
+			camera.zoom = (camera.zoom * 1.15).clamp(Vector2(0.25, 0.25), Vector2(4, 4))
 		elif event.button_index == MOUSE_BUTTON_WHEEL_DOWN and event.pressed:
-			camera.zoom = (camera.zoom / 1.15).clamp(Vector2(0.1, 0.1), Vector2(3, 3))
+			camera.zoom = (camera.zoom / 1.15).clamp(Vector2(0.25, 0.25), Vector2(4, 4))
 		elif event.button_index == MOUSE_BUTTON_MIDDLE:
 			_picking = event.pressed
 		elif event.button_index == MOUSE_BUTTON_RIGHT and event.pressed:
