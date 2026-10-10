@@ -11,6 +11,8 @@ var _body: VBoxContainer
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_RIGHT_WIDE)
 	offset_left = -350
+	offset_top = 80
+	offset_bottom = -116
 	mouse_filter = Control.MOUSE_FILTER_PASS
 
 	var bg := StyleBoxFlat.new()

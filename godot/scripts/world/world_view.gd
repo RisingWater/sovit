@@ -14,11 +14,17 @@ var runner: SimRunner
 var map: GameMap
 
 var terrain_layer: TileMapLayer
-var overlay_layer: TileMapLayer
+var floor_layer: TileMapLayer
+var road_layer: TileMapLayer
 var building_layer: Node2D
 var agent_layer: Node2D
 var camera: Camera2D
 var ghost: Sprite2D
+
+var _left_down := false
+var _left_drag := false
+var _press_pos := Vector2.ZERO
+var _press_cell := Vector2i.ZERO
 
 var _tex_cache := {}
 var _shop_sprites := {}         # shop_id -> Node2D
@@ -68,10 +74,15 @@ func _build_tileset() -> void:
 	terrain_layer.z_index = -10
 	add_child(terrain_layer)
 
-	overlay_layer = TileMapLayer.new()
-	overlay_layer.tile_set = ts
-	overlay_layer.z_index = -5
-	add_child(overlay_layer)
+	floor_layer = TileMapLayer.new()
+	floor_layer.tile_set = ts
+	floor_layer.z_index = -7
+	add_child(floor_layer)
+
+	road_layer = TileMapLayer.new()
+	road_layer.tile_set = ts
+	road_layer.z_index = -6
+	add_child(road_layer)
 
 	building_layer = Node2D.new()
 	add_child(building_layer)
@@ -100,6 +111,7 @@ func _camera_setup() -> void:
 	camera.make_current()
 
 	ghost = Sprite2D.new()
+	ghost.centered = false
 	ghost.modulate = Color(1, 1, 1, 0.5)
 	ghost.visible = false
 	ghost.z_index = 20
@@ -226,9 +238,25 @@ func _draw_agents() -> void:
 
 # ---- 每帧：移动小人 + 同步建筑 --------------------------------------------
 func _process(delta: float) -> void:
+	_pan_keyboard(delta)
 	_sync()
 	_update_agents(delta)
 	agent_layer.queue_redraw()
+
+func _pan_keyboard(delta: float) -> void:
+	if camera == null:
+		return
+	var dir := Vector2.ZERO
+	if Input.is_key_pressed(KEY_A) or Input.is_key_pressed(KEY_LEFT):
+		dir.x -= 1.0
+	if Input.is_key_pressed(KEY_D) or Input.is_key_pressed(KEY_RIGHT):
+		dir.x += 1.0
+	if Input.is_key_pressed(KEY_W) or Input.is_key_pressed(KEY_UP):
+		dir.y -= 1.0
+	if Input.is_key_pressed(KEY_S) or Input.is_key_pressed(KEY_DOWN):
+		dir.y += 1.0
+	if dir != Vector2.ZERO:
+		camera.position += dir.normalized() * 700.0 * delta / camera.zoom.x
 
 func _update_agents(delta: float) -> void:
 	if runner == null or runner.sim == null:
@@ -280,43 +308,50 @@ func _assign_homes() -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton:
 		if event.button_index == MOUSE_BUTTON_WHEEL_UP and event.pressed:
-			camera.zoom = (camera.zoom * 1.15).clamp(Vector2(0.15, 0.15), Vector2(3, 3))
+			camera.zoom = (camera.zoom * 1.15).clamp(Vector2(0.1, 0.1), Vector2(3, 3))
 		elif event.button_index == MOUSE_BUTTON_WHEEL_DOWN and event.pressed:
-			camera.zoom = (camera.zoom / 1.15).clamp(Vector2(0.15, 0.15), Vector2(3, 3))
+			camera.zoom = (camera.zoom / 1.15).clamp(Vector2(0.1, 0.1), Vector2(3, 3))
 		elif event.button_index == MOUSE_BUTTON_MIDDLE:
 			_picking = event.pressed
 		elif event.button_index == MOUSE_BUTTON_RIGHT and event.pressed:
 			_cancel_mode()
 		elif event.button_index == MOUSE_BUTTON_LEFT:
-			var cell = _mouse_cell()
 			if event.pressed:
-				_on_left_press(cell)
+				_left_down = true
+				_left_drag = false
+				_press_pos = event.position
+				_press_cell = _mouse_cell()
+				if brush_mode != "" and build_mode == "":
+					_paint_cell(_press_cell)
 			else:
-				_paint = false
+				if _left_down and not _left_drag:
+					_on_left_click(_press_cell)
+				_left_down = false
+				_left_drag = false
 	elif event is InputEventMouseMotion:
 		if _picking:
 			camera.position -= event.relative / camera.zoom
-		if _paint and (brush_mode != ""):
-			_paint_cell(_mouse_cell())
+		if _left_down:
+			if brush_mode != "" and build_mode == "":
+				_paint_cell(_mouse_cell())
+			elif build_mode == "" and event.position.distance_to(_press_pos) > 6.0:
+				_left_drag = true
+				camera.position -= event.relative / camera.zoom
 		if build_mode != "":
 			_update_ghost(_mouse_cell())
 	elif event is InputEventKey and event.pressed and not event.echo:
 		if event.keycode == KEY_ESCAPE:
 			_cancel_mode()
 
-func _on_left_press(cell: Vector2i) -> void:
-	if brush_mode != "":
-		_paint = true
-		_paint_cell(cell)
-		return
+func _on_left_click(cell: Vector2i) -> void:
 	if build_mode != "":
 		_try_place(build_mode, cell)
 		return
-	# 选择
+	if brush_mode != "":
+		return
 	var occ = map.occupied_at(cell)
-	if occ != null:
-		if occ["kind"] == "shop":
-			select_building.emit(String(occ["id"]))
+	if occ != null and occ["kind"] == "shop":
+		select_building.emit(String(occ["id"]))
 		return
 	var best = _nearest_agent(get_global_mouse_position())
 	if best != "":
@@ -429,23 +464,24 @@ func _update_ghost(cell: Vector2i) -> void:
 
 # ---- 道路 / 地板 ----------------------------------------------------------
 func _paint_cell(cell: Vector2i) -> void:
-	var half = brush_size / 2
-	for dy in brush_size:
-		for dx in brush_size:
+	var size = 1 if brush_mode == "road" else brush_size
+	var half = size / 2
+	for dy in size:
+		for dx in size:
 			var c = cell + Vector2i(dx - half, dy - half)
 			if not map.in_bounds(c) or map.is_water(c):
 				continue
 			if brush_mode == "road":
 				map.road[map.idx(c.x, c.y)] = 1
-				overlay_layer.set_cell(c, 0, Vector2i(5, 0))
+				road_layer.set_cell(c, 0, Vector2i(5, 0))
 			elif brush_mode == "floor":
 				if map.floor_tiles[map.idx(c.x, c.y)] == 1:
 					continue
 				if map.floor_charge <= 0:
 					if not runner.sim.spend("stone", 1.0):
-						notice.emit("石头不足（需要未计划的石头）")
+						notice.emit("石头不足（只能花未计划的石头）")
 						return
 					map.floor_charge += 100
 				map.floor_charge -= 1
 				map.floor_tiles[map.idx(c.x, c.y)] = 1
-				overlay_layer.set_cell(c, 0, Vector2i(6, 0))
+				floor_layer.set_cell(c, 0, Vector2i(6, 0))
