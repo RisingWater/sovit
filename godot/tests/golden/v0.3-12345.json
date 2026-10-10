@@ -285,7 +285,7 @@
         "brick_house": 50
       },
       "housing": {
-        "hut": 3,
+        "hut": 5,
         "wooden_house": 0,
         "brick_house": 0
       },
@@ -372,7 +372,7 @@
         "brick_house": 50
       },
       "housing": {
-        "hut": 3,
+        "hut": 5,
         "wooden_house": 0,
         "brick_house": 0
       },
@@ -459,7 +459,7 @@
         "brick_house": 50
       },
       "housing": {
-        "hut": 3,
+        "hut": 5,
         "wooden_house": 0,
         "brick_house": 0
       },
@@ -546,7 +546,7 @@
         "brick_house": 50
       },
       "housing": {
-        "hut": 6,
+        "hut": 8,
         "wooden_house": 0,
         "brick_house": 0
       },
@@ -704,7 +704,7 @@
         "brick_house": 50
       },
       "housing": {
-        "hut": 6,
+        "hut": 8,
         "wooden_house": 0,
         "brick_house": 0
       },
@@ -862,7 +862,7 @@
         "brick_house": 50
       },
       "housing": {
-        "hut": 6,
+        "hut": 8,
         "wooden_house": 0,
         "brick_house": 0
       },
@@ -1020,7 +1020,7 @@
         "brick_house": 50
       },
       "housing": {
-        "hut": 9,
+        "hut": 11,
         "wooden_house": 0,
         "brick_house": 0
       },
@@ -1178,7 +1178,7 @@
         "brick_house": 50
       },
       "housing": {
-        "hut": 9,
+        "hut": 11,
         "wooden_house": 0,
         "brick_house": 0
       },
@@ -1336,7 +1336,7 @@
         "brick_house": 50
       },
       "housing": {
-        "hut": 11,
+        "hut": 13,
         "wooden_house": 0,
         "brick_house": 0
       },
@@ -1515,7 +1515,7 @@
         "brick_house": 50
       },
       "housing": {
-        "hut": 11,
+        "hut": 13,
         "wooden_house": 0,
         "brick_house": 0
       },
@@ -1694,7 +1694,7 @@
         "brick_house": 50
       },
       "housing": {
-        "hut": 13,
+        "hut": 15,
         "wooden_house": 0,
         "brick_house": 0
       },
@@ -1873,7 +1873,7 @@
         "brick_house": 50
       },
       "housing": {
-        "hut": 13,
+        "hut": 15,
         "wooden_house": 0,
         "brick_house": 0
       },
@@ -2052,7 +2052,7 @@
         "brick_house": 50
       },
       "housing": {
-        "hut": 13,
+        "hut": 15,
         "wooden_house": 0,
         "brick_house": 0
       },
@@ -2231,7 +2231,7 @@
         "brick_house": 50
       },
       "housing": {
-        "hut": 13,
+        "hut": 15,
         "wooden_house": 0,
         "brick_house": 0
       },
@@ -2410,7 +2410,7 @@
         "brick_house": 50
       },
       "housing": {
-        "hut": 15,
+        "hut": 17,
         "wooden_house": 0,
         "brick_house": 0
       },
@@ -2603,7 +2603,7 @@
         "brick_house": 50
       },
       "housing": {
-        "hut": 15,
+        "hut": 17,
         "wooden_house": 0,
         "brick_house": 0
       },
@@ -2796,7 +2796,7 @@
         "brick_house": 50
       },
       "housing": {
-        "hut": 15,
+        "hut": 17,
         "wooden_house": 0,
         "brick_house": 0
       },
@@ -2989,7 +2989,7 @@
         "brick_house": 50
       },
       "housing": {
-        "hut": 15,
+        "hut": 17,
         "wooden_house": 0,
         "brick_house": 0
       },
@@ -3182,7 +3182,7 @@
         "brick_house": 50
       },
       "housing": {
-        "hut": 17,
+        "hut": 19,
         "wooden_house": 0,
         "brick_house": 0
       },
@@ -3389,7 +3389,7 @@
         "brick_house": 50
       },
       "housing": {
-        "hut": 17,
+        "hut": 19,
         "wooden_house": 0,
         "brick_house": 0
       },
@@ -3596,7 +3596,7 @@
         "brick_house": 50
       },
       "housing": {
-        "hut": 17,
+        "hut": 19,
         "wooden_house": 0,
         "brick_house": 0
       },

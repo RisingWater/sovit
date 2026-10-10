@@ -75,7 +75,6 @@ func _ready() -> void:
 	_build_tileset()
 	_build_warehouse()
 	_camera_setup()
-	_initial_housing()
 	_sync()
 	_build_astar()
 	_assign_homes()
@@ -165,15 +164,6 @@ func _camera_setup() -> void:
 	ghost.visible = false
 	ghost.z_index = 20
 	add_child(ghost)
-
-func _initial_housing() -> void:
-	var housing: Dictionary = runner.sim.s["housing"]
-	for type in housing.keys():
-		var n = int(float(housing[type]))
-		for i in n:
-			var cell = _find_free_area(type, map.center, 1)
-			if cell.x >= 0:
-				_place_housing_instance(type, cell)
 
 func _find_free_area(type: String, near: Vector2i, gap: int) -> Vector2i:
 	var fp = _footprint(type)
@@ -438,7 +428,7 @@ func _sync() -> void:
 			_place_housing_instance(type, cell)
 			have += 1
 		while have < want:
-			var cell = _find_free_area(type, map.center, true)
+			var cell = _find_free_area(type, map.center, 1)
 			if cell.x < 0:
 				break
 			_place_housing_instance(type, cell)

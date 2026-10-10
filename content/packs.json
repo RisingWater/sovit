@@ -41,7 +41,7 @@
         "population": 12,
         "money": 2000,
         "shops": {},
-        "housing": { "hut": 3 },
+        "housing": { "hut": 5 },
         "goods": { "coarse_bread": 200, "vegetable": 100, "wood": 300, "stone": 150, "clay": 150, "firewood": 80, "brick": 80, "build_power": 80 }
       }
     },
