@@ -46,8 +46,11 @@ var brush_size := 1
 
 var _agents := []               # [{id, pos, home, goal_cell, path, pi, need_path}]
 var _resident_home := {}        # id -> Vector2
-var _shop_anchor := {}          # shop_id -> Vector2i（建筑旁可站立格）
+var _shop_anchor := {}          # shop_id -> Vector2i（保留：施工点等）
+var _shop_door := {}            # shop_id -> Vector2i（门格，可通行）
+var _doors := {}                # Vector2i -> true（所有门格，视为可通行）
 var _warehouse_anchor := Vector2i.ZERO
+var _warehouse_door := Vector2i.ZERO
 var _astar: AStarGrid2D
 var _nav_dirty := true
 var _nav_timer := 0.0
@@ -136,7 +139,11 @@ func _build_warehouse() -> void:
 	spr.position = Vector2(map.warehouse.position.x * TILE, map.warehouse.position.y * TILE)
 	building_layer.add_child(spr)
 	_warehouse_pos = Vector2(map.warehouse.get_center().x * TILE, map.warehouse.get_center().y * TILE)
-	_warehouse_anchor = _anchor_cell(map.warehouse.position, 4, 3)
+	_warehouse_door = _door_cell(map.warehouse.position, 4, 3)
+	_doors[_warehouse_door] = true
+	map.reserved[_warehouse_door] = true
+	map.reserved[_warehouse_door + Vector2i(0, 1)] = true
+	_warehouse_anchor = _warehouse_door
 	_add_label("仓库", map.warehouse.position, 4, 3)
 
 func _camera_setup() -> void:
@@ -158,20 +165,23 @@ func _initial_housing() -> void:
 	for type in housing.keys():
 		var n = int(float(housing[type]))
 		for i in n:
-			var cell = _find_free_area(type, map.center, true)
+			var cell = _find_free_area(type, map.center, 1)
 			if cell.x >= 0:
 				_place_housing_instance(type, cell)
 
-func _find_free_area(type: String, near: Vector2i, spiral: bool) -> Vector2i:
+func _find_free_area(type: String, near: Vector2i, gap: int) -> Vector2i:
 	var fp = _footprint(type)
 	var base = map.warehouse.position + Vector2i(-14, 8)
-	for ring in range(0, 80):
+	for ring in range(0, 90):
 		for dy in range(-ring, ring + 1):
 			for dx in range(-ring, ring + 1):
 				if ring > 0 and abs(dx) != ring and abs(dy) != ring:
 					continue
 				var c = base + Vector2i(dx, dy)
-				if map.terrain_ok(c, fp.x, fp.y, []):
+				if gap > 0:
+					if map.terrain_ok(c - Vector2i(gap, gap), fp.x + gap * 2, fp.y + gap * 2, []):
+						return c
+				elif map.terrain_ok(c, fp.x, fp.y, []):
 					return c
 	return Vector2i(-1, -1)
 
@@ -201,7 +211,11 @@ func _place_housing_instance(type: String, cell: Vector2i) -> void:
 	var cap = 4
 	if runner.db.housing.has(type):
 		cap = int(runner.db.housing[type]["capacity"])
-	var inst = {"uid": uid, "id": type, "type": type, "cell": cell, "fw": fp.x, "fh": fp.y, "sprite": spr, "capacity": cap, "private": false, "occupants": [], "anchor": _anchor_cell(cell, fp.x, fp.y)}
+	var dcell = _door_cell(cell, fp.x, fp.y)
+	_doors[dcell] = true
+	map.reserved[dcell] = true
+	map.reserved[dcell + Vector2i(0, 1)] = true
+	var inst = {"uid": uid, "id": type, "type": type, "cell": cell, "fw": fp.x, "fh": fp.y, "sprite": spr, "capacity": cap, "private": false, "occupants": [], "anchor": _anchor_cell(cell, fp.x, fp.y), "door": dcell}
 	_housing_instances.append(inst)
 	_housing_by_uid[uid] = inst
 	_nav_dirty = true
@@ -225,6 +239,11 @@ func _create_shop_view(sid: String, def_id: String, cell: Vector2i) -> void:
 	_shop_cell[sid] = cell
 	_shop_def[sid] = def_id
 	_shop_anchor[sid] = _anchor_cell(cell, fp.x, fp.y)
+	var d = _door_cell(cell, fp.x, fp.y)
+	_doors[d] = true
+	_shop_door[sid] = d
+	map.reserved[d] = true
+	map.reserved[d + Vector2i(0, 1)] = true
 	_nav_dirty = true
 	if runner.db.buildings.has(def_id):
 		_add_label(String(runner.db.buildings[def_id]["nameZh"]), cell, fp.x, fp.y)
@@ -330,6 +349,8 @@ func load_from(path: String) -> bool:
 	_shop_sprites.clear()
 	_shop_cell.clear()
 	_shop_def.clear()
+	_shop_door.clear()
+	_doors.clear()
 	_housing_instances.clear()
 	_housing_by_uid.clear()
 	_sites.clear()
@@ -369,7 +390,7 @@ func _sync() -> void:
 		var def_id = String(shop["defId"])
 		var cell = _take_site_for(def_id)
 		if cell.x < 0:
-			cell = _find_free_area(def_id, map.center, true)
+			cell = _find_free_area(def_id, map.center, 0)
 		if cell.x < 0:
 			continue
 		_create_shop_view(sid, def_id, cell)
@@ -527,18 +548,24 @@ func _cell_of(pos: Vector2) -> Vector2i:
 func _agent_goal_cell(a: Dictionary, r, hour: int) -> Vector2i:
 	if r != null and hour >= 6 and hour < 18:
 		var sid = r.get("jobShopId", null)
-		if sid != null and _shop_anchor.has(sid):
+		if sid != null and _shop_door.has(sid):
 			if (hour % 3) == 0:
-				return _warehouse_anchor
-			return _shop_anchor[sid]
+				return _warehouse_door
+			return _shop_door[sid]
 	return _cell_of(a["home"])
 
 func _blocked(c: Vector2i) -> bool:
 	if map.is_water(c):
 		return true
+	if _doors.has(c):
+		return false
 	if map.warehouse.has_point(c):
 		return true
 	return map.occupied.has(c)
+
+# 门格：占地底边中间那一格。
+func _door_cell(cell: Vector2i, fw: int, fh: int) -> Vector2i:
+	return Vector2i(cell.x + fw / 2, cell.y + fh - 1)
 
 func _anchor_cell(cell: Vector2i, fw: int, fh: int) -> Vector2i:
 	var cands := [
@@ -613,7 +640,7 @@ func _assign_homes() -> void:
 		marked[t] = done + 1
 	if _housing_instances.is_empty():
 		for r in runner.sim.s["residents"]:
-			_resident_home[String(r["id"])] = _cell_center(_warehouse_anchor)
+			_resident_home[String(r["id"])] = _cell_center(_warehouse_door)
 		return
 	var cursor := 0
 	for r in runner.sim.s["residents"]:
@@ -624,12 +651,12 @@ func _assign_homes() -> void:
 			var inst = _housing_instances[k]
 			if (inst["occupants"] as Array).size() < int(inst["capacity"]):
 				inst["occupants"].append(rid)
-				_resident_home[rid] = _cell_center(inst["anchor"])
+				_resident_home[rid] = _cell_center(inst["door"])
 				cursor = k
 				placed = true
 				break
 		if not placed:
-			_resident_home[rid] = _cell_center(_warehouse_anchor)
+			_resident_home[rid] = _cell_center(_warehouse_door)
 
 # ---- 交互 -----------------------------------------------------------------
 func _unhandled_input(event: InputEvent) -> void:

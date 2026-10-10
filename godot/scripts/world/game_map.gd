@@ -18,7 +18,8 @@ var terrain := PackedByteArray()
 var road := PackedByteArray()
 var floor_tiles := PackedByteArray()
 var floor_charge := 0
-var occupied := {}          # Vector2i -> {"kind": "shop"/"housing"/"site", "id": String}
+var occupied := {}          # Vector2i -> {"kind": ..., "id": ...}
+var reserved := {}          # Vector2i -> true（门格与门前通行格：不可被其它建筑占用）
 var warehouse := Rect2i()
 var center := Vector2i()
 
@@ -106,7 +107,7 @@ func _blob(rng: RandomNumberGenerator, cx: int, cy: int, r: int, t: int) -> void
 				terrain[idx(x, y)] = t
 
 func cell_free(c: Vector2i) -> bool:
-	return in_bounds(c) and not occupied.has(c) and not warehouse.has_point(c)
+	return in_bounds(c) and not occupied.has(c) and not warehouse.has_point(c) and not reserved.has(c)
 
 func terrain_ok(origin: Vector2i, fw: int, fh: int, terrains: Array) -> bool:
 	for dy in fh:
