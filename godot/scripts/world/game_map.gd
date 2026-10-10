@@ -84,6 +84,12 @@ func generate(seed_value: int) -> void:
 	_blob(rng, center.x - 20, center.y + 10, 14, FOREST)
 	_blob(rng, center.x - 6, center.y - 24, 12, FOREST)
 
+	# 出生点附近保证有石矿与粘土矿（不太远，方便开局）
+	_blob(rng, center.x - 26, center.y - 16, 8, STONE)
+	_blob(rng, center.x + 30, center.y + 14, 8, CLAY)
+	_blob(rng, center.x + 24, center.y - 28, 7, STONE)
+	_blob(rng, center.x - 32, center.y + 26, 7, CLAY)
+
 	# 仓库区清成草地
 	for y in range(warehouse.position.y - 2, warehouse.end.y + 2):
 		for x in range(warehouse.position.x - 2, warehouse.end.x + 2):

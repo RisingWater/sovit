@@ -21,22 +21,35 @@ func _ready() -> void:
 	canvas.name = "UI"
 	add_child(canvas)
 
+	var font := SystemFont.new()
+	font.font_names = PackedStringArray(["Microsoft YaHei", "Noto Sans CJK SC", "SimHei", "sans-serif"])
+	var theme := Theme.new()
+	theme.default_font = font
+	theme.default_font_size = 15
+
+	var root_ui := Control.new()
+	root_ui.name = "Root"
+	root_ui.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	root_ui.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	root_ui.theme = theme
+	canvas.add_child(root_ui)
+
 	var hud = load("res://scripts/ui/hud.gd").new()
 	hud.name = "HUD"
 	hud.runner = runner
-	canvas.add_child(hud)
+	root_ui.add_child(hud)
 
 	var bar = load("res://scripts/ui/build_bar.gd").new()
 	bar.name = "BuildBar"
 	bar.runner = runner
 	bar.world = world
-	canvas.add_child(bar)
+	root_ui.add_child(bar)
 
 	_inspector = load("res://scripts/ui/inspector.gd").new()
 	_inspector.name = "Inspector"
 	_inspector.runner = runner
 	_inspector.world = world
-	canvas.add_child(_inspector)
+	root_ui.add_child(_inspector)
 
 	world.select_building.connect(_inspector.show_building)
 	world.select_housing.connect(_inspector.show_housing)

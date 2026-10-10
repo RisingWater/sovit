@@ -48,6 +48,7 @@ var _picking := false
 var _paint := false
 var _warehouse_pos := Vector2.ZERO
 var selected_resident := ""
+var _font: SystemFont
 
 func setup(r: SimRunner, seed_value: int) -> void:
 	runner = r
@@ -55,6 +56,8 @@ func setup(r: SimRunner, seed_value: int) -> void:
 	map.generate(seed_value)
 
 func _ready() -> void:
+	_font = SystemFont.new()
+	_font.font_names = PackedStringArray(["Microsoft YaHei", "Noto Sans CJK SC", "SimHei", "sans-serif"])
 	_build_tileset()
 	_build_warehouse()
 	_camera_setup()
@@ -62,6 +65,23 @@ func _ready() -> void:
 	_sync()
 	_assign_homes()
 	_spawn_agents()
+
+func _area_center(cell: Vector2i, fw: int, fh: int) -> Vector2:
+	return Vector2(cell.x * TILE + fw * TILE * 0.5, cell.y * TILE + fh * TILE * 0.5)
+
+func _add_label(text: String, cell: Vector2i, fw: int, fh: int) -> void:
+	var l := Label.new()
+	l.text = text
+	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	l.add_theme_font_override("font", _font)
+	l.add_theme_font_size_override("font_size", 12)
+	l.add_theme_color_override("font_color", Color(1, 1, 1))
+	l.add_theme_color_override("font_outline_color", Color(0, 0, 0))
+	l.add_theme_constant_override("outline_size", 4)
+	var w = fw * TILE
+	l.size = Vector2(w, 16)
+	l.position = _area_center(cell, fw, fh) - Vector2(w * 0.5, 8)
+	building_layer.add_child(l)
 
 func _build_tileset() -> void:
 	var tex: Texture2D = load("res://assets/tiles.svg")
@@ -107,6 +127,7 @@ func _build_warehouse() -> void:
 	spr.position = Vector2(map.warehouse.position.x * TILE, map.warehouse.position.y * TILE)
 	building_layer.add_child(spr)
 	_warehouse_pos = Vector2(map.warehouse.get_center().x * TILE, map.warehouse.get_center().y * TILE)
+	_add_label("仓库", map.warehouse.position, 4, 3)
 
 func _camera_setup() -> void:
 	camera = Camera2D.new()
@@ -173,6 +194,8 @@ func _place_housing_instance(type: String, cell: Vector2i) -> void:
 	var inst = {"uid": uid, "id": type, "type": type, "cell": cell, "fw": fp.x, "fh": fp.y, "sprite": spr, "capacity": cap, "private": false, "occupants": []}
 	_housing_instances.append(inst)
 	_housing_by_uid[uid] = inst
+	var hname = String(runner.db.housing[type]["nameZh"]) if runner.db.housing.has(type) else type
+	_add_label(hname, cell, fp.x, fp.y)
 
 func housing_instance(uid: String) -> Variant:
 	return _housing_by_uid.get(uid, null)
@@ -199,6 +222,7 @@ func _sync() -> void:
 		building_layer.add_child(spr)
 		_shop_sprites[sid] = spr
 		_shop_cell[sid] = cell
+		_add_label(String(runner.db.buildings[def_id]["nameZh"]), cell, fp.x, fp.y)
 
 	# 新住房实例
 	var housing: Dictionary = runner.sim.s["housing"]

@@ -86,17 +86,55 @@ function housingFootprint(h: any): [number, number] {
   return h.quality >= 3 ? [3, 3] : [2, 2]
 }
 
-function buildingSvg(nameZh: string, color: string, fw: number, fh: number): string {
+function buildingSvg(kind: string, color: string, fw: number, fh: number): string {
   const w = fw * TILE
   const h = fh * TILE
-  const inset = 4
-  const roofColor = shade(color, -0.28)
-  const wallColor = shade(color, 0.18)
-  void nameZh
+  const pad = 4
+  const roof = shade(color, -0.3)
+  const wall = shade(color, 0.2)
+  const dark = shade(color, -0.5)
+  const line = shade(color, -0.45)
+  const body = `<rect x="${pad}" y="${pad}" width="${w - pad * 2}" height="${h - pad * 2}" rx="6" fill="${wall}" stroke="${line}" stroke-width="3"/>`
+  let inner = ''
+  if (kind === 'house') {
+    inner = `
+      <polygon points="${pad + 6},${h * 0.5} ${w / 2},${pad + 4} ${w - pad - 6},${h * 0.5}" fill="${roof}"/>
+      <rect x="${w * 0.42}" y="${h * 0.62}" width="${w * 0.16}" height="${h * 0.28}" fill="${dark}"/>
+      <rect x="${w * 0.18}" y="${h * 0.6}" width="${w * 0.12}" height="${w * 0.12}" fill="#e8e2c8"/>`
+  } else if (kind === 'farm') {
+    inner = `
+      <rect x="${pad + 4}" y="${pad + 4}" width="${w - pad * 2 - 8}" height="${h - pad * 2 - 8}" fill="${shade(color, 0.32)}"/>
+      <g stroke="${line}" stroke-width="2">`
+    for (let y = h * 0.35; y < h - pad - 4; y += 9) inner += `<line x1="${pad + 5}" y1="${y.toFixed(0)}" x2="${w - pad - 5}" y2="${y.toFixed(0)}"/>`
+    inner += `</g>
+      <rect x="${w * 0.6}" y="${h * 0.12}" width="${w * 0.24}" height="${h * 0.24}" rx="3" fill="${roof}"/>`
+  } else if (kind === 'mine' || kind === 'forest') {
+    if (kind === 'forest') {
+      inner = `
+        <circle cx="${w * 0.34}" cy="${h * 0.42}" r="${Math.min(w, h) * 0.2}" fill="#2f5d24"/>
+        <circle cx="${w * 0.62}" cy="${h * 0.6}" r="${Math.min(w, h) * 0.16}" fill="#356a28"/>
+        <rect x="${w * 0.32}" y="${h * 0.5}" width="${w * 0.05}" height="${h * 0.18}" fill="#5a3d22"/>`
+    } else {
+      inner = `
+        <ellipse cx="${w / 2}" cy="${h * 0.6}" rx="${w * 0.34}" ry="${h * 0.22}" fill="${dark}"/>
+        <circle cx="${w * 0.3}" cy="${h * 0.4}" r="${w * 0.1}" fill="${shade(color, 0.35)}"/>
+        <circle cx="${w * 0.7}" cy="${h * 0.36}" r="${w * 0.08}" fill="${shade(color, 0.45)}"/>`
+    }
+  } else if (kind === 'show') {
+    inner = `
+      <polygon points="${pad + 6},${h * 0.45} ${w / 2},${pad + 4} ${w - pad - 6},${h * 0.45}" fill="${roof}"/>
+      <rect x="${w * 0.2}" y="${h * 0.5}" width="${w * 0.6}" height="${h * 0.28}" fill="${shade(color, 0.1)}"/>
+      <circle cx="${w / 2}" cy="${h * 0.62}" r="${Math.min(w, h) * 0.09}" fill="#f0d878"/>`
+  } else {
+    // workshop：带烟囱
+    inner = `
+      <rect x="${pad + 5}" y="${pad + 5}" width="${w - pad * 2 - 10}" height="${h * 0.4}" rx="4" fill="${roof}"/>
+      <rect x="${w - pad - 18}" y="${pad - 2}" width="${w * 0.12}" height="${h * 0.22}" fill="${dark}"/>
+      <circle cx="${w - pad - 12}" cy="${pad - 8}" r="${w * 0.06}" fill="#c9c9c9" opacity="0.8"/>
+      <circle cx="${w / 2}" cy="${h * 0.72}" r="${Math.min(w, h) * 0.12}" fill="${shade(color, -0.12)}"/>`
+  }
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}">
-  <rect x="${inset}" y="${inset}" width="${w - inset * 2}" height="${h - inset * 2}" rx="6" fill="${wallColor}" stroke="${shade(color, -0.4)}" stroke-width="3"/>
-  <rect x="${inset + 6}" y="${inset + 6}" width="${w - inset * 2 - 12}" height="${h * 0.42}" rx="5" fill="${roofColor}"/>
-  <circle cx="${w / 2}" cy="${h * 0.72}" r="${Math.min(w, h) * 0.12}" fill="${shade(color, -0.15)}"/>
+  ${body}${inner}
 </svg>`
 }
 
@@ -110,17 +148,29 @@ function shade(hex: string, amt: number): string {
   return `#${((r << 16) | (g << 8) | b).toString(16).padStart(6, '0')}`
 }
 
+function kindOf(b: any): string {
+  if (b.terrain === 'forest') return 'forest'
+  if (b.terrain === 'stone' || b.terrain === 'clay') return 'mine'
+  const outs = Object.keys(b.recipe.output ?? {})
+  const first = outs[0]
+  const cat: string = first !== undefined && GOOD_BY_ID[first] ? String(GOOD_BY_ID[first].category) : ''
+  if (String(b.id).endsWith('_farm')) return 'farm'
+  if (cat === 'entertainment') return 'show'
+  if (b.tier === 3) return 'big'
+  return 'workshop'
+}
+
 function main(): void {
   mkdirSync('godot/assets/buildings', { recursive: true })
   writeFileSync('godot/assets/tiles.svg', tileAtlas())
 
   for (const b of buildingsFile.buildings) {
     const [fw, fh] = footprint(b)
-    writeFileSync(`godot/assets/buildings/${b.id}.svg`, buildingSvg(b.nameZh, buildingColor(b), fw, fh))
+    writeFileSync(`godot/assets/buildings/${b.id}.svg`, buildingSvg(kindOf(b), buildingColor(b), fw, fh))
   }
   for (const hb of housingFile.housing) {
     const [fw, fh] = housingFootprint(hb)
-    writeFileSync(`godot/assets/buildings/${hb.id}.svg`, buildingSvg(hb.nameZh, CATEGORY_COLOR['housing'] ?? '#c8a06a', fw, fh))
+    writeFileSync(`godot/assets/buildings/${hb.id}.svg`, buildingSvg('house', CATEGORY_COLOR['housing'] ?? '#c8a06a', fw, fh))
   }
 
   // 中央仓库 4×3
