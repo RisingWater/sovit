@@ -114,11 +114,16 @@ export function assignLabor(state: GameState, ctx: ContentContext): void {
       r.employed = true
       r.jobShopId = shop.id
       skills.push(r.skill)
-      // 在岗积累熟练度
-      r.skill = Math.min(ECONOMY.skillMax, r.skill + ECONOMY.skillGainPerDay)
     }
     shop.skill = skills.length > 0 ? skills.reduce((a, b) => a + b, 0) / skills.length : 0
   })
+}
+
+/** 夜晚：在岗者长熟练度（每天一次）。 */
+export function growSkills(state: GameState): void {
+  for (const r of state.residents) {
+    if (r.employed) r.skill = Math.min(ECONOMY.skillMax, r.skill + ECONOMY.skillGainPerDay)
+  }
 }
 
 /** 某店铺当前实际到岗人数。 */

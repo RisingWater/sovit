@@ -16,7 +16,7 @@ import type {
   RecipeDef,
   RecipeID,
 } from '../types.ts'
-import type { DefaultsConfig, EconomyConfig, TuningConfig } from '../config.ts'
+import type { DefaultsConfig, EconomyConfig, TimeConfig, TuningConfig } from '../config.ts'
 import type { RawContent } from './load.ts'
 
 // ---------------------------------------------------------------------------
@@ -42,7 +42,10 @@ export interface ParsedContent {
   economy: EconomyConfig
   defaults: DefaultsConfig
   tuning: TuningConfig
+  time: TimeConfig
 }
+
+const SCHEMA_VERSION = 1
 
 const CATEGORIES: readonly GoodCategory[] = [
   'raw', 'food', 'clothing', 'household', 'fuel', 'material', 'housing', 'investment', 'service', 'entertainment',
@@ -358,11 +361,36 @@ function parseEconomy(
   raw: unknown,
   goodSet: Set<string>,
   classSet: Set<string>,
-): { economy: EconomyConfig; defaults: DefaultsConfig; tuning: TuningConfig } {
+): { economy: EconomyConfig; defaults: DefaultsConfig; tuning: TuningConfig; time: TimeConfig } {
   const root = asObj(raw, 'economy.json')
+  const sv = asNonNeg(root.schemaVersion, 'economy.json.schemaVersion')
+  if (sv !== SCHEMA_VERSION) {
+    fail(`content schemaVersion = ${sv}，本引擎只支持 ${SCHEMA_VERSION}`)
+  }
   const e = asObj(root.economy, 'economy.json.economy')
   const d = asObj(root.defaults, 'economy.json.defaults')
   const t = asObj(root.tuning, 'economy.json.tuning')
+  const tc = asObj(root.time, 'economy.json.time')
+
+  const hoursPerDay = asPos(tc.hoursPerDay, 'time.hoursPerDay')
+  const dawnHour = asNum(tc.dawnHour, 'time.dawnHour')
+  const workStart = asNum(tc.workStart, 'time.workStart')
+  const workEnd = asNum(tc.workEnd, 'time.workEnd')
+  const settleHour = asNum(tc.settleHour, 'time.settleHour')
+  for (const [k, v] of Object.entries({ dawnHour, workStart, workEnd, settleHour })) {
+    if (!Number.isInteger(v) || v < 0 || v >= hoursPerDay) {
+      fail(`time.${k} 必须是 [0,${hoursPerDay}) 内的整数`)
+    }
+  }
+  if (workEnd <= workStart) fail('time.workEnd 必须大于 workStart')
+  const time: TimeConfig = {
+    hoursPerDay,
+    dawnHour,
+    workStart,
+    workEnd,
+    settleHour,
+    tickSec: asPos(tc.tickSec, 'time.tickSec'),
+  }
 
   const weights = asObj(e.weights, 'economy.weights')
   const bmt = asObj(e.buildMoneyByTier, 'economy.buildMoneyByTier')
@@ -457,7 +485,7 @@ function parseEconomy(
     if (!classSet.has(c)) fail(`defaults.startDistribution 引用了未定义的阶层：${c}`)
   }
 
-  return { economy, defaults, tuning }
+  return { economy, defaults, tuning, time }
 }
 
 /** 校验并组装全部内容表。 */
@@ -475,7 +503,7 @@ export function parseContent(files: RawContent): ParsedContent {
   const housingSet = new Set(housingIds)
 
   const { packs, ids: packIds } = parsePacks(files.packs, goodSet, buildingSet, classSet, housingSet)
-  const { economy, defaults, tuning } = parseEconomy(files.economy, goodSet, classSet)
+  const { economy, defaults, tuning, time } = parseEconomy(files.economy, goodSet, classSet)
 
   if (packIds.length === 0) fail('packs.json 至少要有一个内容包')
 
@@ -486,6 +514,6 @@ export function parseContent(files: RawContent): ParsedContent {
     classes, classIds,
     housing, housingIds,
     packs, packIds,
-    economy, defaults, tuning,
+    economy, defaults, tuning, time,
   }
 }

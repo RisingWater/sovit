@@ -57,6 +57,7 @@ export function createInitialState(options: CreateOptions = {}): GameState {
         active: true,
         profit: 0,
         skill: DEFAULTS.newShop.skill,
+        planned: 0,
       })
     }
   }
@@ -84,6 +85,8 @@ export function createInitialState(options: CreateOptions = {}): GameState {
     seed,
     rngState: rng.state,
     day: 0,
+    hour: 0,
+    pending: [],
     government: {
       money,
       taxBrackets: ECONOMY.defaultTaxBrackets.map((b) => ({ ...b })),

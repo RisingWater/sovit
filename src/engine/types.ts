@@ -155,6 +155,8 @@ export interface Shop {
   profit: number
   /** 岗位平均熟练度 0-100。 */
   skill: number
+  /** 今日计划批次数（黎明排产，白天按小时执行 planned / 工作小时数）。 */
+  planned: number
 }
 
 export interface Resident {
@@ -180,7 +182,14 @@ export interface Resident {
 
 export interface Construction {
   id: string
-  buildingId: BuildingID
+  /** 施工类型：建店 / 升级 / 建房。 */
+  kind: 'shop' | 'upgrade' | 'housing'
+  /** kind=shop 时的建筑；kind=upgrade 时用于查定义。 */
+  buildingId?: BuildingID
+  /** kind=upgrade 时目标建筑实例。 */
+  shopId?: string
+  /** kind=housing 时的住房 id。 */
+  housingId?: GoodID
   /** 还需天数。 */
   daysLeft: number
   totalDays: number
@@ -246,6 +255,10 @@ export interface GameState {
   seed: number
   rngState: number
   day: number
+  /** 当前小时（0 .. hoursPerDay-1）。 */
+  hour: number
+  /** 待生效命令队列：在次日 06:00（dawnHour）排产时统一应用。 */
+  pending: Action[]
 
   government: Government
   /** 中央仓库库存。 */

@@ -122,7 +122,9 @@ function decideGrowth(state: GameState, ctx: ContentContext): Action[] {
   const counts: Record<string, number> = {}
   for (const s of state.shops) counts[s.defId] = (counts[s.defId] ?? 0) + 1
   // 在建的也算进去，避免重复建店
-  for (const c of state.construction) counts[c.buildingId] = (counts[c.buildingId] ?? 0) + 1
+  for (const c of state.construction) {
+    if (c.kind === 'shop' && c.buildingId) counts[c.buildingId] = (counts[c.buildingId] ?? 0) + 1
+  }
 
   const expand = (defId: string): Action | undefined => {
     const s = shopOf(defId)

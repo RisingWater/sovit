@@ -108,6 +108,21 @@ export interface TuningConfig {
   foodChainSeedClass: ClassID
 }
 
+export interface TimeConfig {
+  /** 一天多少小时。 */
+  hoursPerDay: number
+  /** 排产 / 日界时刻（小时）。 */
+  dawnHour: number
+  /** 开工 / 收工时刻（工作时段 [workStart, workEnd)）。 */
+  workStart: number
+  workEnd: number
+  /** 夜晚结算时刻。 */
+  settleHour: number
+  /** 1 游戏小时 = 多少真实秒（@1x）。 */
+  tickSec: number
+}
+
 export const ECONOMY: EconomyConfig = CONTENT.economy
 export const DEFAULTS: DefaultsConfig = CONTENT.defaults
 export const TUNING: TuningConfig = CONTENT.tuning
+export const TIME: TimeConfig = CONTENT.time

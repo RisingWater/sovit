@@ -1,10 +1,12 @@
-import { PACKS, advanceDay, createInitialState } from '../src/engine/index.ts'
+import { PACKS, TIME, advanceHour, createInitialState } from '../src/engine/index.ts'
 import type { GameState, PackID } from '../src/engine/index.ts'
 import { decide } from '../src/ai/heuristic.ts'
 
 // ---------------------------------------------------------------------------
-// 100 天无头验收：用启发式基线 AI 跑 N 天，打印轨迹并断言。
+// 无头验收：用启发式基线 AI 跑 N 天（按小时推进），打印轨迹并断言。
 // 用法：npm run sim -- [days] [seed] [pack]
+//
+// 时间模型：1 tick = 1 游戏小时；AI 每天 0 点决策一次，命令次日 06:00 生效。
 // ---------------------------------------------------------------------------
 
 interface RunResult {
@@ -34,8 +36,10 @@ function run(pack: PackID, seed: number, days: number): RunResult {
   )
 
   for (let i = 1; i <= days; i++) {
-    const { state: next } = advanceDay(state, decide(state))
-    state = next
+    for (let h = 0; h < TIME.hoursPerDay; h++) {
+      const actions = state.hour === 0 ? decide(state) : []
+      state = advanceHour(state, actions).state
+    }
     const snap = state.history[state.history.length - 1]!
     minSat = Math.min(minSat, snap.avgSatisfaction)
     minMoney = Math.min(minMoney, snap.money)
