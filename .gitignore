@@ -2,3 +2,10 @@ node_modules/
 dist/
 *.log
 .DS_Store
+
+# Godot
+godot/.godot/
+godot/.import/
+godot/reports/
+godot/builds/
+godot/export_presets.cfg

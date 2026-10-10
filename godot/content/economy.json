@@ -1,0 +1,70 @@
+{
+  "schemaVersion": 1,
+
+  "time": {
+    "hoursPerDay": 24,
+    "dawnHour": 6,
+    "workStart": 6,
+    "workEnd": 18,
+    "settleHour": 18,
+    "tickSec": 5
+  },
+
+  "economy": {
+    "refWage": 3,
+    "welfareRate": 1.0,
+    "defaultTaxBrackets": [
+      { "upTo": 2, "rate": 0.08 },
+      { "upTo": 3.5, "rate": 0.22 },
+      { "upTo": null, "rate": 0.42 }
+    ],
+    "priceElasticity": 1.2,
+    "luxuryElasticity": 0.4,
+    "luxuryPriceMarkup": 2.5,
+    "satisfactionSmoothing": 0.2,
+    "weights": { "food": 0.45, "wage": 0.2, "price": 0.1, "employment": 0.1, "comfort": 0.15 },
+    "priceIntercept": 1.3,
+    "priceSlope": 0.6,
+    "immigrationSatThreshold": 60,
+    "immigrationRate": 0.1,
+    "emigrationSatThreshold": 40,
+    "hungerDeathRate": 0.2,
+    "minPopulation": 4,
+    "buildMoneyByTier": { "1": 100, "2": 250, "3": 500 },
+    "expandMoneyBase": 80,
+    "maxBuildingSlots": null,
+    "constructionDays": 2,
+    "defaultRent": 0.05,
+    "privateHousingSatBonus": 12,
+    "privateTenantSatBonus": 4,
+    "rentSatPenalty": 25,
+    "privateHousingNeedThreshold": 80,
+    "privateHousingPerDay": 2,
+    "skillIncomeBase": 0.5,
+    "defaultWageCap": 6,
+    "housingQualityPenalty": 8,
+    "skillGainPerDay": 0.5,
+    "skillMax": 100,
+    "promotionSavings": 50,
+    "promotionSatThreshold": 70
+  },
+
+  "defaults": {
+    "newShop": { "level": 1, "skill": 50 },
+    "newResident": { "savings": 12, "satisfaction": 60, "skillBase": 30, "skillRandom": 30 },
+    "startResident": { "savings": 12, "satisfaction": 65, "skillBase": 30, "skillRandom": 40 },
+    "startDistribution": ["poor"]
+  },
+
+  "tuning": {
+    "skillEffectBase": 0.6,
+    "skillEffectSlope": 0.4,
+    "unemployedEmploymentScore": 0.5,
+    "wageScoreCap": 1.5,
+    "hungryThreshold": 0.9,
+    "priceFactorMin": 0.2,
+    "priceFactorMax": 1.5,
+    "basicFoods": ["coarse_bread", "vegetable"],
+    "foodChainSeedClass": "poor"
+  }
+}
