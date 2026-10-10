@@ -3,8 +3,9 @@ extends PanelContainer
 # 右侧详情面板：选中建筑 → 运营按钮；选中居民 → 个人详情；未选 → 全局（库存/日志）。
 
 var runner: SimRunner
+var world: Node
 
-var _kind := ""      # "" | "building" | "resident"
+var _kind := ""      # "" | "building" | "resident" | "housing"
 var _id := ""
 var _body: VBoxContainer
 
@@ -40,6 +41,11 @@ func show_resident(id: String) -> void:
 	_id = id
 	_rebuild()
 
+func show_housing(uid: String) -> void:
+	_kind = "housing"
+	_id = uid
+	_rebuild()
+
 func clear() -> void:
 	_kind = ""
 	_id = ""
@@ -69,6 +75,7 @@ func _rebuild() -> void:
 	match _kind:
 		"building": _building_panel()
 		"resident": _resident_panel()
+		"housing": _housing_panel()
 		_: _global_panel()
 
 func _building_panel() -> void:
@@ -151,10 +158,43 @@ func _resident_panel() -> void:
 	_body.add_child(_label("工作地点：%s" % work))
 	_body.add_child(_label("此刻：%s" % activity))
 
+func _housing_panel() -> void:
+	var inst = world.housing_instance(_id) if world != null else null
+	if inst == null:
+		_kind = ""
+		_global_panel()
+		return
+	var def: Dictionary = runner.db.housing[inst["type"]]
+	var occ: Array = inst["occupants"]
+	_body.add_child(_label("【%s】" % def["nameZh"], 18))
+	_body.add_child(_label(String(inst["uid"])))
+	_body.add_child(_label("产权：%s" % ("私有" if bool(inst["private"]) else "国有")))
+	_body.add_child(_label("等级 %d   容量 %d   入住 %d" % [int(def["quality"]), int(inst["capacity"]), occ.size()]))
+	_body.add_child(_label("住户：", 13))
+	if occ.is_empty():
+		_body.add_child(_label("  （空）", 12))
+	for rid in occ:
+		_body.add_child(_label("  %s  %s" % [Names.for_id(String(rid)), String(rid)], 12))
+
+func _set_immigration(value: int) -> void:
+	runner.enqueue([{"type": "set_immigration", "value": value}])
+
 func _global_panel() -> void:
 	var s: Dictionary = runner.sim.s
 	_body.add_child(_label("全局", 18))
 	_body.add_child(_label("第 %d 天 %02d:00" % [int(s["day"]), int(s["hour"])]))
+	# 移民放行
+	var arrivals = int(s["arrivals"])
+	var allow = int(float(s["government"]["immigrationAllowance"]))
+	var allow_txt = "不限" if allow >= 100000000 else str(allow)
+	_body.add_child(_label("— 移民 —", 13))
+	_body.add_child(_label("本回合想来 %d 人；当前允许 %s" % [arrivals, allow_txt]))
+	var rowi := HBoxContainer.new()
+	rowi.add_child(_button("全收", func(): _set_immigration(1000000000)))
+	rowi.add_child(_button("暂停", func(): _set_immigration(0)))
+	rowi.add_child(_button("+10", func(): _set_immigration((allow if allow < 100000000 else 0) + 10)))
+	_body.add_child(rowi)
+	_body.add_child(_label("（次日 06:00 生效；实际放行还受住房/岗位限制）", 11))
 	_body.add_child(_label("— 库存（含已预留）—", 13))
 	var goods: Dictionary = s["goods"]
 	var keys := goods.keys()

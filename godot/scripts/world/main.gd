@@ -35,9 +35,11 @@ func _ready() -> void:
 	_inspector = load("res://scripts/ui/inspector.gd").new()
 	_inspector.name = "Inspector"
 	_inspector.runner = runner
+	_inspector.world = world
 	canvas.add_child(_inspector)
 
 	world.select_building.connect(_inspector.show_building)
+	world.select_housing.connect(_inspector.show_housing)
 	world.select_resident.connect(_inspector.show_resident)
 	world.select_none.connect(_inspector.clear)
 	world.notice.connect(hud.set_notice)

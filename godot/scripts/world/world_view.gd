@@ -4,6 +4,7 @@ extends Node2D
 # 只读仿真；建造/派人等命令交给 SimRunner（次日生效）。
 
 signal select_building(shop_id: String)
+signal select_housing(uid: String)
 signal select_resident(resident_id: String)
 signal select_none()
 signal notice(text: String)
@@ -29,10 +30,13 @@ var _press_cell := Vector2i.ZERO
 var _tex_cache := {}
 var _shop_sprites := {}         # shop_id -> Node2D
 var _shop_cell := {}            # shop_id -> Vector2i(origin)
-var _housing_instances := []    # [{id, type, cell, fw, fh, sprite}]
+var _housing_instances := []    # [{uid, type, cell, fw, fh, sprite, capacity, private, occupants}]
+var _housing_by_uid := {}
 var _sites := []                # [{kind, id, cell, fw, fh, node}]  待建
 var _site_by_type := {}         # defId/housingType -> [site index...]
 var _placed_housing_count := {} # type -> count already bound
+var _prev_res := -1
+var _prev_housing_n := -1
 
 var build_mode := ""
 var brush_mode := ""            # "", "road", "floor"
@@ -155,13 +159,22 @@ func _texture_for(type: String) -> Texture2D:
 
 func _place_housing_instance(type: String, cell: Vector2i) -> void:
 	var fp = _footprint(type)
-	map.occupy(cell, fp.x, fp.y, "housing", type)
+	var uid = "%s#%d" % [type, _housing_instances.size() + 1]
+	map.occupy(cell, fp.x, fp.y, "housing", uid)
 	var spr := Sprite2D.new()
 	spr.texture = _texture_for(type)
 	spr.centered = false
 	spr.position = Vector2(cell.x * TILE, cell.y * TILE)
 	building_layer.add_child(spr)
-	_housing_instances.append({"id": type, "type": type, "cell": cell, "fw": fp.x, "fh": fp.y, "sprite": spr})
+	var cap = 4
+	if runner.db.housing.has(type):
+		cap = int(runner.db.housing[type]["capacity"])
+	var inst = {"uid": uid, "id": type, "type": type, "cell": cell, "fw": fp.x, "fh": fp.y, "sprite": spr, "capacity": cap, "private": false, "occupants": []}
+	_housing_instances.append(inst)
+	_housing_by_uid[uid] = inst
+
+func housing_instance(uid: String) -> Variant:
+	return _housing_by_uid.get(uid, null)
 
 # ---- 同步仿真里的建筑 -----------------------------------------------------
 func _sync() -> void:
@@ -203,6 +216,13 @@ func _sync() -> void:
 			have += 1
 		_placed_housing_count[type] = have
 
+	var n = (runner.sim.s["residents"] as Array).size()
+	if n != _prev_res or _housing_instances.size() != _prev_housing_n:
+		_prev_res = n
+		_prev_housing_n = _housing_instances.size()
+		_assign_homes()
+	_refresh_agents()
+
 func _take_site_for(type: String) -> Vector2i:
 	var list: Array = _site_by_type.get(type, [])
 	if list.is_empty():
@@ -224,12 +244,27 @@ func _take_sites_for(type: String, n: int) -> Array:
 	return out
 
 func _spawn_agents() -> void:
-	_agents.clear()
+	if not agent_layer.draw.is_connected(_draw_agents):
+		agent_layer.draw.connect(_draw_agents)
+	_refresh_agents()
+
+func _refresh_agents() -> void:
+	var alive := {}
 	for r in runner.sim.s["residents"]:
-		var id = String(r["id"])
-		var home = _resident_home.get(id, _warehouse_pos)
-		_agents.append({"id": id, "pos": home, "target": home, "home": home, "work": home})
-	agent_layer.draw.connect(_draw_agents)
+		alive[String(r["id"])] = true
+	var kept := []
+	for a in _agents:
+		if alive.has(a["id"]):
+			a["home"] = _resident_home.get(a["id"], _warehouse_pos)
+			kept.append(a)
+	_agents = kept
+	var have := {}
+	for a in _agents:
+		have[a["id"]] = true
+	for id in alive.keys():
+		if not have.has(id):
+			var home = _resident_home.get(id, _warehouse_pos)
+			_agents.append({"id": id, "pos": home, "target": home, "home": home})
 
 func _draw_agents() -> void:
 	for a in _agents:
@@ -291,18 +326,35 @@ func _cell_center(cell: Vector2i) -> Vector2:
 
 func _assign_homes() -> void:
 	_resident_home.clear()
-	var slots := []
 	for inst in _housing_instances:
-		slots.append(_cell_center(inst["cell"]))
-	if slots.is_empty():
-		slots.append(_warehouse_pos)
-	var i := 0
+		inst["occupants"] = []
+	var priv: Dictionary = runner.sim.s["privateHousing"]
+	var marked := {}
+	for inst in _housing_instances:
+		var t = inst["type"]
+		var want = int(float(priv.get(t, 0.0)))
+		var done = int(marked.get(t, 0))
+		inst["private"] = done < want
+		marked[t] = done + 1
+	if _housing_instances.is_empty():
+		for r in runner.sim.s["residents"]:
+			_resident_home[String(r["id"])] = _warehouse_pos
+		return
+	var cursor := 0
 	for r in runner.sim.s["residents"]:
-		_resident_home[String(r["id"])] = slots[i % slots.size()]
-		i += 1
-	for a in _agents:
-		a["home"] = _resident_home.get(a["id"], _warehouse_pos)
-		a["pos"] = a["home"]
+		var rid = String(r["id"])
+		var placed := false
+		for step in _housing_instances.size():
+			var k = (cursor + step) % _housing_instances.size()
+			var inst = _housing_instances[k]
+			if (inst["occupants"] as Array).size() < int(inst["capacity"]):
+				inst["occupants"].append(rid)
+				_resident_home[rid] = _cell_center(inst["cell"])
+				cursor = k
+				placed = true
+				break
+		if not placed:
+			_resident_home[rid] = _warehouse_pos
 
 # ---- 交互 -----------------------------------------------------------------
 func _unhandled_input(event: InputEvent) -> void:
@@ -350,8 +402,11 @@ func _on_left_click(cell: Vector2i) -> void:
 	if brush_mode != "":
 		return
 	var occ = map.occupied_at(cell)
-	if occ != null and occ["kind"] == "shop":
-		select_building.emit(String(occ["id"]))
+	if occ != null:
+		if occ["kind"] == "shop":
+			select_building.emit(String(occ["id"]))
+		elif occ["kind"] == "housing":
+			select_housing.emit(String(occ["id"]))
 		return
 	var best = _nearest_agent(get_global_mouse_position())
 	if best != "":
