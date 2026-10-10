@@ -15,8 +15,10 @@
 ```bash
 npm install
 
-npm test            # 类型检查 + 无头验收（最新版 v0.3，100 天）
+npm test            # 类型检查 + 内容自检 + golden + 无头验收（最新版 v0.3，100 天）
 npm run sim         # 只跑无头验收（默认最新版 v0.3）
+npm run golden      # 生成 Godot 对拍用的黄金轨迹 → godot/tests/golden/
+npm run sync:content # 把 content/*.json 同步到 godot/content/
 npm run api         # 启动 AI HTTP 接口（http://localhost:8787）
 ```
 
@@ -32,25 +34,37 @@ content/                   # 内容数据（JSON 驱动，改这里 = 改游戏�
 ├─ classes.json            # 阶层与需求 + 阶层参数
 ├─ housing.json            # 住房
 ├─ packs.json              # 内容包（每局允许出现什么）+ 开局场景
-└─ economy.json            # 全局参数 / 新建默认值 / 机制常数
+└─ economy.json            # schemaVersion + time + 全局参数 / 默认值 / 机制常数
 src/
 ├─ engine/                 # 纯函数引擎（不依赖 UI）
 │  ├─ types.ts             # 全部类型
-│  ├─ config.ts            # 经济参数（集中调参）
-│  ├─ rng.ts               # 确定性随机（同种子 → 同结果）
+│  ├─ config.ts            # 由 content/economy.json 驱动的参数
+│  ├─ rng.ts               # 确定性随机（mulberry32）
 │  ├─ state.ts             # createInitialState
-│  ├─ content/             # 内容加载器 load.ts + 校验器 validate.ts
+│  ├─ content/             # 内容加载器 load.ts + 校验器 validate.ts + bundle.ts
 │  ├─ systems/             # 生产 / 消费 / 人口 / 满意度 / 财政 / 投资 / 用工
-│  ├─ tick.ts              # advanceDay(state, actions) 主入口
+│  ├─ tick.ts              # advanceHour / advanceDay 主入口（小时制）
 │  ├─ actions.ts           # 动作应用
 │  └─ observe.ts           # 观测 JSON
-├─ ai/heuristic.ts         # 启发式基线 AI（自动按 pack 分派策略）
+├─ ai/heuristic.ts         # 启发式基线 AI
 └─ api/server.ts           # AI HTTP 接口
+godot/                     # Godot 4.7 实时游戏（GDScript）
+├─ scripts/core/           # ContentDB / Rng / SaveManager / SimUtil
+├─ scripts/sim/            # SimCore（纯仿真，无 Node 依赖）
+├─ scripts/world/          # SimRunner / main
+├─ scripts/ui/             # HUD
+├─ content/                # 同步自 content/ 的副本
+├─ tests/                  # gdUnit4（golden 回放 + 存档往返）+ golden/
+├─ tools/                  # smoke_test.gd
+├─ verify.sh               # headless 门槛
+└─ AGENTS.md
+docs/spec.md               # 跨语言仿真契约（TS ↔ GDScript）
 scripts/check-content.ts   # 内容自检
+scripts/golden.ts          # 黄金轨迹
 scripts/simulate.ts        # 无头验收脚本
 ```
 
-引擎与 UI 分离：`advanceDay` 是不修改入参的纯函数，带种子随机，UI / AI / 测试共用同一套逻辑。
+引擎与表现分离：`advanceHour` 是不修改入参的纯函数，带种子随机，TS / GDScript 共用同一套逻辑并以 golden 轨迹对拍。
 
 ---
 
@@ -146,7 +160,7 @@ curl -X POST http://localhost:8787/act \
 4. 同种子结果完全可复现
 5. 含住房的 pack：人口增长 ≥ 开局 1.3 倍
 
-参考结果（v0.3，seed 12345，空开局）：100 天人口 **12 → 220**，峰值饥饿 60。
+参考结果（v0.3，seed 12345，空开局）：100 天人口 **12 → 243**，峰值饥饿 1。
 
 ---
 
@@ -168,9 +182,28 @@ curl -X POST http://localhost:8787/act \
 
 ---
 
+## 时间与结算（小时制）
+
+- **1 tick = 1 游戏小时**，`tickSec=5`（@1x → 2 分钟/天）；暂停 / 1x / 2x / 4x。
+- **06:00 排产**（日界）：应用「次日生效」命令 → 启用昨日完工 → 用工 → 两阶段公平配给排产。
+- **06:00–18:00**：每小执行今日计划 × 1/12（生产结算按小时）。
+- **18:00 结算**：工资（日结）→ 收租 → 消费 → 买房 → 满意度 → 人口 → 移民 → 损耗 → 技能 → 施工进度。
+- **18:00–06:00**：夜间，昼夜交替，无生产。
+- **所有命令次日 06:00 生效**（玩家实时下令 / AI 每天一次；建筑、升级、建房、派人、停产、价格、税费一律延后）。
+- 完整契约见 [`docs/spec.md`](docs/spec.md)。
+
+## Godot（实时游戏）
+
+`godot/` 是一个 Godot **4.7.2** 工程（GDScript）：`scripts/sim/SimCore` 是 `docs/spec.md` 的忠实移植，纯 `RefCounted`、无 Node 依赖，能在 headless 下运行。
+
+- **对拍**：`godot/tests/test_golden.gd`（gdUnit4）回放 `scripts/golden.ts` 生成的轨迹，逐日比对 → 两套实现零漂移。
+- **门槛**：`godot/verify.sh`（import → 每个改动 `.gd` 过 `--check-only` → gdUnit4 → headless 冒烟）。
+- **运行**：用 Godot 打开 `godot/`（或命令行 `godot --path godot`）；HUD 显示时间/人口/库存/日志，按钮暂停/变速，F5 存档 / F9 读档。
+- 数据源是仓库根 `content/`；改完跑 `npm run sync:content` 同步到 `godot/content/`。
+
 ## 后续
 
-- UI 里程碑（React + 等距地图 + 趋势图）
+- Godot 侧继续做：地图/建筑视图、建造与派人 UI（当前 HUD 只读展示 + 暂停/变速 + 存档）
 - 分层趋于"全员富人"的问题：让需求/税制随财富升级（奢侈需求上限、累进税、财富税）
 - 用奢侈品抽取缩小结构性赤字（当前抽取部分有效，但富人囤积仍大于消费）
 - 竞争 / 老板经营（老板经营已预留接口签名）
