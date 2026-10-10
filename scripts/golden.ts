@@ -18,6 +18,7 @@ const SCRIPT: Array<{ tick: number; actions: Action[] }> = [
   {
     tick: 0,
     actions: [
+      { type: 'set_immigration', value: 0 },
       { type: 'build', buildingId: 'wheat_farm' },
       { type: 'build', buildingId: 'vegetable_farm' },
       { type: 'build', buildingId: 'coarse_mill' },

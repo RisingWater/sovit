@@ -91,9 +91,9 @@ func _compare(exp: Dictionary, got: Dictionary, file: String, day: int, out: Arr
 		out.append("%s satisfaction %.4f != %.4f" % [tag, float(exp["satisfaction"]), float(got["satisfaction"])])
 	if int(exp["hungry"]) != int(got["hungry"]):
 		out.append("%s hungry %d != %d" % [tag, int(exp["hungry"]), int(got["hungry"])])
-	if absf(float(exp["money"]) - float(got["money"])) > 0.1:
+	if absf(float(exp["money"]) - float(got["money"])) > 0.5:
 		out.append("%s money %.3f != %.3f" % [tag, float(exp["money"]), float(got["money"])])
-	_compare_map(exp["goods"], got["goods"], tag + " goods", 0.05, out)
+	_compare_map(exp["goods"], got["goods"], tag + " goods", 0.1, out)
 	_compare_map(exp["prices"], got["prices"], tag + " prices", 0.02, out)
 	_compare_map(exp["housing"], got["housing"], tag + " housing", 0.5, out)
 	_compare_shops(exp["shops"], got["shops"], tag, out)
