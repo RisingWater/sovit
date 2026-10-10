@@ -47,6 +47,7 @@ var _resident_home := {}        # id -> Vector2
 var _picking := false
 var _paint := false
 var _warehouse_pos := Vector2.ZERO
+var selected_resident := ""
 
 func setup(r: SimRunner, seed_value: int) -> void:
 	runner = r
@@ -268,8 +269,12 @@ func _refresh_agents() -> void:
 
 func _draw_agents() -> void:
 	for a in _agents:
-		agent_layer.draw_circle(a["pos"], 6.0, Color(0.95, 0.85, 0.55))
-		agent_layer.draw_arc(a["pos"], 6.0, 0, TAU, 16, Color(0.2, 0.15, 0.1), 1.0)
+		var r := 8.0
+		if a["id"] == selected_resident:
+			agent_layer.draw_arc(a["pos"], r + 4.0, 0, TAU, 24, Color(1.0, 0.95, 0.2), 2.5)
+		agent_layer.draw_circle(a["pos"], r, Color(0.95, 0.85, 0.55))
+		agent_layer.draw_arc(a["pos"], r, 0, TAU, 20, Color(0.2, 0.15, 0.1), 1.5)
+		agent_layer.draw_circle(a["pos"], r * 0.38, Color(0.35, 0.25, 0.15))
 
 # ---- 每帧：移动小人 + 同步建筑 --------------------------------------------
 func _process(delta: float) -> void:
@@ -403,6 +408,7 @@ func _on_left_click(cell: Vector2i) -> void:
 		return
 	var occ = map.occupied_at(cell)
 	if occ != null:
+		selected_resident = ""
 		if occ["kind"] == "shop":
 			select_building.emit(String(occ["id"]))
 		elif occ["kind"] == "housing":
@@ -410,13 +416,15 @@ func _on_left_click(cell: Vector2i) -> void:
 		return
 	var best = _nearest_agent(get_global_mouse_position())
 	if best != "":
+		selected_resident = best
 		select_resident.emit(best)
 	else:
+		selected_resident = ""
 		select_none.emit()
 
 func _nearest_agent(pos: Vector2) -> String:
 	var best := ""
-	var best_d := 22.0
+	var best_d = 30.0 / maxf(0.05, camera.zoom.x)
 	for a in _agents:
 		var d = a["pos"].distance_to(pos)
 		if d < best_d:
