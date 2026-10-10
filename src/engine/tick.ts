@@ -69,20 +69,35 @@ export function runDay(state: GameState, ctx: ContentContext): LogEntry[] {
   const rng = createRng(state.rngState)
   const logs: LogEntry[] = []
 
+  // ---- 计划经济的一天 ----
+  // 1) 用工（依据昨天末的人口与岗位）
   assignLabor(state, ctx)
+
+  // 2) 生产：以「昨天结束时的库存」为基准，各建筑按原料需求比例配给（两阶段）
   logs.push(...runProduction(state, ctx, day))
+
+  // 3) 发放工资
   logs.push(...payWages(state, day))
+
+  // 4) 住房占用 + 收租（国有→政府，私有→房东）
   assignTenure(state, ctx)
   logs.push(...collectRent(state, ctx, day))
 
+  // 5) 购买消费品
   const consumption = runConsumption(state, ctx, day)
   logs.push(...consumption.logs)
 
+  // 6) 投资：买房（私有化）——发生在消费之后、满意度之前
+  logs.push(...runPrivateHousingMarket(state, ctx, day))
+  assignTenure(state, ctx) // 新业主 / 新住户当天生效
+
+  // 7) 结算满意度（反映今天最新的住房所有权）
   updateSatisfaction(state, ctx, consumption.foodScore, consumption.comfortScore, consumption.priceScore)
+
+  // 其余：人口 / 移民 / 施工 / 损耗 / 计算下回合想来人数
   logs.push(...updatePopulation(state, ctx, rng, consumption.hungry, day))
   logs.push(...applyAdmission(state, ctx, rng, day))
   logs.push(...processConstruction(state, ctx, day))
-  logs.push(...runPrivateHousingMarket(state, ctx, day))
   applySpoilage(state, ctx)
   computeArrivals(state)
 
