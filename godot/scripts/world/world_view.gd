@@ -665,7 +665,7 @@ func _path_points(from_cell: Vector2i, to_cell: Vector2i) -> Array:
 	return pts
 
 func _cell_center(cell: Vector2i) -> Vector2:
-	return Vector2(cell.x * TILE + TILE, cell.y * TILE + TILE)
+	return Vector2(cell.x * TILE + TILE * 0.5, cell.y * TILE + TILE * 0.5)
 
 func _assign_homes() -> void:
 	_resident_home.clear()
