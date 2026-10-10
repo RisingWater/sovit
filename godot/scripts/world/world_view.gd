@@ -645,7 +645,7 @@ func _pan_keyboard(delta: float) -> void:
 		camera.position += dir.normalized() * 700.0 * delta / camera.zoom.x
 
 func _update_agents(delta: float) -> void:
-	if runner == null or runner.sim == null:
+	if runner == null or runner.sim == null or runner.paused:
 		return
 	var s = runner.sim.s
 	var hour = int(s["hour"])
@@ -673,7 +673,7 @@ func _update_agents(delta: float) -> void:
 			_move_toward(a, gp, delta)
 			if a["pos"].distance_to(gp) < 4.0 and hour >= 6 and hour < 18:
 				# 到位后过一会儿在附近溜达（不要傻站着）——白天才溜达，夜里在屋里
-				a["wander_t"] = float(a.get("wander_t", 0.0)) + delta
+				a["wander_t"] = float(a.get("wander_t", 0.0)) + delta * runner.speed
 				if float(a["wander_t"]) > 2.0:
 					a["wander_t"] = 0.0
 					var w := _wander_cell(base)
@@ -693,7 +693,7 @@ func _update_agents(delta: float) -> void:
 				else:
 					a["pi"] = pi
 			else:
-				a["pos"] += to / d * minf(d, 90.0 * delta)
+				a["pos"] += to / d * minf(d, _agent_speed() * delta)
 
 func _wander_cell(base: Vector2i) -> Vector2i:
 	for i in 12:
@@ -702,11 +702,14 @@ func _wander_cell(base: Vector2i) -> Vector2i:
 			return c
 	return base
 
+func _agent_speed() -> float:
+	return 90.0 * (runner.speed if runner != null else 1.0)
+
 func _move_toward(a: Dictionary, target: Vector2, delta: float) -> void:
 	var to = target - a["pos"]
 	var d = to.length()
 	if d > 2.0:
-		a["pos"] += to / d * minf(d, 90.0 * delta)
+		a["pos"] += to / d * minf(d, _agent_speed() * delta)
 
 func _cell_of(pos: Vector2) -> Vector2i:
 	return Vector2i(int(floor(pos.x / TILE)), int(floor(pos.y / TILE)))
