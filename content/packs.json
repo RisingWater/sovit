@@ -1,0 +1,36 @@
+{
+  "packs": [
+    {
+      "id": "v0.1",
+      "nameZh": "v0.1 面包与蔬菜",
+      "goods": ["wheat", "coarse_flour", "coarse_bread", "vegetable"],
+      "buildings": ["wheat_farm", "coarse_mill", "coarse_bakery", "vegetable_farm"],
+      "classes": ["poor"],
+      "housing": []
+    },
+    {
+      "id": "v0.2",
+      "nameZh": "v0.2 住房与建材",
+      "goods": ["wheat", "coarse_flour", "coarse_bread", "vegetable", "wood", "stone", "clay", "firewood", "brick", "hut"],
+      "buildings": ["wheat_farm", "coarse_mill", "coarse_bakery", "vegetable_farm", "lumberjack", "quarry", "clay_pit", "firewood_works", "brick_kiln"],
+      "classes": ["poor"],
+      "housing": ["hut"]
+    },
+    {
+      "id": "v0.3",
+      "nameZh": "v0.3 分层社会",
+      "goods": ["wheat", "coarse_flour", "coarse_bread", "vegetable", "fine_flour", "white_bread", "sugarcane", "sugar", "pastry", "flax", "cotton", "dye", "coarse_cloth", "fine_cloth", "coarse_clothes", "common_clothes", "luxury_clothes", "leather_clothes", "hide", "meat", "fish", "smoked_fish", "dried_meat", "pottery", "porcelain", "domestic_service", "entertainment", "wood", "stone", "clay", "firewood", "brick", "build_power"],
+      "buildings": ["wheat_farm", "coarse_mill", "coarse_bakery", "vegetable_farm", "fine_mill", "white_bakery", "sugarcane_farm", "sugar_works", "pastry_shop", "flax_farm", "cotton_farm", "dye_farm", "coarse_weaver", "fine_weaver", "coarse_clothes_shop", "common_clothes_shop", "luxury_clothes_shop", "leather_shop", "hunting_camp", "fishery", "smokehouse", "dried_meat_works", "pottery_works", "porcelain_works", "domestic_service", "theater", "lumberjack", "quarry", "clay_pit", "firewood_works", "brick_kiln", "construction_works"],
+      "classes": ["poor", "middle", "rich", "boss"],
+      "housing": ["hut", "wooden_house", "brick_house"]
+    },
+    {
+      "id": "v1.0",
+      "nameZh": "v1.0 完整经济",
+      "goods": ["wheat", "vegetable", "flax", "cotton", "wood", "stone", "clay", "meat", "fish", "hide", "sugarcane", "dye", "coarse_flour", "fine_flour", "sugar", "coarse_cloth", "fine_cloth", "firewood", "brick", "pottery", "coarse_bread", "white_bread", "pastry", "coarse_clothes", "common_clothes", "luxury_clothes", "leather_clothes", "smoked_fish", "dried_meat", "porcelain", "domestic_service", "entertainment", "build_power", "hut", "wooden_house", "brick_house"],
+      "buildings": ["wheat_farm", "vegetable_farm", "flax_farm", "cotton_farm", "sugarcane_farm", "dye_farm", "lumberjack", "quarry", "clay_pit", "hunting_camp", "fishery", "coarse_mill", "fine_mill", "coarse_bakery", "white_bakery", "pastry_shop", "sugar_works", "coarse_weaver", "fine_weaver", "coarse_clothes_shop", "common_clothes_shop", "luxury_clothes_shop", "leather_shop", "firewood_works", "brick_kiln", "pottery_works", "porcelain_works", "domestic_service", "theater", "smokehouse", "dried_meat_works", "construction_works", "housing_works"],
+      "classes": ["poor", "middle", "rich", "boss"],
+      "housing": ["hut", "wooden_house", "brick_house"]
+    }
+  ]
+}

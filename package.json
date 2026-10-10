@@ -6,8 +6,9 @@
   "description": "Turn-based state-owned economy sandbox — engine + AI interface",
   "scripts": {
     "typecheck": "tsc --noEmit",
+    "check:content": "node --experimental-strip-types scripts/check-content.ts",
     "sim": "node --experimental-strip-types scripts/simulate.ts",
-    "test": "tsc --noEmit && node --experimental-strip-types scripts/simulate.ts",
+    "test": "tsc --noEmit && node --experimental-strip-types scripts/check-content.ts && node --experimental-strip-types scripts/simulate.ts",
     "regress": "npm run test",
     "api": "node --experimental-strip-types src/api/server.ts"
   },

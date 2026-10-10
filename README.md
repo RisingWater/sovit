@@ -26,19 +26,26 @@ npm run api         # 启动 AI HTTP 接口（http://localhost:8787）
 
 ## 目录结构
 ```
+content/                   # 内容数据（JSON 驱动，改这里 = 改游戏）
+├─ goods.json              # 商品（资源 / 加工品 / 消费品 / 投资品）
+├─ buildings.json          # 建筑（配方内嵌）
+├─ classes.json            # 阶层与需求
+├─ housing.json            # 住房
+└─ packs.json              # 内容包（每局允许出现什么）
 src/
-├─ engine/                 # 纯函数引擎（不依赖 UI / Node API）
+├─ engine/                 # 纯函数引擎（不依赖 UI）
 │  ├─ types.ts             # 全部类型
 │  ├─ config.ts            # 经济参数（集中调参）
 │  ├─ rng.ts               # 确定性随机（同种子 → 同结果）
 │  ├─ state.ts             # createInitialState
-│  ├─ content/             # 全 v1.0 内容表 + v0.1 / v0.2 pack
+│  ├─ content/             # 内容加载器 load.ts + 校验器 validate.ts
 │  ├─ systems/             # 生产 / 消费 / 人口 / 满意度 / 财政 / 投资 / 用工
 │  ├─ tick.ts              # advanceDay(state, actions) 主入口
 │  ├─ actions.ts           # 动作应用
 │  └─ observe.ts           # 观测 JSON
 ├─ ai/heuristic.ts         # 启发式基线 AI（自动按 pack 分派策略）
 └─ api/server.ts           # AI HTTP 接口
+scripts/check-content.ts   # 内容自检
 scripts/simulate.ts        # 无头验收脚本
 ```
 
@@ -121,7 +128,8 @@ curl -X POST http://localhost:8787/act \
 | `v0.3`（默认） | v0.2 + 中产/富人消费链（白面包 / 糕点 / 成衣）+ 三级住房 | 四阶层财富分层 |
 | `v1.0` | 全量商品 / 配方 / 建筑 | 四阶层（含建筑工坊等） |
 
-全量内容始终存在于 `src/engine/content/`，`ContentPack` 只决定「本局允许出现什么」。
+全量内容以 JSON 存放在仓库根 `content/`，`ContentPack` 只决定「本局允许出现什么」。
+内容全部**数据驱动**：加商品 / 建筑 / 产业链 / 阶层 = 改 `content/*.json`，无需改代码（见 [`content/README.md`](content/README.md)）。
 `v0.1` / `v0.2` 为早期内容包（保留但不参与日常测试）；**日常只测试当前最新版 `v0.3`**。
 完整的资源 / 产业链 / 阶层 / 住房 / 配置数值清单见 [`docs/content.md`](docs/content.md)。
 
@@ -137,7 +145,7 @@ curl -X POST http://localhost:8787/act \
 4. 同种子结果完全可复现
 5. 含住房的 pack：人口增长 ≥ 开局 1.3 倍
 
-参考结果（v0.3，seed 12345）：100 天人口 **24 → 129**；阶级收敛为富/老板（分层会随财富趋同而"拉平"，见后续）。
+参考结果（v0.3，seed 12345，空开局）：100 天人口 **12 → 220**，峰值饥饿 60。
 
 ---
 

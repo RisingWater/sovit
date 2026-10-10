@@ -9,6 +9,7 @@ export { createRng, randInt, chance } from './rng.ts'
 export type { Rng } from './rng.ts'
 export {
   PACKS,
+  PACK_IDS,
   getPack,
   buildContext,
   ALL_GOODS,
@@ -20,6 +21,7 @@ export {
   ALL_CLASSES,
   CLASS_IDS,
   ALL_HOUSING,
+  HOUSING_IDS,
   isLuxuryGood,
 } from './content/index.ts'
 export type { ContentContext } from './content/index.ts'
