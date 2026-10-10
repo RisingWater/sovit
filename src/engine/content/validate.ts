@@ -12,9 +12,11 @@ import type {
   HousingDef,
   NeedDef,
   PackID,
+  PackStart,
   RecipeDef,
   RecipeID,
 } from '../types.ts'
+import type { DefaultsConfig, EconomyConfig, TuningConfig } from '../config.ts'
 import type { RawContent } from './load.ts'
 
 // ---------------------------------------------------------------------------
@@ -37,6 +39,9 @@ export interface ParsedContent {
   housingIds: GoodID[]
   packs: Record<PackID, ContentPack>
   packIds: PackID[]
+  economy: EconomyConfig
+  defaults: DefaultsConfig
+  tuning: TuningConfig
 }
 
 const CATEGORIES: readonly GoodCategory[] = [
@@ -80,6 +85,12 @@ function asPos(v: unknown, p: string): number {
 function asNonNeg(v: unknown, p: string): number {
   const n = asNum(v, p)
   if (n < 0) fail(`${p} 不能为负`)
+  return n
+}
+
+function asRate(v: unknown, p: string): number {
+  const n = asNum(v, p)
+  if (n < 0 || n > 1) fail(`${p} 必须在 0–1`)
   return n
 }
 
@@ -144,6 +155,7 @@ function parseGoods(raw: unknown): { goods: Record<GoodID, GoodDef>; ids: GoodID
       category: asEnum(o.category, CATEGORIES, `${p}.category`),
       storable: asBool(o.storable, `${p}.storable`),
       baseValue: asNonNeg(o.baseValue, `${p}.baseValue`),
+      luxury: o.luxury === undefined ? false : asBool(o.luxury, `${p}.luxury`),
       ...(perishRate !== undefined ? { perishRate } : {}),
     }
     ids.push(id)
@@ -241,6 +253,9 @@ function parseClasses(
       id,
       nameZh: asStr(o.nameZh, `${p}.nameZh`),
       incomeBase: asNonNeg(o.incomeBase, `${p}.incomeBase`),
+      satBonus: asNum(o.satBonus, `${p}.satBonus`),
+      housingLevel: asNumEnum(o.housingLevel, [1, 2, 3], `${p}.housingLevel`),
+      wealthThreshold: asNonNeg(o.wealthThreshold, `${p}.wealthThreshold`),
       needs,
     }
     ids.push(id)
@@ -282,6 +297,23 @@ function parseHousing(
   return { housing, ids }
 }
 
+function parseStart(
+  raw: unknown,
+  p: string,
+  goodSet: Set<string>,
+  buildingSet: Set<string>,
+  housingSet: Set<string>,
+): PackStart {
+  const s = asObj(raw, p)
+  return {
+    population: asNonNeg(s.population, `${p}.population`),
+    money: asNonNeg(s.money, `${p}.money`),
+    shops: numMap(s.shops, `${p}.shops`, buildingSet),
+    housing: numMap(s.housing, `${p}.housing`, housingSet),
+    goods: numMap(s.goods, `${p}.goods`, goodSet),
+  }
+}
+
 function parsePacks(
   raw: unknown,
   goodSet: Set<string>,
@@ -305,11 +337,127 @@ function parsePacks(
       buildings: strArr(o.buildings, `${p}.buildings`, buildingSet),
       classes: strArr(o.classes, `${p}.classes`, classSet) as ClassID[],
       housing: strArr(o.housing, `${p}.housing`, housingSet),
+      start: parseStart(o.start, `${p}.start`, goodSet, buildingSet, housingSet),
     }
     ids.push(id)
   })
 
   return { packs, ids }
+}
+
+function parsePerson(o: Record<string, unknown>, p: string): DefaultsConfig['newResident'] {
+  return {
+    savings: asNonNeg(o.savings, `${p}.savings`),
+    satisfaction: asNonNeg(o.satisfaction, `${p}.satisfaction`),
+    skillBase: asNonNeg(o.skillBase, `${p}.skillBase`),
+    skillRandom: asNonNeg(o.skillRandom, `${p}.skillRandom`),
+  }
+}
+
+function parseEconomy(
+  raw: unknown,
+  goodSet: Set<string>,
+  classSet: Set<string>,
+): { economy: EconomyConfig; defaults: DefaultsConfig; tuning: TuningConfig } {
+  const root = asObj(raw, 'economy.json')
+  const e = asObj(root.economy, 'economy.json.economy')
+  const d = asObj(root.defaults, 'economy.json.defaults')
+  const t = asObj(root.tuning, 'economy.json.tuning')
+
+  const weights = asObj(e.weights, 'economy.weights')
+  const bmt = asObj(e.buildMoneyByTier, 'economy.buildMoneyByTier')
+  const maxSlots =
+    e.maxBuildingSlots === null || e.maxBuildingSlots === undefined
+      ? Infinity
+      : asNonNeg(e.maxBuildingSlots, 'economy.maxBuildingSlots')
+
+  const economy: EconomyConfig = {
+    refWage: asNonNeg(e.refWage, 'economy.refWage'),
+    welfareRate: asNonNeg(e.welfareRate, 'economy.welfareRate'),
+    defaultTaxBrackets: asArr(e.defaultTaxBrackets, 'economy.defaultTaxBrackets').map((b, i) => {
+      const bp = `economy.defaultTaxBrackets[${i}]`
+      const bo = asObj(b, bp)
+      const upTo = bo.upTo === null || bo.upTo === undefined ? null : asNonNeg(bo.upTo, `${bp}.upTo`)
+      const rate = asNum(bo.rate, `${bp}.rate`)
+      if (rate < 0 || rate > 0.95) fail(`${bp}.rate 必须在 0–0.95`)
+      return { upTo, rate }
+    }),
+    priceElasticity: asNonNeg(e.priceElasticity, 'economy.priceElasticity'),
+    luxuryElasticity: asNonNeg(e.luxuryElasticity, 'economy.luxuryElasticity'),
+    luxuryPriceMarkup: asNonNeg(e.luxuryPriceMarkup, 'economy.luxuryPriceMarkup'),
+    satisfactionSmoothing: asRate(e.satisfactionSmoothing, 'economy.satisfactionSmoothing'),
+    weights: {
+      food: asNum(weights.food, 'economy.weights.food'),
+      wage: asNum(weights.wage, 'economy.weights.wage'),
+      price: asNum(weights.price, 'economy.weights.price'),
+      employment: asNum(weights.employment, 'economy.weights.employment'),
+      comfort: asNum(weights.comfort, 'economy.weights.comfort'),
+    },
+    priceIntercept: asNum(e.priceIntercept, 'economy.priceIntercept'),
+    priceSlope: asNum(e.priceSlope, 'economy.priceSlope'),
+    immigrationSatThreshold: asNum(e.immigrationSatThreshold, 'economy.immigrationSatThreshold'),
+    immigrationRate: asNonNeg(e.immigrationRate, 'economy.immigrationRate'),
+    emigrationSatThreshold: asNum(e.emigrationSatThreshold, 'economy.emigrationSatThreshold'),
+    hungerDeathRate: asRate(e.hungerDeathRate, 'economy.hungerDeathRate'),
+    minPopulation: asNonNeg(e.minPopulation, 'economy.minPopulation'),
+    buildMoneyByTier: {
+      1: asNonNeg(bmt['1'], 'economy.buildMoneyByTier.1'),
+      2: asNonNeg(bmt['2'], 'economy.buildMoneyByTier.2'),
+      3: asNonNeg(bmt['3'], 'economy.buildMoneyByTier.3'),
+    },
+    expandMoneyBase: asNonNeg(e.expandMoneyBase, 'economy.expandMoneyBase'),
+    maxBuildingSlots: maxSlots,
+    constructionDays: asNonNeg(e.constructionDays, 'economy.constructionDays'),
+    defaultRent: asNonNeg(e.defaultRent, 'economy.defaultRent'),
+    privateHousingSatBonus: asNum(e.privateHousingSatBonus, 'economy.privateHousingSatBonus'),
+    privateTenantSatBonus: asNum(e.privateTenantSatBonus, 'economy.privateTenantSatBonus'),
+    rentSatPenalty: asNonNeg(e.rentSatPenalty, 'economy.rentSatPenalty'),
+    privateHousingNeedThreshold: asNum(e.privateHousingNeedThreshold, 'economy.privateHousingNeedThreshold'),
+    privateHousingPerDay: asNonNeg(e.privateHousingPerDay, 'economy.privateHousingPerDay'),
+    skillIncomeBase: asNonNeg(e.skillIncomeBase, 'economy.skillIncomeBase'),
+    defaultWageCap: asNonNeg(e.defaultWageCap, 'economy.defaultWageCap'),
+    housingQualityPenalty: asNonNeg(e.housingQualityPenalty, 'economy.housingQualityPenalty'),
+    skillGainPerDay: asNonNeg(e.skillGainPerDay, 'economy.skillGainPerDay'),
+    skillMax: asNonNeg(e.skillMax, 'economy.skillMax'),
+    promotionSavings: asNonNeg(e.promotionSavings, 'economy.promotionSavings'),
+    promotionSatThreshold: asNonNeg(e.promotionSatThreshold, 'economy.promotionSatThreshold'),
+  }
+
+  const newShop = asObj(d.newShop, 'defaults.newShop')
+  const defaults: DefaultsConfig = {
+    newShop: {
+      level: asPos(newShop.level, 'defaults.newShop.level'),
+      skill: asNonNeg(newShop.skill, 'defaults.newShop.skill'),
+    },
+    newResident: parsePerson(asObj(d.newResident, 'defaults.newResident'), 'defaults.newResident'),
+    startResident: parsePerson(asObj(d.startResident, 'defaults.startResident'), 'defaults.startResident'),
+    startDistribution: strArr(d.startDistribution, 'defaults.startDistribution') as ClassID[],
+  }
+
+  const tuning: TuningConfig = {
+    skillEffectBase: asNonNeg(t.skillEffectBase, 'tuning.skillEffectBase'),
+    skillEffectSlope: asNonNeg(t.skillEffectSlope, 'tuning.skillEffectSlope'),
+    unemployedEmploymentScore: asNonNeg(t.unemployedEmploymentScore, 'tuning.unemployedEmploymentScore'),
+    wageScoreCap: asPos(t.wageScoreCap, 'tuning.wageScoreCap'),
+    hungryThreshold: asRate(t.hungryThreshold, 'tuning.hungryThreshold'),
+    priceFactorMin: asNonNeg(t.priceFactorMin, 'tuning.priceFactorMin'),
+    priceFactorMax: asPos(t.priceFactorMax, 'tuning.priceFactorMax'),
+    basicFoods: strArr(t.basicFoods, 'tuning.basicFoods'),
+    foodChainSeedClass: asStr(t.foodChainSeedClass, 'tuning.foodChainSeedClass') as ClassID,
+  }
+
+  // 交叉引用
+  for (const g of tuning.basicFoods) {
+    if (!goodSet.has(g)) fail(`tuning.basicFoods 引用了未定义的商品：${g}`)
+  }
+  if (!classSet.has(tuning.foodChainSeedClass)) {
+    fail(`tuning.foodChainSeedClass 引用了未定义的阶层：${tuning.foodChainSeedClass}`)
+  }
+  for (const c of defaults.startDistribution) {
+    if (!classSet.has(c)) fail(`defaults.startDistribution 引用了未定义的阶层：${c}`)
+  }
+
+  return { economy, defaults, tuning }
 }
 
 /** 校验并组装全部内容表。 */
@@ -327,6 +475,7 @@ export function parseContent(files: RawContent): ParsedContent {
   const housingSet = new Set(housingIds)
 
   const { packs, ids: packIds } = parsePacks(files.packs, goodSet, buildingSet, classSet, housingSet)
+  const { economy, defaults, tuning } = parseEconomy(files.economy, goodSet, classSet)
 
   if (packIds.length === 0) fail('packs.json 至少要有一个内容包')
 
@@ -337,5 +486,6 @@ export function parseContent(files: RawContent): ParsedContent {
     classes, classIds,
     housing, housingIds,
     packs, packIds,
+    economy, defaults, tuning,
   }
 }

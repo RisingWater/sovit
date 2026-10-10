@@ -1,7 +1,7 @@
 import type { GameState, LogEntry, Shop } from '../types.ts'
 import type { ContentContext } from '../content/index.ts'
 import type { BuildingDef } from '../types.ts'
-import { ECONOMY } from '../config.ts'
+import { DEFAULTS, ECONOMY } from '../config.ts'
 import { round2 } from '../util.ts'
 
 // ---------------------------------------------------------------------------
@@ -166,10 +166,10 @@ export function processConstruction(
       targetWorkers: def.workers,
       wage: ECONOMY.refWage,
       wageCap: ECONOMY.defaultWageCap,
-      level: 1,
+      level: DEFAULTS.newShop.level,
       active: true,
       profit: 0,
-      skill: 50,
+      skill: DEFAULTS.newShop.skill,
     }
     state.shops.push(shop)
     logs.push({ day, kind: 'invest', text: `${def.nameZh} 建成投产` })

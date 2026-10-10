@@ -11,7 +11,7 @@ export type GoodID = string
 export type BuildingID = string
 export type RecipeID = string
 
-export type ClassID = 'poor' | 'middle' | 'rich' | 'boss'
+export type ClassID = string
 export type OwnerID = 'state' | string
 
 export type GoodTier = 0 | 1 | 2 | 3
@@ -45,6 +45,8 @@ export interface GoodDef {
   baseValue: number
   /** 每日损耗比例（0-1），缺省 0。 */
   perishRate?: number
+  /** 是否奢侈品：低价格弹性，可提价抽取富人财富。缺省 false。 */
+  luxury?: boolean
 }
 
 export interface NeedDef {
@@ -87,6 +89,12 @@ export interface ClassDef {
   needs: NeedDef[]
   /** 日收入基准，用于工资水平参照。 */
   incomeBase: number
+  /** 阶层满意度加成（点数）。 */
+  satBonus: number
+  /** 该阶层要求的最低住房等级（1/2/3）。 */
+  housingLevel: number
+  /** 升入该阶层所需的最低存款（最低阶层填 0）。 */
+  wealthThreshold: number
 }
 
 export interface HousingDef {
@@ -102,6 +110,19 @@ export interface HousingDef {
   salePrice?: number
 }
 
+export interface PackStart {
+  /** 开局人口。 */
+  population: number
+  /** 开局资金。 */
+  money: number
+  /** 开局建筑：defId → 数量。 */
+  shops: Record<string, number>
+  /** 开局住房存量：住房 id → 数量。 */
+  housing: Record<string, number>
+  /** 开局库存：商品 id → 数量。 */
+  goods: Record<string, number>
+}
+
 export interface ContentPack {
   id: PackID
   nameZh: string
@@ -109,6 +130,8 @@ export interface ContentPack {
   buildings: BuildingID[]
   classes: ClassID[]
   housing: GoodID[]
+  /** 开局场景（人口 / 资金 / 建筑 / 住房 / 库存）。 */
+  start: PackStart
 }
 
 // ---------------------------------------------------------------------------

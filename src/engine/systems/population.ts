@@ -1,7 +1,7 @@
-import type { ClassID, GameState, LogEntry, Resident } from '../types.ts'
+import type { ClassID, ClassDef, GameState, LogEntry, Resident } from '../types.ts'
 import type { ContentContext } from '../content/index.ts'
 import type { Rng } from '../rng.ts'
-import { ECONOMY } from '../config.ts'
+import { DEFAULTS, ECONOMY } from '../config.ts'
 import { round2, sum } from '../util.ts'
 import { housingCapacity } from './housing.ts'
 
@@ -36,24 +36,30 @@ function nextResidentIndex(state: GameState): number {
 }
 
 function makeResident(state: GameState, rng: Rng, classId: ClassID): Resident {
+  const rd = DEFAULTS.newResident
   return {
     id: `res#${nextResidentIndex(state)}`,
     classId,
-    savings: 12,
-    satisfaction: 60,
-    skill: 30 + Math.floor(rng.next() * 30),
+    savings: rd.savings,
+    satisfaction: rd.satisfaction,
+    skill: rd.skillBase + Math.floor(rng.next() * rd.skillRandom),
     employed: false,
   }
 }
 
-/** 按财富（存款）分层：穷人 / 中产 / 富人 / 老板；不超过本 pack 允许的最高阶层。 */
+/** 按财富（存款）分层：依 pack 允许的阶层、按 wealthThreshold 升序逐级上升。 */
 function updateClasses(state: GameState, ctx: ContentContext): void {
-  const { middle, rich, boss } = ECONOMY.classWealth
-  const order: ClassID[] = ['poor', 'middle', 'rich', 'boss']
-  const maxIdx = Math.max(0, ...ctx.pack.classes.map((c) => order.indexOf(c)))
+  const ladder = ctx.pack.classes
+    .map((c) => ctx.classes[c])
+    .filter((c): c is ClassDef => c !== undefined)
+    .sort((a, b) => a.wealthThreshold - b.wealthThreshold)
+  if (ladder.length === 0) return
   for (const r of state.residents) {
-    const wealth = r.savings >= boss ? 3 : r.savings >= rich ? 2 : r.savings >= middle ? 1 : 0
-    r.classId = order[Math.min(wealth, maxIdx)]!
+    let cls = ladder[0]!
+    for (const c of ladder) {
+      if (r.savings >= c.wealthThreshold) cls = c
+    }
+    r.classId = cls.id
   }
 }
 

@@ -7,9 +7,10 @@
 |---|---|
 | `goods.json` | 商品（资源 / 加工品 / 消费品 / 投资品） |
 | `buildings.json` | 建筑，**配方内嵌**在每个建筑里 |
-| `classes.json` | 阶层与它的需求（`needs`） |
+| `classes.json` | 阶层与它的需求（`needs`）+ 阶层参数 |
 | `housing.json` | 住房（容量、等级、造价、私有化售价） |
-| `packs.json` | 内容包：每局允许出现哪些内容 |
+| `packs.json` | 内容包：每局允许出现哪些内容 + **开局场景** |
+| `economy.json` | **全局参数**（`economy`）/ 新建默认值（`defaults`）/ 机制常数（`tuning`） |
 
 > 改完跑 `npm run check:content` 快速自检，或直接 `npm test`。
 
@@ -83,4 +84,34 @@
 ## 5. 阶层与住房
 
 - **阶层** `classes.json`：`needs` 是该阶层的人均日需求；`fallbacks` 是缺货时按序替代。引用的商品必须在 `goods.json` 里存在。
+  每个阶层还有：`satBonus`（满意度加成）、`housingLevel`（要求的最低住房等级 1/2/3，≥2 才会私有化买房）、`wealthThreshold`（存款达到多少升入本阶层）。
 - **住房** `housing.json`：`quality` 1–3，`capacity` 每单位住几人，`classId` 对应能买它的阶层，`buildCost` 是材料，`salePrice` 是私有化售价。
+
+## 6. 调参数（`economy.json`）
+
+三块：
+
+| 块 | 用途 |
+|---|---|
+| `economy` | 全局数值：工资基准、税表、价格弹性、满意度权重、移民/迁出阈值、施工天数、土地上限（`null` = 不限）等 |
+| `defaults` | 新建实体的默认值：`newShop`（新店 level/skill）、`newResident`（新移民存款/满意度/技能）、`startResident`（开局居民）、`startDistribution`（开局阶层） |
+| `tuning` | 机制可调常数：`skillEffectBase/Slope`（技能→产出）、`hungryThreshold`（饥饿判定）、`priceFactorMin/Max`（价格系数夹紧）、`basicFoods`（食物兜底）、`foodChainSeedClass`（口粮链种子阶层） |
+
+改一个数字即可调平衡，无需改代码。
+
+## 7. 开局场景（`packs.json` 的 `start`）
+
+每个 pack 自带开局：
+
+```jsonc
+"start": {
+  "population": 12,
+  "money": 2000,
+  "shops": { "wheat_farm": 1 },        // 开局建筑：defId → 数量
+  "housing": { "hut": 3 },             // 开局住房存量
+  "goods": { "wood": 300 }             // 开局库存
+}
+```
+
+- `shops` 里的 defId 必须在 `buildings.json`；`housing` 里的 id 必须在 `housing.json` 且属于本 pack；`goods` 里的 id 必须在 `goods.json`。
+- 空开局就这样写：`"shops": {}`、`"housing": { "hut": 3 }`、`"goods": { ... }`。

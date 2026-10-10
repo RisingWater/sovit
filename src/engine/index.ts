@@ -3,8 +3,8 @@
 // ---------------------------------------------------------------------------
 
 export * from './types.ts'
-export { ECONOMY } from './config.ts'
-export type { EconomyConfig } from './config.ts'
+export { ECONOMY, DEFAULTS, TUNING } from './config.ts'
+export type { EconomyConfig, DefaultsConfig, TuningConfig, PersonDefaults } from './config.ts'
 export { createRng, randInt, chance } from './rng.ts'
 export type { Rng } from './rng.ts'
 export {

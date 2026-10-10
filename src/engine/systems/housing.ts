@@ -193,8 +193,9 @@ export function runPrivateHousingMarket(
       let buyer: (typeof state.residents)[number] | undefined
       for (const r of state.residents) {
         if (r.homeowner) continue
-        if (r.classId === 'poor') continue // 只有中产及以上才会私有化
-        if (ECONOMY.classHousingLevel[r.classId] !== def.quality) continue // 对应等级住房
+        const lvl = ctx.classes[r.classId]?.housingLevel ?? 1
+        if (lvl < 2) continue // 只有中产及以上才会私有化
+        if (lvl !== def.quality) continue // 只能买与本阶层等级对应的住房
         if (r.savings < price + 5) continue // 留足口粮缓冲，避免买房后吃不上饭
         if (r.satisfaction < ECONOMY.privateHousingNeedThreshold) continue
         if (!buyer || r.savings > buyer.savings) buyer = r

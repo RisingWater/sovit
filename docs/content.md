@@ -222,7 +222,10 @@
 
 ---
 
-## 七、关键机制数值（`src/engine/config.ts`）
+## 七、关键机制数值（`content/economy.json`）
+
+> 全部数值都在 `content/economy.json`，分三块：`economy`（全局数值，见下表）、`defaults`（新建 / 初始实体的默认值）、`tuning`（机制可调常数：技能系数、饥饿阈值、基础食物、口粮链种子阶层…）。
+> **阶层相关数值**（分层阈值 / 满意度加成 / 住房等级）已移入 `content/classes.json` 的每个阶层里。
 
 | 项 | 默认值 | 说明 |
 |---|---|---|
@@ -234,9 +237,7 @@
 | `defaultRent` | 0.05 | 国有住房人均日租金 |
 | `privateHousingNeedThreshold` | 80 | 私有化所需满意度门槛 |
 | `privateHousingPerDay` | 2 | 每日最多私有化户数 |
-| `classWealth` | 中产 40 / 富 120 / 老板 300 | 按存款分层阈值 |
-| `classSatBonus` | 穷0 / 中4 / 富8 / 老板12 | 阶层满意度加成 |
-| `classHousingLevel` | 穷1 / 中2 / 富3 / 老板3 | 各阶层要求住房等级 |
+| `classWealth` / `classSatBonus` / `classHousingLevel` | — | **已移入 `classes.json`**：每个阶层的 `wealthThreshold` / `satBonus` / `housingLevel` |
 | `housingQualityPenalty` | 8 | 每缺一级住房的满意度惩罚 |
 | `privateHousingSatBonus` | 12 | 房主满意度加成 |
 | `privateTenantSatBonus` | 4 | 房客满意度加成 |

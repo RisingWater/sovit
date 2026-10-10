@@ -1,7 +1,11 @@
 import type { BuildingTier, ClassID, TaxBracket } from './types.ts'
+import { CONTENT } from './content/bundle.ts'
 
 // ---------------------------------------------------------------------------
-// 经济参数（集中调参）
+// 经济参数（由仓库根 content/economy.json 驱动）
+//
+// economy = 全局数值；defaults = 新建实体的默认值；tuning = 机制可调常数。
+// 改这些值只需编辑 economy.json。
 // ---------------------------------------------------------------------------
 
 export interface EconomyConfig {
@@ -36,7 +40,7 @@ export interface EconomyConfig {
   /** 新建 / 扩产的金钱成本（当建筑无可用的实物 buildCost 时的兜底）。 */
   buildMoneyByTier: Record<BuildingTier, number>
   expandMoneyBase: number
-  /** 土地上限：建筑总数（含在建、住房）不得超过该值。 */
+  /** 土地上限：建筑总数（含在建、住房）不得超过该值（Infinity = 不限）。 */
   maxBuildingSlots: number
   /** 施工天数。 */
   constructionDays: number
@@ -56,14 +60,8 @@ export interface EconomyConfig {
   skillIncomeBase: number
   /** 各工坊默认的每人实际工资上限（0 表示不限）。 */
   defaultWageCap: number
-  /** 财富分层阈值：[中产, 富人, 老板] 的下界。 */
-  classWealth: { middle: number; rich: number; boss: number }
-  /** 各阶层满意度加成。 */
-  classSatBonus: Record<ClassID, number>
   /** 居住等级低于本阶层要求时，每缺一级的满意度惩罚。 */
   housingQualityPenalty: number
-  /** 各阶层要求的最低住房等级。 */
-  classHousingLevel: Record<ClassID, number>
   /** 熟练度每日增长与上限。 */
   skillGainPerDay: number
   skillMax: number
@@ -72,44 +70,44 @@ export interface EconomyConfig {
   promotionSatThreshold: number
 }
 
-export const ECONOMY: EconomyConfig = {
-  refWage: 3,
-  welfareRate: 1.0,
-  defaultTaxBrackets: [
-    { upTo: 2, rate: 0.08 },
-    { upTo: 3.5, rate: 0.22 },
-    { upTo: null, rate: 0.42 },
-  ],
-  priceElasticity: 1.2,
-  luxuryElasticity: 0.4,
-  luxuryPriceMarkup: 2.5,
-  satisfactionSmoothing: 0.2,
-  weights: { food: 0.45, wage: 0.2, price: 0.1, employment: 0.1, comfort: 0.15 },
-  priceIntercept: 1.3,
-  priceSlope: 0.6,
-  immigrationSatThreshold: 60,
-  immigrationRate: 0.1,
-  emigrationSatThreshold: 40,
-  hungerDeathRate: 0.2,
-  minPopulation: 4,
-  buildMoneyByTier: { 1: 100, 2: 250, 3: 500 },
-  expandMoneyBase: 80,
-  maxBuildingSlots: Infinity,
-  constructionDays: 2,
-  defaultRent: 0.05,
-  privateHousingSatBonus: 12,
-  privateTenantSatBonus: 4,
-  rentSatPenalty: 25,
-  privateHousingNeedThreshold: 80,
-  privateHousingPerDay: 2,
-  skillIncomeBase: 0.5,
-  defaultWageCap: 6,
-  classWealth: { middle: 40, rich: 120, boss: 300 },
-  classSatBonus: { poor: 0, middle: 4, rich: 8, boss: 12 },
-  housingQualityPenalty: 8,
-  classHousingLevel: { poor: 1, middle: 2, rich: 3, boss: 3 },
-  skillGainPerDay: 0.5,
-  skillMax: 100,
-  promotionSavings: 50,
-  promotionSatThreshold: 70,
+/** 新建 / 初始居民与店铺的默认值。 */
+export interface PersonDefaults {
+  savings: number
+  satisfaction: number
+  skillBase: number
+  skillRandom: number
 }
+
+export interface DefaultsConfig {
+  newShop: { level: number; skill: number }
+  /** 新移民默认。 */
+  newResident: PersonDefaults
+  /** 开局居民默认。 */
+  startResident: PersonDefaults
+  /** 开局阶层分布。 */
+  startDistribution: ClassID[]
+}
+
+/** 机制可调常数（原本散在各 systems 的"魔数"）。 */
+export interface TuningConfig {
+  /** 产出 = ... × (skillEffectBase + skillEffectSlope × 技能/100)。 */
+  skillEffectBase: number
+  skillEffectSlope: number
+  /** 失业者的就业分数。 */
+  unemployedEmploymentScore: number
+  /** 工资分归一化上限（wageScore = clamp(wage/refWage, 0, wageScoreCap) / wageScoreCap）。 */
+  wageScoreCap: number
+  /** 食物满足率低于该值算"饥饿"。 */
+  hungryThreshold: number
+  /** 价格系数夹紧区间。 */
+  priceFactorMin: number
+  priceFactorMax: number
+  /** 食物需求兜底到的"基础食物"（高级食物缺货时避免饿死）。 */
+  basicFoods: string[]
+  /** 口粮链回溯的种子阶层。 */
+  foodChainSeedClass: ClassID
+}
+
+export const ECONOMY: EconomyConfig = CONTENT.economy
+export const DEFAULTS: DefaultsConfig = CONTENT.defaults
+export const TUNING: TuningConfig = CONTENT.tuning

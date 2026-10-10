@@ -1,7 +1,7 @@
 import type { GameState } from '../types.ts'
 import type { ContentContext } from '../content/index.ts'
 import { ALL_GOODS } from '../content/index.ts'
-import { ECONOMY } from '../config.ts'
+import { ECONOMY, TUNING } from '../config.ts'
 
 // ---------------------------------------------------------------------------
 // 用工分配
@@ -14,7 +14,7 @@ import { ECONOMY } from '../config.ts'
 /** 基本口粮链：以最低阶层的食物需求为种子，向上游回溯（保证不饿死，但不含奢侈食品）。 */
 function foodChainGoods(ctx: ContentContext): Set<string> {
   const set = new Set<string>()
-  const poor = ctx.classes['poor']
+  const poor = ctx.classes[TUNING.foodChainSeedClass]
   if (poor) {
     for (const n of poor.needs) {
       if (ALL_GOODS[n.good]?.category === 'food') set.add(n.good)

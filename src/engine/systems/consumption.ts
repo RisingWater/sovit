@@ -1,7 +1,7 @@
 import type { GameState, LogEntry } from '../types.ts'
 import type { ContentContext } from '../content/index.ts'
 import { ALL_GOODS, CLASS_IDS, isLuxuryGood } from '../content/index.ts'
-import { ECONOMY } from '../config.ts'
+import { ECONOMY, TUNING } from '../config.ts'
 import { clamp, round2 } from '../util.ts'
 
 // ---------------------------------------------------------------------------
@@ -32,8 +32,6 @@ function priceScore(price: number, base: number): number {
   const ratio = base > 0 ? price / base : 1
   return clamp(ECONOMY.priceIntercept - ECONOMY.priceSlope * ratio, 0, 1)
 }
-
-const BASIC_FOODS = ['coarse_bread', 'vegetable']
 
 export function runConsumption(
   state: GameState,
@@ -75,7 +73,7 @@ export function runConsumption(
         let candidates = [need.good, ...(need.fallbacks ?? [])].filter((g) => ctx.goodSet.has(g))
         // 食物需求兜底到基础食物，避免高级食物缺货时被“饿死”。
         if (isFood) {
-          for (const b of BASIC_FOODS) {
+          for (const b of TUNING.basicFoods) {
             if (ctx.goodSet.has(b) && !candidates.includes(b)) candidates.push(b)
           }
         }
@@ -88,7 +86,7 @@ export function runConsumption(
         const base = gdef?.baseValue ?? 1
         const price = Math.max(0.01, state.prices[target] ?? base)
         const elastic = isLuxuryGood(target) ? ECONOMY.luxuryElasticity : ECONOMY.priceElasticity
-        const factor = clamp(Math.pow(base / price, elastic), 0.2, 1.5)
+        const factor = clamp(Math.pow(base / price, elastic), TUNING.priceFactorMin, TUNING.priceFactorMax)
 
         const desired = demand * factor
         const affordable = price > 0 ? r.savings / price : desired
@@ -119,7 +117,7 @@ export function runConsumption(
       foodSum += f
       comfortSum += c
       priceSum += priceDen > 0 ? priceNum / priceDen : 1
-      if (f < 0.9) hungry += 1
+      if (f < TUNING.hungryThreshold) hungry += 1
     }
 
     foodScore[classId] = foodSum / members.length

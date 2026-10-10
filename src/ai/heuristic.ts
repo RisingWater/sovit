@@ -317,14 +317,14 @@ function decideGrowth(state: GameState, ctx: ContentContext): Action[] {
 
   // 5. 住房：仅当"住房比岗位更缺"时才建房（人口上限 = min(住房, 岗位)）
   if (ctx.pack.housing.length > 0 && housingRoom <= jobRoom) {
-    const requiredLevel = ECONOMY.classHousingLevel
+    const classLevel = (c: string): number => ctx.classes[c]?.housingLevel ?? 1
     const cands: Array<{ gid: string; deficit: number; popForType: number }> = []
     for (const gid of ctx.pack.housing) {
       const def = ctx.housing[gid]
       if (!def) continue
       let popForType = 0
       for (const r of state.residents) {
-        if ((requiredLevel[r.classId] ?? 1) === def.quality) popForType++
+        if (classLevel(r.classId) === def.quality) popForType++
       }
       const deficit = Math.ceil(popForType / def.capacity) - Math.floor(state.housing[gid] ?? 0)
       cands.push({ gid, deficit, popForType })

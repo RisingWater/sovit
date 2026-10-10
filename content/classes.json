@@ -4,6 +4,9 @@
       "id": "poor",
       "nameZh": "穷人",
       "incomeBase": 3,
+      "satBonus": 0,
+      "housingLevel": 1,
+      "wealthThreshold": 0,
       "needs": [
         { "good": "coarse_bread", "perCapita": 1.0 },
         { "good": "vegetable", "perCapita": 0.5 }
@@ -13,6 +16,9 @@
       "id": "middle",
       "nameZh": "中产",
       "incomeBase": 6,
+      "satBonus": 4,
+      "housingLevel": 2,
+      "wealthThreshold": 40,
       "needs": [
         { "good": "white_bread", "perCapita": 0.5, "fallbacks": ["coarse_bread"] },
         { "good": "meat", "perCapita": 0.2, "fallbacks": ["fish", "smoked_fish", "dried_meat"] },
@@ -25,6 +31,9 @@
       "id": "rich",
       "nameZh": "富人",
       "incomeBase": 15,
+      "satBonus": 8,
+      "housingLevel": 3,
+      "wealthThreshold": 120,
       "needs": [
         { "good": "pastry", "perCapita": 0.3, "fallbacks": ["white_bread"] },
         { "good": "porcelain", "perCapita": 0.05 },
@@ -39,6 +48,9 @@
       "id": "boss",
       "nameZh": "老板",
       "incomeBase": 30,
+      "satBonus": 12,
+      "housingLevel": 3,
+      "wealthThreshold": 300,
       "needs": [
         { "good": "pastry", "perCapita": 0.3 },
         { "good": "porcelain", "perCapita": 0.1 },

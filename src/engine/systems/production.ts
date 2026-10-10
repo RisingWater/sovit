@@ -1,6 +1,7 @@
 import type { GameState, LogEntry } from '../types.ts'
 import type { ContentContext } from '../content/index.ts'
 import { ALL_GOODS } from '../content/index.ts'
+import { TUNING } from '../config.ts'
 import { assignedWorkers } from './labor.ts'
 import { round2 } from '../util.ts'
 
@@ -61,7 +62,7 @@ export function runProduction(state: GameState, ctx: ContentContext, day: number
       continue
     }
     const staffing = workers / def.workers // 不封顶：工坊多派人就多产
-    const skillEff = 0.6 + 0.4 * (shop.skill / 100)
+    const skillEff = TUNING.skillEffectBase + TUNING.skillEffectSlope * (shop.skill / 100)
     const desired = recipe.baseRate * staffing * skillEff * shop.level
     if (desired <= 0) continue
 

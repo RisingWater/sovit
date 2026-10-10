@@ -11,8 +11,7 @@ import type {
   RecipeDef,
   RecipeID,
 } from '../types.ts'
-import { loadContentFiles } from './load.ts'
-import { parseContent } from './validate.ts'
+import { CONTENT } from './bundle.ts'
 
 // ---------------------------------------------------------------------------
 // 内容表（由仓库根 content/*.json 驱动）
@@ -21,25 +20,23 @@ import { parseContent } from './validate.ts'
 // 改内容 = 改 JSON，无需改代码。
 // ---------------------------------------------------------------------------
 
-const content = parseContent(loadContentFiles())
+export const ALL_GOODS: Record<GoodID, GoodDef> = CONTENT.goods
+export const GOOD_IDS: GoodID[] = CONTENT.goodIds
 
-export const ALL_GOODS: Record<GoodID, GoodDef> = content.goods
-export const GOOD_IDS: GoodID[] = content.goodIds
+export const ALL_BUILDINGS: Record<BuildingID, BuildingDef> = CONTENT.buildings
+export const BUILDING_IDS: BuildingID[] = CONTENT.buildingIds
 
-export const ALL_BUILDINGS: Record<BuildingID, BuildingDef> = content.buildings
-export const BUILDING_IDS: BuildingID[] = content.buildingIds
+export const ALL_RECIPES: Record<RecipeID, RecipeDef> = CONTENT.recipes
+export const RECIPE_BY_BUILDING: Record<string, RecipeDef> = CONTENT.recipeByBuilding
 
-export const ALL_RECIPES: Record<RecipeID, RecipeDef> = content.recipes
-export const RECIPE_BY_BUILDING: Record<string, RecipeDef> = content.recipeByBuilding
+export const ALL_CLASSES: Record<ClassID, ClassDef> = CONTENT.classes
+export const CLASS_IDS: ClassID[] = CONTENT.classIds
 
-export const ALL_CLASSES: Record<ClassID, ClassDef> = content.classes
-export const CLASS_IDS: ClassID[] = content.classIds
+export const ALL_HOUSING: Record<GoodID, HousingDef> = CONTENT.housing
+export const HOUSING_IDS: GoodID[] = CONTENT.housingIds
 
-export const ALL_HOUSING: Record<GoodID, HousingDef> = content.housing
-export const HOUSING_IDS: GoodID[] = content.housingIds
-
-export const PACKS: Record<PackID, ContentPack> = content.packs
-export const PACK_IDS: PackID[] = content.packIds
+export const PACKS: Record<PackID, ContentPack> = CONTENT.packs
+export const PACK_IDS: PackID[] = CONTENT.packIds
 
 export function getPack(id: PackID): ContentPack {
   const pack = PACKS[id]
@@ -47,16 +44,9 @@ export function getPack(id: PackID): ContentPack {
   return pack
 }
 
-/** 奢侈品（衣物 / 日用 / 娱乐 / 糕点）：低价格弹性，可通过对富人提价抽取财富。 */
+/** 奢侈品（低价格弹性，可提价抽取富人财富）：由 goods.json 的 luxury 标志决定。 */
 export function isLuxuryGood(gid: GoodID): boolean {
-  const g = ALL_GOODS[gid]
-  if (!g) return false
-  return (
-    g.category === 'clothing' ||
-    g.category === 'household' ||
-    g.category === 'entertainment' ||
-    g.id === 'pastry'
-  )
+  return ALL_GOODS[gid]?.luxury === true
 }
 
 export interface ContentContext {

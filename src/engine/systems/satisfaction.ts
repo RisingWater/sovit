@@ -1,6 +1,6 @@
 import type { GameState } from '../types.ts'
 import type { ContentContext } from '../content/index.ts'
-import { ECONOMY } from '../config.ts'
+import { ECONOMY, TUNING } from '../config.ts'
 import { clamp } from '../util.ts'
 import { progressiveTax } from './finance.ts'
 
@@ -20,7 +20,6 @@ export function updateSatisfaction(
   comfortScore: Record<string, number>,
   priceScoreMap: Record<string, number>,
 ): void {
-  void ctx
   const { weights, refWage, satisfactionSmoothing } = ECONOMY
   const weightSum =
     weights.food + weights.wage + weights.price + weights.employment + weights.comfort
@@ -36,8 +35,8 @@ export function updateSatisfaction(
     const price = priceScoreMap[r.classId] ?? 1
     const employed = r.employed && r.jobShopId !== undefined
     const wage = employed ? wageByShop.get(r.jobShopId!) ?? 0 : welfare
-    const wageScore = clamp(wage / refWage, 0, 1.5) / 1.5
-    const employmentScore = employed ? 1 : 0.5
+    const wageScore = clamp(wage / refWage, 0, TUNING.wageScoreCap) / TUNING.wageScoreCap
+    const employmentScore = employed ? 1 : TUNING.unemployedEmploymentScore
 
     const base =
       (100 *
@@ -48,7 +47,7 @@ export function updateSatisfaction(
           weights.comfort * comfort)) /
       weightSum
 
-    const required = ECONOMY.classHousingLevel[r.classId] ?? 1
+    const required = ctx.classes[r.classId]?.housingLevel ?? 1
     const quality = r.housingQuality ?? 1
     const qualityPenalty =
       quality < required ? -(required - quality) * ECONOMY.housingQualityPenalty : 0
@@ -60,7 +59,7 @@ export function updateSatisfaction(
           ? ECONOMY.privateTenantSatBonus - rentPressure * ECONOMY.rentSatPenalty
           : -rentPressure * ECONOMY.rentSatPenalty) + qualityPenalty
 
-    const classBonus = ECONOMY.classSatBonus[r.classId] ?? 0
+    const classBonus = ctx.classes[r.classId]?.satBonus ?? 0
     const target = clamp(base + housingAdj + classBonus, 0, 100)
     r.satisfaction = clamp(
       r.satisfaction + (target - r.satisfaction) * satisfactionSmoothing,
