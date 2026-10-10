@@ -207,6 +207,8 @@ func _global_panel() -> void:
 				jcap += int(minf(float(sh["targetWorkers"]), float(defx["maxWorkers"])))
 	var room = maxi(0, mini(hcap - popn, jcap - popn))
 	_body.add_child(_label("空房 %d · 空岗 %d · 当前可迁入 %d" % [maxi(0, hcap - popn), maxi(0, jcap - popn), room], 12))
+	if arrivals <= 0:
+		_body.add_child(_label("（满意度需 ≥ 60 才会有人想来；当前满意度见顶栏）", 11))
 	_body.add_child(_label("（次日 06:00 生效；没人来通常是空房/空岗不足）", 11))
 	_body.add_child(_label("— 库存（含已预留）—", 13))
 	var goods: Dictionary = s["goods"]

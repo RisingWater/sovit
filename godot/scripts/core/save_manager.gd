@@ -47,16 +47,40 @@ static func load_into(path: String, db: ContentDB) -> SimCore:
 
 # JSON 把整数读成 float；把需要为整数的字段还原（其余访问处已用 int()/float() 包裹）。
 static func _sanitize(s: Dictionary) -> void:
-	s["day"] = int(s["day"])
-	s["hour"] = int(s["hour"])
-	s["arrivals"] = int(s["arrivals"])
-	s["seed"] = int(s["seed"])
+	s["day"] = int(s.get("day", 0))
+	s["hour"] = int(s.get("hour", 0))
+	s["arrivals"] = int(s.get("arrivals", 0))
+	s["seed"] = int(s.get("seed", 0))
 	s["rngState"] = int(s.get("rngState", 0))
 	if not (s.get("pending", null) is Array):
 		s["pending"] = []
-	for shop in s.get("shops", []):
-		shop["level"] = int(shop["level"])
-		shop["targetWorkers"] = int(shop["targetWorkers"])
-	for c in s.get("construction", []):
-		c["daysLeft"] = int(c["daysLeft"])
-		c["totalDays"] = int(c["totalDays"])
+	if not (s.get("reserved", null) is Dictionary):
+		s["reserved"] = {}
+	if not (s.get("goods", null) is Dictionary):
+		s["goods"] = {}
+	if not (s.get("housing", null) is Dictionary):
+		s["housing"] = {}
+	if not (s.get("privateHousing", null) is Dictionary):
+		s["privateHousing"] = {}
+	if not (s.get("prices", null) is Dictionary):
+		s["prices"] = {}
+	if not (s.get("shops", null) is Array):
+		s["shops"] = []
+	if not (s.get("residents", null) is Array):
+		s["residents"] = []
+	if not (s.get("construction", null) is Array):
+		s["construction"] = []
+	for shop in s["shops"]:
+		shop["level"] = int(shop.get("level", 1))
+		shop["targetWorkers"] = int(shop.get("targetWorkers", 0))
+		shop["planned"] = float(shop.get("planned", 0.0))
+	for c in s["construction"]:
+		c["daysLeft"] = int(c.get("daysLeft", 0))
+		c["totalDays"] = int(c.get("totalDays", 0))
+	var gov = s.get("government", {})
+	gov["money"] = float(gov.get("money", 0.0))
+	if not gov.has("immigrationAllowance"):
+		gov["immigrationAllowance"] = 1000000000.0
+	if not (gov.get("taxBrackets", null) is Array):
+		gov["taxBrackets"] = []
+	s["government"] = gov

@@ -278,7 +278,7 @@ func _cells_with(bitmap: PackedByteArray) -> Array:
 	return out
 
 # ---- 存档 / 读档（含地图与放置）-----------------------------------------
-const SAVE_VERSION := 1
+const SAVE_VERSION := 2
 
 func save_to(path: String) -> Error:
 	var data := {
@@ -327,36 +327,7 @@ func _site_list() -> Array:
 		out.append({"kind": String(s["kind"]), "type": String(s["id"]), "cell": [c.x, c.y]})
 	return out
 
-func load_from(path: String) -> bool:
-	if not FileAccess.file_exists(path):
-		return false
-	var data = JSON.parse_string(FileAccess.get_file_as_string(path))
-	if data == null or int(data.get("saveVersion", 0)) != SAVE_VERSION:
-		return false
-
-	var sim := SimCore.new(runner.db)
-	sim.s = data["sim"]["state"]
-	sim.rng = Rng.new(int(data["sim"]["rngState"]))
-	SaveManager._sanitize(sim.s)
-	runner.sim = sim
-	runner.recent_logs = []
-
-	_map_seed = int(data.get("mapSeed", _map_seed))
-	map = GameMap.new()
-	map.generate(_map_seed)
-	_rerender_terrain()
-	for pair in data.get("road", []):
-		var c := Vector2i(int(pair[0]), int(pair[1]))
-		if map.in_bounds(c):
-			map.road[map.idx(c.x, c.y)] = 1
-			road_layer.set_cell(c, 0, Vector2i(5, 0))
-	for pair in data.get("floor", []):
-		var c := Vector2i(int(pair[0]), int(pair[1]))
-		if map.in_bounds(c):
-			map.floor_tiles[map.idx(c.x, c.y)] = 1
-			floor_layer.set_cell(c, 0, Vector2i(6, 0))
-	map.floor_charge = int(data.get("floorCharge", 0))
-
+func _reset_buildings() -> void:
 	for ch in building_layer.get_children():
 		ch.queue_free()
 	_shop_sprites.clear()
@@ -372,20 +343,67 @@ func load_from(path: String) -> bool:
 	_site_by_type.clear()
 	_placed_housing_count.clear()
 	map.occupied.clear()
+	map.reserved.clear()
+
+func load_from(path: String) -> bool:
+	if not FileAccess.file_exists(path):
+		return false
+	var data = JSON.parse_string(FileAccess.get_file_as_string(path))
+	if data == null:
+		return false
+	var ver = int(data.get("saveVersion", 0))
+	if ver < 1 or ver > SAVE_VERSION:
+		return false
+
+	# 兼容 v1：旧格式把 sim 字段(pack/seed/rngState/state)放在顶层
+	var sp = data.get("sim", null)
+	if sp == null:
+		sp = data
+	if not sp.has("state"):
+		return false
+
+	var sim := SimCore.new(runner.db)
+	sim.s = sp["state"]
+	sim.rng = Rng.new(int(sp.get("rngState", 0)))
+	SaveManager._sanitize(sim.s)
+	runner.sim = sim
+	runner.recent_logs = []
+
+	_reset_buildings()
+
+	if data.has("mapSeed") and data.has("shops"):
+		_map_seed = int(data.get("mapSeed", _map_seed))
+		map = GameMap.new()
+		map.generate(_map_seed)
+		_rerender_terrain()
+		for pair in data.get("road", []):
+			var c := Vector2i(int(pair[0]), int(pair[1]))
+			if map.in_bounds(c):
+				map.road[map.idx(c.x, c.y)] = 1
+				road_layer.set_cell(c, 0, Vector2i(5, 0))
+		for pair in data.get("floor", []):
+			var c := Vector2i(int(pair[0]), int(pair[1]))
+			if map.in_bounds(c):
+				map.floor_tiles[map.idx(c.x, c.y)] = 1
+				floor_layer.set_cell(c, 0, Vector2i(6, 0))
+		map.floor_charge = int(data.get("floorCharge", 0))
+
 	_build_warehouse()
 
-	for s in data.get("sites", []):
-		var c := Vector2i(int(s["cell"][0]), int(s["cell"][1]))
-		var t = String(s["type"])
-		_register_site(String(s["kind"]), t, c, _footprint(t))
-	for sh in data.get("shops", []):
-		var c := Vector2i(int(sh["cell"][0]), int(sh["cell"][1]))
-		_create_shop_view(String(sh["id"]), String(sh["defId"]), c)
-	for h in data.get("housing", []):
-		var c := Vector2i(int(h["cell"][0]), int(h["cell"][1]))
-		var t = String(h["type"])
-		_place_housing_instance(t, c)
-		_placed_housing_count[t] = int(_placed_housing_count.get(t, 0)) + 1
+	if data.has("shops"):
+		for s2 in data.get("sites", []):
+			var c := Vector2i(int(s2["cell"][0]), int(s2["cell"][1]))
+			var t = String(s2["type"])
+			_register_site(String(s2["kind"]), t, c, _footprint(t))
+		for sh in data.get("shops", []):
+			var c := Vector2i(int(sh["cell"][0]), int(sh["cell"][1]))
+			_create_shop_view(String(sh["id"]), String(sh["defId"]), c)
+		for h in data.get("housing", []):
+			var c := Vector2i(int(h["cell"][0]), int(h["cell"][1]))
+			var t = String(h["type"])
+			_place_housing_instance(t, c)
+			_placed_housing_count[t] = int(_placed_housing_count.get(t, 0)) + 1
+	# 旧档（无地图/放置）：保留当前地图，由 _sync 重新摆放建筑
 
 	_prev_res = -1
 	_prev_housing_n = -1
