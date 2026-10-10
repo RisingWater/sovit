@@ -44,8 +44,13 @@ var build_mode := ""
 var brush_mode := ""            # "", "road", "floor"
 var brush_size := 1
 
-var _agents := []               # [{id, pos:Vector2, target:Vector2, home:Vector2, work:Vector2}]
+var _agents := []               # [{id, pos, home, goal_cell, path, pi, need_path}]
 var _resident_home := {}        # id -> Vector2
+var _shop_anchor := {}          # shop_id -> Vector2i（建筑旁可站立格）
+var _warehouse_anchor := Vector2i.ZERO
+var _astar: AStarGrid2D
+var _nav_dirty := true
+var _nav_timer := 0.0
 var _picking := false
 var _paint := false
 var _warehouse_pos := Vector2.ZERO
@@ -66,6 +71,7 @@ func _ready() -> void:
 	_camera_setup()
 	_initial_housing()
 	_sync()
+	_build_astar()
 	_assign_homes()
 	_spawn_agents()
 
@@ -130,6 +136,7 @@ func _build_warehouse() -> void:
 	spr.position = Vector2(map.warehouse.position.x * TILE, map.warehouse.position.y * TILE)
 	building_layer.add_child(spr)
 	_warehouse_pos = Vector2(map.warehouse.get_center().x * TILE, map.warehouse.get_center().y * TILE)
+	_warehouse_anchor = _anchor_cell(map.warehouse.position, 4, 3)
 	_add_label("仓库", map.warehouse.position, 4, 3)
 
 func _camera_setup() -> void:
@@ -194,9 +201,10 @@ func _place_housing_instance(type: String, cell: Vector2i) -> void:
 	var cap = 4
 	if runner.db.housing.has(type):
 		cap = int(runner.db.housing[type]["capacity"])
-	var inst = {"uid": uid, "id": type, "type": type, "cell": cell, "fw": fp.x, "fh": fp.y, "sprite": spr, "capacity": cap, "private": false, "occupants": []}
+	var inst = {"uid": uid, "id": type, "type": type, "cell": cell, "fw": fp.x, "fh": fp.y, "sprite": spr, "capacity": cap, "private": false, "occupants": [], "anchor": _anchor_cell(cell, fp.x, fp.y)}
 	_housing_instances.append(inst)
 	_housing_by_uid[uid] = inst
+	_nav_dirty = true
 	var hname = String(runner.db.housing[type]["nameZh"]) if runner.db.housing.has(type) else type
 	_add_label(hname, cell, fp.x, fp.y)
 
@@ -216,6 +224,8 @@ func _create_shop_view(sid: String, def_id: String, cell: Vector2i) -> void:
 	_shop_sprites[sid] = spr
 	_shop_cell[sid] = cell
 	_shop_def[sid] = def_id
+	_shop_anchor[sid] = _anchor_cell(cell, fp.x, fp.y)
+	_nav_dirty = true
 	if runner.db.buildings.has(def_id):
 		_add_label(String(runner.db.buildings[def_id]["nameZh"]), cell, fp.x, fp.y)
 
@@ -343,6 +353,8 @@ func load_from(path: String) -> bool:
 
 	_prev_res = -1
 	_prev_housing_n = -1
+	_nav_dirty = true
+	_nav_timer = 0.0
 	_assign_homes()
 	_refresh_agents()
 	return true
@@ -442,6 +454,11 @@ func _draw_agents() -> void:
 func _process(delta: float) -> void:
 	_pan_keyboard(delta)
 	_sync()
+	if _nav_dirty:
+		_nav_timer += delta
+		if _nav_timer >= 0.4:
+			_refresh_astar()
+			_nav_timer = 0.0
 	_update_agents(delta)
 	agent_layer.queue_redraw()
 
@@ -468,25 +485,116 @@ func _update_agents(delta: float) -> void:
 	var residents := {}
 	for r in s["residents"]:
 		residents[String(r["id"])] = r
-	var home_by_type := {}
-	for inst in _housing_instances:
-		home_by_type[inst["type"]] = inst["cell"]
+	var budget := 3
 	for a in _agents:
 		var r = residents.get(a["id"], null)
-		var target: Vector2 = a["home"]
-		if r != null and hour >= 6 and hour < 18:
-			var sid = r.get("jobShopId", null)
-			if sid != null and _shop_cell.has(sid):
-				target = _cell_center(_shop_cell[sid])
-				if (hour % 3) == 0:
-					target = _warehouse_pos
-		elif r != null and (hour >= 18 or hour < 6):
-			target = a["home"]
-		a["target"] = target
-		var to = target - a["pos"]
-		var dist = to.length()
-		if dist > 2.0:
-			a["pos"] += to / dist * minf(dist, 90.0 * delta)
+		var goal_cell := _agent_goal_cell(a, r, hour)
+		if goal_cell != a.get("goal_cell", Vector2i(-9999, -9999)):
+			a["goal_cell"] = goal_cell
+			a["need_path"] = true
+		if bool(a.get("need_path", false)) and budget > 0:
+			budget -= 1
+			a["need_path"] = false
+			a["path"] = _path_points(_cell_of(a["pos"]), goal_cell)
+			a["pi"] = 0
+		var path: Array = a.get("path", [])
+		if path.is_empty():
+			_move_toward(a, _cell_center(goal_cell), delta)
+		else:
+			var pi = int(a.get("pi", 0))
+			var wp: Vector2 = path[pi]
+			var to = wp - a["pos"]
+			var d = to.length()
+			if d < 4.0:
+				pi += 1
+				if pi >= path.size():
+					a["path"] = []
+					a["pi"] = 0
+				else:
+					a["pi"] = pi
+			else:
+				a["pos"] += to / d * minf(d, 90.0 * delta)
+
+func _move_toward(a: Dictionary, target: Vector2, delta: float) -> void:
+	var to = target - a["pos"]
+	var d = to.length()
+	if d > 2.0:
+		a["pos"] += to / d * minf(d, 90.0 * delta)
+
+func _cell_of(pos: Vector2) -> Vector2i:
+	return Vector2i(int(floor(pos.x / TILE)), int(floor(pos.y / TILE)))
+
+func _agent_goal_cell(a: Dictionary, r, hour: int) -> Vector2i:
+	if r != null and hour >= 6 and hour < 18:
+		var sid = r.get("jobShopId", null)
+		if sid != null and _shop_anchor.has(sid):
+			if (hour % 3) == 0:
+				return _warehouse_anchor
+			return _shop_anchor[sid]
+	return _cell_of(a["home"])
+
+func _blocked(c: Vector2i) -> bool:
+	if map.is_water(c):
+		return true
+	if map.warehouse.has_point(c):
+		return true
+	return map.occupied.has(c)
+
+func _anchor_cell(cell: Vector2i, fw: int, fh: int) -> Vector2i:
+	var cands := [
+		Vector2i(cell.x, cell.y + fh),
+		Vector2i(cell.x, cell.y - 1),
+		Vector2i(cell.x - 1, cell.y),
+		Vector2i(cell.x + fw, cell.y),
+	]
+	for d in cands:
+		if map.in_bounds(d) and not _blocked(d):
+			return d
+	for ring in range(1, 6):
+		for dy in range(-ring, fh + ring + 1):
+			for dx in range(-ring, fw + ring + 1):
+				var c = cell + Vector2i(dx, dy)
+				if map.in_bounds(c) and not _blocked(c):
+					return c
+	return cell
+
+func _build_astar() -> void:
+	_astar = AStarGrid2D.new()
+	_astar.region = Rect2i(map.center - Vector2i(120, 120), Vector2i(240, 240))
+	_astar.cell_size = Vector2(1, 1)
+	_astar.diagonal_mode = AStarGrid2D.DIAGONAL_MODE_ALWAYS
+	_astar.default_compute_heuristic = AStarGrid2D.HEURISTIC_OCTILE
+	_astar.default_estimate_heuristic = AStarGrid2D.HEURISTIC_OCTILE
+	_astar.update()
+	_refresh_astar()
+
+func _refresh_astar() -> void:
+	if _astar == null:
+		return
+	var r = _astar.region
+	for y in range(r.position.y, r.end.y):
+		for x in range(r.position.x, r.end.x):
+			var c = Vector2i(x, y)
+			var solid = _blocked(c)
+			_astar.set_point_solid(c, solid)
+			var w = 1.0 if (not solid and map.road[map.idx(x, y)] == 1) else 2.5
+			_astar.set_point_weight_scale(c, w)
+	_nav_dirty = false
+
+func _path_points(from_cell: Vector2i, to_cell: Vector2i) -> Array:
+	if _astar == null or from_cell == to_cell:
+		return []
+	if not _astar.region.has_point(from_cell) or not _astar.region.has_point(to_cell):
+		return []
+	if _astar.is_point_solid(from_cell) or _astar.is_point_solid(to_cell):
+		return []
+	var ids = _astar.get_id_path(from_cell, to_cell)
+	if ids.size() <= 1:
+		return []
+	var pts := []
+	for i in range(1, ids.size()):
+		pts.append(_cell_center(Vector2i(int(ids[i].x), int(ids[i].y))))
+	return pts
 
 func _cell_center(cell: Vector2i) -> Vector2:
 	return Vector2(cell.x * TILE + TILE, cell.y * TILE + TILE)
@@ -505,7 +613,7 @@ func _assign_homes() -> void:
 		marked[t] = done + 1
 	if _housing_instances.is_empty():
 		for r in runner.sim.s["residents"]:
-			_resident_home[String(r["id"])] = _warehouse_pos
+			_resident_home[String(r["id"])] = _cell_center(_warehouse_anchor)
 		return
 	var cursor := 0
 	for r in runner.sim.s["residents"]:
@@ -516,12 +624,12 @@ func _assign_homes() -> void:
 			var inst = _housing_instances[k]
 			if (inst["occupants"] as Array).size() < int(inst["capacity"]):
 				inst["occupants"].append(rid)
-				_resident_home[rid] = _cell_center(inst["cell"])
+				_resident_home[rid] = _cell_center(inst["anchor"])
 				cursor = k
 				placed = true
 				break
 		if not placed:
-			_resident_home[rid] = _warehouse_pos
+			_resident_home[rid] = _cell_center(_warehouse_anchor)
 
 # ---- 交互 -----------------------------------------------------------------
 func _unhandled_input(event: InputEvent) -> void:
@@ -683,6 +791,7 @@ func _register_site(kind: String, type: String, cell: Vector2i, fp: Vector2i) ->
 	var list: Array = _site_by_type.get(type, [])
 	list.append(site)
 	_site_by_type[type] = list
+	_nav_dirty = true
 
 func _update_ghost(cell: Vector2i) -> void:
 	ghost.position = Vector2((cell.x - 1) * TILE, (cell.y - 1) * TILE)
@@ -699,6 +808,7 @@ func _paint_cell(cell: Vector2i) -> void:
 			if brush_mode == "road":
 				map.road[map.idx(c.x, c.y)] = 1
 				road_layer.set_cell(c, 0, Vector2i(5, 0))
+				_nav_dirty = true
 			elif brush_mode == "floor":
 				if map.floor_tiles[map.idx(c.x, c.y)] == 1:
 					continue
