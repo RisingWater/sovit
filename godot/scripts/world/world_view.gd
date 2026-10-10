@@ -30,6 +30,8 @@ var _press_cell := Vector2i.ZERO
 var _tex_cache := {}
 var _shop_sprites := {}         # shop_id -> Node2D
 var _shop_cell := {}            # shop_id -> Vector2i(origin)
+var _shop_def := {}             # shop_id -> defId
+var _map_seed := 12345
 var _housing_instances := []    # [{uid, type, cell, fw, fh, sprite, capacity, private, occupants}]
 var _housing_by_uid := {}
 var _sites := []                # [{kind, id, cell, fw, fh, node}]  待建
@@ -52,6 +54,7 @@ var _font: SystemFont
 
 func setup(r: SimRunner, seed_value: int) -> void:
 	runner = r
+	_map_seed = seed_value
 	map = GameMap.new()
 	map.generate(seed_value)
 
@@ -200,6 +203,150 @@ func _place_housing_instance(type: String, cell: Vector2i) -> void:
 func housing_instance(uid: String) -> Variant:
 	return _housing_by_uid.get(uid, null)
 
+func _create_shop_view(sid: String, def_id: String, cell: Vector2i) -> void:
+	if _shop_sprites.has(sid):
+		return
+	var fp = _footprint(def_id)
+	map.occupy(cell, fp.x, fp.y, "shop", sid)
+	var spr := Sprite2D.new()
+	spr.texture = _texture_for(def_id)
+	spr.centered = false
+	spr.position = Vector2(cell.x * TILE, cell.y * TILE)
+	building_layer.add_child(spr)
+	_shop_sprites[sid] = spr
+	_shop_cell[sid] = cell
+	_shop_def[sid] = def_id
+	if runner.db.buildings.has(def_id):
+		_add_label(String(runner.db.buildings[def_id]["nameZh"]), cell, fp.x, fp.y)
+
+func _rerender_terrain() -> void:
+	terrain_layer.clear()
+	floor_layer.clear()
+	road_layer.clear()
+	for y in GameMap.H:
+		for x in GameMap.W:
+			terrain_layer.set_cell(Vector2i(x, y), 0, Vector2i(map.terrain[map.idx(x, y)], 0))
+
+func _cells_with(bitmap: PackedByteArray) -> Array:
+	var out := []
+	for y in GameMap.H:
+		for x in GameMap.W:
+			if bitmap[map.idx(x, y)] == 1:
+				out.append([x, y])
+	return out
+
+# ---- 存档 / 读档（含地图与放置）-----------------------------------------
+const SAVE_VERSION := 1
+
+func save_to(path: String) -> Error:
+	var data := {
+		"saveVersion": SAVE_VERSION,
+		"mapSeed": _map_seed,
+		"sim": {
+			"pack": String(runner.sim.s["pack"]),
+			"seed": int(runner.sim.s["seed"]),
+			"rngState": runner.sim.rng.state,
+			"state": runner.sim.s,
+		},
+		"road": _cells_with(map.road),
+		"floor": _cells_with(map.floor_tiles),
+		"floorCharge": map.floor_charge,
+		"shops": _shop_list(),
+		"housing": _housing_list(),
+		"sites": _site_list(),
+	}
+	if FileAccess.file_exists(path):
+		DirAccess.copy_absolute(path, path + ".bak")
+	var f := FileAccess.open(path, FileAccess.WRITE)
+	if f == null:
+		return FileAccess.get_open_error()
+	f.store_string(JSON.stringify(data))
+	f.close()
+	return OK
+
+func _shop_list() -> Array:
+	var out := []
+	for sid in _shop_cell.keys():
+		var c = _shop_cell[sid]
+		out.append({"id": String(sid), "defId": String(_shop_def.get(sid, "")), "cell": [c.x, c.y]})
+	return out
+
+func _housing_list() -> Array:
+	var out := []
+	for inst in _housing_instances:
+		var c = inst["cell"]
+		out.append({"type": String(inst["type"]), "cell": [c.x, c.y]})
+	return out
+
+func _site_list() -> Array:
+	var out := []
+	for s in _sites:
+		var c = s["cell"]
+		out.append({"kind": String(s["kind"]), "type": String(s["id"]), "cell": [c.x, c.y]})
+	return out
+
+func load_from(path: String) -> bool:
+	if not FileAccess.file_exists(path):
+		return false
+	var data = JSON.parse_string(FileAccess.get_file_as_string(path))
+	if data == null or int(data.get("saveVersion", 0)) != SAVE_VERSION:
+		return false
+
+	var sim := SimCore.new(runner.db)
+	sim.s = data["sim"]["state"]
+	sim.rng = Rng.new(int(data["sim"]["rngState"]))
+	SaveManager._sanitize(sim.s)
+	runner.sim = sim
+	runner.recent_logs = []
+
+	_map_seed = int(data.get("mapSeed", _map_seed))
+	map = GameMap.new()
+	map.generate(_map_seed)
+	_rerender_terrain()
+	for pair in data.get("road", []):
+		var c := Vector2i(int(pair[0]), int(pair[1]))
+		if map.in_bounds(c):
+			map.road[map.idx(c.x, c.y)] = 1
+			road_layer.set_cell(c, 0, Vector2i(5, 0))
+	for pair in data.get("floor", []):
+		var c := Vector2i(int(pair[0]), int(pair[1]))
+		if map.in_bounds(c):
+			map.floor_tiles[map.idx(c.x, c.y)] = 1
+			floor_layer.set_cell(c, 0, Vector2i(6, 0))
+	map.floor_charge = int(data.get("floorCharge", 0))
+
+	for ch in building_layer.get_children():
+		ch.queue_free()
+	_shop_sprites.clear()
+	_shop_cell.clear()
+	_shop_def.clear()
+	_housing_instances.clear()
+	_housing_by_uid.clear()
+	_sites.clear()
+	_site_by_type.clear()
+	_placed_housing_count.clear()
+	map.occupied.clear()
+	_build_warehouse()
+
+	for s in data.get("sites", []):
+		var c := Vector2i(int(s["cell"][0]), int(s["cell"][1]))
+		var t = String(s["type"])
+		_register_site(String(s["kind"]), t, c, _footprint(t))
+	for sh in data.get("shops", []):
+		var c := Vector2i(int(sh["cell"][0]), int(sh["cell"][1]))
+		_create_shop_view(String(sh["id"]), String(sh["defId"]), c)
+	for h in data.get("housing", []):
+		var c := Vector2i(int(h["cell"][0]), int(h["cell"][1]))
+		var t = String(h["type"])
+		_place_housing_instance(t, c)
+		_placed_housing_count[t] = int(_placed_housing_count.get(t, 0)) + 1
+
+	_prev_res = -1
+	_prev_housing_n = -1
+	_assign_homes()
+	_refresh_agents()
+	return true
+
 # ---- 同步仿真里的建筑 -----------------------------------------------------
 func _sync() -> void:
 	# 新店铺（含开局为空）→ 绑定到预留工地或找空地
@@ -213,16 +360,7 @@ func _sync() -> void:
 			cell = _find_free_area(def_id, map.center, true)
 		if cell.x < 0:
 			continue
-		var fp = _footprint(def_id)
-		map.occupy(cell, fp.x, fp.y, "shop", sid)
-		var spr := Sprite2D.new()
-		spr.texture = _texture_for(def_id)
-		spr.centered = false
-		spr.position = Vector2(cell.x * TILE, cell.y * TILE)
-		building_layer.add_child(spr)
-		_shop_sprites[sid] = spr
-		_shop_cell[sid] = cell
-		_add_label(String(runner.db.buildings[def_id]["nameZh"]), cell, fp.x, fp.y)
+		_create_shop_view(sid, def_id, cell)
 
 	# 新住房实例
 	var housing: Dictionary = runner.sim.s["housing"]

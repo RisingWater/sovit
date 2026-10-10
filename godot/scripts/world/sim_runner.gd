@@ -20,6 +20,7 @@ func _ready() -> void:
 	db = ContentDB.load_all()
 	sim = SimCore.new(db)
 	sim.new_game("v0.3", 12345)
+	tick_sec = float(db.time.get("tickSec", 5.0))
 
 func set_speed(value: float) -> void:
 	speed = value

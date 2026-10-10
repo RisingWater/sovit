@@ -37,6 +37,7 @@ func _ready() -> void:
 	var hud = load("res://scripts/ui/hud.gd").new()
 	hud.name = "HUD"
 	hud.runner = runner
+	hud.world = world
 	root_ui.add_child(hud)
 
 	var bar = load("res://scripts/ui/build_bar.gd").new()

@@ -41,6 +41,18 @@ func _run() -> void:
 		await process_frame
 
 	print("SMOKE shops=", (runner.sim.s["shops"] as Array).size(), " day=", int(runner.sim.s["day"]))
+
+	# 存档往返
+	var save_path := "user://smoke_save.json"
+	var shops_before = (runner.sim.s["shops"] as Array).size()
+	var err = world.save_to(save_path)
+	var ok = world.load_from(save_path)
+	print("SMOKE save=", err, " load=", ok, " shops_after=", (runner.sim.s["shops"] as Array).size(), " (before ", shops_before, ")")
+	if not ok or (runner.sim.s["shops"] as Array).size() != shops_before:
+		push_error("SMOKE: 存档往返不一致")
+		quit(1)
+		return
+
 	node.queue_free()
 	await process_frame
 	print("SMOKE RESULT: PASS")

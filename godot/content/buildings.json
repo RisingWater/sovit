@@ -6,9 +6,9 @@
 	{ "id": "cotton_farm", "nameZh": "棉花农场", "tier": 1, "workers": 4, "buildCost": { "wood": 4, "build_power": 1 }, "recipe": { "inputs": {}, "output": { "cotton": 8 }, "baseRate": 1 } },
 	{ "id": "sugarcane_farm", "nameZh": "甘蔗园", "tier": 1, "workers": 4, "buildCost": { "wood": 4, "build_power": 1 }, "recipe": { "inputs": {}, "output": { "sugarcane": 8 }, "baseRate": 1 } },
 	{ "id": "dye_farm", "nameZh": "染料园", "tier": 1, "workers": 3, "buildCost": { "wood": 4, "build_power": 1 }, "recipe": { "inputs": {}, "output": { "dye": 5 }, "baseRate": 1 } },
-	{ "id": "lumberjack", "nameZh": "伐木场", "tier": 1, "workers": 3, "maxWorkers": 100, "buildCost": { "wood": 4, "build_power": 1 }, "recipe": { "inputs": {}, "output": { "wood": 10 }, "baseRate": 1 } },
-	{ "id": "quarry", "nameZh": "采石场", "tier": 1, "workers": 3, "maxWorkers": 100, "buildCost": { "wood": 4, "build_power": 1 }, "recipe": { "inputs": {}, "output": { "stone": 8 }, "baseRate": 1 } },
-	{ "id": "clay_pit", "nameZh": "粘土坑", "tier": 1, "workers": 3, "maxWorkers": 100, "buildCost": { "wood": 4, "build_power": 1 }, "recipe": { "inputs": {}, "output": { "clay": 8 }, "baseRate": 1 } },
+	{ "id": "lumberjack", "nameZh": "伐木场", "tier": 1, "workers": 3, "maxWorkers": 100, "terrain": "forest", "buildCost": { "wood": 4, "build_power": 1 }, "recipe": { "inputs": {}, "output": { "wood": 10 }, "baseRate": 1 } },
+	{ "id": "quarry", "nameZh": "采石场", "tier": 1, "workers": 3, "maxWorkers": 100, "terrain": "stone", "buildCost": { "wood": 4, "build_power": 1 }, "recipe": { "inputs": {}, "output": { "stone": 8 }, "baseRate": 1 } },
+	{ "id": "clay_pit", "nameZh": "粘土坑", "tier": 1, "workers": 3, "maxWorkers": 100, "terrain": "clay", "buildCost": { "wood": 4, "build_power": 1 }, "recipe": { "inputs": {}, "output": { "clay": 8 }, "baseRate": 1 } },
 	{ "id": "hunting_camp", "nameZh": "狩猎营地", "tier": 1, "workers": 3, "buildCost": { "wood": 4, "build_power": 1 }, "recipe": { "inputs": {}, "output": { "meat": 6, "hide": 3 }, "baseRate": 1 } },
 	{ "id": "fishery", "nameZh": "渔场", "tier": 1, "workers": 4, "buildCost": { "wood": 4, "build_power": 1 }, "recipe": { "inputs": {}, "output": { "fish": 10 }, "baseRate": 1 } },
 

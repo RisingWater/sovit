@@ -3,6 +3,7 @@ extends PanelContainer
 # 顶部栏：时钟 / 暂停变速 / 概览 / 操作提示。
 
 var runner: SimRunner
+var world: Node
 
 var _time: Label
 var _info: Label
@@ -51,9 +52,32 @@ func _ready() -> void:
 		b.pressed.connect(_on_speed.bind(bool(cfg[1]), float(cfg[2])))
 		row.add_child(b)
 
+	var save_btn := Button.new()
+	save_btn.text = "保存"
+	save_btn.pressed.connect(_on_save)
+	row.add_child(save_btn)
+	var load_btn := Button.new()
+	load_btn.text = "读取"
+	load_btn.pressed.connect(_on_load)
+	row.add_child(load_btn)
+
 	if runner != null:
 		runner.hour_ticked.connect(_refresh)
 	_refresh()
+
+func _on_save() -> void:
+	if world == null:
+		return
+	var err = world.save_to(SaveManager.DEFAULT_PATH)
+	set_notice("已保存" if err == OK else "保存失败")
+
+func _on_load() -> void:
+	if world == null:
+		return
+	if world.load_from(SaveManager.DEFAULT_PATH):
+		set_notice("已读取存档")
+	else:
+		set_notice("没有可用存档")
 
 func set_notice(text: String) -> void:
 	_notice.text = text

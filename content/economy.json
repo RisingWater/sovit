@@ -7,7 +7,7 @@
     "workStart": 6,
     "workEnd": 18,
     "settleHour": 18,
-    "tickSec": 5
+    "tickSec": 2.5
   },
 
   "economy": {
