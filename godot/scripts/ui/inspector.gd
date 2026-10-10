@@ -194,7 +194,20 @@ func _global_panel() -> void:
 	rowi.add_child(_button("暂停", func(): _set_immigration(0)))
 	rowi.add_child(_button("+10", func(): _set_immigration((allow if allow < 100000000 else 0) + 10)))
 	_body.add_child(rowi)
-	_body.add_child(_label("（次日 06:00 生效；实际放行还受住房/岗位限制）", 11))
+	var popn = (s["residents"] as Array).size()
+	var hcap = 0
+	for gid in (s["housing"] as Dictionary).keys():
+		if runner.db.housing.has(gid):
+			hcap += int(runner.db.housing[gid]["capacity"]) * int(floor(float(s["housing"][gid])))
+	var jcap = 0
+	for sh in s["shops"]:
+		if bool(sh["active"]):
+			var defx = runner.db.buildings.get(String(sh["defId"]), null)
+			if defx != null:
+				jcap += int(minf(float(sh["targetWorkers"]), float(defx["maxWorkers"])))
+	var room = maxi(0, mini(hcap - popn, jcap - popn))
+	_body.add_child(_label("空房 %d · 空岗 %d · 当前可迁入 %d" % [maxi(0, hcap - popn), maxi(0, jcap - popn), room], 12))
+	_body.add_child(_label("（次日 06:00 生效；没人来通常是空房/空岗不足）", 11))
 	_body.add_child(_label("— 库存（含已预留）—", 13))
 	var goods: Dictionary = s["goods"]
 	var keys := goods.keys()

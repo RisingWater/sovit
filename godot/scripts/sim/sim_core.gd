@@ -12,8 +12,38 @@ func _init(content: ContentDB) -> void:
 	db = content
 
 func enqueue(actions: Array) -> void:
+	# 合并同类命令：同一目标的设置只保留最新一条；建造类可叠加。
 	for a in actions:
-		s["pending"].append(a)
+		if String(a.get("type", "")) == "end_turn":
+			continue
+		var key = _action_key(a)
+		if key == "":
+			s["pending"].append(a)
+			continue
+		var replaced = false
+		var pending: Array = s["pending"]
+		for i in pending.size():
+			if _action_key(pending[i]) == key:
+				pending[i] = a
+				replaced = true
+				break
+		if not replaced:
+			pending.append(a)
+
+# 可合并命令的键；建造/建房等可叠加，返回 "" 表示追加。
+static func _action_key(a: Dictionary) -> String:
+	var t = String(a.get("type", ""))
+	match t:
+		"set_wage", "set_wage_cap", "set_workers", "toggle", "expand":
+			return t + ":" + String(a.get("shopId", ""))
+		"set_price":
+			return t + ":" + String(a.get("goodId", ""))
+		"set_tax_bracket":
+			return t + ":" + str(int(a.get("index", 0)))
+		"set_tax", "set_rent", "set_immigration":
+			return t
+		_:
+			return ""
 
 # 可用花料量 = 库存 − 当日已锁定（计划）消耗。
 func available(gid: String) -> float:
