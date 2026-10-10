@@ -5,10 +5,13 @@ import { assignedWorkers } from './labor.ts'
 import { round2 } from '../util.ts'
 
 // ---------------------------------------------------------------------------
-// 生产
+// 生产（两阶段 · 公平配给）
 //
-// 产出 = baseRate × (到岗/满员) × 熟练度系数 × level
-// 原料或燃料不足时按最短板封顶。
+// 阶段 1：算出每个建筑的计划批次与各投入的总需求。
+// 阶段 2：对每种投入按「可用 / 总需求」得出统一配给系数，每个建筑取自身
+//         各投入系数的最小值 → 所有建筑按同一比例缺料，**与建筑顺序无关**。
+//
+// 产出 = baseRate × (到岗/满员) × 熟练度系数 × level × 配给系数
 // ---------------------------------------------------------------------------
 
 function goodValue(gid: string, qty: number): number {
@@ -26,8 +29,22 @@ export function applySpoilage(state: GameState, ctx: ContentContext): void {
   }
 }
 
+interface Item {
+  shop: GameState['shops'][number]
+  nameZh: string
+  workers: number
+  desired: number
+  /** 每批次投入（含燃料，统一记在 firewood）。 */
+  inputPer: Record<string, number>
+  output: Partial<Record<string, number>>
+}
+
 export function runProduction(state: GameState, ctx: ContentContext, day: number): LogEntry[] {
   const logs: LogEntry[] = []
+
+  // ---- 阶段 1：计划批次 + 投入需求 ----
+  const items: Item[] = []
+  const demand: Record<string, number> = {}
 
   for (const shop of state.shops) {
     if (!shop.active) {
@@ -38,70 +55,71 @@ export function runProduction(state: GameState, ctx: ContentContext, day: number
     if (!def) continue
     const recipe = ctx.recipes[def.recipe]
     if (!recipe) continue
-
     const workers = assignedWorkers(state, shop.id)
     if (workers <= 0) {
-      shop.profit = -0
+      shop.profit = 0
       continue
     }
-
     const staffing = workers / def.workers // 不封顶：工坊多派人就多产
     const skillEff = 0.6 + 0.4 * (shop.skill / 100)
-    const scale = staffing * skillEff * shop.level
+    const desired = recipe.baseRate * staffing * skillEff * shop.level
+    if (desired <= 0) continue
 
-    // 计划批次
-    const planned = recipe.baseRate * scale
-    if (planned <= 0) continue
-
-    // 受原料 / 燃料限制的实际批次
-    let limit = planned
-    for (const [gid, qty] of Object.entries(recipe.inputs)) {
-      if (!qty || qty <= 0) continue
-      const avail = state.goods[gid] ?? 0
-      limit = Math.min(limit, avail / qty)
+    const inputPer: Record<string, number> = {}
+    for (const [g, q] of Object.entries(recipe.inputs)) {
+      if (q && q > 0) inputPer[g] = (inputPer[g] ?? 0) + q
     }
     if (recipe.fuel && recipe.fuel > 0) {
-      const fuelAvail = state.goods['firewood'] ?? 0
-      limit = Math.min(limit, fuelAvail / recipe.fuel)
+      inputPer['firewood'] = (inputPer['firewood'] ?? 0) + recipe.fuel
     }
-    const actual = Math.max(0, Math.min(planned, limit))
+
+    items.push({ shop, nameZh: def.nameZh, workers, desired, inputPer, output: recipe.output })
+    for (const [g, q] of Object.entries(inputPer)) {
+      demand[g] = (demand[g] ?? 0) + q * desired
+    }
+  }
+
+  // ---- 阶段 2：每种投入的统一配给系数 ----
+  const factor: Record<string, number> = {}
+  for (const g of Object.keys(demand)) {
+    const avail = state.goods[g] ?? 0
+    factor[g] = demand[g]! > 0 ? Math.min(1, avail / demand[g]!) : 1
+  }
+
+  // ---- 应用 ----
+  for (const it of items) {
+    let f = 1
+    for (const g of Object.keys(it.inputPer)) f = Math.min(f, factor[g] ?? 1)
+    const actual = it.desired * f
 
     // 消耗投入
-    for (const [gid, qty] of Object.entries(recipe.inputs)) {
-      if (!qty) continue
-      state.goods[gid] = round2((state.goods[gid] ?? 0) - qty * actual)
+    for (const [g, q] of Object.entries(it.inputPer)) {
+      state.goods[g] = round2((state.goods[g] ?? 0) - q * actual)
     }
-    if (recipe.fuel && recipe.fuel > 0) {
-      state.goods['firewood'] = round2((state.goods['firewood'] ?? 0) - recipe.fuel * actual)
-    }
-
     // 产出
     let outputValue = 0
     const parts: string[] = []
-    for (const [gid, qty] of Object.entries(recipe.output)) {
-      if (!qty) continue
-      const produced = qty * actual
-      state.goods[gid] = round2((state.goods[gid] ?? 0) + produced)
-      outputValue += goodValue(gid, produced)
-      parts.push(`${ALL_GOODS[gid]?.nameZh ?? gid} +${round2(produced)}`)
+    for (const [g, q] of Object.entries(it.output)) {
+      if (!q) continue
+      const produced = q * actual
+      state.goods[g] = round2((state.goods[g] ?? 0) + produced)
+      outputValue += goodValue(g, produced)
+      parts.push(`${ALL_GOODS[g]?.nameZh ?? g} +${round2(produced)}`)
     }
-
     let inputCost = 0
-    for (const [gid, qty] of Object.entries(recipe.inputs)) {
-      if (!qty) continue
-      inputCost += goodValue(gid, qty * actual)
-    }
-    if (recipe.fuel && recipe.fuel > 0) inputCost += goodValue('firewood', recipe.fuel * actual)
+    for (const [g, q] of Object.entries(it.inputPer)) inputCost += goodValue(g, q * actual)
+    const wages = it.workers * it.shop.wage
+    it.shop.profit = round2(outputValue - inputCost - wages)
 
-    const wages = workers * shop.wage
-    shop.profit = round2(outputValue - inputCost - wages)
-
-    // 只在产出有量时记日志，避免刷屏
     if (actual > 0.01 && parts.length > 0) {
-      logs.push({ day, kind: 'production', text: `${def.nameZh} 产出 ${parts.join('、')}` })
+      logs.push({ day, kind: 'production', text: `${it.nameZh} 产出 ${parts.join('、')}` })
     }
-    if (actual < planned - 0.01) {
-      logs.push({ day, kind: 'shortage', text: `${def.nameZh} 因缺料减产（${round2(actual)}/${round2(planned)} 批次）` })
+    if (actual < it.desired - 0.01) {
+      logs.push({
+        day,
+        kind: 'shortage',
+        text: `${it.nameZh} 因缺料减产（${round2(actual)}/${round2(it.desired)} 批次）`,
+      })
     }
   }
 
