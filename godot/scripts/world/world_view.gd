@@ -42,7 +42,9 @@ var _prev_housing_n := -1
 
 var build_mode := ""
 var brush_mode := ""            # "", "road", "floor"
+var move_mode := ""             # "", "shop:<id>", "housing:<uid>"
 var brush_size := 1
+var _shop_label := {}
 
 var _agents := []               # [{id, pos, home, goal_cell, path, pi, need_path}]
 var _resident_home := {}        # id -> Vector2
@@ -83,7 +85,7 @@ func _ready() -> void:
 func _area_center(cell: Vector2i, fw: int, fh: int) -> Vector2:
 	return Vector2(cell.x * TILE + fw * TILE * 0.5, cell.y * TILE + fh * TILE * 0.5)
 
-func _add_label(text: String, cell: Vector2i, fw: int, fh: int) -> void:
+func _add_label(text: String, cell: Vector2i, fw: int, fh: int) -> Label:
 	var l := Label.new()
 	l.text = text
 	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -96,6 +98,7 @@ func _add_label(text: String, cell: Vector2i, fw: int, fh: int) -> void:
 	l.size = Vector2(w, 16)
 	l.position = _area_center(cell, fw, fh) - Vector2(w * 0.5, 8)
 	building_layer.add_child(l)
+	return l
 
 func _build_tileset() -> void:
 	var tex: Texture2D = load("res://assets/tiles.svg")
@@ -219,7 +222,7 @@ func _place_housing_instance(type: String, cell: Vector2i) -> void:
 	_housing_by_uid[uid] = inst
 	_nav_dirty = true
 	var hname = String(runner.db.housing[type]["nameZh"]) if runner.db.housing.has(type) else type
-	_add_label(hname, cell, fp.x, fp.y)
+	inst["label"] = _add_label(hname, cell, fp.x, fp.y)
 
 func housing_instance(uid: String) -> Variant:
 	return _housing_by_uid.get(uid, null)
@@ -249,7 +252,7 @@ func _create_shop_view(sid: String, def_id: String, cell: Vector2i) -> void:
 	map.reserved[d + Vector2i(0, 1)] = true
 	_nav_dirty = true
 	if runner.db.buildings.has(def_id):
-		_add_label(String(runner.db.buildings[def_id]["nameZh"]), cell, fp.x, fp.y)
+		_shop_label[sid] = _add_label(String(runner.db.buildings[def_id]["nameZh"]), cell, fp.x, fp.y)
 
 func _rerender_terrain() -> void:
 	terrain_layer.clear()
@@ -325,6 +328,7 @@ func _reset_buildings() -> void:
 	_shop_def.clear()
 	_shop_door.clear()
 	_shop_goal.clear()
+	_shop_label.clear()
 	_doors.clear()
 	_walk_inside.clear()
 	_housing_instances.clear()
@@ -402,6 +406,125 @@ func load_from(path: String) -> bool:
 	_assign_homes()
 	_refresh_agents()
 	return true
+
+# ---- 移动建筑 -------------------------------------------------------------
+func begin_move_shop(sid: String) -> void:
+	if not _shop_cell.has(sid):
+		return
+	move_mode = "shop:" + sid
+	build_mode = ""
+	brush_mode = ""
+	ghost.texture = _texture_for(String(_shop_def.get(sid, "")))
+	ghost.visible = true
+	notice.emit("点击新位置移动建筑（右键取消）")
+
+func begin_move_housing(uid: String) -> void:
+	if not _housing_by_uid.has(uid):
+		return
+	var inst = _housing_by_uid[uid]
+	move_mode = "housing:" + uid
+	build_mode = ""
+	brush_mode = ""
+	ghost.texture = _texture_for(String(inst["type"]))
+	ghost.visible = true
+	notice.emit("点击新位置移动住房（右键取消）")
+
+func _own_cells(cell: Vector2i, fp: Vector2i) -> Dictionary:
+	var d := {}
+	for dy in fp.y:
+		for dx in fp.x:
+			d[cell + Vector2i(dx, dy)] = true
+	return d
+
+func _move_ok(type: String, origin: Vector2i, fp: Vector2i, own: Dictionary) -> bool:
+	var terrains := []
+	if runner.db.buildings.has(type) and runner.db.buildings[type].has("terrain"):
+		terrains = [String(runner.db.buildings[type]["terrain"])]
+	for dy in fp.y:
+		for dx in fp.x:
+			var c = origin + Vector2i(dx, dy)
+			if not map.in_bounds(c) or map.is_water(c):
+				return false
+			if own.has(c):
+				continue
+			if map.warehouse.has_point(c) or map.occupied.has(c) or map.reserved.has(c):
+				return false
+			if not terrains.is_empty() and not terrains.has(GameMap.terrain_name(map.terrain_at(c))):
+				return false
+	return true
+
+func _free_building_cells(cell: Vector2i, fp: Vector2i, door: Vector2i, interior: Vector2i) -> void:
+	for dy in fp.y:
+		for dx in fp.x:
+			map.occupied.erase(cell + Vector2i(dx, dy))
+	_doors.erase(door)
+	_walk_inside.erase(door)
+	_walk_inside.erase(interior)
+	map.reserved.erase(door)
+	map.reserved.erase(door + Vector2i(0, 1))
+
+func _occupy_building(kind: String, id: String, cell: Vector2i, fp: Vector2i) -> Array:
+	map.occupy(cell, fp.x, fp.y, kind, id)
+	var door = _door_cell(cell, fp.x, fp.y)
+	var interior = _interior_cell(cell, fp.x, fp.y)
+	_doors[door] = true
+	_walk_inside[door] = true
+	_walk_inside[interior] = true
+	map.reserved[door] = true
+	map.reserved[door + Vector2i(0, 1)] = true
+	return [door, interior]
+
+func move_shop_to(sid: String, origin: Vector2i) -> bool:
+	var def_id = String(_shop_def.get(sid, ""))
+	if def_id == "" or not _shop_cell.has(sid):
+		return false
+	var fp = _footprint(def_id)
+	var old = _shop_cell[sid]
+	if not _move_ok(def_id, origin, fp, _own_cells(old, fp)):
+		return false
+	_free_building_cells(old, fp, _shop_door.get(sid, old), _shop_goal.get(sid, old))
+	if _shop_label.has(sid) and is_instance_valid(_shop_label[sid]):
+		_shop_label[sid].queue_free()
+	_shop_label.erase(sid)
+	var spr = _shop_sprites[sid]
+	spr.position = Vector2(origin.x * TILE, origin.y * TILE)
+	_shop_label[sid] = _add_label(String(runner.db.buildings[def_id]["nameZh"]), origin, fp.x, fp.y)
+	var d = _occupy_building("shop", sid, origin, fp)
+	_shop_cell[sid] = origin
+	_shop_door[sid] = d[0]
+	_shop_goal[sid] = d[1]
+	_shop_anchor[sid] = _anchor_cell(origin, fp.x, fp.y)
+	_after_move()
+	return true
+
+func move_housing_to(uid: String, origin: Vector2i) -> bool:
+	if not _housing_by_uid.has(uid):
+		return false
+	var inst = _housing_by_uid[uid]
+	var type = String(inst["type"])
+	var fp = Vector2i(int(inst["fw"]), int(inst["fh"]))
+	var old = inst["cell"]
+	if not _move_ok(type, origin, fp, _own_cells(old, fp)):
+		return false
+	_free_building_cells(old, fp, inst["door"], inst["goal"])
+	if is_instance_valid(inst.get("label", null)):
+		inst["label"].queue_free()
+	inst["sprite"].position = Vector2(origin.x * TILE, origin.y * TILE)
+	inst["cell"] = origin
+	inst["label"] = _add_label(String(runner.db.housing[type]["nameZh"]), origin, fp.x, fp.y)
+	var d = _occupy_building("housing", uid, origin, fp)
+	inst["door"] = d[0]
+	inst["goal"] = d[1]
+	inst["anchor"] = _anchor_cell(origin, fp.x, fp.y)
+	_after_move()
+	return true
+
+func _after_move() -> void:
+	_nav_dirty = true
+	_nav_timer = 0.0
+	_prev_housing_n = -1
+	_assign_homes()
+	_refresh_agents()
 
 # ---- 同步仿真里的建筑 -----------------------------------------------------
 func _sync() -> void:
@@ -735,18 +858,31 @@ func _unhandled_input(event: InputEvent) -> void:
 		if _picking:
 			camera.position -= event.relative / camera.zoom
 		if _left_down:
-			if brush_mode != "" and build_mode == "":
+			if brush_mode != "" and build_mode == "" and move_mode == "":
 				_paint_cell(_mouse_cell())
-			elif build_mode == "" and event.position.distance_to(_press_pos) > 6.0:
+			elif build_mode == "" and move_mode == "" and event.position.distance_to(_press_pos) > 6.0:
 				_left_drag = true
 				camera.position -= event.relative / camera.zoom
-		if build_mode != "":
+		if build_mode != "" or move_mode != "":
 			_update_ghost(_mouse_cell())
 	elif event is InputEventKey and event.pressed and not event.echo:
 		if event.keycode == KEY_ESCAPE:
 			_cancel_mode()
 
 func _on_left_click(cell: Vector2i) -> void:
+	if move_mode != "":
+		var origin = Vector2i(cell.x - 1, cell.y - 1)
+		var parts = move_mode.split(":")
+		var ok = false
+		if parts[0] == "shop":
+			ok = move_shop_to(parts[1], origin)
+		elif parts[0] == "housing":
+			ok = move_housing_to(parts[1], origin)
+		if ok:
+			_cancel_mode()
+		else:
+			notice.emit("此处不能放置（资源/占地不符）")
+		return
 	if build_mode != "":
 		_try_place(build_mode, cell)
 		return
@@ -785,6 +921,7 @@ func _mouse_cell() -> Vector2i:
 func _cancel_mode() -> void:
 	build_mode = ""
 	brush_mode = ""
+	move_mode = ""
 	ghost.visible = false
 	notice.emit("")
 

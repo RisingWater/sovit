@@ -112,6 +112,7 @@ func _building_panel() -> void:
 	var row2 := HBoxContainer.new()
 	row2.add_child(_button("停产" if bool(shop["active"]) else "复工", func(): _toggle(not bool(shop["active"]))))
 	row2.add_child(_button("升级", func(): _expand()))
+	row2.add_child(_button("移动", func(): _begin_move_shop()))
 	_body.add_child(row2)
 
 	_body.add_child(_label("提示：所有操作次日 06:00 生效", 12))
@@ -125,6 +126,14 @@ func _toggle(active: bool) -> void:
 
 func _expand() -> void:
 	runner.enqueue([{"type": "expand", "shopId": _id}])
+
+func _begin_move_shop() -> void:
+	if world != null:
+		world.begin_move_shop(_id)
+
+func _begin_move_housing() -> void:
+	if world != null:
+		world.begin_move_housing(_id)
 
 func _resident_panel() -> void:
 	var r = null
@@ -175,6 +184,7 @@ func _housing_panel() -> void:
 		_body.add_child(_label("  （空）", 12))
 	for rid in occ:
 		_body.add_child(_label("  %s  %s" % [Names.for_id(String(rid)), String(rid)], 12))
+	_body.add_child(_button("移动", func(): _begin_move_housing()))
 
 func _set_immigration(value: int) -> void:
 	runner.enqueue([{"type": "set_immigration", "value": value}])
