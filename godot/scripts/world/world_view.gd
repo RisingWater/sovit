@@ -9,7 +9,14 @@ signal select_resident(resident_id: String)
 signal select_none()
 signal notice(text: String)
 
-const TILE := 48
+const TILE := 16
+# Tiny 图集原生 16px。像素画必须用原生尺寸 + 整数缩放，否则笔画会糊。
+const ZOOM := 3.0             # 默认缩放（16 x 3 = 48，与旧版 48px tile 的观感一致）
+const TOWN_COLS := 12
+const TOWN_ROWS := 11
+const EXTRA_COLS := 8
+const EXTRA_ROWS := 7
+const DECO_VARIANTS := 4      # deco.png 里的树种类（每格 16x32）
 
 var runner: SimRunner
 var map: GameMap
@@ -17,6 +24,7 @@ var map: GameMap
 var terrain_layer: TileMapLayer
 var floor_layer: TileMapLayer
 var road_layer: TileMapLayer
+var deco_layer: TileMapLayer
 var building_layer: Node2D
 var agent_layer: Node2D
 var camera: Camera2D
@@ -28,6 +36,7 @@ var _press_pos := Vector2.ZERO
 var _press_cell := Vector2i.ZERO
 
 var _tex_cache := {}
+var _actor_tex := {}
 var _shop_sprites := {}         # shop_id -> Node2D
 var _shop_cell := {}            # shop_id -> Vector2i(origin)
 var _shop_def := {}             # shop_id -> defId
@@ -89,27 +98,85 @@ func _add_label(text: String, cell: Vector2i, fw: int, fh: int) -> Label:
 	var l := Label.new()
 	l.text = text
 	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	l.add_theme_font_override("font", _font)
-	l.add_theme_font_size_override("font_size", 12)
+	l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	# 关键：用像素字体 + 反向缩放。
+	# 字体按原生 10px 光栅化，节点缩到 1/ZOOM，镜头再放大 ZOOM 倍 → 屏幕上正好 1:1，
+	# 笔画不会被插值糊掉。（之前用 SystemFont + 世界坐标直接缩放，所以是糊的）
+	l.add_theme_font_override("font", UIKit.pixel_font())
+	l.add_theme_font_size_override("font_size", UIKit.FS)
 	l.add_theme_color_override("font_color", Color(1, 1, 1))
-	l.add_theme_color_override("font_outline_color", Color(0, 0, 0))
-	l.add_theme_constant_override("outline_size", 4)
-	var w = fw * TILE
-	l.size = Vector2(w, 16)
-	l.position = _area_center(cell, fw, fh) - Vector2(w * 0.5, 8)
+	l.add_theme_color_override("font_outline_color", Color(0.12, 0.09, 0.07))
+	l.add_theme_constant_override("outline_size", 3)
+	l.scale = Vector2.ONE / ZOOM
+	var w = float(fw * TILE)
+	var hh = 16.0
+	l.size = Vector2(w * ZOOM, hh * ZOOM)
+	l.position = _area_center(cell, fw, fh) - Vector2(w * 0.5, hh * 0.5)
 	building_layer.add_child(l)
 	return l
+	return l
+
+func _town_cell(idx: int) -> Vector2i:
+	return Vector2i(idx % TOWN_COLS, idx / TOWN_COLS)
+
+func _extra_cell(idx: int) -> Vector2i:
+	return Vector2i(idx % EXTRA_COLS, idx / EXTRA_COLS)
+
+func _is_land(c: Vector2i) -> bool:
+	return (not map.in_bounds(c)) or map.terrain_at(c) != GameMap.WATER
+
+func _water_index(c: Vector2i) -> int:
+	# 自绘图集：水面 = 16 + 掩码 x2 + 内凹(0/1)
+	var m := 0
+	if _is_land(c + Vector2i(0, -1)): m |= 1
+	if _is_land(c + Vector2i(0, 1)): m |= 2
+	if _is_land(c + Vector2i(1, 0)): m |= 4
+	if _is_land(c + Vector2i(-1, 0)): m |= 8
+	var inner := 0
+	# 对角内凹：两邻边是水、但对角是陆地
+	var pairs = [[Vector2i(-1, -1), 1, 8], [Vector2i(1, -1), 1, 4],
+		[Vector2i(-1, 1), 2, 8], [Vector2i(1, 1), 2, 4]]
+	for p in pairs:
+		if (m & int(p[1])) == 0 and (m & int(p[2])) == 0 and not _is_land(c + p[0]):
+			inner = 1
+			break
+	return 16 + m * 2 + inner
+
+func _road_index(c: Vector2i) -> int:
+	var m := 0
+	if map.in_bounds(c + Vector2i(0, -1)) and map.road[map.idx(c.x, c.y - 1)] != 0: m |= 1
+	if map.in_bounds(c + Vector2i(0, 1)) and map.road[map.idx(c.x, c.y + 1)] != 0: m |= 2
+	if map.in_bounds(c + Vector2i(1, 0)) and map.road[map.idx(c.x + 1, c.y)] != 0: m |= 4
+	if map.in_bounds(c + Vector2i(-1, 0)) and map.road[map.idx(c.x - 1, c.y)] != 0: m |= 8
+	return m
 
 func _build_tileset() -> void:
-	var tex: Texture2D = load("res://assets/tiles.svg")
 	var ts := TileSet.new()
 	ts.tile_size = Vector2i(TILE, TILE)
-	var src := TileSetAtlasSource.new()
-	src.texture = tex
-	src.texture_region_size = Vector2i(TILE, TILE)
-	for i in 7:
-		src.create_tile(Vector2i(i, 0))
-	ts.add_source(src, 0)
+
+	# source 0 = Tiny Town 原图集（草地 / 沙土 / 道具）
+	var town := TileSetAtlasSource.new()
+	town.texture = load("res://assets/tiny/town.png")
+	town.texture_region_size = Vector2i(TILE, TILE)
+	for i in TOWN_COLS * TOWN_ROWS:
+		town.create_tile(Vector2i(i % TOWN_COLS, i / TOWN_COLS))
+	ts.add_source(town, 0)
+
+	# source 1 = 自绘地形（道路 0-15 / 水面 16-47 / 桥 48-49 / 补丁 50-52）
+	var extra := TileSetAtlasSource.new()
+	extra.texture = load("res://assets/tiny/extra.png")
+	extra.texture_region_size = Vector2i(TILE, TILE)
+	for i in EXTRA_COLS * EXTRA_ROWS:
+		extra.create_tile(Vector2i(i % EXTRA_COLS, i / EXTRA_COLS))
+	ts.add_source(extra, 1)
+
+	# source 2 = 树的装饰（16x32，跨两格）
+	var deco := TileSetAtlasSource.new()
+	deco.texture = load("res://assets/tiny/deco.png")
+	deco.texture_region_size = Vector2i(TILE, TILE * 2)
+	for i in DECO_VARIANTS:
+		deco.create_tile(Vector2i(i, 0))
+	ts.add_source(deco, 2)
 
 	terrain_layer = TileMapLayer.new()
 	terrain_layer.tile_set = ts
@@ -126,20 +193,58 @@ func _build_tileset() -> void:
 	road_layer.z_index = -6
 	add_child(road_layer)
 
+	deco_layer = TileMapLayer.new()
+	deco_layer.tile_set = ts
+	deco_layer.z_index = -5
+	add_child(deco_layer)
+
 	building_layer = Node2D.new()
 	add_child(building_layer)
 	agent_layer = Node2D.new()
 	agent_layer.z_index = -1
 	add_child(agent_layer)
 
-	# 铺地形（只铺一次）
+	_render_base_terrain()
+
+## 草地变体：0 = 纯草，1 = 小白花，2 = 大黄花。
+## 用整数哈希取值，大花必须很稀有，否则满屏黄点。
+func _grass_variant(h: int) -> int:
+	if h % 61 == 0:
+		return 2
+	if h % 7 == 0:
+		return 1
+	return 0
+
+func _render_base_terrain() -> void:
+	# 底色 + 水 + 地面补丁 + 树（只在生成 / 读档时铺一次）
 	for y in GameMap.H:
 		for x in GameMap.W:
-			terrain_layer.set_cell(Vector2i(x, y), 0, Vector2i(map.terrain[map.idx(x, y)], 0))
+			var c := Vector2i(x, y)
+			var t: int = map.terrain[map.idx(x, y)]
+			var h := (x * 7 + y * 13)
+			var gv := _grass_variant(h)
+			match t:
+				GameMap.WATER:
+					terrain_layer.set_cell(c, 1, _extra_cell(_water_index(c)))
+				GameMap.STONE:
+					terrain_layer.set_cell(c, 0, _town_cell(gv))
+					terrain_layer.set_cell(c, 1, _extra_cell(50))
+				GameMap.CLAY:
+					terrain_layer.set_cell(c, 0, _town_cell(gv))
+					terrain_layer.set_cell(c, 1, _extra_cell(51))
+				GameMap.FOREST:
+					terrain_layer.set_cell(c, 0, _town_cell(gv))
+					# 树：稀疏铺，靠 16x32 的重叠形成树冠
+					if h % 17 == 0:
+						deco_layer.set_cell(c, 2, Vector2i(h % DECO_VARIANTS, 0))
+				_:
+					terrain_layer.set_cell(c, 0, _town_cell(gv))
+				GameMap.GRASS:
+					pass
 
 func _build_warehouse() -> void:
 	var spr := Sprite2D.new()
-	spr.texture = load("res://assets/warehouse.svg")
+	spr.texture = load("res://assets/buildings/_warehouse.png")
 	spr.centered = false
 	spr.position = Vector2(map.warehouse.position.x * TILE, map.warehouse.position.y * TILE)
 	building_layer.add_child(spr)
@@ -157,7 +262,7 @@ func _build_warehouse() -> void:
 func _camera_setup() -> void:
 	camera = Camera2D.new()
 	camera.position = Vector2(map.center.x * TILE, map.center.y * TILE)
-	camera.zoom = Vector2(1.0, 1.0)
+	camera.zoom = Vector2(ZOOM, ZOOM)
 	add_child(camera)
 	camera.make_current()
 
@@ -184,17 +289,29 @@ func _find_free_area(type: String, near: Vector2i, gap: int) -> Vector2i:
 					return c
 	return Vector2i(-1, -1)
 
-func _footprint(type: String) -> Vector2i:
+func _art_of(type: String) -> Dictionary:
 	if runner.db.housing.has(type):
-		return Vector2i(3, 3) if int(runner.db.housing[type]["quality"]) >= 3 else Vector2i(2, 2)
+		return runner.db.housing[type].get("art", {})
 	if runner.db.buildings.has(type):
-		return Vector2i(3, 3) if int(runner.db.buildings[type]["tier"]) == 3 else Vector2i(2, 2)
-	return Vector2i(2, 2)
+		return runner.db.buildings[type].get("art", {})
+	return {}
+
+func _footprint(type: String) -> Vector2i:
+	# 占地直接由 art 规格决定：贴图多大就占多大（gen-art 用同一套规则）
+	var a := _art_of(type)
+	if a.is_empty():
+		return Vector2i(2, 2)
+	var w := int(a.get("w", 6 if String(a.get("arch", "")) == "field" else 3))
+	if String(a.get("arch", "")) == "field":
+		return Vector2i(w, int(a.get("rows", 1)))
+	# 屋顶行数：绿顶（谷仓）只有一行，其余两行（顶排 + 檐口）；再加一行墙
+	var roof_rows := 1 if String(a.get("roof", "")) == "green" else 2
+	return Vector2i(w, roof_rows + 1)
 
 func _texture_for(type: String) -> Texture2D:
 	if _tex_cache.has(type):
 		return _tex_cache[type]
-	var tex: Texture2D = load("res://assets/buildings/%s.svg" % type)
+	var tex: Texture2D = load("res://assets/buildings/%s.png" % type)
 	_tex_cache[type] = tex
 	return tex
 
@@ -258,9 +375,20 @@ func _rerender_terrain() -> void:
 	terrain_layer.clear()
 	floor_layer.clear()
 	road_layer.clear()
-	for y in GameMap.H:
-		for x in GameMap.W:
-			terrain_layer.set_cell(Vector2i(x, y), 0, Vector2i(map.terrain[map.idx(x, y)], 0))
+	deco_layer.clear()
+	_render_base_terrain()
+	# 道路 / 地板按存档位图重铺
+	for c in _cells_with(map.road):
+		road_layer.set_cell(Vector2i(c[0], c[1]), 1, _extra_cell(_road_index(Vector2i(c[0], c[1]))))
+	for c in _cells_with(map.floor_tiles):
+		floor_layer.set_cell(Vector2i(c[0], c[1]), 1, _extra_cell(52))
+
+## 重算某格及其邻格的道路贴图（相邻关系变了）
+func _refresh_road(c: Vector2i) -> void:
+	var cells := [c, c + Vector2i(0, -1), c + Vector2i(0, 1), c + Vector2i(1, 0), c + Vector2i(-1, 0)]
+	for n in cells:
+		if map.in_bounds(n) and map.road[map.idx(n.x, n.y)] != 0:
+			road_layer.set_cell(n, 1, _extra_cell(_road_index(n)))
 
 func _cells_with(bitmap: PackedByteArray) -> Array:
 	var out := []
@@ -374,12 +502,14 @@ func load_from(path: String) -> bool:
 			var c := Vector2i(int(pair[0]), int(pair[1]))
 			if map.in_bounds(c):
 				map.road[map.idx(c.x, c.y)] = 1
-				road_layer.set_cell(c, 0, Vector2i(5, 0))
 		for pair in data.get("floor", []):
 			var c := Vector2i(int(pair[0]), int(pair[1]))
 			if map.in_bounds(c):
 				map.floor_tiles[map.idx(c.x, c.y)] = 1
-				floor_layer.set_cell(c, 0, Vector2i(6, 0))
+		for c in _cells_with(map.road):
+			road_layer.set_cell(Vector2i(c[0], c[1]), 1, _extra_cell(_road_index(Vector2i(c[0], c[1]))))
+		for c in _cells_with(map.floor_tiles):
+			floor_layer.set_cell(Vector2i(c[0], c[1]), 1, _extra_cell(52))
 		map.floor_charge = int(data.get("floorCharge", 0))
 
 	_build_warehouse()
@@ -609,13 +739,55 @@ func _refresh_agents() -> void:
 			_agents.append({"id": id, "pos": home, "target": home, "home": home})
 
 func _draw_agents() -> void:
+	# 居民阶层（每帧建一次表，避免 N² 查找）
+	var cls_of := {}
+	if runner != null and runner.sim != null:
+		for r in runner.sim.s["residents"]:
+			cls_of[String(r["id"])] = String(r["classId"])
+	var rows := ["S", "N", "W", "E"]
 	for a in _agents:
-		var r := 8.0
-		if a["id"] == selected_resident:
-			agent_layer.draw_arc(a["pos"], r + 4.0, 0, TAU, 24, Color(1.0, 0.95, 0.2), 2.5)
-		agent_layer.draw_circle(a["pos"], r, Color(0.95, 0.85, 0.55))
-		agent_layer.draw_arc(a["pos"], r, 0, TAU, 20, Color(0.2, 0.15, 0.1), 1.5)
-		agent_layer.draw_circle(a["pos"], r * 0.38, Color(0.35, 0.25, 0.15))
+		var cls := String(cls_of.get(String(a["id"]), "poor"))
+		var tex := _actor_texture(cls)
+		if tex == null:
+			continue
+		var row := rows.find(String(a.get("dir", "S")))
+		if row < 0:
+			row = 0
+		var frame := int(a.get("anim", 0)) % 4
+		var src := Rect2(frame * TILE, row * TILE, TILE, TILE)
+		# 精灵脚底对齐坐标点
+		var dst := Rect2(a["pos"] - Vector2(TILE * 0.5, TILE - 2.0), Vector2(TILE, TILE))
+		agent_layer.draw_texture_rect_region(tex, dst, src)
+		if String(a["id"]) == selected_resident:
+			# 脚下椭圆（把圆压扁），比正圆更贴地
+			agent_layer.draw_set_transform(a["pos"] + Vector2(0, -1), 0.0, Vector2(1.0, 0.5))
+			agent_layer.draw_arc(Vector2.ZERO, 9.0, 0, TAU, 24, Color(1.0, 0.95, 0.2), 1.5)
+			agent_layer.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+
+func _actor_texture(cls: String) -> Texture2D:
+	if _actor_tex.has(cls):
+		return _actor_tex[cls]
+	var tex: Texture2D = load("res://assets/actors/%s.png" % cls)
+	if tex == null:
+		tex = load("res://assets/actors/poor.png")
+	_actor_tex[cls] = tex
+	return tex
+
+func _animate_agents(delta: float) -> void:
+	# 由位移推朝向与步态（位移 < 阈值算站立）
+	for a in _agents:
+		var prev: Vector2 = a.get("prev_pos", a["pos"])
+		var d: Vector2 = a["pos"] - prev
+		a["prev_pos"] = a["pos"]
+		if d.length() > 0.2:
+			if absf(d.x) > absf(d.y):
+				a["dir"] = "E" if d.x > 0.0 else "W"
+			else:
+				a["dir"] = "S" if d.y > 0.0 else "N"
+			var sp := 1.0 if runner == null else maxf(0.2, runner.speed)
+			a["anim"] = fmod(float(a.get("anim", 0.0)) + delta * 8.0 * sp, 4.0)
+		else:
+			a["anim"] = 0.0
 
 # ---- 每帧：移动小人 + 同步建筑 --------------------------------------------
 func _process(delta: float) -> void:
@@ -627,6 +799,7 @@ func _process(delta: float) -> void:
 			_refresh_astar()
 			_nav_timer = 0.0
 	_update_agents(delta)
+	_animate_agents(delta)
 	agent_layer.queue_redraw()
 
 func _pan_keyboard(delta: float) -> void:
@@ -908,10 +1081,12 @@ func _on_left_click(cell: Vector2i) -> void:
 		select_none.emit()
 
 func _nearest_agent(pos: Vector2) -> String:
+	# 精灵 16x16、脚底对齐 a["pos"]，所以命中判定以精灵中心为准
 	var best := ""
-	var best_d = 30.0 / maxf(0.05, camera.zoom.x)
+	var best_d = 14.0 / maxf(0.05, camera.zoom.x)
 	for a in _agents:
-		var d = a["pos"].distance_to(pos)
+		var center: Vector2 = a["pos"] + Vector2(0, -6)
+		var d = center.distance_to(pos)
 		if d < best_d:
 			best_d = d
 			best = a["id"]
@@ -945,31 +1120,37 @@ func set_brush(mode: String, size: int) -> void:
 	ghost.visible = false
 	notice.emit("笔刷：%s  %dx%d（右键取消）" % [mode, size, size])
 
-func _try_place(id: String, cell: Vector2i) -> void:
+func _try_place(id: String, cell: Vector2i) -> bool:
 	var origin = Vector2i(cell.x - 1, cell.y - 1)
 	var fp = _footprint(id)
 	var reason = _can_afford(id)
 	if reason != "":
 		notice.emit(reason)
-		return
+		return false
 	if runner.db.buildings.has(id):
 		var terr: Array = []
 		var b = runner.db.buildings[id]
-		if b.has("terrain"):
-			terr = [String(b["terrain"])]
+		# 注意：必须判空串。content_db 会给每栋建筑都带上 terrain 键（缺省 ""），
+		# 用 has() 判断会把 terrains 设成 [""]，结果任何地形都不匹配、全图无法建造。
+		var tstr := String(b.get("terrain", ""))
+		if tstr != "":
+			terr = [tstr]
 		if not map.terrain_ok(origin, fp.x, fp.y, terr):
 			notice.emit("此处不能建造（资源/占地不符）")
-			return
+			return false
 		_register_site("shop", id, origin, fp)
 		runner.enqueue([{"type": "build", "buildingId": id}])
 		notice.emit("已下单建造 %s（次日 06:00 生效）" % id)
+		return true
 	elif runner.db.housing.has(id):
 		if not map.terrain_ok(origin, fp.x, fp.y, []):
 			notice.emit("此处不能建造住房")
-			return
+			return false
 		_register_site("housing", id, origin, fp)
 		runner.enqueue([{"type": "build_housing", "goodId": id}])
 		notice.emit("已下单建造住房 %s（次日 06:00 生效）" % id)
+		return true
+	return false
 
 func _can_afford(id: String) -> String:
 	var sim = runner.sim
@@ -1023,7 +1204,8 @@ func _paint_cell(cell: Vector2i) -> void:
 				continue
 			if brush_mode == "road":
 				map.road[map.idx(c.x, c.y)] = 1
-				road_layer.set_cell(c, 0, Vector2i(5, 0))
+				deco_layer.erase_cell(c)
+				_refresh_road(c)
 				_nav_dirty = true
 			elif brush_mode == "floor":
 				if map.floor_tiles[map.idx(c.x, c.y)] == 1:
@@ -1035,4 +1217,5 @@ func _paint_cell(cell: Vector2i) -> void:
 					map.floor_charge += 100
 				map.floor_charge -= 1
 				map.floor_tiles[map.idx(c.x, c.y)] = 1
-				floor_layer.set_cell(c, 0, Vector2i(6, 0))
+				deco_layer.erase_cell(c)
+				floor_layer.set_cell(c, 1, _extra_cell(52))

@@ -6,7 +6,8 @@ extends RefCounted
 
 const W := 512
 const H := 512
-const TILE := 48
+# 与 world_view.gd 的 TILE 保持一致（Tiny 图集原生 16px）。此处仅供外部引用。
+const TILE := 16
 
 const GRASS := 0
 const FOREST := 1

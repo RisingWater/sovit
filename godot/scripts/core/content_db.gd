@@ -51,7 +51,7 @@ func _load() -> void:
 			"baseRate": float(rec["baseRate"]),
 			"fuel": float(rec.get("fuel", 0.0)),
 		}
-		buildings[String(it["id"])] = {
+		var bdef := {
 			"id": String(it["id"]),
 			"nameZh": String(it["nameZh"]),
 			"tier": int(it["tier"]),
@@ -59,7 +59,13 @@ func _load() -> void:
 			"maxWorkers": int(it.get("maxWorkers", it["workers"])),
 			"recipe": rid,
 			"buildCost": it.get("buildCost", {}),
+			# 外观规格：UI 分类与占地都靠它，必须保留
+			"art": it.get("art", {}),
 		}
+		# terrain 只在存在时写入，避免 has("terrain") 永远为真
+		if it.has("terrain"):
+			bdef["terrain"] = String(it["terrain"])
+		buildings[String(it["id"])] = bdef
 
 	var c: Dictionary = _read_json("classes.json")
 	for it in c["classes"]:
