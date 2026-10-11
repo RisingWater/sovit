@@ -1,4 +1,5 @@
 import type {
+  BuildingArt,
   BuildingDef,
   BuildingID,
   BuildingTier,
@@ -139,6 +140,54 @@ function strArr(v: unknown, p: string, set?: Set<string>): string[] {
 }
 
 // ---------------------------------------------------------------------------
+// 外观规格
+// ---------------------------------------------------------------------------
+
+const ART_ARCHS = ['house', 'extract', 'mill', 'bakery', 'kiln', 'workshop', 'grand', 'warehouse', 'field'] as const
+const ART_ROOFS = ['blue', 'red', 'green'] as const
+const ART_WALLS = ['wood', 'stone', 'barn', 'plank'] as const
+const ART_FEATS = ['windmill', 'wheel', 'logs', 'rocks'] as const
+const ART_CROPS = ['wheat', 'cabbage', 'sprout', 'bush', 'corn', 'tomato'] as const
+const ART_SOILS = ['row5', 'row6'] as const
+
+function parseArt(v: unknown, p: string): BuildingArt | undefined {
+  if (v === undefined) return undefined
+  const o = asObj(v, p)
+  const arch = asEnum(o.arch, ART_ARCHS, `${p}.arch`)
+  const art: BuildingArt = { arch }
+
+  if (o.roof !== undefined) art.roof = asEnum(o.roof, ART_ROOFS, `${p}.roof`)
+  if (o.wall !== undefined) art.wall = asEnum(o.wall, ART_WALLS, `${p}.wall`)
+  if (o.w !== undefined) {
+    const w = asNum(o.w, `${p}.w`)
+    if (!Number.isInteger(w) || w < 2 || w > 12) fail(`${p}.w 必须是 2–12 的整数`)
+    art.w = w
+  }
+  if (o.rows !== undefined) {
+    const r = asNum(o.rows, `${p}.rows`)
+    if (!Number.isInteger(r) || r < 1 || r > 12) fail(`${p}.rows 必须是 1–12 的整数`)
+    art.rows = r
+  }
+  if (o.chimney !== undefined) art.chimney = asBool(o.chimney, `${p}.chimney`)
+  if (o.feat !== undefined) {
+    art.feat = asArr(o.feat, `${p}.feat`).map((x, i) => asEnum(x, ART_FEATS, `${p}.feat[${i}]`))
+  }
+  if (o.soil !== undefined) art.soil = asEnum(o.soil, ART_SOILS, `${p}.soil`)
+  if (o.crop !== undefined) art.crop = asEnum(o.crop, ART_CROPS, `${p}.crop`)
+
+  if (arch === 'field') {
+    if (!art.soil) fail(`${p}：arch=field 必须给 soil`)
+    if (!art.crop) fail(`${p}：arch=field 必须给 crop`)
+    if (art.roof || art.wall) fail(`${p}：arch=field 不应给 roof / wall`)
+  } else {
+    if (!art.roof) fail(`${p}：arch=${arch} 必须给 roof`)
+    if (!art.wall) fail(`${p}：arch=${arch} 必须给 wall`)
+    if (art.soil || art.crop) fail(`${p}：arch=${arch} 不应给 soil / crop`)
+  }
+  return art
+}
+
+// ---------------------------------------------------------------------------
 
 function parseGoods(raw: unknown): { goods: Record<GoodID, GoodDef>; ids: GoodID[] } {
   const list = asArr(asObj(raw, 'goods.json').goods, 'goods.json.goods')
@@ -207,6 +256,7 @@ function parseBuildings(
     }
 
     const buildCost = numMap(o.buildCost, `${p}.buildCost`, goodSet)
+    const art = parseArt(o.art, `${p}.art`)
     buildings[id] = {
       id,
       nameZh: asStr(o.nameZh, `${p}.nameZh`),
@@ -215,6 +265,7 @@ function parseBuildings(
       ...(maxWorkers !== undefined ? { maxWorkers } : {}),
       recipe: recipe.id,
       ...(Object.keys(buildCost).length > 0 ? { buildCost } : {}),
+      ...(art !== undefined ? { art } : {}),
     }
     if (recipes[recipe.id]) fail(`${p}.recipe 与其它建筑 id 冲突：${recipe.id}`)
     ids.push(id)
@@ -285,6 +336,7 @@ function parseHousing(
     if (!classSet.has(classId)) fail(`${p}.classId 引用了未定义的阶层：${classId}`)
     const buildCost = numMap(o.buildCost, `${p}.buildCost`, goodSet)
     const salePrice = o.salePrice === undefined ? undefined : asNonNeg(o.salePrice, `${p}.salePrice`)
+    const art = parseArt(o.art, `${p}.art`)
     housing[id] = {
       id,
       nameZh: asStr(o.nameZh, `${p}.nameZh`),
@@ -293,6 +345,7 @@ function parseHousing(
       classId,
       ...(Object.keys(buildCost).length > 0 ? { buildCost } : {}),
       ...(salePrice !== undefined ? { salePrice } : {}),
+      ...(art !== undefined ? { art } : {}),
     }
     ids.push(id)
   })

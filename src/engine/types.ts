@@ -70,6 +70,55 @@ export interface RecipeDef {
   fuel?: number
 }
 
+// ---------------------------------------------------------------------------
+// 外观规格（art spec）—— 决定建筑长什么样，不参与任何仿真
+//
+// 33 座建筑不是 33 张手工贴图，而是由这张声明式规格生成：
+//   原型(arch) + 屋顶(roof) + 墙体(wall) + 开间数(w) + 特征件(feat)
+// 改这里 = 改外观；`npm run gen:art` 重新生成 godot/assets/buildings/*.png
+// ---------------------------------------------------------------------------
+
+/** 建筑原型：决定"几行屋顶 + 一行墙"的骨架。 */
+export type ArtArch =
+  | 'house'      // 小屋
+  | 'extract'    // 采集小屋
+  | 'mill'       // 磨坊
+  | 'bakery'     // 烘焙
+  | 'kiln'       // 窑炉
+  | 'workshop'   // 宽工坊
+  | 'grand'      // 大型公共建筑
+  | 'warehouse'  // 中央仓库
+  | 'field'      // 农田（土垄 + 作物，无屋顶）
+
+export type ArtRoof = 'blue' | 'red' | 'green'
+export type ArtWall = 'wood' | 'stone' | 'barn' | 'plank'
+/** 自绘特征件（图集里没有的部分）。 */
+export type ArtFeat = 'windmill' | 'wheel' | 'logs' | 'rocks'
+/** 农田作物：决定用哪组 Tiny Farm 作物 tile。 */
+export type ArtCrop = 'wheat' | 'cabbage' | 'sprout' | 'bush' | 'corn' | 'tomato'
+/** 农田土垄行。 */
+export type ArtSoil = 'row5' | 'row6'
+
+export interface BuildingArt {
+  arch: ArtArch
+  /** 屋顶款式（field 不用）。 */
+  roof?: ArtRoof
+  /** 墙体款式（field 不用）。 */
+  wall?: ArtWall
+  /** 横向开间数（格）；缺省 3。 */
+  w?: number
+  /** 竖向格数（仅 field 用）；缺省 1。 */
+  rows?: number
+  /** 使用原生烟囱 tile（51 蓝顶 / 55 红顶）。 */
+  chimney?: boolean
+  /** 附加自绘特征件。 */
+  feat?: ArtFeat[]
+  /** 农田：土垄行。 */
+  soil?: ArtSoil
+  /** 农田：作物种类。 */
+  crop?: ArtCrop
+}
+
 export interface BuildingDef {
   id: BuildingID
   nameZh: string
@@ -81,6 +130,8 @@ export interface BuildingDef {
   recipe: RecipeID
   /** 建造成本（材料 / 建造力）；v0.1 仅扩产使用。 */
   buildCost?: Partial<Record<GoodID, number>>
+  /** 外观规格（缺省时 gen-art 用兜底样式）。 */
+  art?: BuildingArt
 }
 
 export interface ClassDef {
@@ -108,6 +159,8 @@ export interface HousingDef {
   buildCost?: Partial<Record<GoodID, number>>
   /** 私有化售价（玩家可调，默认取此值）。 */
   salePrice?: number
+  /** 外观规格。 */
+  art?: BuildingArt
 }
 
 export interface PackStart {
