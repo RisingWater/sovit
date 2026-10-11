@@ -8,10 +8,16 @@
 | `tiny/town.png` | [Tiny Town](https://kenney.nl/assets/tiny-town) | Kenney | **CC0 1.0** |
 | `tiny/farm.png` | [Tiny Farm](https://kenney.nl/assets/tiny-farm) | Kenney | **CC0 1.0** |
 | `ui/*.png` | [UI Pack - Pixel Adventure](https://kenney.nl/assets/ui-pack-pixel-adventure) | Kenney | **CC0 1.0** |
+| `cursors/*.png` | [Cursor Pixel Pack](https://kenney.nl/assets/cursor-pixel-pack) | Kenney | **CC0 1.0** |
 | `fonts/fusion-pixel-10px-zh_hans.ttf` | [缝合像素字体 Fusion Pixel Font](https://github.com/TakWolf/fusion-pixel-font) | TakWolf | **OFL-1.1** |
+| `fonts/fusion-pixel-12px-zh_hans.ttf` | 同上（当前 UI 用的就是这一档） | TakWolf | **OFL-1.1** |
 | `buildings/*.png` | 本项目由 `content/*.json` 的 `art` 字段生成 | — | 同项目授权 |
-| `tiny/extra.png` | 本项目自绘（水面 / 道路 / 桥 auto-tile） | — | 同项目授权 |
+| `thumbs/*.png` | 同上（含自绘的道路/地板笔刷卡） | — | 同项目授权 |
+| `goods/*.png` | 本项目自绘（36 个商品图标） | — | 同项目授权 |
+| `tiny/extra.png` | 本项目自绘（道路 / 水面 / 桥 / 矿脉 / 砖石地板） | — | 同项目授权 |
+| `tiny/deco.png` | 本项目自绘（树 4 种） | — | 同项目授权 |
 | `actors/*.png` | 本项目自绘（居民 4 阶层 × 4 向 × 4 帧） | — | 同项目授权 |
+| `ui/speed_*.png` | 本项目自绘（暂停 / 1x / 2x / 4x） | — | 同项目授权 |
 
 ## 生成物说明
 

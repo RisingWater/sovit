@@ -488,6 +488,35 @@ function patchTile(kind: string): Canvas {
   return c
 }
 
+/** 地板：砖石铺装（错缝砌法）。 */
+function floorTile(): Canvas {
+  const MORTAR: RGBA = [86, 90, 100, 255]
+  const BR: RGBA = [166, 170, 180, 255]
+  const BR_L: RGBA = [206, 210, 218, 255]
+  const BR_D: RGBA = [132, 136, 146, 255]
+  const c = new Canvas(G, G, MORTAR)
+  // 上排：两块整砖，砖缝在 x=0 / 7-8 / 15
+  c.rect(1, 1, 6, 6, BR)
+  c.rect(9, 1, 6, 6, BR)
+  // 下排：错半砖
+  c.rect(1, 9, 3, 6, BR)
+  c.rect(6, 9, 6, 6, BR)
+  c.rect(14, 9, 2, 6, BR)
+  // 顶面高光
+  c.rect(1, 1, 6, 1, BR_L)
+  c.rect(9, 1, 6, 1, BR_L)
+  c.rect(1, 9, 3, 1, BR_L)
+  c.rect(6, 9, 6, 1, BR_L)
+  c.rect(14, 9, 2, 1, BR_L)
+  // 底边阴影
+  c.rect(1, 6, 6, 1, BR_D)
+  c.rect(9, 6, 6, 1, BR_D)
+  c.rect(1, 14, 3, 1, BR_D)
+  c.rect(6, 14, 6, 1, BR_D)
+  c.rect(14, 14, 2, 1, BR_D)
+  return c
+}
+
 /** 树的装饰图集：4 种树，每种 16x32（上格树冠 + 下格树干）。 */
 function decoAtlas(): Canvas {
   const variants: [number, number][] = [[3, 15], [4, 16], [5, 17], [7, 19]]
@@ -521,22 +550,24 @@ function terrainAtlas(): Canvas {
       k++
     }
   }
-  // row6: 桥 x2 + 地面补丁 x3（石矿 / 粘土 / 硬地）
+  // row6: 桥 x2 + 地面补丁 x2（石矿 / 粘土）+ 地板 x1（砖石铺装）
   cv.blit(bridgeTile('h'), 0, 6 * G)
   cv.blit(bridgeTile('v'), G, 6 * G)
   cv.blit(patchTile('stone'), 2 * G, 6 * G)
   cv.blit(patchTile('clay'), 3 * G, 6 * G)
-  cv.blit(patchTile('floor'), 4 * G, 6 * G)
+  cv.blit(floorTile(), 4 * G, 6 * G)
   return cv
 }
 
-/** 建造卡片用的缩略图：固定 80x56，取能放下的最大整数倍缩放后居中。 */
+/** 建造卡片用的缩略图：固定 100x72，取能放下的最大整数倍缩放后居中。 */
+const THUMB_W = 100
+const THUMB_H = 72
+
 function thumbOf(src: Canvas): Canvas {
-  const TW = 80
-  const TH = 56
+  const TW = THUMB_W
+  const TH = THUMB_H
   let scale = 1
-  if (src.w > TW || src.h > TH) scale = 2
-  if (src.w / scale > TW || src.h / scale > TH) scale = 3
+  while (src.w / scale > TW || src.h / scale > TH) scale *= 2
   const w = Math.max(1, Math.floor(src.w / scale))
   const h = Math.max(1, Math.floor(src.h / scale))
   const out = new Canvas(TW, TH)
@@ -546,6 +577,60 @@ function thumbOf(src: Canvas): Canvas {
     for (let x = 0; x < w; x++) out.set(ox + x, oy + y, src.get(x * scale, y * scale))
   }
   return out
+}
+
+/** 道路 / 地板的卡片缩略图：草地底上铺一小块。 */
+function brushThumb(kind: 'road' | 'floor'): Canvas {
+  const c = new Canvas(THUMB_W, THUMB_H)
+  for (let y = 0; y < THUMB_H; y += G) {
+    for (let x = 0; x < THUMB_W; x += G) put(c, 'town', 0, x, y)
+  }
+  const t = kind === 'road' ? roadTile({ N: true, S: true, E: true, W: true }) : floorTile()
+  const cols = 3
+  const rows = 2
+  const ox = Math.floor((THUMB_W - cols * G) / 2)
+  const oy = Math.floor((THUMB_H - rows * G) / 2)
+  for (let j = 0; j < rows; j++) {
+    for (let i = 0; i < cols; i++) c.blit(t, ox + i * G, oy + j * G)
+  }
+  return c
+}
+
+// ---------------------------------------------------------------------------
+// 速度控制图标（16x16，自绘）
+//
+// 找过了：Kenney UI Pack 的 Small tiles(161) 与 Large tiles(91) 里都没有
+// 播放/暂停/快进的字形，Cursor Pixel Pack 也只有单个实心三角。
+// 所以这四个按 UI 包的配色自绘：暂停 = 两条竖线，1x/2x/4x = 1/2/3 个箭羽。
+// ---------------------------------------------------------------------------
+// 图标画在 UI 包的米黄按钮上，所以必须用深色；用浅色会完全看不见。
+const SP_INK: RGBA = [58, 40, 30, 255]
+const SP_LIT: RGBA = [246, 242, 230, 255]
+
+function speedIcon(kind: string): Canvas {
+  const c = new Canvas(G, G)
+  if (kind === 'pause') {
+    for (const x of [4, 9]) {
+      c.rect(x, 3, 3, 10, SP_INK)
+      c.rect(x, 3, 1, 10, SP_LIT)
+    }
+    return c
+  }
+  const n = kind === '1x' ? 1 : kind === '2x' ? 2 : 3
+  const th = n === 1 ? 3 : 2          // 笔画粗细
+  const wid = n === 1 ? 6 : n === 2 ? 4 : 3
+  const step = wid + th              // 一个箭羽占的宽度 + 1px 间隙
+  const total = n * step - 1
+  const x0 = Math.max(0, Math.floor((G - total) / 2))
+  for (let i = 0; i < n; i++) {
+    const x = x0 + i * step
+    for (let r = 0; r < 10; r++) {
+      const t = 1 - Math.abs(r - 4.5) / 4.5
+      const d = Math.round(t * (wid - 1))
+      c.rect(x + d, 3 + r, th, 1, SP_INK)
+    }
+  }
+  return c
 }
 
 // ---------------------------------------------------------------------------
@@ -755,11 +840,19 @@ function main(): void {
   const goods = (JSON.parse(readFileSync('content/goods.json', 'utf8')) as { goods: { id: string }[] }).goods
   for (const g of goods) writeFileSync(`${ROOT}/goods/${g.id}.png`, goodIcon(g.id).toPng())
 
+  // 速度控制图标 + 笔刷卡片缩略图
+  for (const k of ['pause', '1x', '2x', '4x']) {
+    writeFileSync(`${ROOT}/ui/speed_${k}.png`, speedIcon(k).toPng())
+  }
+  writeFileSync(`${ROOT}/thumbs/_road.png`, brushThumb('road').toPng())
+  writeFileSync(`${ROOT}/thumbs/_floor.png`, brushThumb('floor').toPng())
+
   console.log(`art → ${ROOT}/`)
   console.log(`  建筑 ${n} 座${missing.length ? `（缺 art：${missing.join(', ')}）` : ''}`)
   console.log(`  商品图标 ${goods.length} 个`)
+  console.log(`  速度图标 4 个 + 笔刷缩略图 2 个`)
   console.log(`  角色 ${CLASS_IDS.length} 阶层 x 4 向 x 4 帧`)
-  console.log(`  地形图集 extra.png（道路 16 + 水面 32 + 桥 2 + 补丁 3）`)
+  console.log(`  地形图集 extra.png（道路 16 + 水面 32 + 桥 2 + 补丁 2 + 地板 1）`)
   console.log(`  装饰图集 deco.png（树 4 种，16x32）`)
 }
 

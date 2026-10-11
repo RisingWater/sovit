@@ -50,10 +50,11 @@ func _ready() -> void:
 	_notice = UIKit.label("", Color(1.0, 0.9, 0.6))
 	row.add_child(_notice)
 
-	var speeds := [["暂停", true, 0.0], ["1x", false, 1.0], ["2x", false, 2.0], ["4x", false, 4.0]]
+	var speeds := [["pause", "暂停", true, 0.0], ["1x", "1x 速度", false, 1.0],
+		["2x", "2x 速度", false, 2.0], ["4x", "4x 速度", false, 4.0]]
 	for cfg in speeds:
-		var b := UIKit.button(String(cfg[0]), true)
-		b.pressed.connect(_on_speed.bind(bool(cfg[1]), float(cfg[2])))
+		var b := UIKit.icon_button("res://assets/ui/speed_%s.png" % cfg[0], String(cfg[1]))
+		b.pressed.connect(_on_speed.bind(bool(cfg[2]), float(cfg[3])))
 		row.add_child(b)
 		_speed_btns.append(b)
 	_mark_speed(0)

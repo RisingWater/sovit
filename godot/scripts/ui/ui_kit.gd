@@ -11,16 +11,18 @@ extends RefCounted
 # ---------------------------------------------------------------------------
 
 const UI_DIR := "res://assets/ui/"
-const FONT_PATH := "res://assets/fonts/fusion-pixel-10px-zh_hans.ttf"
+# 用 12px 那一档：10px 在 1600x900 下太小。像素字体只能用原生档位，
+# 否则笔画会被重采样（10 -> 14 之类一定会糊）。
+const FONT_PATH := "res://assets/fonts/fusion-pixel-12px-zh_hans.ttf"
 
-const FS := 10          # 字号 = 像素字体原生尺寸，禁止改
-const PAD_X := 7
-const BTN_H := 20
-const BTN_H_SM := 16
-const GAP := 3
-const BAR_H := 48
-const BOT_H := 112
-const ROW_H := 15
+const FS := 12          # 字号 = 像素字体原生尺寸，禁止改
+const PAD_X := 9
+const BTN_H := 26
+const BTN_H_SM := 21
+const GAP := 4
+const BAR_H := 58
+const BOT_H := 134
+const ROW_H := 18
 const CORNER := 5       # 9-slice 角尺寸
 
 # 取件（来自清册核对）
@@ -79,10 +81,10 @@ static func box(idx: int, corner: int = CORNER, tint: Color = Color.WHITE) -> St
 ## HUD 底：把石板面板压暗，盖在亮色地图上更清楚。
 const HUD_TINT := Color(0.52, 0.56, 0.62)
 
-## 建造卡片尺寸（缩略图 80x56 + 名称行）
-const CARD_W := 88
-const CARD_H := 76
-const THUMB_H := 56
+## 建造卡片尺寸（缩略图 100x72 + 名称行）
+const CARD_W := 112
+const CARD_H := 96
+const THUMB_H := 72
 
 
 static func hud_box(corner: int = CORNER) -> StyleBoxTexture:
@@ -149,6 +151,18 @@ static func button(text: String, small: bool = false) -> Button:
 	b.add_theme_font_size_override("font_size", FS)
 	var h := BTN_H_SM if small else BTN_H
 	b.custom_minimum_size = Vector2(0, h)
+	return b
+
+
+## 纯图标按钮（速度控制用）。图标按原生 16px 显示，不缩放。
+static func icon_button(icon_path: String, tip: String) -> Button:
+	var b := Button.new()
+	b.icon = load(icon_path)
+	b.tooltip_text = tip
+	b.focus_mode = Control.FOCUS_NONE
+	b.add_theme_font_override("font", pixel_font())
+	b.add_theme_font_size_override("font_size", FS)
+	b.custom_minimum_size = Vector2(BTN_H_SM + 8, BTN_H_SM)
 	return b
 
 

@@ -14,7 +14,7 @@ var _body: VBoxContainer
 
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_RIGHT_WIDE)
-	offset_left = -250
+	offset_left = -300
 	offset_top = UIKit.BAR_H + 2
 	offset_bottom = -UIKit.BOT_H - 4
 	mouse_filter = Control.MOUSE_FILTER_PASS

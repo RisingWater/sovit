@@ -150,9 +150,11 @@ func _rebuild() -> void:
 		_prev_btn.visible = false
 		_next_btn.visible = false
 		_page_label.visible = false
-		for tool in [["道路（免费）", "road"], ["地板（1 石 = 100 格）", "floor"]]:
-			var b := UIKit.button(String(tool[0]))
-			b.pressed.connect(_on_brush.bind(String(tool[1])))
+		for br in [["道路", "_road", "road", "铺路（免费）"],
+				["地板", "_floor", "floor", "砖石铺装：1 石 = 100 格"]]:
+			var b := UIKit.card(String(br[0]), load("res://assets/thumbs/%s.png" % br[1]))
+			b.tooltip_text = String(br[3])
+			b.pressed.connect(_on_brush.bind(String(br[2])))
 			_items.add_child(b)
 		return
 

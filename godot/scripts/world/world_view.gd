@@ -37,6 +37,7 @@ var _press_cell := Vector2i.ZERO
 
 var _tex_cache := {}
 var _actor_tex := {}
+var _cursor_shape := Input.CURSOR_ARROW
 var _shop_sprites := {}         # shop_id -> Node2D
 var _shop_cell := {}            # shop_id -> Vector2i(origin)
 var _shop_def := {}             # shop_id -> defId
@@ -83,6 +84,7 @@ func setup(r: SimRunner, seed_value: int) -> void:
 func _ready() -> void:
 	_font = SystemFont.new()
 	_font.font_names = PackedStringArray(["Microsoft YaHei", "Noto Sans CJK SC", "SimHei", "sans-serif"])
+	_setup_cursors()
 	_build_tileset()
 	_build_warehouse()
 	_camera_setup()
@@ -109,12 +111,24 @@ func _add_label(text: String, cell: Vector2i, fw: int, fh: int) -> Label:
 	l.add_theme_constant_override("outline_size", 3)
 	l.scale = Vector2.ONE / ZOOM
 	var w = float(fw * TILE)
-	var hh = 16.0
+	var hh = 18.0
 	l.size = Vector2(w * ZOOM, hh * ZOOM)
 	l.position = _area_center(cell, fw, fh) - Vector2(w * 0.5, hh * 0.5)
 	building_layer.add_child(l)
 	return l
-	return l
+
+## 像素光标（Kenney Cursor Pixel Pack, CC0）。按热点对齐尖角。
+func _setup_cursors() -> void:
+	Input.set_custom_mouse_cursor(load("res://assets/cursors/default.png"),
+		Input.CURSOR_ARROW, Vector2(1, 1))
+	Input.set_custom_mouse_cursor(load("res://assets/cursors/pointer.png"),
+		Input.CURSOR_POINTING_HAND, Vector2(5, 1))
+	Input.set_custom_mouse_cursor(load("res://assets/cursors/cross.png"),
+		Input.CURSOR_CROSS, Vector2(7, 7))
+	Input.set_custom_mouse_cursor(load("res://assets/cursors/deny.png"),
+		Input.CURSOR_FORBIDDEN, Vector2(7, 7))
+	Input.set_custom_mouse_cursor(load("res://assets/cursors/wait.png"),
+		Input.CURSOR_WAIT, Vector2(7, 7))
 
 func _town_cell(idx: int) -> Vector2i:
 	return Vector2i(idx % TOWN_COLS, idx / TOWN_COLS)
@@ -234,8 +248,8 @@ func _render_base_terrain() -> void:
 					terrain_layer.set_cell(c, 1, _extra_cell(51))
 				GameMap.FOREST:
 					terrain_layer.set_cell(c, 0, _town_cell(gv))
-					# 树：稀疏铺，靠 16x32 的重叠形成树冠
-					if h % 17 == 0:
+					# 树：密铺，靠 16x32 的重叠形成树冠
+					if h % 3 == 0:
 						deco_layer.set_cell(c, 2, Vector2i(h % DECO_VARIANTS, 0))
 				_:
 					terrain_layer.set_cell(c, 0, _town_cell(gv))
@@ -800,7 +814,17 @@ func _process(delta: float) -> void:
 			_nav_timer = 0.0
 	_update_agents(delta)
 	_animate_agents(delta)
+	_update_cursor()
 	agent_layer.queue_redraw()
+
+## 建造 / 笔刷模式下换成十字光标
+func _update_cursor() -> void:
+	var want := Input.CURSOR_ARROW
+	if build_mode != "" or brush_mode != "" or move_mode != "":
+		want = Input.CURSOR_CROSS
+	if _cursor_shape != want:
+		_cursor_shape = want
+		Input.set_default_cursor_shape(want)
 
 func _pan_keyboard(delta: float) -> void:
 	if camera == null:
