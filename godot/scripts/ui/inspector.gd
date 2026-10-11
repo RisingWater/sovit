@@ -1,6 +1,9 @@
 extends PanelContainer
 
-# 右侧详情面板：选中建筑 → 运营按钮；选中居民 → 个人详情；未选 → 全局（库存/日志）。
+# 右侧详情面板：选中建筑 → 运营；选中居民 → 个人；选中住房 → 产权；未选 → 全局。
+#
+# 排版规则（游戏化，不再堆 key: value 文本）：
+#   区块标题 = 深色窄条；数据 = 左标签右数值；比例 = 进度条；商品 = 图标 + 名称 + 数量
 
 var runner: SimRunner
 var world: Node
@@ -11,20 +14,19 @@ var _body: VBoxContainer
 
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_RIGHT_WIDE)
-	offset_left = -350
-	offset_top = 80
-	offset_bottom = -116
+	offset_left = -250
+	offset_top = UIKit.BAR_H + 2
+	offset_bottom = -UIKit.BOT_H - 4
 	mouse_filter = Control.MOUSE_FILTER_PASS
-
-	var bg := StyleBoxFlat.new()
-	bg.bg_color = Color(0.08, 0.09, 0.11, 0.9)
-	add_theme_stylebox_override("panel", bg)
+	add_theme_stylebox_override("panel", UIKit.pad(UIKit.box(UIKit.T_PANEL_CREAM), 7, 6, 7, 6))
 
 	var scroll := ScrollContainer.new()
 	scroll.set_anchors_preset(Control.PRESET_FULL_RECT)
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	add_child(scroll)
 	_body = VBoxContainer.new()
 	_body.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_body.add_theme_constant_override("separation", 2)
 	scroll.add_child(_body)
 
 	if runner != null:
@@ -55,19 +57,84 @@ func _clear() -> void:
 	for c in _body.get_children():
 		c.queue_free()
 
-func _label(t: String, size: int = 14) -> Label:
-	var l := Label.new()
-	l.text = t
+# ---------------------------------------------------------------------------
+# 排版小件
+# ---------------------------------------------------------------------------
+func _title(text: String, big: bool = false) -> void:
+	var p := UIKit.panel(true)
+	var l := UIKit.label(text, UIKit.FG_LABEL)
+	l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	p.add_child(l)
+	_body.add_child(p)
+	if big:
+		_body.add_child(UIKit.hsep())
+
+func _kv(key: String, value: String, color: Color = UIKit.FG_DARK) -> void:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 6)
+	var k := UIKit.label(key, UIKit.FG_HEAD)
+	k.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(k)
+	var v := UIKit.label(value, color)
+	v.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	row.add_child(v)
+	_body.add_child(row)
+
+func _bar_row(key: String, value: float, maxv: float, color: Color, suffix: String = "") -> void:
+	_kv(key, "%.1f%s" % [value, suffix], color)
+	var pb := ProgressBar.new()
+	pb.max_value = maxf(0.001, maxv)
+	pb.value = clampf(value, 0.0, maxv)
+	pb.show_percentage = false
+	pb.custom_minimum_size = Vector2(0, 6)
+	var bg := StyleBoxFlat.new()
+	bg.bg_color = Color(0.24, 0.17, 0.12, 0.35)
+	var fg := StyleBoxFlat.new()
+	fg.bg_color = color
+	pb.add_theme_stylebox_override("background", bg)
+	pb.add_theme_stylebox_override("fill", fg)
+	_body.add_child(pb)
+
+func _gap(h: int = 4) -> void:
+	var c := Control.new()
+	c.custom_minimum_size = Vector2(0, h)
+	_body.add_child(c)
+
+func _icon_row(gid: String, right: String, color: Color = UIKit.FG_DARK) -> void:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 5)
+	var tr := TextureRect.new()
+	tr.texture = load("res://assets/goods/%s.png" % gid)
+	tr.custom_minimum_size = Vector2(16, 16)
+	tr.stretch_mode = TextureRect.STRETCH_KEEP_CENTERED
+	row.add_child(tr)
+	var nm = String(runner.db.goods[gid]["nameZh"]) if runner.db.goods.has(gid) else gid
+	var k := UIKit.label(nm, UIKit.FG_HEAD)
+	k.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(k)
+	row.add_child(UIKit.label(right, color))
+	_body.add_child(row)
+
+func _buttons(items: Array) -> void:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 3)
+	for it in items:
+		var b := UIKit.button(String(it[0]), true)
+		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		b.pressed.connect(it[1])
+		row.add_child(b)
+	_body.add_child(row)
+
+func _label(t: String, size: int = 10) -> Label:
+	var l := UIKit.label(t)
 	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	l.add_theme_font_size_override("font_size", size)
+	l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	return l
 
 func _button(t: String, cb: Callable) -> Button:
-	var b := Button.new()
-	b.text = t
-	b.pressed.connect(cb)
-	return b
+	return UIKit.button(t, true)
 
+# ---------------------------------------------------------------------------
 func _rebuild() -> void:
 	if _body == null or runner == null or runner.sim == null:
 		return
@@ -94,28 +161,40 @@ func _building_panel() -> void:
 		if r.get("jobShopId", null) == _id:
 			assigned += 1
 	var maxw = int(def["maxWorkers"])
-	_body.add_child(_label("【%s】" % def["nameZh"], 18))
-	_body.add_child(_label(String(shop["id"])))
-	_body.add_child(_label("等级 Lv%d" % int(shop["level"])))
-	_body.add_child(_label("用工  到岗 %d / 目标 %d / 上限 %d" % [assigned, int(shop["targetWorkers"]), maxw]))
-	_body.add_child(_label("今日计划批次 %.2f" % float(shop["planned"])))
-	_body.add_child(_label("利润 ¥%.1f" % float(shop["profit"])))
-	_body.add_child(_label("状态：%s" % ("生产中" if bool(shop["active"]) else "已停产")))
+	var active := bool(shop["active"])
 
-	var row := HBoxContainer.new()
-	row.add_child(_button("-10", func(): _set_workers(int(shop["targetWorkers"]) - 10, maxw)))
-	row.add_child(_button("-1", func(): _set_workers(int(shop["targetWorkers"]) - 1, maxw)))
-	row.add_child(_button("+1", func(): _set_workers(int(shop["targetWorkers"]) + 1, maxw)))
-	row.add_child(_button("+10", func(): _set_workers(int(shop["targetWorkers"]) + 10, maxw)))
-	_body.add_child(row)
-
-	var row2 := HBoxContainer.new()
-	row2.add_child(_button("停产" if bool(shop["active"]) else "复工", func(): _toggle(not bool(shop["active"]))))
-	row2.add_child(_button("升级", func(): _expand()))
-	row2.add_child(_button("移动", func(): _begin_move_shop()))
-	_body.add_child(row2)
-
-	_body.add_child(_label("提示：所有操作次日 06:00 生效", 12))
+	_title(String(def["nameZh"]), true)
+	_kv("等级", "Lv%d" % int(shop["level"]))
+	_kv("状态", "生产中" if active else "已停产",
+		Color(0.18, 0.45, 0.20) if active else Color(0.60, 0.20, 0.18))
+	_kv("用工", "%d / %d" % [assigned, int(shop["targetWorkers"])])
+	var pb := ProgressBar.new()
+	pb.max_value = maxf(1.0, float(maxw))
+	pb.value = float(assigned)
+	pb.show_percentage = false
+	pb.custom_minimum_size = Vector2(0, 6)
+	var bg := StyleBoxFlat.new()
+	bg.bg_color = Color(0.24, 0.17, 0.12, 0.35)
+	var fg := StyleBoxFlat.new()
+	fg.bg_color = Color(0.35, 0.55, 0.72)
+	pb.add_theme_stylebox_override("background", bg)
+	pb.add_theme_stylebox_override("fill", fg)
+	_body.add_child(pb)
+	_kv("今日计划", "%.2f 批" % float(shop["planned"]))
+	_kv("利润", "¥%.1f" % float(shop["profit"]),
+		Color(0.18, 0.45, 0.20) if float(shop["profit"]) >= 0.0 else Color(0.60, 0.20, 0.18))
+	_gap()
+	_title("调整用工")
+	_buttons([["-10", func(): _set_workers(int(shop["targetWorkers"]) - 10, maxw)],
+		["-1", func(): _set_workers(int(shop["targetWorkers"]) - 1, maxw)],
+		["+1", func(): _set_workers(int(shop["targetWorkers"]) + 1, maxw)],
+		["+10", func(): _set_workers(int(shop["targetWorkers"]) + 10, maxw)]])
+	_gap()
+	_buttons([["停产" if active else "复工", func(): _toggle(not active)],
+		["升级", func(): _expand()],
+		["移动", func(): _begin_move_shop()]])
+	_gap(2)
+	_body.add_child(_label("所有操作次日 06:00 生效"))
 
 func _set_workers(value: int, maxw: int) -> void:
 	var v = clampi(value, 0, maxw)
@@ -145,6 +224,7 @@ func _resident_panel() -> void:
 		_kind = ""
 		_global_panel()
 		return
+	var cls := String(r["classId"])
 	var hour = int(runner.sim.s["hour"])
 	var activity := "在家休息"
 	if hour >= 6 and hour < 18:
@@ -158,14 +238,42 @@ func _resident_panel() -> void:
 			if String(s["id"]) == sid:
 				work = String(runner.db.buildings[String(s["defId"])]["nameZh"])
 				break
-	_body.add_child(_label("【%s】" % Names.for_id(_id), 18))
-	_body.add_child(_label("%s  阶层：%s" % [_id, String(r["classId"])]))
-	_body.add_child(_label("账户（存款）：¥%.1f" % float(r["savings"])))
-	_body.add_child(_label("技能：%.1f" % float(r["skill"])))
-	_body.add_child(_label("满意度：%.1f" % float(r["satisfaction"])))
-	_body.add_child(_label("住宅：%s" % ("自有" if bool(r.get("homeowner", false)) else ("私租" if bool(r.get("privateTenant", false)) else "国有")) + "  等级 %d" % int(r.get("housingQuality", 0))))
-	_body.add_child(_label("工作地点：%s" % work))
-	_body.add_child(_label("此刻：%s" % activity))
+
+	# 头像：取该阶层精灵表的 S 向第 0 帧，放大 3 倍
+	var head := HBoxContainer.new()
+	head.add_theme_constant_override("separation", 6)
+	var av := TextureRect.new()
+	var at := AtlasTexture.new()
+	at.atlas = load("res://assets/actors/%s.png" % cls)
+	at.region = Rect2(0, 0, 16, 16)
+	av.texture = at
+	av.custom_minimum_size = Vector2(48, 48)
+	av.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	av.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	head.add_child(av)
+	var col := VBoxContainer.new()
+	col.add_theme_constant_override("separation", 1)
+	col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	col.add_child(UIKit.label(Names.for_id(_id), UIKit.FG_DARK))
+	col.add_child(UIKit.label("阶层 %s" % cls, UIKit.FG_HEAD))
+	col.add_child(UIKit.label(activity, UIKit.FG_HEAD))
+	head.add_child(col)
+	_body.add_child(head)
+	_body.add_child(UIKit.hsep())
+
+	_bar_row("满意度", float(r["satisfaction"]), 100.0,
+		Color(0.24, 0.55, 0.28) if float(r["satisfaction"]) >= 60.0 else Color(0.72, 0.45, 0.18), "")
+	_bar_row("技能", float(r["skill"]), 100.0, Color(0.35, 0.50, 0.72))
+	_kv("存款", "¥%.1f" % float(r["savings"]))
+	var tenure := "国有"
+	if bool(r.get("homeowner", false)):
+		tenure = "自有"
+	elif bool(r.get("privateTenant", false)):
+		tenure = "私租"
+	_kv("住宅", "%s·Lv%d" % [tenure, int(r.get("housingQuality", 0))])
+	_kv("工作地点", work)
+	_gap(2)
+	_body.add_child(_label("编号 %s" % _id))
 
 func _housing_panel() -> void:
 	var inst = world.housing_instance(_id) if world != null else null
@@ -175,36 +283,51 @@ func _housing_panel() -> void:
 		return
 	var def: Dictionary = runner.db.housing[inst["type"]]
 	var occ: Array = inst["occupants"]
-	_body.add_child(_label("【%s】" % def["nameZh"], 18))
-	_body.add_child(_label(String(inst["uid"])))
-	_body.add_child(_label("产权：%s" % ("私有" if bool(inst["private"]) else "国有")))
-	_body.add_child(_label("等级 %d   容量 %d   入住 %d" % [int(def["quality"]), int(inst["capacity"]), occ.size()]))
-	_body.add_child(_label("住户：", 13))
+	_title(String(def["nameZh"]), true)
+	_kv("产权", "私有" if bool(inst["private"]) else "国有",
+		Color(0.55, 0.35, 0.15) if bool(inst["private"]) else UIKit.FG_DARK)
+	_kv("等级", "Lv%d" % int(def["quality"]))
+	_bar_row("入住", float(occ.size()), float(def["capacity"]), Color(0.35, 0.50, 0.72))
+	_gap()
+	_title("住户 %d/%d" % [occ.size(), int(def["capacity"])])
 	if occ.is_empty():
-		_body.add_child(_label("  （空）", 12))
+		_body.add_child(_label("（空置）"))
 	for rid in occ:
-		_body.add_child(_label("  %s  %s" % [Names.for_id(String(rid)), String(rid)], 12))
-	_body.add_child(_button("移动", func(): _begin_move_housing()))
+		_kv(Names.for_id(String(rid)), String(rid))
+	_gap()
+	_buttons([["移动", func(): _begin_move_housing()]])
 
 func _set_immigration(value: int) -> void:
 	runner.enqueue([{"type": "set_immigration", "value": value}])
 
 func _global_panel() -> void:
 	var s: Dictionary = runner.sim.s
-	_body.add_child(_label("全局", 18))
-	_body.add_child(_label("第 %d 天 %02d:00" % [int(s["day"]), int(s["hour"])]))
-	# 移民放行
+	var residents: Array = s["residents"]
+	var employed := 0
+	var sat := 0.0
+	for r in residents:
+		if bool(r["employed"]):
+			employed += 1
+		sat += float(r["satisfaction"])
+	sat = sat / float(residents.size()) if not residents.is_empty() else 0.0
+
+	_title("全局", true)
+	_kv("日期", "第 %d 天 %02d:00" % [int(s["day"]), int(s["hour"])])
+	_kv("人口", "%d 人" % residents.size())
+	_kv("就业", "%d 人" % employed)
+	_bar_row("平均满意", sat, 100.0,
+		Color(0.24, 0.55, 0.28) if sat >= 60.0 else Color(0.72, 0.45, 0.18))
+	_kv("国库", "¥%.0f" % float(s["government"]["money"]),
+		Color(0.18, 0.45, 0.20) if float(s["government"]["money"]) >= 0.0 else Color(0.60, 0.20, 0.18))
+
+	_gap()
+	_title("移民")
 	var arrivals = int(s["arrivals"])
 	var allow = int(float(s["government"]["immigrationAllowance"]))
 	var allow_txt = "不限" if allow >= 100000000 else str(allow)
-	_body.add_child(_label("— 移民 —", 13))
-	_body.add_child(_label("本回合想来 %d 人；当前允许 %s" % [arrivals, allow_txt]))
-	var rowi := HBoxContainer.new()
-	rowi.add_child(_button("全收", func(): _set_immigration(1000000000)))
-	rowi.add_child(_button("暂停", func(): _set_immigration(0)))
-	rowi.add_child(_button("+10", func(): _set_immigration((allow if allow < 100000000 else 0) + 10)))
-	_body.add_child(rowi)
-	var popn = (s["residents"] as Array).size()
+	_kv("本回合想来", "%d 人" % arrivals, Color(0.55, 0.35, 0.15) if arrivals > 0 else UIKit.FG_DARK)
+	_kv("当前允许", allow_txt)
+	var popn = residents.size()
 	var hcap = 0
 	for gid in (s["housing"] as Dictionary).keys():
 		if runner.db.housing.has(gid):
@@ -215,12 +338,17 @@ func _global_panel() -> void:
 			var defx = runner.db.buildings.get(String(sh["defId"]), null)
 			if defx != null:
 				jcap += int(minf(float(sh["targetWorkers"]), float(defx["maxWorkers"])))
-	var room = maxi(0, mini(hcap - popn, jcap - popn))
-	_body.add_child(_label("空房 %d · 空岗 %d · 当前可迁入 %d" % [maxi(0, hcap - popn), maxi(0, jcap - popn), room], 12))
-	if arrivals <= 0:
-		_body.add_child(_label("（满意度需 ≥ 60 才会有人想来；当前满意度见顶栏）", 11))
-	_body.add_child(_label("（次日 06:00 生效；没人来通常是空房/空岗不足）", 11))
-	_body.add_child(_label("— 库存（含已预留）—", 13))
+	_kv("空房", "%d" % maxi(0, hcap - popn))
+	_kv("空岗", "%d" % maxi(0, jcap - popn))
+	_kv("可迁入", "%d 人" % maxi(0, mini(hcap - popn, jcap - popn)))
+	_buttons([["全收", func(): _set_immigration(1000000000)],
+		["暂停", func(): _set_immigration(0)],
+		["+10", func(): _set_immigration((allow if allow < 100000000 else 0) + 10)]])
+	_gap(2)
+	_body.add_child(_label("次日 06:00 生效。没人来通常是空房或空岗不足。"))
+
+	_gap()
+	_title("库存（含已预留）")
 	var goods: Dictionary = s["goods"]
 	var keys := goods.keys()
 	keys.sort_custom(func(a, b): return float(goods[a]) > float(goods[b]))
@@ -228,16 +356,19 @@ func _global_panel() -> void:
 	for gid in keys:
 		if float(goods[gid]) < 0.01:
 			continue
-		var name = String(runner.db.goods[gid]["nameZh"]) if runner.db.goods.has(gid) else gid
 		var reserved = float((s.get("reserved", {}) as Dictionary).get(gid, 0.0))
-		var extra = ("  锁定 %.1f" % reserved) if reserved > 0.01 else ""
-		_body.add_child(_label("%s：%.1f%s" % [name, float(goods[gid]), extra], 13))
+		var txt = "%.1f" % float(goods[gid])
+		if reserved > 0.01:
+			txt += "  (锁 %.0f)" % reserved
+		_icon_row(String(gid), txt)
 		shown += 1
-		if shown >= 16:
+		if shown >= 14:
 			break
-	_body.add_child(_label("— 最近日志 —", 13))
+
+	_gap()
+	_title("最近日志")
 	var logs: Array = runner.recent_logs
-	var start = maxi(0, logs.size() - 12)
+	var start = maxi(0, logs.size() - 10)
 	for i in range(start, logs.size()):
 		var e: Dictionary = logs[i]
-		_body.add_child(_label("[%d] %s" % [int(e.get("day", 0)), String(e.get("text", ""))], 12))
+		_body.add_child(_label("[D%d] %s" % [int(e.get("day", 0)), String(e.get("text", ""))]))

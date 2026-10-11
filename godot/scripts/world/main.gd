@@ -21,11 +21,7 @@ func _ready() -> void:
 	canvas.name = "UI"
 	add_child(canvas)
 
-	var font := SystemFont.new()
-	font.font_names = PackedStringArray(["Microsoft YaHei", "Noto Sans CJK SC", "SimHei", "sans-serif"])
-	var theme := Theme.new()
-	theme.default_font = font
-	theme.default_font_size = 15
+	var theme := UIKit.make_theme()
 
 	var root_ui := Control.new()
 	root_ui.name = "Root"

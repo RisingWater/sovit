@@ -1,96 +1,190 @@
 extends PanelContainer
 
-# 底部建造栏：道路/地板笔刷 + 建筑目录（按 tier 分组）。
+# 底栏：Tab 式建造目录。
+#
+#   [住宅][农场][矿场][工业][娱乐][其它]
+#   <该分类的建筑按钮...>                  < 1/3 >
+#
+# 分类由建筑的 art.arch 推导，所以新增建筑只要填 art 就自动归类。
 
 var runner: SimRunner
 var world: Node
 
+const TABS := ["住宅", "农业", "矿场", "工业", "娱乐", "其它"]
+# 这两个虽然 arch=workshop，但归到「娱乐」
+const ENTERTAINMENT := ["theater", "domestic_service"]
+# 矿场（采掘业）：图集里没有对应建筑的产业也走这里
+const MINING := ["lumberjack", "quarry", "clay_pit", "hunting_camp", "fishery"]
+
+var _tab: int = 0
+var _page: int = 0
+var _tab_btns: Array[Button] = []
+var _items: HBoxContainer
+var _page_label: Label
+var _prev_btn: Button
+var _next_btn: Button
 var _size_box: OptionButton
 
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
-	offset_top = -104
+	offset_top = -UIKit.BOT_H
 	mouse_filter = Control.MOUSE_FILTER_PASS
-
-	var bg := StyleBoxFlat.new()
-	bg.bg_color = Color(0.08, 0.09, 0.11, 0.9)
-	add_theme_stylebox_override("panel", bg)
-
-	var margin := MarginContainer.new()
-	for s in ["left", "right", "top", "bottom"]:
-		margin.add_theme_constant_override("margin_" + s, 8)
-	add_child(margin)
+	add_theme_stylebox_override("panel", UIKit.pad(UIKit.hud_box(), 6, 4, 6, 4))
 
 	var root := VBoxContainer.new()
-	margin.add_child(root)
+	root.add_theme_constant_override("separation", 3)
+	add_child(root)
 
-	# 第一行：笔刷
-	var row1 := HBoxContainer.new()
-	root.add_child(row1)
-	row1.add_child(_label("笔刷："))
-	var road_btn := Button.new()
-	road_btn.text = "道路（免费）"
-	road_btn.pressed.connect(func(): world.set_brush("road", _brush_size()))
-	row1.add_child(road_btn)
-	var floor_btn := Button.new()
-	floor_btn.text = "地板（1 石 = 100 格）"
-	floor_btn.pressed.connect(func(): world.set_brush("floor", _brush_size()))
-	row1.add_child(floor_btn)
-	row1.add_child(_label("  尺寸："))
+	# --- Tab 行
+	var tabrow := HBoxContainer.new()
+	tabrow.add_theme_constant_override("separation", 2)
+	root.add_child(tabrow)
+	for i in TABS.size():
+		var b := UIKit.button(TABS[i], true)
+		b.pressed.connect(_select_tab.bind(i))
+		tabrow.add_child(b)
+		_tab_btns.append(b)
+	tabrow.add_child(UIKit.spacer())
+	tabrow.add_child(UIKit.label("笔刷尺寸", UIKit.FG_LABEL))
 	_size_box = OptionButton.new()
+	_size_box.add_theme_font_override("font", UIKit.pixel_font())
+	_size_box.add_theme_font_size_override("font_size", UIKit.FS)
 	for i in range(1, 6):
 		_size_box.add_item("%dx%d" % [i, i], i)
 	_size_box.selected = 0
-	row1.add_child(_size_box)
+	tabrow.add_child(_size_box)
 
-	# 第二行：建筑目录
-	var scroll := ScrollContainer.new()
-	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
-	scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	scroll.custom_minimum_size = Vector2(0, 44)
-	root.add_child(scroll)
-	var row2 := HBoxContainer.new()
-	scroll.add_child(row2)
+	# --- 项目行
+	var itemrow := HBoxContainer.new()
+	itemrow.add_theme_constant_override("separation", 3)
+	root.add_child(itemrow)
+	_items = HBoxContainer.new()
+	_items.add_theme_constant_override("separation", UIKit.GAP)
+	itemrow.add_child(_items)
+	itemrow.add_child(UIKit.spacer())
+	_prev_btn = UIKit.button("◀", true)
+	_prev_btn.pressed.connect(_turn_page.bind(-1))
+	itemrow.add_child(_prev_btn)
+	_page_label = UIKit.label("1/1", Color(0.78, 0.82, 0.89))
+	itemrow.add_child(_page_label)
+	_next_btn = UIKit.button("▶", true)
+	_next_btn.pressed.connect(_turn_page.bind(1))
+	itemrow.add_child(_next_btn)
 
-	if runner != null and runner.db != null:
-		var pack: Dictionary = runner.db.packs[String(runner.sim.s["pack"])]
-		var last_tier := -1
-		for id in pack["buildings"]:
-			if not runner.db.buildings.has(id):
-				continue
-			var b: Dictionary = runner.db.buildings[id]
-			var tier = int(b["tier"])
-			if tier != last_tier:
-				row2.add_child(_label(" T%d " % tier))
-				last_tier = tier
-			var btn := Button.new()
-			btn.text = String(b["nameZh"])
-			btn.tooltip_text = _cost_text(id)
-			btn.pressed.connect(func(): world.set_build(id))
-			row2.add_child(btn)
-		row2.add_child(_label(" 住房 "))
-		for hid in pack["housing"]:
-			var hb: Dictionary = runner.db.housing[hid]
-			var hbtn := Button.new()
-			hbtn.text = String(hb["nameZh"])
-			hbtn.pressed.connect(func(): world.set_build(hid))
-			row2.add_child(hbtn)
+	_select_tab(0)
+
+func _select_tab(i: int) -> void:
+	_tab = i
+	_page = 0
+	for k in _tab_btns.size():
+		_tab_btns[k].add_theme_stylebox_override("normal",
+			UIKit.box(UIKit.T_BTN_ACTIVE if k == i else UIKit.T_BTN))
+	_rebuild()
+
+func _turn_page(d: int) -> void:
+	_page += d
+	_rebuild()
+
+# ---------------------------------------------------------------------------
+func _category_of(id: String) -> String:
+	if runner == null or runner.db == null:
+		return "工业"
+	if runner.db.housing.has(id):
+		return "住宅"
+	if ENTERTAINMENT.has(id):
+		return "娱乐"
+	if MINING.has(id):
+		return "矿场"
+	var a: Dictionary = runner.db.buildings[id].get("art", {})
+	match String(a.get("arch", "")):
+		"field":
+			return "农业"
+		"extract":
+			return "矿场"
+		_:
+			return "工业"
+
+func _ids_of(cat: String) -> Array:
+	var out := []
+	if runner == null or runner.db == null:
+		return out
+	var pack: Dictionary = runner.db.packs[String(runner.sim.s["pack"])]
+	for id in pack["buildings"]:
+		if runner.db.buildings.has(id) and _category_of(String(id)) == cat:
+			out.append(String(id))
+	for hid in pack["housing"]:
+		if runner.db.housing.has(hid) and _category_of(String(hid)) == cat:
+			out.append(String(hid))
+	return out
+
+func _thumb_for(id: String) -> Texture2D:
+	var t: Texture2D = load("res://assets/thumbs/%s.png" % id)
+	if t == null:
+		t = load("res://assets/buildings/%s.png" % id)
+	return t
+
+func _name_of(id: String) -> String:
+	if runner.db.housing.has(id):
+		return String(runner.db.housing[id]["nameZh"])
+	return String(runner.db.buildings[id]["nameZh"])
+
+func _cost_text(id: String) -> String:
+	var parts := PackedStringArray()
+	var b: Dictionary = runner.db.housing.get(id, runner.db.buildings.get(id, {}))
+	var tstr := String(b.get("terrain", ""))
+	if tstr != "":
+		parts.append("需地形：" + tstr)
+	for k in (b.get("buildCost", {}) as Dictionary).keys():
+		parts.append("%s x %s" % [k, str(b["buildCost"][k])])
+	return "\n".join(parts) if parts.size() > 0 else "无材料消耗"
+
+func _rebuild() -> void:
+	if _items == null:
+		return
+	for c in _items.get_children():
+		c.queue_free()
+
+	var cat: String = TABS[_tab]
+	if cat == "其它":
+		_page = 0
+		_prev_btn.visible = false
+		_next_btn.visible = false
+		_page_label.visible = false
+		for tool in [["道路（免费）", "road"], ["地板（1 石 = 100 格）", "floor"]]:
+			var b := UIKit.button(String(tool[0]))
+			b.pressed.connect(_on_brush.bind(String(tool[1])))
+			_items.add_child(b)
+		return
+
+	_prev_btn.visible = true
+	_next_btn.visible = true
+	_page_label.visible = true
+
+	var ids := _ids_of(cat)
+	# 每页放得下几张卡片
+	var avail := (size.x - 130.0) if size.x > 300.0 else 1100.0
+	var per: int = maxi(1, int(avail / float(UIKit.CARD_W + UIKit.GAP)))
+	var pages: int = int(ceil(float(ids.size()) / float(per)))
+	_page = clampi(_page, 0, maxi(0, pages - 1))
+
+	for i in range(_page * per, mini(ids.size(), (_page + 1) * per)):
+		var id: String = ids[i]
+		var b := UIKit.card(_name_of(id), _thumb_for(id))
+		b.tooltip_text = "%s\n%s" % [_name_of(id), _cost_text(id)]
+		b.pressed.connect(_on_build.bind(id))
+		_items.add_child(b)
+
+	_page_label.text = "%d/%d" % [_page + 1, maxi(1, pages)]
+
+func _on_build(id: String) -> void:
+	if world != null:
+		world.set_build(id)
+
+func _on_brush(mode: String) -> void:
+	if world != null:
+		world.set_brush(mode, _brush_size())
 
 func _brush_size() -> int:
 	if _size_box == null:
 		return 1
 	return int(_size_box.get_selected_id())
-
-func _label(t: String) -> Label:
-	var l := Label.new()
-	l.text = t
-	return l
-
-func _cost_text(id: String) -> String:
-	var b: Dictionary = runner.db.buildings[id]
-	var parts := PackedStringArray()
-	if b.has("terrain"):
-		parts.append("需地形：" + String(b["terrain"]))
-	for k in (b.get("buildCost", {}) as Dictionary).keys():
-		parts.append("%s×%s" % [k, str(b["buildCost"][k])])
-	return "\n".join(parts)
