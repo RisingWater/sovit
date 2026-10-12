@@ -69,12 +69,6 @@ func _ready() -> void:
 	b_res.tooltip_text = "选择顶栏显示哪些资源"
 	b_res.pressed.connect(_open_resources)
 	vb.add_child(b_res)
-	var b_stats := UIKit.button("统计面板", false)
-	b_stats.pressed.connect(func():
-		close()
-		if hud != null:
-			hud._open_stats())
-	vb.add_child(b_stats)
 
 	vb.add_child(UIKit.hsep())
 	var b_quit := UIKit.button("退出游戏", false)

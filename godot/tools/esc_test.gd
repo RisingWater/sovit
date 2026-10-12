@@ -86,6 +86,11 @@ func _run() -> void:
 	if not has_sfx or not has_music:
 		_fail("菜单缺少音效/音乐开关，实际：%s" % items)
 		return
+	# 统计面板只在顶栏，菜单里不许再有一份
+	for s in items:
+		if String(s).begins_with("统计"):
+			_fail("统计面板应该只在顶栏，菜单里不该有：%s" % items)
+			return
 
 	# 4. 保存 / 读取 必须开 FileDialog
 	menu._save_dialog()
