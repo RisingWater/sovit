@@ -19,9 +19,9 @@ const PAD := 8
 const UI_DIR := "res://assets/ui/"
 
 ## 小地图一次显示多少格地图（TILE=16px）。32 格 = 512 世界像素，
-## 城镇本体是 12x11 格，正好占圆盘中间三分之一多一点。
+## 城镇本体是 12x11 格。
 const VIEW_CELLS := 32
-## 周期重绘间隔（秒）。小地图不需要每帧重画。
+## 静止时的兜底重绘间隔（秒）。镜头一动就立刻重绘。
 const REDRAW_SEC := 0.3
 
 const TERRAIN_COLORS := [
@@ -41,6 +41,7 @@ var world: Node
 var _time_label: Label
 var _name_label: Label
 var _accum := 0.0
+var _last_center := Vector2(-9999, -9999)
 ## 圆环四块贴图。必须在 _ready() 里加载好 —— 在 _draw() 里现 load() 会拿到
 ## 尚未完成的占位纹理，画出来是一整块白的。
 var _ring_tex: Array = []
@@ -116,9 +117,23 @@ func _process(delta: float) -> void:
 		return
 	_refresh_time()
 	_accum += delta
-	if _accum >= REDRAW_SEC:
+	# 小地图跟随镜头：镜头一动就重绘，停下才走兜底节流。
+	var c := center_cell()
+	if c.distance_to(_last_center) > 0.02 or _accum >= REDRAW_SEC:
+		_last_center = c
 		_accum = 0.0
 		queue_redraw()
+
+## 小地图中心（地图格，浮点）。跟镜头走 —— 镜头在哪儿小地图就显示哪一块。
+func center_cell() -> Vector2:
+	if world != null:
+		var cam = world.camera
+		var tile := float(world.TILE)
+		if cam != null and tile > 0.0:
+			return cam.position / tile
+		if world.map != null:
+			return Vector2(world.map.center)
+	return Vector2.ZERO
 
 func _refresh_time() -> void:
 	if _time_label == null or runner == null or runner.sim == null:
@@ -189,17 +204,23 @@ func _draw() -> void:
 	var c := o + Vector2(RING_D, RING_D) * 0.5
 	var r_out := RING_D * 0.5
 	var cell := float(RING_D) / float(VIEW_CELLS)
-	var half := VIEW_CELLS / 2
+
+	# 中心跟镜头走。取左上角为基准，用 floor 定整格、用小数部分做亚格偏移 ——
+	# 这样平移是滑动的，而不是一格一格（6px）地跳。
+	var base := center_cell() - Vector2(VIEW_CELLS, VIEW_CELLS) * 0.5
+	var bx := int(floor(base.x))
+	var by := int(floor(base.y))
+	var sub := (base - Vector2(bx, by)) * cell
 
 	# 地形 + 道路 + 建筑：逐格画。
 	# 只画圆心在圆内的格子 —— 边缘会有 1 格锯齿，但这是像素画，正好。
 	for cy in VIEW_CELLS:
 		for cx in VIEW_CELLS:
-			var wx: int = int(m.center.x) - half + cx
-			var wy: int = int(m.center.y) - half + cy
+			var wx: int = bx + cx
+			var wy: int = by + cy
 			if wx < 0 or wy < 0 or wx >= m.W or wy >= m.H:
 				continue
-			var px := o + Vector2(cx * cell, cy * cell)
+			var px := o + Vector2(cx, cy) * cell - sub
 			if (px + Vector2(cell, cell) * 0.5 - c).length() > r_out - cell * 0.5:
 				continue
 			var rect := Rect2(px, Vector2(cell + 0.5, cell + 0.5))

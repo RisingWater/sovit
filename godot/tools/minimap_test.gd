@@ -80,6 +80,24 @@ func _run() -> void:
 			_fail("%s 没有给左上角小地图留出宽度" % pair[0])
 			return
 
-	print("MINIMAP TEST 圆环=%dpx 贴图=%d 村名=%s 顶栏两行已让位 ✅" % [d, tex.size(), mm.village_name()])
+	# 5. 小地图跟随镜头：移动镜头，中心格必须跟着变
+	var world = node.get_node_or_null("World")
+	if world == null or world.camera == null:
+		_fail("找不到 World.camera")
+		return
+	world.camera.position = Vector2(0, 0)
+	await process_frame
+	var c0: Vector2 = mm.center_cell()
+	world.camera.position = Vector2(world.TILE * 40, world.TILE * 25)
+	await process_frame
+	var c1: Vector2 = mm.center_cell()
+	if c1.distance_to(c0) < 30.0:
+		_fail("镜头移动了 40/25 格，小地图中心却几乎没动：%s -> %s" % [c0, c1])
+		return
+	if absf(c1.x - 40.0) > 1.1 or absf(c1.y - 25.0) > 1.1:
+		_fail("小地图中心没有对上镜头：期望约 (40,25)，实际 %s" % c1)
+		return
+
+	print("MINIMAP TEST 圆环=%dpx 贴图=%d 村名=%s 跟随镜头 %s->%s ✅" % [d, tex.size(), mm.village_name(), c0, c1])
 	print("MINIMAP TEST RESULT: PASS")
 	quit(0)
