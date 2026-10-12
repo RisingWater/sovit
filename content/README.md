@@ -84,7 +84,7 @@
 ## 5. 阶层与住房
 
 - **阶层** `classes.json`：`needs` 是该阶层的人均日需求；`fallbacks` 是缺货时按序替代。引用的商品必须在 `goods.json` 里存在。
-  每个阶层还有：`satBonus`（满意度加成）、`housingLevel`（要求的最低住房等级 1/2/3，≥2 才会买房买房）、`wealthThreshold`（存款达到多少升入本阶层）。
+  每个阶层还有：`satBonus`（满意度加成）、`housingLevel`（要求的最低住房等级 1/2/3，≥2 才会买房）、`wealthThreshold`（存款达到多少升入本阶层）。
 - **住房** `housing.json`：`quality` 1–3，`capacity` 每单位住几人，`classId` 对应能买它的阶层，`buildCost` 是材料，`salePrice` 是售价。
 
 ## 6. 调参数（`economy.json`）
