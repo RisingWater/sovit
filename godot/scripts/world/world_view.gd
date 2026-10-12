@@ -1035,6 +1035,16 @@ func _refresh_agents() -> void:
 			var home = _resident_home.get(id, _warehouse_pos)
 			_agents.append({"id": id, "pos": home, "target": home, "home": home})
 
+## 人是否在建筑/仓库的占地范围内 —— 也就是"进屋了"。
+## 门格与屋内落脚格都在 _walk_inside 里（可通行），所以居民会真的走进房子**里面**
+## 停下。如果照画，就会看到一个人站在屋子正中间。进屋的人应该看不见。
+func _agent_inside_building(a: Dictionary) -> bool:
+	var pos: Vector2 = a["pos"]
+	var c := Vector2i(int(floor(pos.x / float(TILE))), int(floor(pos.y / float(TILE))))
+	if not map.in_bounds(c):
+		return false
+	return map.occupied.has(c) or map.warehouse.has_point(c)
+
 ## 人是否被建筑挡住 —— 按**深度**判断，不是按在不在屋里。
 ##
 ## 单纯把所有街上的人画到建筑上面，走在房子后面时看起来就像穿过建筑；
@@ -1073,6 +1083,15 @@ func _draw_agent_pass(layer: Node2D, behind: bool) -> void:
 			cls_of[String(r["id"])] = String(r["classId"])
 	var rows := ["S", "N", "W", "E"]
 	for a in _agents:
+		var is_sel := String(a["id"]) == selected_resident
+		var inside := _agent_inside_building(a)
+		# 进屋的人不画身体 —— 门格与屋内落脚格都在 _walk_inside 里（可通行），
+		# 居民会真的走进房子里面停下，照画就会看到一个人站在屋子正中间。
+		# 选中圈例外：否则点了名却什么都看不到。
+		if inside and not is_sel:
+			continue
+		if _agent_behind_buildings(a) != behind:
+			continue
 		var cls := String(cls_of.get(String(a["id"]), "poor"))
 		var tex := _actor_texture(cls)
 		if tex == null:
@@ -1084,12 +1103,13 @@ func _draw_agent_pass(layer: Node2D, behind: bool) -> void:
 		var src := Rect2(frame * TILE, row * TILE, TILE, TILE)
 		# 精灵脚底对齐坐标点
 		var dst := Rect2(a["pos"] - Vector2(TILE * 0.5, TILE - 2.0), Vector2(TILE, TILE))
-		layer.draw_texture_rect_region(tex, dst, src)
-		if String(a["id"]) == selected_resident:
+		if not inside:
+			layer.draw_texture_rect_region(tex, dst, src)
+		if is_sel:
 			# 脚下椭圆（把圆压扁），比正圆更贴地
-			agent_layer.draw_set_transform(a["pos"] + Vector2(0, -1), 0.0, Vector2(1.0, 0.5))
-			agent_layer.draw_arc(Vector2.ZERO, 9.0, 0, TAU, 24, Color(1.0, 0.95, 0.2), 1.5)
-			agent_layer.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+			layer.draw_set_transform(a["pos"] + Vector2(0, -1), 0.0, Vector2(1.0, 0.5))
+			layer.draw_arc(Vector2.ZERO, 9.0, 0, TAU, 24, Color(1.0, 0.95, 0.2), 1.5)
+			layer.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 
 func _actor_texture(cls: String) -> Texture2D:
 	if _actor_tex.has(cls):
