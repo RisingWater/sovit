@@ -39,7 +39,8 @@ func _run() -> void:
 		bar._select_tab(i)
 		await process_frame
 		var cat: String = bar.TABS[i]
-		var n: int = 2 if cat == "其它" else bar._ids_of(cat).size()
+		# 「其它」= 道路 / 地板 / 清除 三张笔刷卡
+		var n: int = 3 if cat == "其它" else bar._ids_of(cat).size()
 		var avail: float = (bar.size.x - 130.0) if bar.size.x > 300.0 else 1100.0
 		var per: int = maxi(1, int(avail / float(UIKit.CARD_W + UIKit.GAP)))
 		var pages: int = int(ceil(float(n) / float(per)))

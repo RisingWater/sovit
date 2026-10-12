@@ -193,7 +193,8 @@ func _rebuild() -> void:
 		_next_btn.visible = false
 		_page_label.visible = false
 		for br in [["道路", "_road", "road", "铺路（免费）"],
-				["地板", "_floor", "floor", "砖石铺装：1 石 = 100 格"]]:
+				["地板", "_floor", "floor", "砖石铺装：1 石 = 100 格"],
+				["清除", "_road", "erase", "把这一格的路面和地板抹掉，恢复成草地"]]:
 			var b := UIKit.card(String(br[0]), load("res://assets/thumbs/%s.png" % br[1]))
 			b.tooltip_text = String(br[3])
 			b.pressed.connect(_on_brush.bind(String(br[2])))

@@ -317,13 +317,35 @@ func _render_base_terrain() -> void:
 					terrain_layer.set_cell(c, 1, _extra_cell(51))
 				GameMap.FOREST:
 					terrain_layer.set_cell(c, 0, _town_cell(gv))
-					# 树：按哈希铺，靠 16x32 的重叠形成树冠
-					if hv % 3 == 0:
+					# 树：按哈希铺，靠 16x32 的重叠形成树冠。
+					# 但被占用（建筑/仓库/道路/地板）的格子不能长树 —— 这一处原先不看占地，
+					# 于是每次整体重画都把树加回房子和路面上，逼得每个落位路径都要自己
+					# 补一次 erase_cell，也就必然会漏（之前连漏了三次）。
+					if hv % 3 == 0 and not _cell_has_cover(c):
 						deco_layer.set_cell(c, 2, Vector2i(hv % DECO_VARIANTS, 0))
 				_:
 					terrain_layer.set_cell(c, 0, _town_cell(gv))
 				GameMap.GRASS:
 					pass
+
+## 这一格是否已被占用（建筑 / 仓库 / 道路 / 地板）—— 占用了就不该长树
+func _cell_has_cover(c: Vector2i) -> bool:
+	if map.occupied.has(c) or map.warehouse.has_point(c):
+		return true
+	return map.road[map.idx(c.x, c.y)] != 0 or map.floor_tiles[map.idx(c.x, c.y)] != 0
+
+## 恢复一块地面的自然装饰（树）。用于建筑挪走 / 拆除之后把地还原。
+func _restore_deco(cell: Vector2i, w: int, h: int) -> void:
+	for x in w:
+		for y in h:
+			var c := cell + Vector2i(x, y)
+			if not map.in_bounds(c) or _cell_has_cover(c):
+				continue
+			if map.terrain[map.idx(c.x, c.y)] != GameMap.FOREST:
+				continue
+			var hv := _hash2(c.x, c.y)
+			if hv % 3 == 0:
+				deco_layer.set_cell(c, 2, Vector2i(hv % DECO_VARIANTS, 0))
 
 func _build_warehouse() -> void:
 	var spr := Sprite2D.new()
@@ -903,6 +925,7 @@ func move_shop_to(sid: String, origin: Vector2i) -> bool:
 	if not _move_ok(def_id, origin, fp, _own_cells(old, fp)):
 		return false
 	_free_building_cells(old, fp, _shop_door.get(sid, old), _shop_goal.get(sid, old))
+	_restore_deco(old, fp.x, fp.y)     # 旧址还原成自然地（该长树的把树补回来）
 	if _shop_label.has(sid) and is_instance_valid(_shop_label[sid]):
 		_shop_label[sid].queue_free()
 	_shop_label.erase(sid)
@@ -930,6 +953,7 @@ func move_housing_to(uid: String, origin: Vector2i) -> bool:
 	if not _move_ok(type, origin, fp, _own_cells(old, fp)):
 		return false
 	_free_building_cells(old, fp, inst["door"], inst["goal"])
+	_restore_deco(old, fp.x, fp.y)     # 旧址还原成自然地
 	if is_instance_valid(inst.get("label", null)):
 		inst["label"].queue_free()
 	inst["sprite"].position = Vector2(origin.x * TILE, origin.y * TILE)
@@ -1584,7 +1608,23 @@ func _paint_cell(cell: Vector2i) -> void:
 			var c = cell + Vector2i(dx - half, dy - half)
 			if not map.in_bounds(c) or map.is_water(c):
 				continue
-			if brush_mode == "road":
+			if brush_mode == "erase":
+				# 清除：把这一格的路和地板都抹掉，露出底下的草地。
+				# 不补回装饰（树）—— 需求就是"恢复成草地就好了"。
+				var changed := false
+				if map.road[map.idx(c.x, c.y)] != 0:
+					map.road[map.idx(c.x, c.y)] = 0
+					road_layer.erase_cell(c)
+					changed = true
+				if map.floor_tiles[map.idx(c.x, c.y)] != 0:
+					map.floor_tiles[map.idx(c.x, c.y)] = 0
+					floor_layer.erase_cell(c)
+					changed = true
+				if changed:
+					# 邻居的路面接缝要跟着重算，否则路口会留着残角
+					_refresh_road(c)
+					_nav_dirty = true
+			elif brush_mode == "road":
 				map.road[map.idx(c.x, c.y)] = 1
 				deco_layer.erase_cell(c)
 				_refresh_road(c)
