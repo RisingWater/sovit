@@ -50,11 +50,11 @@ static var _tex_cache: Dictionary = {}
 static var sfx: Node = null
 
 
-## 给按钮挂上菜单音效：悬停 + 点击
+## 给按钮挂上点击音效。
+## 悬停音太吵，去掉了 —— 悬停触发太频繁，菜单里像在响铃。
 static func _wire_sfx(b: Button) -> void:
 	if sfx == null:
 		return
-	b.mouse_entered.connect(func(): sfx.hover())
 	b.pressed.connect(func(): sfx.click())
 
 

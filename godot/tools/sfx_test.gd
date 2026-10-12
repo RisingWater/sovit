@@ -36,7 +36,7 @@ func _run() -> void:
 		return
 
 	# 三个音效池都要有内容且不循环
-	for pair in [["click", sfx._click], ["hover", sfx._hover], ["switch", sfx._switch]]:
+	for pair in [["click", sfx._click], ["switch", sfx._switch]]:
 		var pool: Array = pair[1]
 		if pool.is_empty():
 			_fail("音效池为空：%s（素材没加载上）" % pair[0])
@@ -51,14 +51,14 @@ func _run() -> void:
 
 	# 播放不能报错
 	sfx.click()
-	sfx.hover()
 	sfx.switch_sfx()
 	await process_frame
 
 	# 按钮必须真的连上了音效回调
 	var b := UIKit.button("测试", true)
-	if b.mouse_entered.get_connections().is_empty():
-		_fail("UIKit 造的按钮没有连悬停音效")
+	# 悬停音已移除，只查点击
+	if not b.mouse_entered.get_connections().is_empty():
+		_fail("悬停音效已移除，但按钮还连着 mouse_entered")
 		return
 	if b.pressed.get_connections().is_empty():
 		_fail("UIKit 造的按钮没有连点击音效")
@@ -81,7 +81,7 @@ func _run() -> void:
 	elif FileAccess.file_exists(CFG):
 		DirAccess.remove_absolute(ProjectSettings.globalize_path(CFG))
 
-	print("SFX TEST 音效池 click=%d hover=%d switch=%d 按钮已接 ✅" % [
-		sfx._click.size(), sfx._hover.size(), sfx._switch.size()])
+	print("SFX TEST 音效池 click=%d switch=%d 按钮已接 ✅（悬停音已移除）" % [
+		sfx._click.size(), sfx._switch.size()])
 	print("SFX TEST RESULT: PASS")
 	quit(0)

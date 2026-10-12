@@ -95,10 +95,13 @@ func _ready() -> void:
 	world.notice.connect(hud.set_notice)
 
 func _process(_delta: float) -> void:
-	if _stats != null:
-		_stats.poll()
-		if _panel_stats != null and _panel_stats.visible:
-			_panel_stats.refresh()
+	if _stats == null:
+		return
+	# 只在真的采到新数据（跨天）时才重建面板。
+	# 曾经写成"只要面板可见就 refresh()"，结果每帧销毁重建所有子节点，
+	# 按钮永远点不动 —— 面板看起来正常，就是没反应。
+	if _stats.poll() and _panel_stats != null and _panel_stats.visible:
+		_panel_stats.refresh()
 
 func _unhandled_input(event: InputEvent) -> void:
 	if not (event is InputEventKey) or not event.pressed or event.echo:

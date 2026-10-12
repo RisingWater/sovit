@@ -162,6 +162,24 @@ func _run() -> void:
 		_fail("选中商品后没有出曲线图（找到 %d 个）" % charts)
 		return
 	print("PANEL TEST 列表可选商品=%d 选中=%s 选中后图表=%d" % [pick_buttons, panel._sel_good, charts])
+
+	# 7. 没有新数据时不能重建面板
+	#    曾经 main.gd 写成"只要面板可见就 refresh()"，于是每帧把所有子节点
+	#    （含按钮）销毁重建 —— 面板看着正常，但按钮永远点不动。
+	var before_ids := []
+	for c in panel._body.get_children():
+		before_ids.append(c.get_instance_id())
+	for i in 12:
+		await process_frame
+	var after_ids := []
+	for c in panel._body.get_children():
+		after_ids.append(c.get_instance_id())
+	if before_ids != after_ids:
+		_fail("面板在无新数据时被重建（%d -> %d 个子节点），按钮会点不动" % [
+			before_ids.size(), after_ids.size()])
+		return
+	print("PANEL TEST 空转 12 帧后面板子节点数=%d 未被重建 ✅" % after_ids.size())
+
 	print("PANEL TEST RESULT: PASS")
 	quit(0)
 

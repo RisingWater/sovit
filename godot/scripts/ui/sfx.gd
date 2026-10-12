@@ -1,6 +1,8 @@
 extends Node
 
-# 菜单音效：按钮点击 / 悬停 / 切换。
+# 菜单音效：按钮点击 / 切换。
+#
+# 悬停音原本有，但太吵，去掉了（rollover 音效在 Kenney 包里还有 1-6 可选）。
 #
 # 素材：Kenney "UI SFX Set"（CC0，无需署名），见 assets/sfx/License (Kenney UI SFX).txt
 #
@@ -8,17 +10,14 @@ extends Node
 # 后者在连续点击时会把上一个音效掐断，听起来像丢帧。
 
 const CLICK := "res://assets/sfx/click.ogg"
-const HOVER := "res://assets/sfx/hover.ogg"
 const SWITCH := "res://assets/sfx/switch.ogg"
 const CFG_PATH := "user://hud.cfg"
 const DEFAULT_VOLUME := 0.6
 const VOICES := 4          # 每个音效的并发播放器数量
 
 var _click: Array[AudioStreamPlayer] = []
-var _hover: Array[AudioStreamPlayer] = []
 var _switch: Array[AudioStreamPlayer] = []
 var _ci := 0
-var _hi := 0
 var _si := 0
 var _volume := DEFAULT_VOLUME
 var _muted := false
@@ -26,7 +25,6 @@ var _muted := false
 func _ready() -> void:
 	_load_cfg()
 	_click = _make_pool(CLICK, VOICES)
-	_hover = _make_pool(HOVER, VOICES)
 	_switch = _make_pool(SWITCH, 2)
 
 func _make_pool(path: String, n: int) -> Array[AudioStreamPlayer]:
@@ -52,7 +50,7 @@ func _db() -> float:
 	return linear_to_db(_volume)
 
 func _apply_volume() -> void:
-	for pool in [_click, _hover, _switch]:
+	for pool in [_click, _switch]:
 		for p in pool:
 			p.volume_db = _db()
 
@@ -70,9 +68,6 @@ func _fire(pool: Array[AudioStreamPlayer], idx_ref: int) -> int:
 
 func click() -> void:
 	_ci = _fire(_click, _ci)
-
-func hover() -> void:
-	_hi = _fire(_hover, _hi)
 
 func switch_sfx() -> void:
 	_si = _fire(_switch, _si)

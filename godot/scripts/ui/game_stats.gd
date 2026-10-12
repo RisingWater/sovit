@@ -52,16 +52,20 @@ var _last_day := -1
 func setup(r: SimRunner) -> void:
 	runner = r
 
-## 每帧调用；只有跨天才真正采样。
-func poll() -> void:
+## 每帧调用；只有跨天才真正采样，返回值表示这一帧是否采到了新数据。
+##
+## 面板据此决定要不要重建 —— **不能每帧重建**：那会把所有子节点（含按钮）
+## 不断销毁重建，按钮就永远点不动。
+func poll() -> bool:
 	if runner == null or runner.sim == null:
-		return
+		return false
 	var s: Dictionary = runner.sim.s
 	var d := int(s["day"])
 	if d == _last_day:
-		return
+		return false
 	_last_day = d
 	_sample(s)
+	return true
 
 func has_data() -> bool:
 	return days.size() >= 2
