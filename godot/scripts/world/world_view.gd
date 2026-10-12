@@ -429,6 +429,7 @@ func _place_housing_instance(type: String, cell: Vector2i) -> void:
 	var fp = _footprint(type)
 	var uid = "%s#%d" % [type, _housing_instances.size() + 1]
 	map.occupy(cell, fp.x, fp.y, "housing", uid)
+	_clear_deco(cell, fp.x, fp.y)
 	var spr := Sprite2D.new()
 	spr.texture = _texture_for(type)
 	spr.centered = false
@@ -455,11 +456,19 @@ func _place_housing_instance(type: String, cell: Vector2i) -> void:
 func housing_instance(uid: String) -> Variant:
 	return _housing_by_uid.get(uid, null)
 
+## 建筑占地范围内的装饰（树）要抹掉，否则房子四周会露出树。
+## 道路/地板在 _rerender_terrain() 里抹过，建筑这条路径原本漏了。
+func _clear_deco(cell: Vector2i, w: int, h: int) -> void:
+	for x in w:
+		for y in h:
+			deco_layer.erase_cell(cell + Vector2i(x, y))
+
 func _create_shop_view(sid: String, def_id: String, cell: Vector2i) -> void:
 	if _shop_sprites.has(sid):
 		return
 	var fp = _footprint(def_id)
 	map.occupy(cell, fp.x, fp.y, "shop", sid)
+	_clear_deco(cell, fp.x, fp.y)
 	var spr := Sprite2D.new()
 	spr.texture = _texture_for(def_id)
 	spr.centered = false
@@ -875,6 +884,7 @@ func _free_building_cells(cell: Vector2i, fp: Vector2i, door: Vector2i, interior
 
 func _occupy_building(kind: String, id: String, cell: Vector2i, fp: Vector2i) -> Array:
 	map.occupy(cell, fp.x, fp.y, kind, id)
+	_clear_deco(cell, fp.x, fp.y)
 	var door = _door_cell(cell, fp.x, fp.y)
 	var interior = _interior_cell(cell, fp.x, fp.y)
 	_doors[door] = true
@@ -1512,6 +1522,7 @@ func _can_afford(id: String) -> String:
 
 func _register_site(kind: String, type: String, cell: Vector2i, fp: Vector2i) -> void:
 	map.occupy(cell, fp.x, fp.y, "site", type)
+	_clear_deco(cell, fp.x, fp.y)
 	var node := Sprite2D.new()
 	node.texture = _texture_for(type)
 	node.centered = false
