@@ -241,7 +241,16 @@ func _resources_tab() -> void:
 		var net := float(r["produced"]) - float(r["consumed_ind"]) - float(r["consumed_pop"])
 		var net_col := Color(0.18, 0.45, 0.20) if net >= 0.0 else Color(0.65, 0.22, 0.18)
 		var is_sel := gid2 == _sel_good
-		_cell(g, _good_name(gid2), Color(0.72, 0.35, 0.15) if is_sel else UIKit.FG_HEAD, widths[0])
+		# 商品名做成一格按钮：点它就选中。不再在下面单开一排 Tab 式的选择按钮。
+		var nb := UIKit.button(_good_name(gid2), true)
+		nb.custom_minimum_size = Vector2(widths[0], 0)
+		nb.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+		nb.tooltip_text = "点击查看「%s」的曲线" % _good_name(gid2)
+		if is_sel:
+			nb.add_theme_stylebox_override("normal", UIKit.box(UIKit.T_BTN_ACTIVE))
+			nb.add_theme_color_override("font_color", UIKit.FG_LIGHT)
+		nb.pressed.connect(_on_pick_good.bind(gid2))
+		g.add_child(nb)
 		_cell(g, "%.0f" % float(r["stock"]), UIKit.FG_DARK, widths[1], true)
 		_cell(g, "%.1f" % float(r["produced"]), Color(0.18, 0.42, 0.24), widths[2], true)
 		_cell(g, "%.1f" % float(r["consumed_ind"]), Color(0.55, 0.30, 0.18), widths[3], true)
@@ -250,26 +259,6 @@ func _resources_tab() -> void:
 		_cell(g, "%d" % int(r["shops"]), UIKit.FG_DARK, widths[6], true)
 		_cell(g, "%d" % int(r["slots"]), UIKit.FG_DARK, widths[7], true)
 		_cell(g, "%d" % int(r["workers"]), UIKit.FG_DARK, widths[8], true)
-
-	# 单击选择商品。这行有 36 个按钮，必须放进可横向滚动的容器里 ——
-	# 否则它的最小宽度会把整个面板撑到 2500px，关闭按钮被挤出屏幕。
-	_body.add_child(UIKit.hsep())
-	_body.add_child(UIKit.label("查看曲线：", UIKit.FG_HEAD))
-	var pick_scroll := ScrollContainer.new()
-	pick_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
-	pick_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	pick_scroll.custom_minimum_size = Vector2(0, UIKit.BTN_H_SM + 8)
-	_body.add_child(pick_scroll)
-	var pick := HBoxContainer.new()
-	pick.add_theme_constant_override("separation", 4)
-	pick_scroll.add_child(pick)
-	for gid in pack:
-		var gid2 := String(gid)
-		if not runner.db.goods.has(gid2):
-			continue
-		var b := UIKit.button(_good_name(gid2), true)
-		b.pressed.connect(_on_pick_good.bind(gid2))
-		pick.add_child(b)
 
 	if _sel_good != "":
 		_section("%s 曲线" % _good_name(_sel_good))
@@ -281,6 +270,8 @@ func _resources_tab() -> void:
 			{"name": "工业耗", "color": Color(0.85, 0.45, 0.35),
 				"values": stats.series(stats.consumed_ind, _sel_good)},
 		], false, "%.1f")
+	else:
+		_note("点上面表格里的商品名，看它的库存与产耗曲线。")
 
 func _on_pick_good(gid: String) -> void:
 	_sel_good = gid

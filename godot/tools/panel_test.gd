@@ -138,6 +138,30 @@ func _run() -> void:
 		return
 
 	print("PANEL TEST 缩放 面板内%.3f(不动) 地图上%.3f(生效)" % [z_in, z_map])
+
+	# 6. 资源 Tab：直接在列表里点商品名选中并出曲线（不再有底部那排选择按钮）
+	panel._select_tab(0)
+	await process_frame
+	var pick_buttons := 0
+	for b in panel.find_children("*", "Button", true, false):
+		if (b as Button).tooltip_text.begins_with("点击查看"):
+			pick_buttons += 1
+	if pick_buttons < 10:
+		_fail("列表里可点的商品名太少（%d 个），选中交互没接上" % pick_buttons)
+		return
+	panel._sel_good = ""
+	panel._on_pick_good("coarse_bread")
+	await process_frame
+	if panel._sel_good != "coarse_bread":
+		_fail("选中没有生效：_sel_good=%s" % panel._sel_good)
+		return
+	var charts := 0
+	for c in panel.find_children("*", "Chart", true, false):
+		charts += 1
+	if charts < 2:
+		_fail("选中商品后没有出曲线图（找到 %d 个）" % charts)
+		return
+	print("PANEL TEST 列表可选商品=%d 选中=%s 选中后图表=%d" % [pick_buttons, panel._sel_good, charts])
 	print("PANEL TEST RESULT: PASS")
 	quit(0)
 
