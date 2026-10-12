@@ -10,17 +10,19 @@ extends Control
 # 尺寸都取素材尺寸的整数倍：192 = 64 x 3，红线 32 高保持 1 倍。
 # 非整数倍会重采样把像素糊掉（项目默认 texture_filter = Nearest，整数倍才干净）。
 
-const RING_D := 192                 # 圆环直径，必须是 64 的整数倍
+const RING_D := 128                 # 圆环直径，必须是 64 的整数倍（128 = 64 * 2）
 const RING_SRC := 64                # 四块 32x32 拼起来是 64x64
 const RIB_H := 32
-const BOX_W := 176
-const BOX_H := 30
-const PAD := 8
+const BOX_W := 112
+const BOX_H := 26
+const PAD := 0                     # 不再留边：日期框与红巾直接叠在圆盘上
 const UI_DIR := "res://assets/ui/"
 
-## 小地图一次显示多少格地图（TILE=16px）。32 格 = 512 世界像素，
-## 城镇本体是 12x11 格。
-const VIEW_CELLS := 32
+## 兜底视野格数（拿不到镜头时用）。
+const FALLBACK_VIEW_CELLS := 32.0
+## 视野格数的上下限，避免极端缩放下小地图糊成一团或只剩一格。
+const VIEW_MIN := 10.0
+const VIEW_MAX := 96.0
 ## 静止时的兜底重绘间隔（秒）。镜头一动就立刻重绘。
 const REDRAW_SEC := 0.3
 
@@ -42,6 +44,7 @@ var _time_label: Label
 var _name_label: Label
 var _accum := 0.0
 var _last_center := Vector2(-9999, -9999)
+var _last_view := -1.0
 ## 圆环四块贴图。必须在 _ready() 里加载好 —— 在 _draw() 里现 load() 会拿到
 ## 尚未完成的占位纹理，画出来是一整块白的。
 var _ring_tex: Array = []
@@ -54,12 +57,13 @@ func _ready() -> void:
 	for n in ["ring_tl", "ring_tr", "ring_bl", "ring_br"]:
 		_ring_tex.append(load(UI_DIR + n + ".png"))
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
-	custom_minimum_size = Vector2(RING_D + PAD * 2, BOX_H + 6 + RING_D + 6 + RIB_H)
+	# 整块只有圆盘那么大：日期框和红巾都叠在圆盘上，不外扩
+	custom_minimum_size = Vector2(RING_D, RING_D)
 	size = custom_minimum_size
 
 	# --- 日期 + 时间框（木框 9-slice）
 	var box := Panel.new()
-	box.position = Vector2(PAD, 0)
+	box.position = Vector2((RING_D - BOX_W) * 0.5, 0)
 	box.size = Vector2(BOX_W, BOX_H)
 	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var sb := StyleBoxTexture.new()
@@ -85,7 +89,7 @@ func _ready() -> void:
 
 	# --- 村名红巾
 	var rib := HBoxContainer.new()
-	rib.position = Vector2(PAD, BOX_H + 6 + RING_D + 6)
+	rib.position = Vector2((RING_D - RING_D) * 0.5, RING_D - RIB_H + 6)
 	rib.add_theme_constant_override("separation", 0)
 	rib.mouse_filter = Control.MOUSE_FILTER_STOP
 	rib.tooltip_text = "点击修改村庄名"
@@ -117,12 +121,26 @@ func _process(delta: float) -> void:
 		return
 	_refresh_time()
 	_accum += delta
-	# 小地图跟随镜头：镜头一动就重绘，停下才走兜底节流。
+	# 跟随镜头：位置或缩放一变就重绘，停下才走兜底节流。
 	var c := center_cell()
-	if c.distance_to(_last_center) > 0.02 or _accum >= REDRAW_SEC:
+	var v := view_cells()
+	if c.distance_to(_last_center) > 0.02 or absf(v - _last_view) > 0.05 or _accum >= REDRAW_SEC:
 		_last_center = c
+		_last_view = v
 		_accum = 0.0
 		queue_redraw()
+
+## 小地图一次显示多少格 —— 直接由**镜头当前看到的范围**决定，
+## 所以鼠标缩放地图时小地图跟着一起缩放。
+## 镜头可视格数 = 视口宽度 / (TILE * zoom)。默认 zoom=3 时约 33 格，和原来接近。
+func view_cells() -> float:
+	if world != null and world.camera != null:
+		var t := float(world.TILE)
+		var z: float = maxf(0.01, float(world.camera.zoom.x))
+		var vw := float(get_viewport_rect().size.x)
+		if t > 0.0 and vw > 0.0:
+			return clampf(vw / (t * z), VIEW_MIN, VIEW_MAX)
+	return FALLBACK_VIEW_CELLS
 
 ## 小地图中心（地图格，浮点）。跟镜头走 —— 镜头在哪儿小地图就显示哪一块。
 func center_cell() -> Vector2:
@@ -200,22 +218,24 @@ func _draw() -> void:
 	var m = world.map if world != null else null
 	if m == null:
 		return
-	var o := Vector2(PAD, BOX_H + 6)
+	var o := Vector2(PAD, PAD)
 	var c := o + Vector2(RING_D, RING_D) * 0.5
 	var r_out := RING_D * 0.5
-	var cell := float(RING_D) / float(VIEW_CELLS)
+	var n := view_cells()
+	var cell := float(RING_D) / n
+	var span := int(ceil(n)) + 1
 
 	# 中心跟镜头走。取左上角为基准，用 floor 定整格、用小数部分做亚格偏移 ——
-	# 这样平移是滑动的，而不是一格一格（6px）地跳。
-	var base := center_cell() - Vector2(VIEW_CELLS, VIEW_CELLS) * 0.5
+	# 这样平移是滑动的，而不是一格一格地跳。
+	var base := center_cell() - Vector2(n, n) * 0.5
 	var bx := int(floor(base.x))
 	var by := int(floor(base.y))
 	var sub := (base - Vector2(bx, by)) * cell
 
 	# 地形 + 道路 + 建筑：逐格画。
 	# 只画圆心在圆内的格子 —— 边缘会有 1 格锯齿，但这是像素画，正好。
-	for cy in VIEW_CELLS:
-		for cx in VIEW_CELLS:
+	for cy in span:
+		for cx in span:
 			var wx: int = bx + cx
 			var wy: int = by + cy
 			if wx < 0 or wy < 0 or wx >= m.W or wy >= m.H:

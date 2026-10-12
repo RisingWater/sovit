@@ -69,7 +69,7 @@ func _ready() -> void:
 	# 必须在 add_child 之前赋值：hud._ready() 里就会读 music 来刷新按钮文案
 	hud.music = _music
 	hud.sfx = _sfx
-	hud.left_inset = 216.0      # 小地图宽 208 + 8 间隙
+	hud.left_inset = 140.0      # 小地图宽 128 + 间隙
 	root_ui.add_child(hud)
 
 	var bar = load("res://scripts/ui/build_bar.gd").new()

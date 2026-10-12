@@ -42,6 +42,11 @@ func _run() -> void:
 		_fail("RING_D=%d 不是 64 的整数倍，像素会被重采样" % d)
 		return
 
+	# 2b. 日期框与红巾必须叠在圆盘范围内（紧凑排布），不能把挂件撑高
+	if mm.size.y > float(d) + 8.0:
+		_fail("挂件高度 %.0f 超出圆盘 %d —— 日期框/红巾没有叠上去" % [mm.size.y, d])
+		return
+
 	# 3. 村名：默认 sovit、能改、长度受限
 	if mm.village_name() != "sovit":
 		_fail("默认村名应为 sovit，实际 %s" % mm.village_name())
@@ -76,7 +81,7 @@ func _run() -> void:
 			_fail("%s 是空的" % pair[0])
 			return
 		var pad = row.get_child(0)
-		if pad == null or pad.custom_minimum_size.x < 200.0:
+		if pad == null or pad.custom_minimum_size.x < float(mm.RING_D):
 			_fail("%s 没有给左上角小地图留出宽度" % pair[0])
 			return
 
@@ -98,6 +103,20 @@ func _run() -> void:
 		_fail("小地图中心没有对上镜头：期望约 (40,25)，实际 %s" % c1)
 		return
 
-	print("MINIMAP TEST 圆环=%dpx 贴图=%d 村名=%s 跟随镜头 %s->%s ✅" % [d, tex.size(), mm.village_name(), c0, c1])
+	# 6. 缩放跟随：拉近镜头（zoom 变大）视野格数应变少
+	var v_before: float = mm.view_cells()
+	world.camera.zoom = Vector2(6.0, 6.0)
+	await process_frame
+	var v_in: float = mm.view_cells()
+	world.camera.zoom = Vector2(1.5, 1.5)
+	await process_frame
+	var v_out: float = mm.view_cells()
+	if not (v_in < v_before and v_out > v_before):
+		_fail("视野没跟缩放走：zoom3->%.1f zoom6->%.1f zoom1.5->%.1f" % [v_before, v_in, v_out])
+		return
+	world.camera.zoom = Vector2(3.0, 3.0)
+
+	print("MINIMAP TEST 圆环=%dpx 贴图=%d 村名=%s 跟随镜头 %s->%s 缩放 %.0f/%.0f/%.0f ✅" % [
+		d, tex.size(), mm.village_name(), c0, c1, v_before, v_in, v_out])
 	print("MINIMAP TEST RESULT: PASS")
 	quit(0)
