@@ -11,6 +11,7 @@ var _panel_stats
 var _music
 var _daylight
 var _sfx
+var _minimap
 
 func _ready() -> void:
 	runner = SimRunner.new()
@@ -68,6 +69,7 @@ func _ready() -> void:
 	# 必须在 add_child 之前赋值：hud._ready() 里就会读 music 来刷新按钮文案
 	hud.music = _music
 	hud.sfx = _sfx
+	hud.left_inset = 216.0      # 小地图宽 208 + 8 间隙
 	root_ui.add_child(hud)
 
 	var bar = load("res://scripts/ui/build_bar.gd").new()
@@ -93,6 +95,12 @@ func _ready() -> void:
 	world.select_resident.connect(_inspector.show_resident)
 	world.select_none.connect(_inspector.clear)
 	world.notice.connect(hud.set_notice)
+
+	# 左上角小地图挂件（画在 HUD 之上）
+	_minimap = load("res://scripts/ui/minimap_widget.gd").new()
+	_minimap.name = "Minimap"
+	_minimap.setup(runner, world)
+	root_ui.add_child(_minimap)
 
 func _process(_delta: float) -> void:
 	if _stats == null:

@@ -361,6 +361,8 @@ export interface Alert {
 export interface GameState {
   pack: PackID
   seed: number
+  /** 村庄名（可改，随存档保存）。UI 显示用，不参与任何仿真计算。 */
+  villageName: string
   rngState: number
   day: number
   /** 当前小时（0 .. hoursPerDay-1）。 */

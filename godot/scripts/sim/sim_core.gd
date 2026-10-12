@@ -135,6 +135,8 @@ func new_game(pack_id: String, seed_value: int) -> void:
 		"ledgerToday": _empty_ledger(0),
 		"history": [{"day": 0, "population": pop, "avgSatisfaction": float(sd["satisfaction"]), "money": money, "hungry": 0, "employed": 0, "ledger": _empty_ledger(0)}],
 		"log": [], "alerts": [], "arrivals": 0,
+		# 村庄名（可改，随存档保存）。UI 层显示用，不参与任何仿真计算。
+		"villageName": "sovit",
 	}
 
 ## 空白台账 / 空白个人账目。

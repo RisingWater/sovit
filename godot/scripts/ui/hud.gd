@@ -11,6 +11,8 @@ var music: Node = null               # 背景音乐（由 main 注入）
 var sfx: Node = null                 # 菜单音效（由 main 注入）
 var _sfx_btn: Button = null
 var _music_btn: Button = null
+## 左上角小地图占掉的宽度。顶栏整体右移，文字从小地图右侧开始。
+var left_inset := 0.0
 
 const CFG_PATH := "user://hud.cfg"
 const DEFAULT_VISIBLE := ["wood", "stone", "brick", "clay", "firewood",
@@ -43,6 +45,11 @@ func _ready() -> void:
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 10)
 	root.add_child(row)
+	# 小地图压在顶栏左上角，这一行从它右侧开始排
+	if left_inset > 0.0:
+		var pad := Control.new()
+		pad.custom_minimum_size = Vector2(left_inset, 0)
+		row.add_child(pad)
 
 	_time = UIKit.label("第 0 天  00:00", UIKit.FG_LABEL)
 	row.add_child(_time)
@@ -92,6 +99,13 @@ func _ready() -> void:
 	_res_row.add_theme_constant_override("separation", 9)
 	root.add_child(_res_row)
 	_rebuild_chips()
+	# 第二行同样要让开左上角的小地图（挂件高 266，会压到这一行）。
+	# 必须放在 _rebuild_chips() 之后 —— 那个函数会清空 _res_row 的所有子节点。
+	if left_inset > 0.0:
+		var pad2 := Control.new()
+		pad2.custom_minimum_size = Vector2(left_inset, 0)
+		_res_row.add_child(pad2)
+		_res_row.move_child(pad2, 0)
 
 	_build_picker()
 

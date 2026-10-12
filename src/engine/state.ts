@@ -88,6 +88,7 @@ export function createInitialState(options: CreateOptions = {}): GameState {
   return {
     pack: packId,
     seed,
+    villageName: 'sovit',
     rngState: rng.state,
     day: 0,
     hour: 0,
