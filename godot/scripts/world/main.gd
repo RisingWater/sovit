@@ -51,6 +51,8 @@ func _ready() -> void:
 	root_ui.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root_ui.theme = theme
 	canvas.add_child(root_ui)
+	# 让世界知道 UI 根节点：鼠标落在 UI 面板上时不当作地图操作
+	world.ui_root = root_ui
 
 	var hud = load("res://scripts/ui/hud.gd").new()
 	hud.name = "HUD"

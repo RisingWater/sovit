@@ -106,5 +106,53 @@ func _run() -> void:
 		return
 
 	print("PANEL TEST 把手宽=%.0f 夹取负向=%s 正向=%s 位置=%s" % [bar.size.x, far_neg, far_pos, again.position])
+
+	# 5. 面板里滚动不能影响外面的地图
+	#    Control 的 mouse_filter=STOP 只挡住它后面的控件；自己不 accept_event() 的话
+	#    事件仍会走到 _unhandled_input，于是滚列表把地图也缩放了。
+	var world = node.get_node_or_null("World")
+	if world == null:
+		_fail("找不到 World")
+		return
+	var camera: Camera2D = world.camera
+
+	# 面板内滚轮：镜头不该动
+	panel.position = Vector2(250, 110)
+	await process_frame
+	var z0: float = camera.zoom.x
+	var probe: Vector2 = panel.position + Vector2(400, 300)
+
+	_wheel(root, probe, true)
+	await process_frame
+	var z_in: float = camera.zoom.x
+	if absf(z_in - z0) > 0.0001:
+		_fail("面板内滚轮影响了地图缩放：%.4f -> %.4f" % [z0, z_in])
+		return
+
+	# 地图上滚轮：应当正常缩放
+	_wheel(root, Vector2(120, 430), true)
+	await process_frame
+	var z_map: float = camera.zoom.x
+	if absf(z_map - z0) < 0.0001:
+		_fail("地图上滚轮没有缩放，正常功能被误伤：%.4f" % z_map)
+		return
+
+	print("PANEL TEST 缩放 面板内%.3f(不动) 地图上%.3f(生效)" % [z_in, z_map])
 	print("PANEL TEST RESULT: PASS")
 	quit(0)
+
+## 往指定位置推一个滚轮事件（走真实的 GUI 派发路径）。
+## 先推一个鼠标移动 —— gui_get_hovered_control() 靠移动事件更新，
+## 只推滚轮的话悬停状态还是旧的，测不出"悬停 UI 就不碰镜头"这条守卫。
+func _wheel(win: Window, pos: Vector2, up: bool) -> void:
+	var mv := InputEventMouseMotion.new()
+	mv.position = pos
+	mv.global_position = pos
+	win.push_input(mv, true)
+
+	var ev := InputEventMouseButton.new()
+	ev.button_index = MOUSE_BUTTON_WHEEL_UP if up else MOUSE_BUTTON_WHEEL_DOWN
+	ev.pressed = true
+	ev.position = pos
+	ev.global_position = pos
+	win.push_input(ev, true)

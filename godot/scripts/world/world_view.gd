@@ -40,6 +40,9 @@ var _actor_tex := {}
 var _cursor_shape := Input.CURSOR_ARROW
 var label_layer: CanvasLayer
 var _label_items: Array = []
+## UI 根节点（由 main 注入）。用来判断鼠标是否落在 UI 面板上，
+## 是的话就不把鼠标事件当成地图操作。
+var ui_root: Control = null
 var _shop_sprites := {}         # shop_id -> Node2D
 var _shop_cell := {}            # shop_id -> Vector2i(origin)
 var _shop_def := {}             # shop_id -> defId
@@ -1124,7 +1127,29 @@ func _assign_homes() -> void:
 			_resident_home[rid] = _cell_center(_warehouse_goal)
 
 # ---- 交互 -----------------------------------------------------------------
+## 鼠标是否落在某个可见 UI 面板的矩形内。
+##
+## 为什么不用 gui_get_hovered_control()：
+##   它依赖 Godot 的悬停状态，而悬停只在鼠标**移动**时更新；headless 下永远是 null，
+##   没法写测试。用事件坐标直接做矩形判定则完全确定。
+##
+## 为什么需要这个守卫：
+##   Control 的 mouse_filter = STOP 只挡住它**后面**的控件。像 ScrollContainer
+##   只在自己真的滚动了的时候才 accept_event()，滚到顶/底之后事件会漏到
+##   _unhandled_input，于是滚统计面板里的列表把外面的地图也缩放了。
+func _mouse_over_ui(pos: Vector2) -> bool:
+	if ui_root == null:
+		return false
+	for c in ui_root.get_children():
+		if c is Control and (c as Control).visible and (c as Control).get_global_rect().has_point(pos):
+			return true
+	return false
+
 func _unhandled_input(event: InputEvent) -> void:
+	# 悬停在 UI 上时不碰镜头：不吃滚轮、不拖拽平移、不误触地图
+	if (event is InputEventMouseButton or event is InputEventMouseMotion) \
+			and _mouse_over_ui(event.position):
+		return
 	if event is InputEventMouseButton:
 		if event.button_index == MOUSE_BUTTON_WHEEL_UP and event.pressed:
 			camera.zoom = (camera.zoom * 1.15).clamp(Vector2(0.25, 0.25), Vector2(4, 4))

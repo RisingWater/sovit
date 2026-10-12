@@ -110,6 +110,16 @@ func _select_tab(i: int) -> void:
 			UIKit.box(UIKit.T_BTN_ACTIVE if k == i else UIKit.T_BTN))
 	refresh()
 
+## 面板范围内的鼠标事件一律吃掉。
+##
+## ScrollContainer 只在自己**真的滚动了**的时候才 accept_event()；滚到顶/底之后
+## 它不再接受，事件就会漏到 _unhandled_input，于是滚列表把外面的地图也缩放了。
+## 这里兜底：任何落到面板上的鼠标事件都标记为已处理。
+## （world_view 那边还有一层"悬停在 UI 上就不碰镜头"的守卫。）
+func _gui_input(event: InputEvent) -> void:
+	if event is InputEventMouseButton or event is InputEventMouseMotion:
+		accept_event()
+
 # ---------------------------------------------------------------------------
 # 拖动：按在标题栏（Tab 右边那条）上拖，位置存 user://hud.cfg
 # ---------------------------------------------------------------------------
