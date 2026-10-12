@@ -11,7 +11,9 @@ godot/.godot/
 godot/.import/
 godot/reports/
 godot/builds/
-godot/export_presets.cfg
+# 注意：export_presets.cfg 曾经也被忽略，那是错的 ——
+# 它是**构建配置**（源码），不是构建产物。不入库的话别人 clone 下来无法复现打包。
+# 唯一入不了库的情况是里面写了 Android 签名口令；本项目只做桌面导出，没有这个顾虑。
 
 # ---------------------------------------------------------------------------
 # Super Retro World（Copyright (C) Gif）素材包
