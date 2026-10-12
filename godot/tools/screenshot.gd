@@ -121,6 +121,13 @@ func _run() -> void:
 		await process_frame
 		print("SCREENSHOT hour -> ", target)
 
+	# ESC 菜单
+	if mode == "esc":
+		var em = node.get_node_or_null("UI/Root/EscMenu")
+		if em != null:
+			em.open()
+		await process_frame
+
 	# 统计面板：stats0 资源 / stats1 人口 / stats2 财务
 	if mode.begins_with("stats"):
 		# 多跑几天让曲线有内容

@@ -11,6 +11,8 @@ var music: Node = null               # 背景音乐（由 main 注入）
 var sfx: Node = null                 # 菜单音效（由 main 注入）
 var _sfx_btn: Button = null
 var _music_btn: Button = null
+## ESC 菜单（由 main 注入）。顶栏的「菜单」按钮要能打开它。
+var esc_menu: Node = null
 ## 左上角小地图占掉的宽度。顶栏整体右移，文字从小地图右侧开始。
 var left_inset := 0.0
 
@@ -67,26 +69,25 @@ func _ready() -> void:
 		_speed_btns.append(b)
 	_mark_speed(0)
 
-	for pair in [["保存", "_on_save"], ["读取", "_on_load"]]:
-		var b := UIKit.button(String(pair[0]), true)
-		b.pressed.connect(Callable(self, String(pair[1])))
-		row.add_child(b)
-	var pick := UIKit.button("资源", true)
-	pick.tooltip_text = "选择顶栏显示哪些资源"
-	pick.pressed.connect(_open_picker)
-	row.add_child(pick)
+	# 只保留"快存 / 快读"（直接写默认存档位），其余进 ESC 菜单
+	var qs := UIKit.button("快存", true)
+	qs.tooltip_text = "快速保存到默认存档位（F5）"
+	qs.pressed.connect(_on_save)
+	row.add_child(qs)
+	var ql := UIKit.button("快读", true)
+	ql.tooltip_text = "从默认存档位快速读取（F9）"
+	ql.pressed.connect(_on_load)
+	row.add_child(ql)
 	var st := UIKit.button("统计", true)
 	st.tooltip_text = "资源 / 人口 / 财务 明细与曲线"
 	st.pressed.connect(_open_stats)
 	row.add_child(st)
-	_sfx_btn = UIKit.button("音效", true)
-	_sfx_btn.tooltip_text = "菜单音效开关（Kenney UI SFX）"
-	_sfx_btn.pressed.connect(_toggle_sfx)
-	row.add_child(_sfx_btn)
-	_music_btn = UIKit.button("音乐", true)
-	_music_btn.tooltip_text = "背景音乐开关（Shimmer Sill，Talon Trueblood）"
-	_music_btn.pressed.connect(_toggle_music)
-	row.add_child(_music_btn)
+	var menu := UIKit.button("菜单", true)
+	menu.tooltip_text = "保存 / 读取 / 音效 / 音乐 / 资源 / 退出（ESC）"
+	menu.pressed.connect(func():
+		if esc_menu != null:
+			esc_menu.toggle())
+	row.add_child(menu)
 	_refresh_music_btn()
 	_refresh_sfx_btn()
 
@@ -126,24 +127,12 @@ func _toggle_sfx() -> void:
 	_refresh_sfx_btn()
 
 func _refresh_sfx_btn() -> void:
-	if _sfx_btn == null:
-		return
-	if sfx == null:
-		_sfx_btn.text = "音效—"
-		_sfx_btn.disabled = true
-		return
-	_sfx_btn.text = "音效关" if sfx.is_muted() else "音效开"
+	# 顶栏不再有音效按钮，状态显示在 ESC 菜单里
+	pass
 
 func _refresh_music_btn() -> void:
-	if _music_btn == null:
-		return
-	if music == null:
-		_music_btn.text = "音乐—"
-		_music_btn.disabled = true
-		return
-	_music_btn.text = "音乐关" if music.is_muted() else "音乐开"
-	_music_btn.tooltip_text = "背景音乐：%s（Talon Trueblood）\n点击%s" % [
-		music.current_track_name(), "开启" if music.is_muted() else "静音"]
+	# 顶栏不再有音乐按钮，状态显示在 ESC 菜单里
+	pass
 
 # ---------------------------------------------------------------------------
 # 资源栏

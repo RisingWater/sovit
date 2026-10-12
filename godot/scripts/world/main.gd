@@ -12,6 +12,7 @@ var _music
 var _daylight
 var _sfx
 var _minimap
+var _esc_menu
 
 func _ready() -> void:
 	runner = SimRunner.new()
@@ -102,6 +103,13 @@ func _ready() -> void:
 	_minimap.setup(runner, world)
 	root_ui.add_child(_minimap)
 
+	# ESC 菜单（最上层）
+	_esc_menu = load("res://scripts/ui/esc_menu.gd").new()
+	_esc_menu.name = "EscMenu"
+	_esc_menu.setup(runner, world, hud)
+	root_ui.add_child(_esc_menu)
+	hud.esc_menu = _esc_menu
+
 func _process(_delta: float) -> void:
 	if _stats == null:
 		return
@@ -114,6 +122,8 @@ func _process(_delta: float) -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if not (event is InputEventKey) or not event.pressed or event.echo:
 		return
+	if event.keycode == KEY_ESCAPE:
+		_esc_menu.toggle()
 	if event.keycode == KEY_F5:
 		var err := SaveManager.save_to(SaveManager.DEFAULT_PATH, runner.sim)
 		print("save: ", err)
