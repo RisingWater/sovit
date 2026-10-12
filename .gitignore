@@ -12,3 +12,24 @@ godot/.import/
 godot/reports/
 godot/builds/
 godot/export_presets.cfg
+
+# ---------------------------------------------------------------------------
+# Super Retro World（Copyright (C) Gif）—— **不得入库**
+#
+# 该包的 Custom_Commercial_License.txt 明确禁止：
+#   - 把素材作为独立文件或素材包再分发 / 分享 / 再授权
+#   - 上传到其它市场、仓库或文件分享服务
+#   - 以可提取的独立形式公开
+# git 仓库正属于"repository"，原始 PNG 正属于"extractable standalone form"。
+#
+# 因此：原始素材目录、以及由它们派生的一切产物（复制件、缩略图）全部忽略。
+# 本地想用就自己把包放进 godot/Props/，再跑 `npm run gen:art`。
+# 缺包时 gen-art 会跳过 prop 建筑并在控制台告警，其余建筑不受影响。
+# ---------------------------------------------------------------------------
+godot/Props/
+godot/Characters/
+godot/Tilesets/
+godot/DONATE.html
+godot/REVIEW.html
+godot/STORE.html
+godot/assets/props/

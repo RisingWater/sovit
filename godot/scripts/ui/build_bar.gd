@@ -118,7 +118,16 @@ func _ids_of(cat: String) -> Array:
 	return out
 
 func _thumb_for(id: String) -> Texture2D:
-	var t: Texture2D = load("res://assets/thumbs/%s.png" % id)
+	var a: Dictionary = {}
+	if runner.db.buildings.has(id):
+		a = runner.db.buildings[id].get("art", {})
+	elif runner.db.housing.has(id):
+		a = runner.db.housing[id].get("art", {})
+	var path := "res://assets/thumbs/%s.png" % id
+	if String(a.get("arch", "")) == "prop":
+		# prop 建筑没有受版本管理的缩略图（授权原因），用 gitignore 下的那份
+		path = "res://assets/props/thumb/%s.png" % id
+	var t: Texture2D = load(path)
 	if t == null:
 		t = load("res://assets/buildings/%s.png" % id)
 	return t

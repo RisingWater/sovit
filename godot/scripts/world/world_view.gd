@@ -38,6 +38,8 @@ var _press_cell := Vector2i.ZERO
 var _tex_cache := {}
 var _actor_tex := {}
 var _cursor_shape := Input.CURSOR_ARROW
+var label_layer: CanvasLayer
+var _label_items: Array = []
 var _shop_sprites := {}         # shop_id -> Node2D
 var _shop_cell := {}            # shop_id -> Vector2i(origin)
 var _shop_def := {}             # shop_id -> defId
@@ -96,26 +98,57 @@ func _ready() -> void:
 func _area_center(cell: Vector2i, fw: int, fh: int) -> Vector2:
 	return Vector2(cell.x * TILE + fw * TILE * 0.5, cell.y * TILE + fh * TILE * 0.5)
 
+## 建筑名标签：放在**屏幕空间**的 CanvasLayer 上，字号固定 24px（= 12px 像素字体的
+## 整数 2 倍，实测每像素正好 2x2，不糊）。这样镜头缩放时文字大小不变。
 func _add_label(text: String, cell: Vector2i, fw: int, fh: int) -> Label:
 	var l := Label.new()
 	l.text = text
-	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	# 关键：用像素字体 + 反向缩放。
-	# 字体按原生 10px 光栅化，节点缩到 1/ZOOM，镜头再放大 ZOOM 倍 → 屏幕上正好 1:1，
-	# 笔画不会被插值糊掉。（之前用 SystemFont + 世界坐标直接缩放，所以是糊的）
+	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	l.vertical_alignment = VERTICAL_ALIGNMENT_TOP
 	l.add_theme_font_override("font", UIKit.pixel_font())
-	l.add_theme_font_size_override("font_size", UIKit.FS)
+	l.add_theme_font_size_override("font_size", UIKit.LABEL_FS)
 	l.add_theme_color_override("font_color", Color(1, 1, 1))
 	l.add_theme_color_override("font_outline_color", Color(0.12, 0.09, 0.07))
-	l.add_theme_constant_override("outline_size", 3)
-	l.scale = Vector2.ONE / ZOOM
-	var w = float(fw * TILE)
-	var hh = 18.0
-	l.size = Vector2(w * ZOOM, hh * ZOOM)
-	l.position = _area_center(cell, fw, fh) - Vector2(w * 0.5, hh * 0.5)
-	building_layer.add_child(l)
+	l.add_theme_constant_override("outline_size", 5)
+	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	label_layer.add_child(l)
+	# 锚点取建筑底边中点，牌子压在下沿
+	var anchor := _area_center(cell, fw, fh) + Vector2(0, fh * TILE * 0.5 - 6.0)
+	_label_items.append({"node": l, "world": anchor})
 	return l
+
+## 每帧把世界锚点投影到屏幕坐标（镜头位置 + 缩放变了都要重算）。
+## 24px 的字比较大，逐个贪心占位，重叠的直接不画 —— 否则密集区糊成一团。
+func _update_labels() -> void:
+	if camera == null or label_layer == null:
+		return
+	var vp := get_viewport_rect().size
+	var zoom := camera.zoom
+	var placed: Array[Rect2] = []
+	for it in _label_items:
+		var l: Label = it["node"]
+		if not is_instance_valid(l):
+			continue
+		var s: Vector2 = (it["world"] - camera.position) * zoom + vp * 0.5
+		var sz := l.get_minimum_size()
+		var box := Rect2((s - Vector2(sz.x * 0.5, sz.y * 0.5)).round(), sz)
+		var on_screen := box.end.x > 0 and box.position.x < vp.x and box.end.y > 0 and box.position.y < vp.y
+		var blocked := false
+		for r in placed:
+			if r.intersects(box):
+				blocked = true
+				break
+		l.visible = on_screen and not blocked
+		l.position = box.position
+		if l.visible:
+			placed.append(box)
+
+func _clear_labels() -> void:
+	for it in _label_items:
+		var l = it["node"]
+		if is_instance_valid(l):
+			l.queue_free()
+	_label_items.clear()
 
 ## 像素光标（Kenney Cursor Pixel Pack, CC0）。按热点对齐尖角。
 func _setup_cursors() -> void:
@@ -218,14 +251,29 @@ func _build_tileset() -> void:
 	agent_layer.z_index = -1
 	add_child(agent_layer)
 
+	# 建筑名标签走屏幕空间，字号不随镜头缩放变化
+	label_layer = CanvasLayer.new()
+	label_layer.layer = 1
+	add_child(label_layer)
+
 	_render_base_terrain()
 
-## 草地变体：0 = 纯草，1 = 小白花，2 = 大黄花。
-## 用整数哈希取值，大花必须很稀有，否则满屏黄点。
-func _grass_variant(h: int) -> int:
-	if h % 61 == 0:
+## 整数哈希：把 (x,y) 混成均匀分布。
+## 不能用 `x*a + y*b` 再取模 —— 那会形成斜条纹：
+##   x*7+y*13 ≡ 0 (mod 3)  ⟺  x+y ≡ 0 (mod 3)   → 每三格一条对角线
+##   x*7+y*13 ≡ 0 (mod 7)  ⟺  y   ≡ 0 (mod 7)   → 每七行一条横带
+## 所以之前的花和树都是规则条纹，不是随机。
+func _hash2(x: int, y: int) -> int:
+	var n := (x * 73856093) ^ (y * 19349663)
+	n = (n ^ (n >> 13)) * 1274126177
+	n = n ^ (n >> 16)
+	return absi(n)
+
+## 草地变体：0 = 纯草，1 = 小白花，2 = 大黄花。大黄花必须很稀有。
+func _grass_variant(hv: int) -> int:
+	if hv % 61 == 0:
 		return 2
-	if h % 7 == 0:
+	if hv % 7 == 0:
 		return 1
 	return 0
 
@@ -235,8 +283,8 @@ func _render_base_terrain() -> void:
 		for x in GameMap.W:
 			var c := Vector2i(x, y)
 			var t: int = map.terrain[map.idx(x, y)]
-			var h := (x * 7 + y * 13)
-			var gv := _grass_variant(h)
+			var hv := _hash2(x, y)
+			var gv := _grass_variant(hv)
 			match t:
 				GameMap.WATER:
 					terrain_layer.set_cell(c, 1, _extra_cell(_water_index(c)))
@@ -248,9 +296,9 @@ func _render_base_terrain() -> void:
 					terrain_layer.set_cell(c, 1, _extra_cell(51))
 				GameMap.FOREST:
 					terrain_layer.set_cell(c, 0, _town_cell(gv))
-					# 树：密铺，靠 16x32 的重叠形成树冠
-					if h % 3 == 0:
-						deco_layer.set_cell(c, 2, Vector2i(h % DECO_VARIANTS, 0))
+					# 树：按哈希铺，靠 16x32 的重叠形成树冠
+					if hv % 3 == 0:
+						deco_layer.set_cell(c, 2, Vector2i(hv % DECO_VARIANTS, 0))
 				_:
 					terrain_layer.set_cell(c, 0, _town_cell(gv))
 				GameMap.GRASS:
@@ -315,17 +363,41 @@ func _footprint(type: String) -> Vector2i:
 	var a := _art_of(type)
 	if a.is_empty():
 		return Vector2i(2, 2)
-	var w := int(a.get("w", 6 if String(a.get("arch", "")) == "field" else 3))
-	if String(a.get("arch", "")) == "field":
+	var arch := String(a.get("arch", ""))
+	if arch == "prop":
+		# 手绘整图：占地由 PNG 尺寸算出，避免在内容里重复写一遍
+		var tex := _texture_for(type)
+		if tex != null:
+			return Vector2i(int(ceil(tex.get_width() / float(TILE))),
+				int(ceil(tex.get_height() / float(TILE))))
+		return Vector2i(3, 3)
+	var w := int(a.get("w", 6 if arch == "field" else 3))
+	if arch == "field" or a.has("rows"):
 		return Vector2i(w, int(a.get("rows", 1)))
 	# 屋顶行数：绿顶（谷仓）只有一行，其余两行（顶排 + 檐口）；再加一行墙
 	var roof_rows := 1 if String(a.get("roof", "")) == "green" else 2
 	return Vector2i(w, roof_rows + 1)
 
+## 手绘整图按"横向居中、底部对齐"摆进占地格；生成的建筑本来就是格对齐的，不用动。
+func _apply_art_offset(spr: Sprite2D, type: String, fp: Vector2i) -> void:
+	var a := _art_of(type)
+	if String(a.get("arch", "")) != "prop" or spr.texture == null:
+		return
+	spr.offset = Vector2(
+		(fp.x * TILE - spr.texture.get_width()) * 0.5,
+		fp.y * TILE - spr.texture.get_height())
+
 func _texture_for(type: String) -> Texture2D:
 	if _tex_cache.has(type):
 		return _tex_cache[type]
-	var tex: Texture2D = load("res://assets/buildings/%s.png" % type)
+	var a := _art_of(type)
+	var tex: Texture2D
+	if String(a.get("arch", "")) == "prop":
+		# Super Retro World 的房屋整图。来源包授权禁止入库，所以放在 gitignore 的
+		# assets/props/src/ 下；注意这里与 buildings/ 不同，缺图时会是空。
+		tex = load("res://assets/props/src/%s.png" % String(a.get("sprite", "")))
+	else:
+		tex = load("res://assets/buildings/%s.png" % type)
 	_tex_cache[type] = tex
 	return tex
 
@@ -337,6 +409,7 @@ func _place_housing_instance(type: String, cell: Vector2i) -> void:
 	spr.texture = _texture_for(type)
 	spr.centered = false
 	spr.position = Vector2(cell.x * TILE, cell.y * TILE)
+	_apply_art_offset(spr, type, fp)
 	building_layer.add_child(spr)
 	var cap = 4
 	if runner.db.housing.has(type):
@@ -367,6 +440,7 @@ func _create_shop_view(sid: String, def_id: String, cell: Vector2i) -> void:
 	spr.texture = _texture_for(def_id)
 	spr.centered = false
 	spr.position = Vector2(cell.x * TILE, cell.y * TILE)
+	_apply_art_offset(spr, def_id, fp)
 	building_layer.add_child(spr)
 	_shop_sprites[sid] = spr
 	_shop_cell[sid] = cell
@@ -386,6 +460,7 @@ func _create_shop_view(sid: String, def_id: String, cell: Vector2i) -> void:
 		_shop_label[sid] = _add_label(String(runner.db.buildings[def_id]["nameZh"]), cell, fp.x, fp.y)
 
 func _rerender_terrain() -> void:
+	_clear_labels()
 	terrain_layer.clear()
 	floor_layer.clear()
 	road_layer.clear()
@@ -815,6 +890,7 @@ func _process(delta: float) -> void:
 	_update_agents(delta)
 	_animate_agents(delta)
 	_update_cursor()
+	_update_labels()
 	agent_layer.queue_redraw()
 
 ## 建造 / 笔刷模式下换成十字光标

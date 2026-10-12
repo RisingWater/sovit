@@ -143,7 +143,7 @@ function strArr(v: unknown, p: string, set?: Set<string>): string[] {
 // 外观规格
 // ---------------------------------------------------------------------------
 
-const ART_ARCHS = ['house', 'extract', 'mill', 'bakery', 'kiln', 'workshop', 'grand', 'warehouse', 'field'] as const
+const ART_ARCHS = ['house', 'extract', 'mill', 'bakery', 'kiln', 'workshop', 'grand', 'warehouse', 'field', 'prop'] as const
 const ART_ROOFS = ['blue', 'red', 'green'] as const
 const ART_WALLS = ['wood', 'stone', 'barn', 'plank'] as const
 const ART_FEATS = ['windmill', 'wheel', 'logs', 'rocks'] as const
@@ -174,11 +174,23 @@ function parseArt(v: unknown, p: string): BuildingArt | undefined {
   }
   if (o.soil !== undefined) art.soil = asEnum(o.soil, ART_SOILS, `${p}.soil`)
   if (o.crop !== undefined) art.crop = asEnum(o.crop, ART_CROPS, `${p}.crop`)
+  if (o.sprite !== undefined) {
+    const s = asStr(o.sprite, `${p}.sprite`)
+    if (!/^[a-z0-9_]+$/.test(s)) fail(`${p}.sprite 只能用小写字母/数字/下划线：${s}`)
+    art.sprite = s
+  }
 
   if (arch === 'field') {
     if (!art.soil) fail(`${p}：arch=field 必须给 soil`)
     if (!art.crop) fail(`${p}：arch=field 必须给 crop`)
     if (art.roof || art.wall) fail(`${p}：arch=field 不应给 roof / wall`)
+  } else if (arch === 'prop') {
+    if (!art.sprite) fail(`${p}：arch=prop 必须给 sprite`)
+    if (art.w) fail(`${p}：arch=prop 的 w 由 gen-art 按图算出，不要手填`)
+    if (art.rows) fail(`${p}：arch=prop 的 rows 由 gen-art 按图算出，不要手填`)
+    if (art.roof || art.wall || art.soil || art.crop) {
+      fail(`${p}：arch=prop 不应给 roof / wall / soil / crop`)
+    }
   } else {
     if (!art.roof) fail(`${p}：arch=${arch} 必须给 roof`)
     if (!art.wall) fail(`${p}：arch=${arch} 必须给 wall`)

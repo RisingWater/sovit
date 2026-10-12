@@ -1,4 +1,4 @@
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { Canvas, type RGBA } from './lib/pixel.ts'
 
 // ---------------------------------------------------------------------------
@@ -19,11 +19,15 @@ const COLS = 12 // Tiny 图集列数
 const ROOT = 'godot/assets'
 const TOWN_PNG = `${ROOT}/tiny/town.png`
 const FARM_PNG = `${ROOT}/tiny/farm.png`
+// Super Retro World 的房屋原图（gitignore，不上库）
+const PROP_SRC = 'godot/Props/Houses/Sprites'
+const PROP_OUT = `${ROOT}/props`
 
 type AtlasName = 'town' | 'farm'
 
 interface Art {
   arch: string
+  sprite?: string
   roof?: string
   wall?: string
   w?: number
@@ -811,14 +815,31 @@ function main(): void {
   mkdirSync(`${ROOT}/thumbs`, { recursive: true })
   mkdirSync(`${ROOT}/actors`, { recursive: true })
   mkdirSync(`${ROOT}/goods`, { recursive: true })
+  mkdirSync(`${ROOT}/ui`, { recursive: true })
 
   const buildings = (JSON.parse(readFileSync('content/buildings.json', 'utf8')) as { buildings: { id: string; art?: Art }[] }).buildings
   const housing = (JSON.parse(readFileSync('content/housing.json', 'utf8')) as { housing: { id: string; art?: Art }[] }).housing
 
   let n = 0
   const missing: string[] = []
+  const propMissing: string[] = []
   for (const b of [...buildings, ...housing]) {
     if (!b.art) { missing.push(b.id); continue }
+
+    if (b.art.arch === 'prop') {
+      // Super Retro World（Copyright (C) Gif）授权禁止再分发原始素材。
+      // 所以源图放在 gitignore 的 godot/Props/，派生件也全部只写到 gitignore 的
+      // godot/assets/props/（复制件 + 缩略图），绝不落进受版本管理的 buildings/ 与 thumbs/。
+      const sp = `${PROP_SRC}/${b.art.sprite}.png`
+      if (!existsSync(sp)) { propMissing.push(b.id); continue }
+      mkdirSync(`${PROP_OUT}/src`, { recursive: true })
+      mkdirSync(`${PROP_OUT}/thumb`, { recursive: true })
+      writeFileSync(`${PROP_OUT}/src/${b.art.sprite}.png`, readFileSync(sp))
+      writeFileSync(`${PROP_OUT}/thumb/${b.id}.png`, thumbOf(Canvas.fromPng(sp)).toPng())
+      n++
+      continue
+    }
+
     const cv = renderBuilding(b.art)
     writeFileSync(`${ROOT}/buildings/${b.id}.png`, cv.toPng())
     writeFileSync(`${ROOT}/thumbs/${b.id}.png`, thumbOf(cv).toPng())
@@ -849,6 +870,11 @@ function main(): void {
 
   console.log(`art → ${ROOT}/`)
   console.log(`  建筑 ${n} 座${missing.length ? `（缺 art：${missing.join(', ')}）` : ''}`)
+  if (propMissing.length) {
+    console.log(`  !! 缺 Super Retro World 素材，跳过 prop 建筑 ${propMissing.length} 座：`)
+    console.log(`     ${propMissing.join(', ')}`)
+    console.log(`     把该包解到 godot/Props/ 后重跑（授权禁止入库，故未随仓库分发）`)
+  }
   console.log(`  商品图标 ${goods.length} 个`)
   console.log(`  速度图标 4 个 + 笔刷缩略图 2 个`)
   console.log(`  角色 ${CLASS_IDS.length} 阶层 x 4 向 x 4 帧`)

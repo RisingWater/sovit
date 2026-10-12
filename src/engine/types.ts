@@ -89,6 +89,7 @@ export type ArtArch =
   | 'grand'      // 大型公共建筑
   | 'warehouse'  // 中央仓库
   | 'field'      // 农田（土垄 + 作物，无屋顶）
+  | 'prop'       // 直接用手绘整图（godot/assets/props/<sprite>.png）
 
 export type ArtRoof = 'blue' | 'red' | 'green'
 export type ArtWall = 'wood' | 'stone' | 'barn' | 'plank'
@@ -101,13 +102,15 @@ export type ArtSoil = 'row5' | 'row6'
 
 export interface BuildingArt {
   arch: ArtArch
-  /** 屋顶款式（field 不用）。 */
+  /** arch='prop'：只用 godot/assets/props/<sprite>.png，不再由图集拼装。 */
+  sprite?: string
+  /** 屋顶款式（field / prop 不用）。 */
   roof?: ArtRoof
   /** 墙体款式（field 不用）。 */
   wall?: ArtWall
   /** 横向开间数（格）；缺省 3。 */
   w?: number
-  /** 竖向格数（仅 field 用）；缺省 1。 */
+  /** 竖向格数；field / prop 必填。 */
   rows?: number
   /** 使用原生烟囱 tile（51 蓝顶 / 55 红顶）。 */
   chimney?: boolean

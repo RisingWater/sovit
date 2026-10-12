@@ -1,0 +1,29 @@
+SUPER RETRO WORLD Game Assets License Agreement
+
+Copyright (C) Gif
+
+Version 1.0
+
+1. Grant of License
+
+The Licensor grants the Licensee a non-exclusive, non-transferable, worldwide license to use the assets included in >
+
+The Licensee may:
+
+- Use the Assets in video games, applications, films, videos, interactive media, and similar projects
+- Modify, edit, adapt, and combine the Assets with other content
+- Distribute finished projects containing the Assets
+
+2. Restrictions
+
+The Licensee may NOT:
+
+- Resell, redistribute, share, sublicense, or repackage the Assets as standalone files or asset packs
+- Upload the Assets to another marketplace, repository, or file-sharing service
+- Claim ownership or authorship of the original Assets
+- Use the Assets for training, fine-tuning, development, or improvement of artificial intelligence, machine learning>
+- Make the Assets publicly available in extractable standalone form
+
+3. Attribution
+
+Attribution is not required but is appreciated. Use the name "Gif" for credit or attribution.

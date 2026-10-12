@@ -12,9 +12,9 @@ extends SceneTree
 # 例：godot --path godot -s res://tools/screenshot.gd -- D:/tmp/shot.png map
 
 const PLACE_IDS: Array[String] = [
-	"wheat_farm", "coarse_mill", "coarse_bakery", "vegetable_farm",
-	"lumberjack", "quarry", "clay_pit", "firewood_works",
-	"brick_kiln", "theater", "fine_mill", "white_bakery",
+	"wheat_farm", "vegetable_farm", "coarse_mill", "coarse_bakery",
+	"coarse_weaver", "fine_weaver", "common_clothes_shop", "luxury_clothes_shop",
+	"domestic_service", "construction_works", "smokehouse", "theater",
 ]
 
 func _init() -> void:
@@ -51,6 +51,11 @@ func _run() -> void:
 	var c: Vector2i = world.map.center
 	if world.camera != null:
 		world.camera.zoom = Vector2(2.0, 2.0)
+	# 可选：第 4 个参数指定镜头缩放，用来验证"标签字号不随缩放变化"
+	if args.size() > 3 and world.camera != null:
+		var z := float(args[3])
+		if z > 0.1:
+			world.camera.zoom = Vector2(z, z)
 	var i := 0
 	for id in PLACE_IDS:
 		var cell := c + Vector2i((i % 4) * 12 - 22, (i / 4) * 9 - 10)
