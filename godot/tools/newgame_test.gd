@@ -84,7 +84,16 @@ func _run() -> void:
 		_fail("村名没有被截断到 %d 字：%s" % [NAME_MAX, nm])
 		return
 
-	# 5. 默认 1.0 倍必须与从前逐位相同（golden 依赖这一点）
+	# 5. 新游戏之后仓库精灵必须还在
+	#    （曾经 start_new_game 换了新 GameMap 却没重建仓库精灵，仓库就消失了）
+	if world.warehouse_sprite == null or not is_instance_valid(world.warehouse_sprite):
+		_fail("新游戏后仓库精灵没了")
+		return
+	if not world.warehouse_sprite.visible:
+		_fail("新游戏后仓库精灵不可见")
+		return
+
+	# 6. 默认 1.0 倍必须与从前逐位相同（golden 依赖这一点）
 	world.start_new_game(12345, 1.0, "sovit")
 	await process_frame
 	print("NEWGAME TEST 1x=%.1f 2x=%.1f 0.5x=%.1f 村名=%s" % [

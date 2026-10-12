@@ -77,6 +77,7 @@ var _nav_timer := 0.0
 var _picking := false
 var _paint := false
 var _warehouse_pos := Vector2.ZERO
+var warehouse_sprite: Sprite2D = null
 var selected_resident := ""
 var _font: SystemFont
 
@@ -319,6 +320,7 @@ func _render_base_terrain() -> void:
 
 func _build_warehouse() -> void:
 	var spr := Sprite2D.new()
+	warehouse_sprite = spr
 	spr.texture = load("res://assets/buildings/_warehouse.png")
 	spr.centered = false
 	spr.position = Vector2(map.warehouse.position.x * TILE, map.warehouse.position.y * TILE)
@@ -724,6 +726,10 @@ func start_new_game(seed_value: int, resource_mult: float, village_name: String)
 	map = GameMap.new()
 	map.generate(_map_seed)
 	_rerender_terrain()
+	# 必须重建仓库精灵：上面刚换了一张全新的 GameMap，而 _reset_buildings()
+	# 已经把 building_layer 清空了。load_from 里有这一步，这里漏了就会
+	# 新游戏之后仓库不见了。
+	_build_warehouse()
 	_prev_res = -1          # 强制 _sync() 重建居民与建筑精灵
 	_prev_housing_n = -1
 
