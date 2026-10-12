@@ -134,6 +134,10 @@ func _ready() -> void:
 	add_child(_title_layer)
 	_title = load("res://scripts/ui/title_screen.gd").new()
 	_title.name = "Title"
+	# 标题页挂在独立 CanvasLayer 上，**不在 root_ui 的子树里**，
+	# 所以拿不到 root_ui.theme —— 不显式给的话它用的是 Godot 默认主题
+	# （扁平灰按钮），和游戏内那套像素框完全不是一回事。
+	_title.theme = theme
 	_title.setup(runner, world, _new_game)
 	_title_layer.add_child(_title)
 	_title.start_requested.connect(_end_title)

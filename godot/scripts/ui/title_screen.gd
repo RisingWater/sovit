@@ -58,16 +58,11 @@ func _ready() -> void:
 	add_child(_logo)
 
 	# 左下选项
-	# 按钮直接压草地上读不清，垫一层半透明暗板
+	# 用与其它面板同款的像素米黄纸框（原来是半透明纯色块，和 UI 不是一套）。
 	var wrap := PanelContainer.new()
 	wrap.name = "MenuWrap"
-	var sb := StyleBoxFlat.new()
-	sb.bg_color = Color(0.05, 0.07, 0.10, 0.66)
-	sb.content_margin_left = 14
-	sb.content_margin_right = 14
-	sb.content_margin_top = 14
-	sb.content_margin_bottom = 14
-	wrap.add_theme_stylebox_override("panel", sb)
+	wrap.add_theme_stylebox_override("panel",
+		UIKit.pad(UIKit.box(UIKit.T_PANEL_CREAM), 18, 16, 18, 16))
 	add_child(wrap)
 	var box := VBoxContainer.new()
 	box.name = "Menu"
