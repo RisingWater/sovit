@@ -619,13 +619,41 @@ func showcase_village(seed_value: int) -> void:
 				placed += 1
 		ring += 1
 
-	# 补居民：让街上真的有人走
-	for i in 40:
-		(s["residents"] as Array).append(runner.sim._make_resident("poor"))
+	# 额外住房。这一步不能省：_refresh_agents() 是按住房实例分配住处的，
+	# 分不到房的人**一律被放在仓库门口** —— 于是标题页上看到一群人挤在一点。
+	var htypes: Array = []
+	for k in runner.db.housing.keys():
+		htypes.append(String(k))
+	htypes.sort()
+	var hwant := 14
+	var hplaced := 0
+	var hring := 2
+	while hplaced < hwant and hring < 26:
+		for dx in range(-hring, hring + 1):
+			for dy in range(-hring, hring + 1):
+				if hplaced >= hwant:
+					break
+				if absi(dx) != hring and absi(dy) != hring:
+					continue
+				var hcell: Vector2i = map.center + Vector2i(dx * 3 + 1, dy * 3 + 1)
+				if not map.in_bounds(hcell):
+					continue
+				var htype: String = htypes[hplaced % htypes.size()]
+				if not _area_free(hcell, _footprint(htype)):
+					continue
+				_place_housing_instance(htype, hcell)
+				(s["housing"] as Dictionary)[htype] = float((s["housing"] as Dictionary).get(htype, 0.0)) + 1.0
+				hplaced += 1
+		hring += 1
 
 	# 快进几天，让排产/满足度/行走目标都进入稳态
 	for i in 24 * 6:
 		runner.sim.tick_hour([])
+	# 补居民必须放在快进**之后**：快进期间会按满足度淘汰人口，
+	# 先加的话这 40 人跑几天就没了（截图里街上只剩一两个人就是这么来的）。
+	for i in 40:
+		(s["residents"] as Array).append(runner.sim._make_resident("poor"))
+
 	_prev_res = -1
 	_prev_housing_n = -1
 
