@@ -27,6 +27,11 @@ func _run() -> void:
 	await process_frame
 	await process_frame
 
+	# 标题页期间 ESC 不弹菜单（那时 HUD 是隐藏的），所以先关掉标题页
+	if node.has_method("_end_title"):
+		node._end_title()
+		await process_frame
+
 	var hud = node.get_node_or_null("UI/Root/HUD")
 	var menu = node.get_node_or_null("UI/Root/EscMenu")
 	if hud == null or menu == null:

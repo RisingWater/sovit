@@ -134,6 +134,11 @@ func _ready() -> void:
 	_title_layer.add_child(_title)
 	_title.start_requested.connect(_end_title)
 	root_ui.visible = false
+	# 标题页期间关掉世界的鼠标输入。
+	# 标题页挂在独立 CanvasLayer 上、不是 root_ui 的子节点，所以 world_view 里
+	# 那个"鼠标在 UI 上就不碰镜头"的守卫认不出它 —— 结果在标题页滚轮照样能缩放。
+	# 标题页是展示，屏幕上不该有"能操作地图"的错觉。
+	world.set_process_unhandled_input(false)
 	_title.begin_showcase()
 
 ## 标题页结束：露出游戏 UI（展示用的那局已被新游戏/读档覆盖）
@@ -143,6 +148,7 @@ func _end_title() -> void:
 	# 必须停掉 _process —— 它每帧都在改 camera.position，
 	# 不停的话开局/读档之后镜头还会被标题页的环绕拉走。
 	_title.set_process(false)
+	world.set_process_unhandled_input(true)
 
 func _process(_delta: float) -> void:
 	if _stats == null:
@@ -157,6 +163,9 @@ func _unhandled_input(event: InputEvent) -> void:
 	if not (event is InputEventKey) or not event.pressed or event.echo:
 		return
 	if event.keycode == KEY_ESCAPE:
+		# 标题页期间不弹游戏内菜单（那时 HUD 整个是隐藏的）
+		if _title_layer != null and _title_layer.visible:
+			return
 		_esc_menu.toggle()
 	if event.keycode == KEY_F5:
 		var err := SaveManager.save_to(SaveManager.DEFAULT_PATH, runner.sim)
