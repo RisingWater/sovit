@@ -27,7 +27,7 @@
 
 ## 2. 生产（日计划 + 小时执行）
 
-### 2.1 黎明排产 `planProduction`（两阶段公平配给）
+### 2.1 黎明排产 `planProduction`（两阶段公平分配）
 
 对每个 `active` 且到岗人数 `w>0` 的建筑：
 
@@ -99,7 +99,7 @@ savings += gross − tax ;  government.money += (Σtax − Σgross)
 - 国有租客 `pay=min(rent,savings)` → 政府。
 - 私有租客 `pay` 汇入总额；按**人均份额**`progressiveTax` 计税，税款归政府，余额给房东平分。
 
-### 5.3 私有化 `runPrivateHousingMarket`（夜晚）
+### 5.3 买房 `runPrivateHousingMarket`（夜晚）
 遍历 `pack.housing`：`price = prices[gid] ?? salePrice ?? baseValue`；
 当 `stateOwned>0 && soldTotal<privateHousingPerDay`，选**存款最高**的合格买家：
 非房主、`classLevel>=2`、`classLevel==def.quality`、`savings>=price+5`、`satisfaction>=privateHousingNeedThreshold`。
