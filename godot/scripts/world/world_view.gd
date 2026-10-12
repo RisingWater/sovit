@@ -125,10 +125,17 @@ func _update_labels() -> void:
 	var vp := get_viewport_rect().size
 	var zoom := camera.zoom
 	var placed: Array[Rect2] = []
+	var live: Array = []
 	for it in _label_items:
-		var l: Label = it["node"]
-		if not is_instance_valid(l):
-			continue
+		# 必须先取无类型的 Variant 再判有效。
+		# 直接写 `var l: Label = it["node"]` 的话，一旦该节点已被 queue_free，
+		# **赋值本身**就会抛 "Trying to assign invalid previously freed instance"。
+		# 移动建筑会释放旧标签，所以这条路径必然踩到。
+		var raw = it["node"]
+		if not is_instance_valid(raw):
+			continue          # 顺手剔除，避免 _label_items 无上限增长
+		live.append(it)
+		var l: Label = raw
 		var s: Vector2 = (it["world"] - camera.position) * zoom + vp * 0.5
 		var sz := l.get_minimum_size()
 		var box := Rect2((s - Vector2(sz.x * 0.5, sz.y * 0.5)).round(), sz)
@@ -142,6 +149,7 @@ func _update_labels() -> void:
 		l.position = box.position
 		if l.visible:
 			placed.append(box)
+	_label_items = live
 
 func _clear_labels() -> void:
 	for it in _label_items:
@@ -697,7 +705,7 @@ func _occupy_building(kind: String, id: String, cell: Vector2i, fp: Vector2i) ->
 
 func move_shop_to(sid: String, origin: Vector2i) -> bool:
 	var def_id = String(_shop_def.get(sid, ""))
-	if def_id == "" or not _shop_cell.has(sid):
+	if def_id == "" or not _shop_cell.has(sid) or not _shop_sprites.has(sid):
 		return false
 	var fp = _footprint(def_id)
 	var old = _shop_cell[sid]
@@ -709,6 +717,7 @@ func move_shop_to(sid: String, origin: Vector2i) -> bool:
 	_shop_label.erase(sid)
 	var spr = _shop_sprites[sid]
 	spr.position = Vector2(origin.x * TILE, origin.y * TILE)
+	_apply_art_offset(spr, def_id, fp)
 	_shop_label[sid] = _add_label(String(runner.db.buildings[def_id]["nameZh"]), origin, fp.x, fp.y)
 	var d = _occupy_building("shop", sid, origin, fp)
 	_shop_cell[sid] = origin
@@ -722,6 +731,8 @@ func move_housing_to(uid: String, origin: Vector2i) -> bool:
 	if not _housing_by_uid.has(uid):
 		return false
 	var inst = _housing_by_uid[uid]
+	if not is_instance_valid(inst.get("sprite", null)):
+		return false
 	var type = String(inst["type"])
 	var fp = Vector2i(int(inst["fw"]), int(inst["fh"]))
 	var old = inst["cell"]
@@ -731,6 +742,8 @@ func move_housing_to(uid: String, origin: Vector2i) -> bool:
 	if is_instance_valid(inst.get("label", null)):
 		inst["label"].queue_free()
 	inst["sprite"].position = Vector2(origin.x * TILE, origin.y * TILE)
+	# prop 整图是按占地居中的，换位置后要重算
+	_apply_art_offset(inst["sprite"], type, fp)
 	inst["cell"] = origin
 	inst["label"] = _add_label(String(runner.db.housing[type]["nameZh"]), origin, fp.x, fp.y)
 	var d = _occupy_building("housing", uid, origin, fp)

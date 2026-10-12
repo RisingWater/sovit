@@ -31,4 +31,7 @@ fi
 echo "== smoke =="
 "$GODOT_BIN" --headless --path . -s res://tools/smoke_test.gd
 
+echo "== move (移动建筑/住房) =="
+"$GODOT_BIN" --headless --path . -s res://tools/move_test.gd
+
 echo "ALL CHECKS PASSED"
