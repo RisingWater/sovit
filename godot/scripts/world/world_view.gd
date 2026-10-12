@@ -483,11 +483,18 @@ func _rerender_terrain() -> void:
 	road_layer.clear()
 	deco_layer.clear()
 	_render_base_terrain()
-	# 道路 / 地板按存档位图重铺
+	# 道路 / 地板按存档位图重铺。
+	# 必须顺手 erase_cell 抹掉这些格子上的装饰（树）—— _render_base_terrain()
+	# 是按地形撒树的，它不知道路网，不抹的话路面上会长树。
+	# 笔刷 _paint_cell() 里本来就有这一步，整体重画这条路走漏了。
 	for c in _cells_with(map.road):
-		road_layer.set_cell(Vector2i(c[0], c[1]), 1, _extra_cell(_road_index(Vector2i(c[0], c[1]))))
+		var rc := Vector2i(c[0], c[1])
+		deco_layer.erase_cell(rc)
+		road_layer.set_cell(rc, 1, _extra_cell(_road_index(rc)))
 	for c in _cells_with(map.floor_tiles):
-		floor_layer.set_cell(Vector2i(c[0], c[1]), 1, _extra_cell(52))
+		var fc := Vector2i(c[0], c[1])
+		deco_layer.erase_cell(fc)
+		floor_layer.set_cell(fc, 1, _extra_cell(52))
 
 ## 重算某格及其邻格的道路贴图（相邻关系变了）
 func _refresh_road(c: Vector2i) -> void:

@@ -116,6 +116,9 @@ func _load_village() -> void:
 	if world == null or runner == null:
 		return
 	world.showcase_village(SHOWCASE_SEEDS[_seed_idx % SHOWCASE_SEEDS.size()])
+	_t = 0.0
+	if _fade != null:
+		_fade.color.a = 0.0
 
 func _process(delta: float) -> void:
 	if world == null or world.camera == null or world.map == null:
@@ -126,22 +129,26 @@ func _process(delta: float) -> void:
 		_angle += delta * PAN_SPEED
 	world.camera.position = center + Vector2(cos(_angle) , sin(_angle) * 0.55) * PAN_RADIUS
 
-	# 切换村庄
+	# 切换村庄。
+	# delta 要夹一下：展示村庄的生成（铺路/摆建筑/快进几天）要花几秒，
+	# 首帧的 delta 就是那几秒，不夹的话一次就把 SWITCH_SEC 顶满，
+	# 标题页一出来就是全黑（正在淡出）。
+	var d := minf(delta, 0.1)
 	if _fading == 0:
-		_t += delta
+		_t += d
 		if _t >= SWITCH_SEC:
 			_t = 0.0
 			_fading = 1
 			_pan_paused = true
 	elif _fading == 1:
-		_fade.color.a = minf(1.0, _fade.color.a + delta / FADE_SEC)
+		_fade.color.a = minf(1.0, _fade.color.a + d / FADE_SEC)
 		if _fade.color.a >= 1.0:
 			_seed_idx += 1
 			_load_village()
 			_pan_paused = false
 			_fading = 2
 	else:
-		_fade.color.a = maxf(0.0, _fade.color.a - delta / FADE_SEC)
+		_fade.color.a = maxf(0.0, _fade.color.a - d / FADE_SEC)
 		if _fade.color.a <= 0.0:
 			_fading = 0
 
