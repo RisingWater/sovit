@@ -9,6 +9,7 @@ var _inspector
 var _stats: GameStats
 var _panel_stats
 var _music
+var _daylight
 
 func _ready() -> void:
 	runner = SimRunner.new()
@@ -24,6 +25,12 @@ func _ready() -> void:
 	world.name = "World"
 	world.setup(runner, 12345)
 	add_child(world)
+
+	# 昼夜光影：CanvasModulate 挂默认 canvas，只影响世界；UI 在 CanvasLayer 上不受影响
+	_daylight = load("res://scripts/world/daylight.gd").new()
+	_daylight.name = "Daylight"
+	_daylight.setup(runner)
+	add_child(_daylight)
 
 	# 统计记录器：每过一个游戏日采样一次（只读仿真状态）
 	_stats = GameStats.new()

@@ -109,6 +109,18 @@ func _run() -> void:
 			hud._open_picker()
 			await process_frame
 
+	# 昼夜：模式 h<N> 表示推进到第 N 小时再截图（验证光影）
+	if mode.begins_with("h") and mode.substr(1).is_valid_int():
+		var target := int(mode.substr(1)) % 24
+		var guard := 0
+		while int(runner.sim.s["hour"]) != target and guard < 24 * 4:
+			runner.sim.tick_hour([])
+			guard += 1
+		# 停在整点：把小时内进度清零，颜色才是该时刻的定格
+		runner._accum = 0.0
+		await process_frame
+		print("SCREENSHOT hour -> ", target)
+
 	# 统计面板：stats0 资源 / stats1 人口 / stats2 财务
 	if mode.begins_with("stats"):
 		# 多跑几天让曲线有内容
