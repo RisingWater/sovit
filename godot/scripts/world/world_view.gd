@@ -27,6 +27,10 @@ var road_layer: TileMapLayer
 var deco_layer: TileMapLayer
 var building_layer: Node2D
 var agent_layer: Node2D
+## 走在街上的人画在这一层（z=1，压在建筑上面）。
+## 只用一个 agent_layer(z=-1) 的话所有人都在建筑下面，
+## 走在房子前面的人头会被切掉。
+var agent_front: Node2D
 var camera: Camera2D
 var ghost: Sprite2D
 
@@ -262,8 +266,11 @@ func _build_tileset() -> void:
 	building_layer = Node2D.new()
 	add_child(building_layer)
 	agent_layer = Node2D.new()
-	agent_layer.z_index = -1
+	agent_layer.z_index = -1        # 室内：被建筑挡住（进屋子就该看不见）
 	add_child(agent_layer)
+	agent_front = Node2D.new()
+	agent_front.z_index = 1         # 街上：压在建筑上面，头不会被切
+	add_child(agent_front)
 
 	# 建筑名标签走屏幕空间，字号不随镜头缩放变化
 	label_layer = CanvasLayer.new()
@@ -996,6 +1003,8 @@ func _take_sites_for(type: String, n: int) -> Array:
 func _spawn_agents() -> void:
 	if not agent_layer.draw.is_connected(_draw_agents):
 		agent_layer.draw.connect(_draw_agents)
+	if not agent_front.draw.is_connected(_draw_agents_front):
+		agent_front.draw.connect(_draw_agents_front)
 	_refresh_agents()
 
 func _refresh_agents() -> void:
@@ -1016,7 +1025,21 @@ func _refresh_agents() -> void:
 			var home = _resident_home.get(id, _warehouse_pos)
 			_agents.append({"id": id, "pos": home, "target": home, "home": home})
 
+## 人是不是站在建筑（或仓库）的占地范围内 —— 是的话算在屋里，画到后层
+func _agent_indoors(a: Dictionary) -> bool:
+	var pos: Vector2 = a["pos"]
+	var c := Vector2i(int(floor(pos.x / float(TILE))), int(floor(pos.y / float(TILE))))
+	if not map.in_bounds(c):
+		return false
+	return map.occupied.has(c) or map.warehouse.has_point(c)
+
 func _draw_agents() -> void:
+	_draw_agent_pass(agent_layer, true)
+
+func _draw_agents_front() -> void:
+	_draw_agent_pass(agent_front, false)
+
+func _draw_agent_pass(layer: Node2D, indoors: bool) -> void:
 	# 居民阶层（每帧建一次表，避免 N² 查找）
 	var cls_of := {}
 	if runner != null and runner.sim != null:
@@ -1035,7 +1058,7 @@ func _draw_agents() -> void:
 		var src := Rect2(frame * TILE, row * TILE, TILE, TILE)
 		# 精灵脚底对齐坐标点
 		var dst := Rect2(a["pos"] - Vector2(TILE * 0.5, TILE - 2.0), Vector2(TILE, TILE))
-		agent_layer.draw_texture_rect_region(tex, dst, src)
+		layer.draw_texture_rect_region(tex, dst, src)
 		if String(a["id"]) == selected_resident:
 			# 脚下椭圆（把圆压扁），比正圆更贴地
 			agent_layer.draw_set_transform(a["pos"] + Vector2(0, -1), 0.0, Vector2(1.0, 0.5))
@@ -1081,6 +1104,7 @@ func _process(delta: float) -> void:
 	_update_cursor()
 	_update_labels()
 	agent_layer.queue_redraw()
+	agent_front.queue_redraw()
 
 ## 建造 / 笔刷模式下换成十字光标
 func _update_cursor() -> void:
