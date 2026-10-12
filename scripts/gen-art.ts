@@ -827,15 +827,17 @@ function main(): void {
     if (!b.art) { missing.push(b.id); continue }
 
     if (b.art.arch === 'prop') {
-      // Super Retro World（Copyright (C) Gif）授权禁止再分发原始素材。
-      // 所以源图放在 gitignore 的 godot/Props/，派生件也全部只写到 gitignore 的
-      // godot/assets/props/（复制件 + 缩略图），绝不落进受版本管理的 buildings/ 与 thumbs/。
-      const sp = `${PROP_SRC}/${b.art.sprite}.png`
-      if (!existsSync(sp)) { propMissing.push(b.id); continue }
-      mkdirSync(`${PROP_OUT}/src`, { recursive: true })
+      // 首选**已入库**的副本（godot/assets/props/src/）——这样干净检出也能跑，
+      // 不依赖本地是否放着原始素材包。副本不存在时才从素材包播种。
+      const dst = `${PROP_OUT}/src/${b.art.sprite}.png`
+      if (!existsSync(dst)) {
+        const seed = `${PROP_SRC}/${b.art.sprite}.png`
+        if (!existsSync(seed)) { propMissing.push(b.id); continue }
+        mkdirSync(`${PROP_OUT}/src`, { recursive: true })
+        writeFileSync(dst, readFileSync(seed))
+      }
       mkdirSync(`${PROP_OUT}/thumb`, { recursive: true })
-      writeFileSync(`${PROP_OUT}/src/${b.art.sprite}.png`, readFileSync(sp))
-      writeFileSync(`${PROP_OUT}/thumb/${b.id}.png`, thumbOf(Canvas.fromPng(sp)).toPng())
+      writeFileSync(`${PROP_OUT}/thumb/${b.id}.png`, thumbOf(Canvas.fromPng(dst)).toPng())
       n++
       continue
     }
