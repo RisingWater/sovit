@@ -18,7 +18,6 @@ const CFG_PATH := "user://hud.cfg"
 const DEFAULT_VISIBLE := ["wood", "stone", "brick", "clay", "firewood",
 	"coarse_bread", "vegetable", "build_power"]
 
-var _time: Label
 var _info: Label
 var _notice: Label
 var _speed_btns: Array[Button] = []
@@ -50,9 +49,6 @@ func _ready() -> void:
 		var pad := Control.new()
 		pad.custom_minimum_size = Vector2(left_inset, 0)
 		row.add_child(pad)
-
-	_time = UIKit.label("第 0 天  00:00", UIKit.FG_LABEL)
-	row.add_child(_time)
 
 	_info = UIKit.label("", Color(0.89, 0.91, 0.94))
 	row.add_child(_info)
@@ -297,7 +293,6 @@ func _refresh() -> void:
 	if runner == null or runner.sim == null:
 		return
 	var s: Dictionary = runner.sim.s
-	_time.text = runner.time_string()
 	var gov: Dictionary = s["government"]
 	var residents: Array = s["residents"]
 	var employed := 0

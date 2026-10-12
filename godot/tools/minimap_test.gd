@@ -116,6 +116,22 @@ func _run() -> void:
 		return
 	world.camera.zoom = Vector2(3.0, 3.0)
 
+	# 7. 顶栏不能再显示日期时间 —— 已经移到小地图挂件上，两处重复是多余的
+	var re := RegEx.new()
+	re.compile("第 *[0-9]+ *天")
+	for l in hud.find_children("*", "Label", true, false):
+		if re.search((l as Label).text) != null:
+			_fail("顶栏里还有日期时间：『%s』" % (l as Label).text)
+			return
+	# 但挂件上必须有
+	var found_mm := false
+	for l in mm.find_children("*", "Label", true, false):
+		if re.search((l as Label).text) != null:
+			found_mm = true
+	if not found_mm:
+		_fail("小地图挂件上没有日期时间")
+		return
+
 	print("MINIMAP TEST 圆环=%dpx 贴图=%d 村名=%s 跟随镜头 %s->%s 缩放 %.0f/%.0f/%.0f ✅" % [
 		d, tex.size(), mm.village_name(), c0, c1, v_before, v_in, v_out])
 	print("MINIMAP TEST RESULT: PASS")
