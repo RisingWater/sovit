@@ -172,7 +172,15 @@ func _cost_text(id: String) -> String:
 	if tstr != "":
 		parts.append("需地形：" + tstr)
 	for k in (b.get("buildCost", {}) as Dictionary).keys():
-		parts.append("%s x %s" % [k, str(b["buildCost"][k])])
+		var gid := String(k)
+		# 原来直接打印商品 id（"wood x 20"），提示框里一半是英文。
+		# 换成中文名；查不到才退回 id。
+		var gname := gid
+		if runner.db.goods.has(gid):
+			gname = String((runner.db.goods[gid] as Dictionary).get("nameZh", gid))
+		var amt := float(b["buildCost"][k])
+		var amt_txt := str(int(amt)) if is_equal_approx(amt, round(amt)) else "%.1f" % amt
+		parts.append("%s × %s" % [gname, amt_txt])
 	return "\n".join(parts) if parts.size() > 0 else "无材料消耗"
 
 func _rebuild() -> void:

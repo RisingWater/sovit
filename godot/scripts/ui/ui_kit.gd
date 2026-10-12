@@ -153,6 +153,20 @@ static func make_theme() -> Theme:
 	th.set_font_size("font_size", "Label", FS)
 
 	th.set_stylebox("panel", "Panel", box(T_PANEL_DARK))
+
+	# 提示框：**不透明**。Godot 默认的 TooltipPanel 是半透明深色，
+	# 压在地图这种花花绿绿的背景上很难读。这里换成与 UI 同色系的实心米黄纸。
+	var tip := StyleBoxFlat.new()
+	tip.bg_color = Color(1.0, 0.94, 0.81)
+	tip.border_color = Color(0.43, 0.24, 0.14)
+	tip.set_border_width_all(2)
+	tip.content_margin_left = 8
+	tip.content_margin_right = 8
+	tip.content_margin_top = 6
+	tip.content_margin_bottom = 6
+	th.set_stylebox("panel", "TooltipPanel", tip)
+	th.set_color("font_color", "TooltipLabel", FG_DARK)
+	th.set_font_size("font_size", "TooltipLabel", FS)
 	return th
 
 
