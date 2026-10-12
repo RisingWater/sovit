@@ -571,6 +571,73 @@ func _reset_buildings() -> void:
 	map.occupied.clear()
 	map.reserved.clear()
 
+## 标题页展示用的"像个村子"的村庄：额外铺一批建筑、补一批居民，
+## 再快进一段让仿真自洽。只用于展示，开始游戏时会被真实开局覆盖。
+func showcase_village(seed_value: int) -> void:
+	start_new_game(seed_value, 10.0, "sovit")
+	var s: Dictionary = runner.sim.s
+	s["government"]["money"] = 500000.0
+	s["government"]["immigrationAllowance"] = 100000.0
+	for g in (s["goods"] as Dictionary).keys():
+		s["goods"][g] = 20000.0
+
+	# 额外工坊：从中心向外一圈圈找空位，跳过已占格
+	var ids: Array = []
+	for k in runner.db.buildings.keys():
+		ids.append(String(k))
+	ids.sort()
+	var want := 30
+	var placed := 0
+	var ring := 2
+	while placed < want and ring < 26:
+		for dx in range(-ring, ring + 1):
+			for dy in range(-ring, ring + 1):
+				if placed >= want:
+					break
+				if absi(dx) != ring and absi(dy) != ring:
+					continue
+				var cell: Vector2i = map.center + Vector2i(dx * 3, dy * 3)
+				if not map.in_bounds(cell):
+					continue
+				var def_id: String = ids[placed % ids.size()]
+				var fp: Vector2i = _footprint(def_id)
+				if not _area_free(cell, fp):
+					continue
+				var d: Dictionary = runner.db.buildings[def_id]
+				var sid := "show#%d" % placed
+				(s["shops"] as Array).append({
+					"id": sid, "defId": def_id, "owner": "state",
+					"targetWorkers": int(d["workers"]),
+					"wage": float(runner.db.economy["refWage"]),
+					"wageCap": float(runner.db.economy["defaultWageCap"]),
+					"level": int(runner.db.defaults["newShop"]["level"]),
+					"active": true, "profit": 0.0,
+					"skill": float(runner.db.defaults["newShop"]["skill"]),
+					"planned": 0.0,
+				})
+				_create_shop_view(sid, def_id, cell)
+				placed += 1
+		ring += 1
+
+	# 补居民：让街上真的有人走
+	for i in 40:
+		(s["residents"] as Array).append(runner.sim._make_resident("poor"))
+
+	# 快进几天，让排产/满足度/行走目标都进入稳态
+	for i in 24 * 6:
+		runner.sim.tick_hour([])
+	_prev_res = -1
+	_prev_housing_n = -1
+
+func _area_free(cell: Vector2i, fp: Vector2i) -> bool:
+	for x in fp.x:
+		for y in fp.y:
+			if map.occupied.has(cell + Vector2i(x, y)):
+				return false
+			if map.reserved.has(cell + Vector2i(x, y)):
+				return false
+	return true
+
 ## 从「新游戏」对话框重开一局：换种子重生成地图，按倍率给初始资源，写入村名。
 func start_new_game(seed_value: int, resource_mult: float, village_name: String) -> void:
 	runner.sim = SimCore.new(runner.db)

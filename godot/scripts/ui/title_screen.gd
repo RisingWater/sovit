@@ -16,7 +16,7 @@ const PAN_SPEED := 0.09         # 弧度/秒，很慢
 ## 展示用的固定种子。轮流用，切换时换下一个。
 const SHOWCASE_SEEDS := [20240101, 777, 90210]
 const LOGO_MARGIN := 24.0
-const LOGO_W := 520.0
+const LOGO_W := 900.0
 
 var runner: SimRunner
 var world: Node
@@ -40,6 +40,14 @@ func setup(r: SimRunner, w: Node, dlg: Node) -> void:
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_STOP
+
+	# 切换村庄的淡入淡出。必须**最先**加进来 —— 它是全屏 ColorRect，
+	# 后加就会盖住 logo 和按钮。放在最底下只挡世界那一层。
+	_fade = ColorRect.new()
+	_fade.color = Color(0.03, 0.04, 0.06, 0.0)
+	_fade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_fade.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(_fade)
 
 	# 右上 logo
 	_logo = TextureRect.new()
@@ -66,27 +74,25 @@ func _ready() -> void:
 	box.add_theme_constant_override("separation", 8)
 	wrap.add_child(box)
 	var b_start := UIKit.button("开始游戏", false)
-	b_start.custom_minimum_size = Vector2(200, 0)
+	_big_button(b_start)
 	b_start.pressed.connect(_on_start)
 	box.add_child(b_start)
 	var b_load := UIKit.button("读取进度", false)
-	b_load.custom_minimum_size = Vector2(200, 0)
+	_big_button(b_load)
 	b_load.pressed.connect(_on_load)
 	box.add_child(b_load)
 	var b_quit := UIKit.button("退出游戏", false)
-	b_quit.custom_minimum_size = Vector2(200, 0)
+	_big_button(b_quit)
 	b_quit.pressed.connect(func(): get_tree().quit())
 	box.add_child(b_quit)
 
-	# 切换村庄时的淡入淡出
-	_fade = ColorRect.new()
-	_fade.color = Color(0.03, 0.04, 0.06, 0.0)
-	_fade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	_fade.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(_fade)
-
 	_layout()
 	get_viewport().size_changed.connect(_layout)
+
+## 标题页的按钮比游戏内大一倍：字号提到 BIG_FS(24)，尺寸跟着翻倍
+func _big_button(b: Button) -> void:
+	b.add_theme_font_size_override("font_size", UIKit.BIG_FS)
+	b.custom_minimum_size = Vector2(400, 72)
 
 func _layout() -> void:
 	var vp := get_viewport_rect().size
@@ -109,7 +115,7 @@ func begin_showcase() -> void:
 func _load_village() -> void:
 	if world == null or runner == null:
 		return
-	world.start_new_game(SHOWCASE_SEEDS[_seed_idx % SHOWCASE_SEEDS.size()], 1.0, "sovit")
+	world.showcase_village(SHOWCASE_SEEDS[_seed_idx % SHOWCASE_SEEDS.size()])
 
 func _process(delta: float) -> void:
 	if world == null or world.camera == null or world.map == null:
