@@ -581,6 +581,10 @@ func showcase_village(seed_value: int) -> void:
 	for g in (s["goods"] as Dictionary).keys():
 		s["goods"][g] = 20000.0
 
+	# 先铺路和地板 —— 没有路面的村庄看着非常奇怪（空地上一堆房子）。
+	# 顺序很关键：路先铺，后面摆建筑时再避开路面。
+	_lay_showcase_ground()
+
 	# 额外工坊：从中心向外一圈圈找空位，跳过已占格
 	var ids: Array = []
 	for k in runner.db.buildings.keys():
@@ -649,6 +653,12 @@ func showcase_village(seed_value: int) -> void:
 	# 快进几天，让排产/满足度/行走目标都进入稳态
 	for i in 24 * 6:
 		runner.sim.tick_hour([])
+	# 时间拨到 5:00 —— 0 点开局所有人都在屋里，5 点他们才出门。
+	var guard := 0
+	while int(s["hour"]) != 5 and guard < 48:
+		runner.sim.tick_hour([])
+		guard += 1
+
 	# 补居民必须放在快进**之后**：快进期间会按满足度淘汰人口，
 	# 先加的话这 40 人跑几天就没了（截图里街上只剩一两个人就是这么来的）。
 	for i in 40:
@@ -660,11 +670,41 @@ func showcase_village(seed_value: int) -> void:
 func _area_free(cell: Vector2i, fp: Vector2i) -> bool:
 	for x in fp.x:
 		for y in fp.y:
-			if map.occupied.has(cell + Vector2i(x, y)):
+			var c := cell + Vector2i(x, y)
+			if map.occupied.has(c) or map.reserved.has(c):
 				return false
-			if map.reserved.has(cell + Vector2i(x, y)):
+			# 别把房子盖在路中间
+			if map.road[map.idx(c.x, c.y)] != 0:
 				return false
 	return true
+
+## 展示村庄的路网与铺装：十字主干道 + 三层环路 + 中心广场。
+func _lay_showcase_ground() -> void:
+	var road_cells := []
+	var add_road := func(c: Vector2i):
+		if map.in_bounds(c) and not map.occupied.has(c):
+			map.road[map.idx(c.x, c.y)] = 1
+			road_cells.append(c)
+	# 十字主干道（宽 4）
+	for i in range(-36, 37):
+		for w in range(-1, 3):
+			add_road.call(map.center + Vector2i(i, w))
+			add_road.call(map.center + Vector2i(w, i))
+	# 三层环路
+	for r in [9, 17, 25]:
+		for a in range(0, 360, 2):
+			var rad := deg_to_rad(float(a))
+			add_road.call(map.center + Vector2i(int(round(cos(rad) * float(r))), int(round(sin(rad) * float(r) * 0.72))))
+	# 中心广场铺装（半径 7 的实心圆）
+	for dx in range(-7, 8):
+		for dy in range(-7, 8):
+			if dx * dx + dy * dy <= 49:
+				var c := map.center + Vector2i(dx, dy)
+				if map.in_bounds(c) and map.road[map.idx(c.x, c.y)] == 0:
+					map.floor_tiles[map.idx(c.x, c.y)] = 1
+	_rerender_terrain()
+	for c in road_cells:
+		_refresh_road(c)
 
 ## 从「新游戏」对话框重开一局：换种子重生成地图，按倍率给初始资源，写入村名。
 func start_new_game(seed_value: int, resource_mult: float, village_name: String) -> void:
