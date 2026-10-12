@@ -84,6 +84,7 @@ step "smoke" "$GODOT_BIN" --headless --path . -s res://tools/smoke_test.gd
 step "move" "$GODOT_BIN" --headless --path . -s res://tools/move_test.gd
 step "music" "$GODOT_BIN" --headless --path . -s res://tools/music_test.gd
 step "daylight" "$GODOT_BIN" --headless --path . -s res://tools/daylight_test.gd
+step "bartab" "$GODOT_BIN" --headless --path . -s res://tools/bartab_test.gd
 
 if [ "$FAIL" -ne 0 ]; then
   echo "SOME CHECKS FAILED" >&2

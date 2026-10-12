@@ -10,10 +10,10 @@ extends PanelContainer
 var runner: SimRunner
 var world: Node
 
-const TABS := ["住宅", "农业", "矿场", "工业", "娱乐", "其它"]
-# 这两个虽然 arch=workshop，但归到「娱乐」
+const TABS := ["住宅", "农场", "食品加工", "矿场", "工业", "娱乐", "其它"]
+# 这两个虽然产出不是食物，但归到「娱乐」
 const ENTERTAINMENT := ["theater", "domestic_service"]
-# 矿场（采掘业）：图集里没有对应建筑的产业也走这里
+# 采掘业白名单（现在与 art.arch == "extract" 重合，留作显式覆盖的口子）
 const MINING := ["lumberjack", "quarry", "clay_pit", "hunting_camp", "fishery"]
 
 var _tab: int = 0
@@ -95,14 +95,33 @@ func _category_of(id: String) -> String:
 		return "娱乐"
 	if MINING.has(id):
 		return "矿场"
-	var a: Dictionary = runner.db.buildings[id].get("art", {})
-	match String(a.get("arch", "")):
-		"field":
-			return "农业"
-		"extract":
-			return "矿场"
-		_:
-			return "工业"
+	var b: Dictionary = runner.db.buildings.get(id, {})
+	var a: Dictionary = b.get("art", {})
+	var arch := String(a.get("arch", ""))
+	if arch == "field":
+		return "农场"
+	if arch == "extract":
+		return "矿场"
+	# 食品加工 = 主产出属于 food 类，且不是采集业（渔场/狩猎营地走矿场）
+	if _primary_output_is_food(b):
+		return "食品加工"
+	return "工业"
+
+## 主产出（产出量最大的那个商品）是不是食物类。
+## 按产出商品判类，而不是靠建筑 id 白名单 —— 新增建筑只要配方对就自动归位。
+func _primary_output_is_food(b: Dictionary) -> bool:
+	var rec: Dictionary = runner.db.recipes.get(String(b.get("recipe", "")), {})
+	var out: Dictionary = rec.get("output", {})
+	var best := ""
+	var best_q := 0.0
+	for g in out.keys():
+		if float(out[g]) > best_q:
+			best_q = float(out[g])
+			best = String(g)
+	if best == "":
+		return false
+	var gd: Dictionary = runner.db.goods.get(best, {})
+	return String(gd.get("category", "")) == "food"
 
 func _ids_of(cat: String) -> Array:
 	var out := []
