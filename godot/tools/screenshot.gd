@@ -128,6 +128,13 @@ func _run() -> void:
 			em.open()
 		await process_frame
 
+	# 新游戏对话框
+	if mode == "newgame":
+		var ng = node.get_node_or_null("UI/Root/NewGame")
+		if ng != null:
+			ng.open()
+		await process_frame
+
 	# 统计面板：stats0 资源 / stats1 人口 / stats2 财务
 	if mode.begins_with("stats"):
 		# 多跑几天让曲线有内容

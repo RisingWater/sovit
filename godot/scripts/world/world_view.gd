@@ -571,6 +571,27 @@ func _reset_buildings() -> void:
 	map.occupied.clear()
 	map.reserved.clear()
 
+## 从「新游戏」对话框重开一局：换种子重生成地图，按倍率给初始资源，写入村名。
+func start_new_game(seed_value: int, resource_mult: float, village_name: String) -> void:
+	runner.sim = SimCore.new(runner.db)
+	runner.sim.new_game("v0.3", seed_value, resource_mult)
+	# 截断放在这里 —— 这是重开一局的唯一入口，任何调用方都绕不过去。
+	# 只在对话框里截断的话，直接调这个函数就会漏（测试就是这么抓到的）。
+	var nm := village_name.strip_edges()
+	if nm == "":
+		nm = "sovit"
+	if nm.length() > UIKit.NAME_MAX:
+		nm = nm.substr(0, UIKit.NAME_MAX)
+	runner.sim.s["villageName"] = nm
+	runner.recent_logs = []
+	_reset_buildings()
+	_map_seed = seed_value
+	map = GameMap.new()
+	map.generate(_map_seed)
+	_rerender_terrain()
+	_prev_res = -1          # 强制 _sync() 重建居民与建筑精灵
+	_prev_housing_n = -1
+
 func load_from(path: String) -> bool:
 	if not FileAccess.file_exists(path):
 		return false

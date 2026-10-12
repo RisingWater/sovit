@@ -13,6 +13,11 @@ extends Control
 const RING_D := 128                 # 圆环直径，必须是 64 的整数倍（128 = 64 * 2）
 const RING_SRC := 64                # 四块 32x32 拼起来是 64x64
 const RIB_H := 32
+## 红巾宽度：要装得下 6 个汉字 @ 24px = 144px。圆盘只有 128，所以红巾比圆盘宽，
+## 两端各探出 16px —— 和圆盘上下的日期框一样属于刻意压边。
+const RIB_W := 160
+## 村名长度上限与 UIKit 共用同一个来源
+const NAME_MAX := UIKit.NAME_MAX
 const BOX_W := 112
 const BOX_H := 26
 const PAD := 0                     # 不再留边：日期框与红巾直接叠在圆盘上
@@ -89,13 +94,13 @@ func _ready() -> void:
 
 	# --- 村名红巾
 	var rib := HBoxContainer.new()
-	rib.position = Vector2((RING_D - RING_D) * 0.5, RING_D - RIB_H + 6)
+	rib.position = Vector2((RING_D - RIB_W) * 0.5, RING_D - RIB_H + 6)
 	rib.add_theme_constant_override("separation", 0)
 	rib.mouse_filter = Control.MOUSE_FILTER_STOP
 	rib.tooltip_text = "点击修改村庄名"
 	rib.gui_input.connect(_on_ribbon_input)
 	add_child(rib)
-	var n := RING_D / 32                       # 6 段：左 + 4 中 + 右
+	var n := RIB_W / 32                        # 5 段：左 + 3 中 + 右
 	for i in n:
 		var t := TextureRect.new()
 		t.texture = load(UI_DIR + ("ribbon_l.png" if i == 0 else ("ribbon_r.png" if i == n - 1 else "ribbon_m.png")))
@@ -109,7 +114,7 @@ func _ready() -> void:
 	_name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_name_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	_name_label.position = rib.position
-	_name_label.size = Vector2(RING_D, RIB_H)
+	_name_label.size = Vector2(RIB_W, RIB_H)
 	_name_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_name_label)
 
@@ -168,8 +173,8 @@ func set_village_name(v: String) -> void:
 	var clean := v.strip_edges()
 	if clean == "":
 		clean = "sovit"
-	if clean.length() > 16:
-		clean = clean.substr(0, 16)
+	if clean.length() > NAME_MAX:
+		clean = clean.substr(0, NAME_MAX)
 	runner.sim.s["villageName"] = clean
 	_refresh_name()
 

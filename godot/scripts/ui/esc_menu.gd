@@ -11,6 +11,7 @@ extends Control
 var runner: SimRunner
 var world: Node
 var hud: Node
+var new_game_dialog: Node = null
 
 var _panel: PanelContainer
 var _music_btn: Button
@@ -46,6 +47,14 @@ func _ready() -> void:
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	vb.add_child(title)
 	vb.add_child(UIKit.hsep())
+
+	var b_new := UIKit.button("新游戏…", false)
+	b_new.tooltip_text = "重新开局：设置村名与难度"
+	b_new.pressed.connect(func():
+		if new_game_dialog != null:
+			close()
+			new_game_dialog.open())
+	vb.add_child(b_new)
 
 	var b_save := UIKit.button("保存…", false)
 	b_save.tooltip_text = "选择路径保存存档"

@@ -13,6 +13,7 @@ var _daylight
 var _sfx
 var _minimap
 var _esc_menu
+var _new_game
 
 func _ready() -> void:
 	runner = SimRunner.new()
@@ -70,7 +71,7 @@ func _ready() -> void:
 	# 必须在 add_child 之前赋值：hud._ready() 里就会读 music 来刷新按钮文案
 	hud.music = _music
 	hud.sfx = _sfx
-	hud.left_inset = 140.0      # 小地图宽 128 + 间隙
+	hud.left_inset = 168.0      # 红巾宽 160 + 间隙
 	root_ui.add_child(hud)
 
 	var bar = load("res://scripts/ui/build_bar.gd").new()
@@ -109,6 +110,13 @@ func _ready() -> void:
 	_esc_menu.setup(runner, world, hud)
 	root_ui.add_child(_esc_menu)
 	hud.esc_menu = _esc_menu
+
+	# 新游戏对话框（标题页与 ESC 菜单都会用它）
+	_new_game = load("res://scripts/ui/new_game_dialog.gd").new()
+	_new_game.name = "NewGame"
+	_new_game.setup(runner, world)
+	root_ui.add_child(_new_game)
+	_esc_menu.new_game_dialog = _new_game
 
 func _process(_delta: float) -> void:
 	if _stats == null:

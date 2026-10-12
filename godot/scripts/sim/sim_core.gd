@@ -59,7 +59,7 @@ func spend(gid: String, qty: float) -> bool:
 # ===========================================================================
 # 初始状态
 # ===========================================================================
-func new_game(pack_id: String, seed_value: int) -> void:
+func new_game(pack_id: String, seed_value: int, resource_mult: float = 1.0) -> void:
 	var pack: Dictionary = db.packs[pack_id]
 	var start: Dictionary = pack["start"]
 	rng = Rng.new(seed_value)
@@ -120,6 +120,12 @@ func new_game(pack_id: String, seed_value: int) -> void:
 		})
 
 	var money = float(start["money"])
+	# 开局资源倍率（难度）：只缩放初始库存与国库，不参与任何后续公式，
+	# 所以默认 1.0 时结果与从前逐位相同（golden 不受影响）。
+	if resource_mult != 1.0:
+		for gid in goods.keys():
+			goods[gid] = goods[gid] * resource_mult
+		money = money * resource_mult
 	s = {
 		"pack": pack_id, "seed": seed_value, "rngState": rng.state,
 		"day": 0, "hour": 0, "pending": [], "reserved": {},
