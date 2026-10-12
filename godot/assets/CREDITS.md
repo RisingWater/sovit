@@ -18,35 +18,34 @@
 | `tiny/deco.png` | 本项目自绘（树 4 种） | — | 同项目授权 |
 | `actors/*.png` | 本项目自绘（居民 4 阶层 × 4 向 × 4 帧） | — | 同项目授权 |
 | `ui/speed_*.png` | 本项目自绘（暂停 / 1x / 2x / 4x） | — | 同项目授权 |
-| `props/**` | SUPER RETRO WORLD | Gif | **专有，禁止再分发 —— 不入库** |
+| `props/src/house_*.png`<br>`props/thumb/*.png` | SUPER RETRO WORLD | Gif | **专有商用授权** |
 
-## ⚠️ props/ —— 专有素材，刻意不入库
+## props/ —— 专有素材
 
-`godot/Props/`、`godot/Characters/`、`godot/Tilesets/` 是 **SUPER RETRO WORLD**
-（Copyright (C) Gif）素材包，授权见 `godot/Custom_Commercial_License.txt`。
+`godot/assets/props/` 里的 12 张房屋来自 **SUPER RETRO WORLD**（Copyright (C) Gif），
+完整授权见 [`godot/Custom_Commercial_License.txt`](../Custom_Commercial_License.txt)。
 
-该授权允许：用在游戏里、修改、随成品分发。
-**但明确禁止**：
+**授权允许**：用在游戏里、修改改编、**随成品分发**（`Distribute finished projects containing the Assets`）。
+**授权禁止**：作为散装文件再分发、上传到公开仓库、以可提取的独立形式公开。
 
-- 把素材作为独立文件或素材包再分发 / 分享 / 再授权
-- 上传到其它市场、**repository** 或文件分享服务
-- 以**可提取的独立形式**公开
+### ⚠️ 本仓库应当保持私有
 
-git 仓库正属于 "repository"，原始 PNG 正属于 "extractable standalone form"，
-所以**这些目录以及由它们派生的一切产物都不入库**：
+`assets/props/src/*.png` 与素材包原图**逐字节相同**，属于授权所说的
+"standalone files" / "extractable standalone form"。因此：
 
-| 路径 | 内容 | 是否入库 |
-|---|---|---|
-| `godot/Props/` `godot/Characters/` `godot/Tilesets/` | 原始素材包 | ❌ 已 gitignore |
-| `godot/assets/props/src/*.png` | 生成管线复制出的原图 | ❌ 已 gitignore |
-| `godot/assets/props/thumb/*.png` | 由原图派生的建造卡片缩略图 | ❌ 已 gitignore |
-| `godot/assets/buildings/*.png` | 其余 25 座（自绘/CC0 拼装，**不含** prop） | ✅ |
-| `godot/assets/thumbs/*.png` | 其余缩略图 + 笔刷卡（**不含** prop） | ✅ |
+- **本仓库需保持私有**。私有仓库不构成"publicly available"，落在授权允许范围内。
+- 若要公开本仓库，请先按下文把 prop 依赖去掉（约 1 分钟）。
+- 发布**打包好的游戏**没有这个问题 —— 授权明说允许 "finished projects containing the Assets"。
 
-**本地要跑起来**：把该素材包解到 `godot/Props/`（保持 `Props/Houses/Sprites/house_NN.png` 的相对路径），
-再执行 `npm run gen:art`。缺包时 gen-art 会跳过这 12 座并在控制台告警，其余建筑不受影响。
+### 素材包本身不入库
 
-**授权信息本身**保留在 `godot/Custom_Commercial_License.txt`（保留许可文本是合规做法，不构成再分发）。
+`godot/Props/`、`godot/Characters/`、`godot/Tilesets/`（原始下载包，共 586 个文件）
+不纳入版本管理，与 Tiny / UI 包的处理方式一致：**原始包不入库，游戏实际用到的落到
+`godot/assets/`**。
+
+本地要重新生成时：把素材包解到 `godot/Props/`（保持 `Props/Houses/Sprites/house_NN.png`
+的相对路径），执行 `npm run gen:art`。缺包时 gen-art 会跳过这 12 座并告警，
+游戏会退回自绘的 `buildings/_prop_fallback.png`，其余建筑不受影响。
 
 ### 要完全去掉这个依赖
 

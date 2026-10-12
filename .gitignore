@@ -14,17 +14,19 @@ godot/builds/
 godot/export_presets.cfg
 
 # ---------------------------------------------------------------------------
-# Super Retro World（Copyright (C) Gif）—— **不得入库**
+# Super Retro World（Copyright (C) Gif）素材包
 #
-# 该包的 Custom_Commercial_License.txt 明确禁止：
-#   - 把素材作为独立文件或素材包再分发 / 分享 / 再授权
-#   - 上传到其它市场、仓库或文件分享服务
-#   - 以可提取的独立形式公开
-# git 仓库正属于"repository"，原始 PNG 正属于"extractable standalone form"。
+# 该包授权（godot/Custom_Commercial_License.txt）允许"发布含素材的成品"，
+# 但禁止把素材作为散装文件再分发、禁止上传到公开仓库。
 #
-# 因此：原始素材目录、以及由它们派生的一切产物（复制件、缩略图）全部忽略。
-# 本地想用就自己把包放进 godot/Props/，再跑 `npm run gen:art`。
-# 缺包时 gen-art 会跳过 prop 建筑并在控制台告警，其余建筑不受影响。
+# 处理方式与 Tiny / UI 包一致：**原始下载包不入库，游戏实际用到的落到
+# godot/assets/props/**。所以这里只忽略素材包本身的目录。
+#
+# ⚠️ godot/assets/props/ 里的 12 张房屋**已入库**，因此本仓库
+#    **应当保持为私有仓库**。若将来要公开，把 content/buildings.json 里
+#    12 处 art 从 { "arch": "prop", "sprite": "house_NN" } 改回程序化生成
+#    （例如 { "arch": "workshop", "roof": "blue", "wall": "wood", "w": 5 }）
+#    并重跑 `npm run gen:art`，代码侧无需改动。
 # ---------------------------------------------------------------------------
 godot/Props/
 godot/Characters/
@@ -32,4 +34,3 @@ godot/Tilesets/
 godot/DONATE.html
 godot/REVIEW.html
 godot/STORE.html
-godot/assets/props/
