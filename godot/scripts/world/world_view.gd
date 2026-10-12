@@ -112,9 +112,11 @@ func _add_label(text: String, cell: Vector2i, fw: int, fh: int) -> Label:
 	l.add_theme_constant_override("outline_size", 5)
 	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	label_layer.add_child(l)
-	# 锚点取建筑底边中点，牌子压在下沿
-	var anchor := _area_center(cell, fw, fh) + Vector2(0, fh * TILE * 0.5 - 6.0)
-	_label_items.append({"node": l, "world": anchor})
+	# 锚点取**屋顶中心**：最下一行是墙体，屋顶占上面 fh-1 行，
+	# 所以屋顶中心 = 占地顶边 + (fh-1)*TILE/2。牌子压在屋顶上而不是墙上。
+	var cx := _area_center(cell, fw, fh).x
+	var roof_cy := float(cell.y * TILE) + float(fh - 1) * TILE * 0.5
+	_label_items.append({"node": l, "world": Vector2(cx, roof_cy)})
 	return l
 
 ## 每帧把世界锚点投影到屏幕坐标（镜头位置 + 缩放变了都要重算）。
