@@ -266,10 +266,10 @@ func _build_tileset() -> void:
 	building_layer = Node2D.new()
 	add_child(building_layer)
 	agent_layer = Node2D.new()
-	agent_layer.z_index = -1        # 室内：被建筑挡住（进屋子就该看不见）
+	agent_layer.z_index = -1        # 后层：脚底在建筑底边之上的人
 	add_child(agent_layer)
 	agent_front = Node2D.new()
-	agent_front.z_index = 1         # 街上：压在建筑上面，头不会被切
+	agent_front.z_index = 1         # 前层：脚底在建筑底边之下的人，压在房子上面
 	add_child(agent_front)
 
 	# 建筑名标签走屏幕空间，字号不随镜头缩放变化
@@ -1035,13 +1035,29 @@ func _refresh_agents() -> void:
 			var home = _resident_home.get(id, _warehouse_pos)
 			_agents.append({"id": id, "pos": home, "target": home, "home": home})
 
-## 人是不是站在建筑（或仓库）的占地范围内 —— 是的话算在屋里，画到后层
-func _agent_indoors(a: Dictionary) -> bool:
+## 人是否被建筑挡住 —— 按**深度**判断，不是按在不在屋里。
+##
+## 单纯把所有街上的人画到建筑上面，走在房子后面时看起来就像穿过建筑；
+## 单层(z=-1) 又会让走在房子前面的人被切头。所以按脚底与建筑底边的相对位置分流：
+##   人的脚底在该建筑底边之上  -> 后层，被房子挡住
+##   人之下的建筑底边         -> 前层，压在房子上面
+func _agent_behind_buildings(a: Dictionary) -> bool:
 	var pos: Vector2 = a["pos"]
 	var c := Vector2i(int(floor(pos.x / float(TILE))), int(floor(pos.y / float(TILE))))
 	if not map.in_bounds(c):
 		return false
-	return map.occupied.has(c) or map.warehouse.has_point(c)
+	# 只查脚底附近几格：够覆盖相邻建筑，又不至于每帧扫太多
+	for dy in range(-2, 3):
+		for dx in range(-2, 3):
+			var cc := c + Vector2i(dx, dy)
+			if not map.in_bounds(cc):
+				continue
+			if not (map.occupied.has(cc) or map.warehouse.has_point(cc)):
+				continue
+			# 该占位格的底边
+			if pos.y < float(cc.y * TILE + TILE):
+				return true
+	return false
 
 func _draw_agents() -> void:
 	_draw_agent_pass(agent_layer, true)
@@ -1049,7 +1065,7 @@ func _draw_agents() -> void:
 func _draw_agents_front() -> void:
 	_draw_agent_pass(agent_front, false)
 
-func _draw_agent_pass(layer: Node2D, indoors: bool) -> void:
+func _draw_agent_pass(layer: Node2D, behind: bool) -> void:
 	# 居民阶层（每帧建一次表，避免 N² 查找）
 	var cls_of := {}
 	if runner != null and runner.sim != null:
