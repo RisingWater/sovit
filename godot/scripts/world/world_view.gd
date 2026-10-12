@@ -393,9 +393,11 @@ func _texture_for(type: String) -> Texture2D:
 	var a := _art_of(type)
 	var tex: Texture2D
 	if String(a.get("arch", "")) == "prop":
-		# Super Retro World 的房屋整图。来源包授权禁止入库，所以放在 gitignore 的
-		# assets/props/src/ 下；注意这里与 buildings/ 不同，缺图时会是空。
+		# SUPER RETRO WORLD 的房屋整图。来源包授权禁止入库，所以放在 gitignore 的
+		# assets/props/src/ 下；没装素材包时退回自绘的通用工坊外形。
 		tex = load("res://assets/props/src/%s.png" % String(a.get("sprite", "")))
+		if tex == null:
+			tex = load("res://assets/buildings/_prop_fallback.png")
 	else:
 		tex = load("res://assets/buildings/%s.png" % type)
 	_tex_cache[type] = tex

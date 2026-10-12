@@ -851,6 +851,11 @@ function main(): void {
   writeFileSync(`${ROOT}/thumbs/_warehouse.png`, thumbOf(wh).toPng())
   n++
 
+  // prop 建筑在没装 SUPER RETRO WORLD 素材包时的兜底外形（自绘，可入库）
+  const fb = renderBuilding({ arch: 'workshop', roof: 'blue', wall: 'wood', w: 5 })
+  writeFileSync(`${ROOT}/buildings/_prop_fallback.png`, fb.toPng())
+  writeFileSync(`${ROOT}/thumbs/_prop_fallback.png`, thumbOf(fb).toPng())
+
   for (const cls of CLASS_IDS) {
     writeFileSync(`${ROOT}/actors/${cls}.png`, actorSheet(cls).toPng())
   }
