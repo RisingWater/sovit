@@ -8,6 +8,8 @@ var runner: SimRunner
 var world: Node
 var stats_panel: Control = null      # 统计面板（由 main 注入）
 var music: Node = null               # 背景音乐（由 main 注入）
+var sfx: Node = null                 # 菜单音效（由 main 注入）
+var _sfx_btn: Button = null
 var _music_btn: Button = null
 
 const CFG_PATH := "user://hud.cfg"
@@ -74,11 +76,16 @@ func _ready() -> void:
 	st.tooltip_text = "资源 / 人口 / 财务 明细与曲线"
 	st.pressed.connect(_open_stats)
 	row.add_child(st)
+	_sfx_btn = UIKit.button("音效", true)
+	_sfx_btn.tooltip_text = "菜单音效开关（Kenney UI SFX）"
+	_sfx_btn.pressed.connect(_toggle_sfx)
+	row.add_child(_sfx_btn)
 	_music_btn = UIKit.button("音乐", true)
 	_music_btn.tooltip_text = "背景音乐开关（Shimmer Sill，Talon Trueblood）"
 	_music_btn.pressed.connect(_toggle_music)
 	row.add_child(_music_btn)
 	_refresh_music_btn()
+	_refresh_sfx_btn()
 
 	# ---------------- 第二行：资源
 	_res_row = HBoxContainer.new()
@@ -101,6 +108,21 @@ func _toggle_music() -> void:
 		return
 	music.toggle_mute()
 	_refresh_music_btn()
+
+func _toggle_sfx() -> void:
+	if sfx == null:
+		return
+	sfx.toggle_mute()
+	_refresh_sfx_btn()
+
+func _refresh_sfx_btn() -> void:
+	if _sfx_btn == null:
+		return
+	if sfx == null:
+		_sfx_btn.text = "音效—"
+		_sfx_btn.disabled = true
+		return
+	_sfx_btn.text = "音效关" if sfx.is_muted() else "音效开"
 
 func _refresh_music_btn() -> void:
 	if _music_btn == null:

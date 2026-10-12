@@ -105,6 +105,7 @@ func open() -> void:
 
 func _select_tab(i: int) -> void:
 	_tab = i
+	UIKit.play_switch()
 	for k in _tab_btns.size():
 		_tab_btns[k].add_theme_stylebox_override("normal",
 			UIKit.box(UIKit.T_BTN_ACTIVE if k == i else UIKit.T_BTN))

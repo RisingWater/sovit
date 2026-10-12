@@ -10,6 +10,7 @@ var _stats: GameStats
 var _panel_stats
 var _music
 var _daylight
+var _sfx
 
 func _ready() -> void:
 	runner = SimRunner.new()
@@ -20,6 +21,12 @@ func _ready() -> void:
 	_music = load("res://scripts/ui/music.gd").new()
 	_music.name = "Music"
 	add_child(_music)
+
+	# 菜单音效（Kenney UI SFX，CC0）。UIKit 是静态类，只能通过静态字段注入。
+	_sfx = load("res://scripts/ui/sfx.gd").new()
+	_sfx.name = "Sfx"
+	add_child(_sfx)
+	UIKit.sfx = _sfx
 
 	world = load("res://scripts/world/world_view.gd").new()
 	world.name = "World"
@@ -60,6 +67,7 @@ func _ready() -> void:
 	hud.world = world
 	# 必须在 add_child 之前赋值：hud._ready() 里就会读 music 来刷新按钮文案
 	hud.music = _music
+	hud.sfx = _sfx
 	root_ui.add_child(hud)
 
 	var bar = load("res://scripts/ui/build_bar.gd").new()

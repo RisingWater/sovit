@@ -45,6 +45,23 @@ const FG_DIM := Color(0.59, 0.41, 0.28)
 
 static var _font: FontFile = null
 static var _tex_cache: Dictionary = {}
+## 音效播放器（由 main 注入）。UIKit 是静态类，拿不到实例，只能这样接。
+## 为 null 时按钮照常工作，只是没声音。
+static var sfx: Node = null
+
+
+## 给按钮挂上菜单音效：悬停 + 点击
+static func _wire_sfx(b: Button) -> void:
+	if sfx == null:
+		return
+	b.mouse_entered.connect(func(): sfx.hover())
+	b.pressed.connect(func(): sfx.click())
+
+
+## 切换类操作（Tab、开关）用它，和普通点击区分开
+static func play_switch() -> void:
+	if sfx != null:
+		sfx.switch_sfx()
 
 
 static func pixel_font() -> FontFile:
@@ -156,6 +173,7 @@ static func button(text: String, small: bool = false) -> Button:
 	b.add_theme_font_size_override("font_size", FS)
 	var h := BTN_H_SM if small else BTN_H
 	b.custom_minimum_size = Vector2(0, h)
+	_wire_sfx(b)
 	return b
 
 
@@ -168,6 +186,7 @@ static func icon_button(icon_path: String, tip: String) -> Button:
 	b.add_theme_font_override("font", pixel_font())
 	b.add_theme_font_size_override("font_size", FS)
 	b.custom_minimum_size = Vector2(BTN_H_SM + 8, BTN_H_SM)
+	_wire_sfx(b)
 	return b
 
 
@@ -223,4 +242,5 @@ static func card(text: String, thumb: Texture2D) -> Button:
 	l.clip_text = true
 	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	vb.add_child(l)
+	_wire_sfx(b)
 	return b

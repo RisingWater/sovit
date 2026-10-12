@@ -75,6 +75,7 @@ func _ready() -> void:
 
 func _select_tab(i: int) -> void:
 	_tab = i
+	UIKit.play_switch()
 	_page = 0
 	for k in _tab_btns.size():
 		_tab_btns[k].add_theme_stylebox_override("normal",
