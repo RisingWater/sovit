@@ -199,12 +199,15 @@ func _building_panel() -> void:
 func _set_workers(value: int, maxw: int) -> void:
 	var v = clampi(value, 0, maxw)
 	runner.enqueue([{"type": "set_workers", "shopId": _id, "value": v}])
+	_rebuild()   # 同上：命令次日生效，不重建就看不到变化
 
 func _toggle(active: bool) -> void:
 	runner.enqueue([{"type": "toggle", "shopId": _id, "active": active}])
+	_rebuild()
 
 func _expand() -> void:
 	runner.enqueue([{"type": "expand", "shopId": _id}])
+	_rebuild()
 
 func _begin_move_shop() -> void:
 	if world != null:
@@ -299,6 +302,9 @@ func _housing_panel() -> void:
 
 func _set_immigration(value: int) -> void:
 	runner.enqueue([{"type": "set_immigration", "value": value}])
+	# 必须立刻重建：命令排到次日 06:00 才生效，不重建的话点完屏幕上
+	# 一点变化都没有，看起来就像按钮没反应。
+	_rebuild()
 
 func _global_panel() -> void:
 	var s: Dictionary = runner.sim.s
@@ -324,9 +330,17 @@ func _global_panel() -> void:
 	_title("移民")
 	var arrivals = int(s["arrivals"])
 	var allow = int(float(s["government"]["immigrationAllowance"]))
-	var allow_txt = "不限" if allow >= 100000000 else str(allow)
+	# 命令是"次日 06:00 生效"的，所以点完按钮后状态里还是旧值 ——
+	# 面板必须先看 pending 队列，否则点"全收"屏幕上一点变化都没有，像没反应。
+	var pending_allow := -1
+	for a in (s["pending"] as Array):
+		if String(a.get("type", "")) == "set_immigration":
+			pending_allow = int(float(a["value"]))
+	var eff_allow: int = pending_allow if pending_allow >= 0 else allow
+	var allow_txt = "不限" if eff_allow >= 100000000 else str(eff_allow)
 	_kv("本回合想来", "%d 人" % arrivals, Color(0.55, 0.35, 0.15) if arrivals > 0 else UIKit.FG_DARK)
-	_kv("当前允许", allow_txt)
+	_kv("当前允许" + ("（已排队）" if pending_allow >= 0 else ""), allow_txt,
+		Color(0.72, 0.35, 0.15) if pending_allow >= 0 else UIKit.FG_DARK)
 	var popn = residents.size()
 	var hcap = 0
 	for gid in (s["housing"] as Dictionary).keys():
@@ -338,14 +352,23 @@ func _global_panel() -> void:
 			var defx = runner.db.buildings.get(String(sh["defId"]), null)
 			if defx != null:
 				jcap += int(minf(float(sh["targetWorkers"]), float(defx["maxWorkers"])))
+	var room := maxi(0, mini(hcap - popn, jcap - popn))
 	_kv("空房", "%d" % maxi(0, hcap - popn))
 	_kv("空岗", "%d" % maxi(0, jcap - popn))
-	_kv("可迁入", "%d 人" % maxi(0, mini(hcap - popn, jcap - popn)))
+	# 这才是会真正发生的事：想来 ∩ 允许 ∩ 空房空岗
+	var will_come: int = mini(arrivals, mini(eff_allow if eff_allow < 100000000 else arrivals, room))
+	_kv("次日会来", "%d 人" % will_come,
+		Color(0.18, 0.45, 0.20) if will_come > 0 else UIKit.FG_DARK)
 	_buttons([["全收", func(): _set_immigration(1000000000)],
 		["暂停", func(): _set_immigration(0)],
 		["+10", func(): _set_immigration((allow if allow < 100000000 else 0) + 10)]])
 	_gap(2)
-	_body.add_child(_label("次日 06:00 生效。没人来通常是空房或空岗不足。"))
+	if will_come <= 0 and arrivals > 0:
+		_body.add_child(_label("想来 %d 人，但空房或空岗不足，一个也进不来。" % arrivals))
+	elif pending_allow >= 0:
+		_body.add_child(_label("已排队，次日 06:00 生效。"))
+	else:
+		_body.add_child(_label("次日 06:00 生效。没人来通常是空房或空岗不足。"))
 
 	_gap()
 	_title("库存（含已预留）")

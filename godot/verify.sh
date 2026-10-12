@@ -87,6 +87,7 @@ step "sfx" "$GODOT_BIN" --headless --path . -s res://tools/sfx_test.gd
 step "daylight" "$GODOT_BIN" --headless --path . -s res://tools/daylight_test.gd
 step "bartab" "$GODOT_BIN" --headless --path . -s res://tools/bartab_test.gd
 step "panel" "$GODOT_BIN" --headless --path . -s res://tools/panel_test.gd
+step "imm" "$GODOT_BIN" --headless --path . -s res://tools/imm_test.gd
 
 if [ "$FAIL" -ne 0 ]; then
   echo "SOME CHECKS FAILED" >&2
