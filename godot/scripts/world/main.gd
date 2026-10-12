@@ -6,6 +6,8 @@ extends Node2D
 var runner: SimRunner
 var world
 var _inspector
+var _stats: GameStats
+var _panel_stats
 
 func _ready() -> void:
 	runner = SimRunner.new()
@@ -17,8 +19,15 @@ func _ready() -> void:
 	world.setup(runner, 12345)
 	add_child(world)
 
+	# 统计记录器：每过一个游戏日采样一次（只读仿真状态）
+	_stats = GameStats.new()
+	_stats.setup(runner)
+
 	var canvas := CanvasLayer.new()
 	canvas.name = "UI"
+	# 世界里的建筑名标签也在 CanvasLayer 上（layer=1），同层时先后顺序不可靠，
+	# 会把字盖到统计面板上。UI 抬到 10，确保压在所有世界元素之上。
+	canvas.layer = 10
 	add_child(canvas)
 
 	var theme := UIKit.make_theme()
@@ -48,11 +57,23 @@ func _ready() -> void:
 	_inspector.world = world
 	root_ui.add_child(_inspector)
 
+	_panel_stats = load("res://scripts/ui/panel_stats.gd").new()
+	_panel_stats.name = "Stats"
+	_panel_stats.setup(runner, world, _stats)
+	root_ui.add_child(_panel_stats)
+	hud.stats_panel = _panel_stats
+
 	world.select_building.connect(_inspector.show_building)
 	world.select_housing.connect(_inspector.show_housing)
 	world.select_resident.connect(_inspector.show_resident)
 	world.select_none.connect(_inspector.clear)
 	world.notice.connect(hud.set_notice)
+
+func _process(_delta: float) -> void:
+	if _stats != null:
+		_stats.poll()
+		if _panel_stats != null and _panel_stats.visible:
+			_panel_stats.refresh()
 
 func _unhandled_input(event: InputEvent) -> void:
 	if not (event is InputEventKey) or not event.pressed or event.echo:

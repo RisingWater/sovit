@@ -6,6 +6,7 @@ extends PanelContainer
 
 var runner: SimRunner
 var world: Node
+var stats_panel: Control = null      # 统计面板（由 main 注入）
 
 const CFG_PATH := "user://hud.cfg"
 const DEFAULT_VISIBLE := ["wood", "stone", "brick", "clay", "firewood",
@@ -67,6 +68,10 @@ func _ready() -> void:
 	pick.tooltip_text = "选择顶栏显示哪些资源"
 	pick.pressed.connect(_open_picker)
 	row.add_child(pick)
+	var st := UIKit.button("统计", true)
+	st.tooltip_text = "资源 / 人口 / 财务 明细与曲线"
+	st.pressed.connect(_open_stats)
+	row.add_child(st)
 
 	# ---------------- 第二行：资源
 	_res_row = HBoxContainer.new()
@@ -79,6 +84,10 @@ func _ready() -> void:
 	if runner != null:
 		runner.hour_ticked.connect(_refresh)
 	_refresh()
+
+func _open_stats() -> void:
+	if stats_panel != null:
+		stats_panel.open()
 
 # ---------------------------------------------------------------------------
 # 资源栏

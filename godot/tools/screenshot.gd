@@ -109,6 +109,20 @@ func _run() -> void:
 			hud._open_picker()
 			await process_frame
 
+	# 统计面板：stats0 资源 / stats1 人口 / stats2 财务
+	if mode.begins_with("stats"):
+		# 多跑几天让曲线有内容
+		for h in 24 * 24:
+			runner.sim.tick_hour([])
+			await process_frame
+		var panel = node.get_node_or_null("UI/Root/Stats")
+		if panel != null:
+			panel.open()
+			await process_frame
+			panel._select_tab(int(mode.substr(5)) if mode.length() > 5 else 0)
+			await process_frame
+			print("SCREENSHOT stats tab -> ", mode)
+
 	# 可选：切到指定建造 Tab（0=住宅 1=农业 2=矿场 3=工业 4=娱乐 5=其它）
 	if args.size() > 2:
 		var bar = node.get_node_or_null("UI/Root/BuildBar")
