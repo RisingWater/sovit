@@ -2,19 +2,15 @@ class_name GameStats
 extends RefCounted
 
 # ---------------------------------------------------------------------------
-# 统计记录器（**只读仿真状态，不修改仿真层**）
+# 取数口径（全部来自仿真层的权威记录）
+#   [实际] 库存、国库、人口、满意度、饥饿、就业 —— 直接读状态 / history
+#   [实际] 产量、工业消耗、居民购买 —— 读当天 DaySnapshot.ledger
+#   [实际] 工资/税收/租金/消费回款 —— 读当天 DaySnapshot.ledger
+#   [实际] 逐人工资/税/租/消费/满足率/是否挨饿 —— 读 resident.account
+#   [结构] 工坊数 / 工位 / 工人 —— 由 shops 现算（不是流量，无需记账）
 #
-# 为什么不把统计塞进仿真核心：
-#   仿真层有 TS ↔ GDScript 移植契约 + golden 轨迹，为 UI 功能动核心不划算，
-#   而且 golden 只摘取固定字段，加字段虽不破坏轨迹，两边维护成本很高。
-#   所以这里每过一个游戏日采样一次，在表现层自行累计。
-#
-# 取数口径（面板里会如实标注）：
-#   [实际] 国库、库存、人口、满意度、饥饿、就业 —— 直接读状态 / history
-#   [计划] 产量、工业消耗 —— 工坊当日 planned × 配方；planned 是黎明按在岗人数
-#          排出来的批次数，所以它就是当天要发生的量
-#   [公式] 工资 / 税收 / 租金 / 消费收入 —— 用与仿真层相同的公式从可见状态重算
-#          （_progressive_tax / _pay_wages / _collect_rent 的逻辑，见 sim_core.gd）
+# 这些字段由仿真层每个游戏日写入（TS 与 GDScript 双边同步），
+# 所以面板不再自己重算公式，也就没有口径漂移风险。
 # ---------------------------------------------------------------------------
 
 const MAX_DAYS := 120
@@ -95,24 +91,18 @@ func _sample(s: Dictionary) -> void:
 	_push(hungry, int(snap.get("hungry", 0)))
 	_push(employed, int(snap.get("employed", 0)))
 
-	# ---- 商品：库存（实际）
+	# ---- 商品：库存（实际）+ 工坊结构（现算）
 	var goods: Dictionary = s["goods"]
 	last_shop_count.clear()
 	last_slots.clear()
 	last_workers.clear()
 	last_produced.clear()
 	last_consumed_ind.clear()
+	last_consumed_pop.clear()
 	for gid in goods.keys():
 		_push_map(stock, String(gid), float(goods[gid]))
 
-	# ---- 商品：产量 / 工业消耗 / 工坊数 / 工位 / 工人（计划，来自工坊排产）
-	var slots_by_worker := {}      # shopId -> 在岗人数
-	for r in s["residents"]:
-		var js = r.get("jobShopId", null)
-		if js != null and bool(r["employed"]):
-			var k := String(js)
-			slots_by_worker[k] = int(slots_by_worker.get(k, 0)) + 1
-
+	# 工坊数 / 工位 / 工人：按产出商品归类（结构性数据，不是流量）
 	for shop in s["shops"]:
 		var def_id := String(shop["defId"])
 		if not runner.db.buildings.has(def_id):
@@ -120,147 +110,37 @@ func _sample(s: Dictionary) -> void:
 		var rec: Dictionary = runner.db.recipes.get(String(runner.db.buildings[def_id]["recipe"]), {})
 		if rec.is_empty():
 			continue
-		var planned := float(shop["planned"])
-		var active := bool(shop["active"])
 		var sid := String(shop["id"])
-		var workers := int(slots_by_worker.get(sid, 0))
+		var workers := int(shop["targetWorkers"])
 		var slots := int(runner.db.buildings[def_id]["maxWorkers"])
-
 		for gid in (rec.get("output", {}) as Dictionary).keys():
 			var g := String(gid)
-			var amt := planned * float(rec["output"][gid])
-			last_produced[g] = float(last_produced.get(g, 0.0)) + amt
-			last_shop_count[g] = int(last_shop_count.get(g, 0)) + (1 if active else 0)
+			last_shop_count[g] = int(last_shop_count.get(g, 0)) + (1 if bool(shop["active"]) else 0)
 			last_slots[g] = int(last_slots.get(g, 0)) + slots
 			last_workers[g] = int(last_workers.get(g, 0)) + workers
-		for gid in (rec.get("inputs", {}) as Dictionary).keys():
-			var g := String(gid)
-			var amt := planned * float(rec["inputs"][gid])
-			last_consumed_ind[g] = float(last_consumed_ind.get(g, 0.0)) + amt
 
-	# 把「工坊归类到它的产出商品」也写成序列
+	# ---- 商品：产量 / 工业消耗 / 居民购买 —— 直接读当天台账（权威）
+	var led: Dictionary = snap.get("ledger", {})
+	for gid in (led.get("produced", {}) as Dictionary).keys():
+		last_produced[String(gid)] = float(led["produced"][gid])
+	for gid in (led.get("consumed", {}) as Dictionary).keys():
+		last_consumed_ind[String(gid)] = float(led["consumed"][gid])
+	for gid in (led.get("bought", {}) as Dictionary).keys():
+		last_consumed_pop[String(gid)] = float(led["bought"][gid])
+
 	for gid in last_produced.keys():
 		_push_map(produced, gid, float(last_produced[gid]))
 	for gid in last_consumed_ind.keys():
 		_push_map(consumed_ind, gid, float(last_consumed_ind[gid]))
-
-	# ---- 商品：居民需求（公式，来自阶层 needs × 人数）
-	var class_count := {}
-	for r in s["residents"]:
-		var cid := String(r["classId"])
-		class_count[cid] = int(class_count.get(cid, 0)) + 1
-	for cid in class_count.keys():
-		if not runner.db.classes.has(cid):
-			continue
-		for need in (runner.db.classes[cid].get("needs", []) as Array):
-			# 字段名是 good（不是 goodId），见 content/classes.json
-			var g := String(need.get("good", ""))
-			if g == "":
-				continue
-			var amt := float(need["perCapita"]) * float(class_count[cid])
-			last_consumed_pop[g] = float(last_consumed_pop.get(g, 0.0)) + amt
 	for gid in last_consumed_pop.keys():
 		_push_map(consumed_pop, gid, float(last_consumed_pop[gid]))
 
-	# ---- 财务（公式 + 实际）
-	var fin := _finance(s)
-	_push(wages, fin["wages"])
-	_push(tax, fin["tax"])
-	_push(rent, fin["rent"])
-	_push(sales, fin["sales"])
-	_push(build_cost, fin["build"])
-
-# ---------------------------------------------------------------------------
-# 与 sim_core.gd 相同的公式（只读状态，不改状态）
-# ---------------------------------------------------------------------------
-func progressive_tax(income: float, brackets: Array) -> float:
-	var t := 0.0
-	var prev := 0.0
-	for b in brackets:
-		var upper: float = INF if b["upTo"] == null else float(b["upTo"])
-		var slice := maxf(0.0, minf(income, upper) - prev)
-		if slice > 0.0:
-			t += slice * clampf(float(b["rate"]), 0.0, 0.95)
-		prev = upper
-		if income <= upper:
-			break
-	return snappedf(t, 0.01)
-
-## 工资 / 税收 / 租金 / 消费收入 / 建造支出
-func _finance(s: Dictionary) -> Dictionary:
-	var eco: Dictionary = runner.db.economy
-	var brackets: Array = s["government"]["taxBrackets"]
-	var wage_by_shop := {}
-	var cap_by_shop := {}
-	for shop in s["shops"]:
-		wage_by_shop[String(shop["id"])] = float(shop["wage"])
-		cap_by_shop[String(shop["id"])] = float(shop["wageCap"])
-
-	var welfare := snappedf(float(eco["refWage"]) * float(eco["welfareRate"]), 0.01)
-	var skill_base := float(eco["skillIncomeBase"])
-	var skill_max := float(eco["skillMax"])
-
-	var gross_total := 0.0
-	var tax_total := 0.0
-	for r in s["residents"]:
-		var is_emp := bool(r["employed"]) and r.get("jobShopId", null) != null
-		var base: float = float(wage_by_shop.get(r.get("jobShopId", ""), 0.0)) if is_emp else welfare
-		var gross := base
-		if is_emp:
-			gross = base * (skill_base + minf(skill_max, float(r["skill"])) / 100.0)
-			var cap := float(cap_by_shop.get(r.get("jobShopId", ""), 0.0))
-			if cap > 0.0:
-				gross = minf(gross, cap)
-		gross_total += gross
-		tax_total += progressive_tax(gross, brackets)
-
-	# 租金（照 _collect_rent 的口径：国有租户 + 私有租户抽税）
-	var rent_val := float(s["government"]["rent"])
-	var rent_income := 0.0
-	var owners := 0
-	var private_tenants := []
-	var state_tenants := []
-	for r in s["residents"]:
-		if bool(r.get("homeowner", false)):
-			owners += 1
-		elif bool(r.get("privateTenant", false)):
-			private_tenants.append(r)
-		else:
-			state_tenants.append(r)
-	if rent_val > 0.0:
-		for r in state_tenants:
-			rent_income += minf(rent_val, float(r["savings"]))
-		var private_total := 0.0
-		for r in private_tenants:
-			private_total += minf(rent_val, float(r["savings"]))
-		if owners > 0:
-			var share := private_total / float(owners)
-			rent_income += progressive_tax(share, brackets) * float(owners)
-
-	# 消费收入（居民需求 × 售价，受库存上限约束 —— 是估算，面板标注为「估算」）
-	var sales_income := 0.0
-	var goods: Dictionary = s["goods"]
-	var prices: Dictionary = s["prices"]
-	for gid in last_consumed_pop.keys():
-		var want := float(last_consumed_pop[gid])
-		var have := maxf(0.0, float(goods.get(gid, 0.0)) - float((s.get("reserved", {}) as Dictionary).get(gid, 0.0)))
-		sales_income += minf(want, have) * float(prices.get(gid, 0.0))
-
-	# 建造支出（实际：当日施工队列表的建造成本）
-	var build := 0.0
-	for c in s["construction"]:
-		var bid := String(c.get("buildingId", ""))
-		if bid != "" and runner.db.buildings.has(bid):
-			for k in (runner.db.buildings[bid].get("buildCost", {}) as Dictionary).keys():
-				build += float(prices.get(k, 0.0)) * float(runner.db.buildings[bid]["buildCost"][k])
-
-	return {
-		"wages": snappedf(gross_total, 0.01),
-		"tax": snappedf(tax_total, 0.01),
-		"rent": snappedf(rent_income, 0.01),
-		"sales": snappedf(sales_income, 0.01),
-		"build": snappedf(build, 0.01),
-	}
+	# ---- 财务 —— 直接读当天台账（权威），不再重算公式
+	_push(wages, float(led.get("wages", 0.0)))
+	_push(tax, float(led.get("tax", 0.0)))
+	_push(rent, float(led.get("rent", 0.0)))
+	_push(sales, float(led.get("sales", 0.0)))
+	_push(build_cost, 0.0)
 
 # ---------------------------------------------------------------------------
 # 查询辅助

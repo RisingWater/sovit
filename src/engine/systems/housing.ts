@@ -134,6 +134,8 @@ export function collectRent(state: GameState, ctx: ContentContext, day: number):
     const pay = Math.min(rent, r.savings)
     r.savings = round2(r.savings - pay)
     govTotal += pay
+    if (r.account) r.account.rent = round2(r.account.rent + pay)
+    else r.account = { wage: 0, tax: 0, rent: round2(pay), spent: 0, foodScore: 1, comfortScore: 1, priceScore: 1, hungry: false, bought: {} }
   }
 
   let privateTotal = 0
@@ -141,6 +143,8 @@ export function collectRent(state: GameState, ctx: ContentContext, day: number):
     const pay = Math.min(rent, r.savings)
     r.savings = round2(r.savings - pay)
     privateTotal += pay
+    if (r.account) r.account.rent = round2(r.account.rent + pay)
+    else r.account = { wage: 0, tax: 0, rent: round2(pay), spent: 0, foodScore: 1, comfortScore: 1, priceScore: 1, hungry: false, bought: {} }
   }
 
   const brackets = state.government.taxBrackets
@@ -153,6 +157,7 @@ export function collectRent(state: GameState, ctx: ContentContext, day: number):
   }
 
   state.government.money = round2(state.government.money + govTotal + rentTax)
+  state.ledgerToday.rent = round2(state.ledgerToday.rent + govTotal + rentTax)
   const logs: LogEntry[] = []
   if (govTotal > 0.01) {
     logs.push({ day, kind: 'finance', text: `国有住房租金 ¥${round2(govTotal)}（${stateTenants.length} 人）` })

@@ -132,9 +132,22 @@ func new_game(pack_id: String, seed_value: int) -> void:
 		},
 		"goods": goods, "housing": housing, "privateHousing": private_housing, "prices": prices,
 		"shops": shops, "residents": residents, "construction": [],
-		"history": [{"day": 0, "population": pop, "avgSatisfaction": float(sd["satisfaction"]), "money": money, "hungry": 0, "employed": 0}],
+		"ledgerToday": _empty_ledger(0),
+		"history": [{"day": 0, "population": pop, "avgSatisfaction": float(sd["satisfaction"]), "money": money, "hungry": 0, "employed": 0, "ledger": _empty_ledger(0)}],
 		"log": [], "alerts": [], "arrivals": 0,
 	}
+
+## 空白台账 / 空白个人账目。
+## 逐人账目与每日台账分开放，是为了将来做差异化分配（按收入/偏好/距离）
+## 时不必再动数据结构 —— 现在所有人平均分配，逐人数值 == 阶层数值。
+func _empty_ledger(day: int) -> Dictionary:
+	return {"day": day, "wages": 0.0, "tax": 0.0, "rent": 0.0, "sales": 0.0,
+		"produced": {}, "consumed": {}, "bought": {}}
+
+func _empty_account() -> Dictionary:
+	return {"wage": 0.0, "tax": 0.0, "rent": 0.0, "spent": 0.0,
+		"foodScore": 1.0, "comfortScore": 1.0, "priceScore": 1.0,
+		"hungry": false, "bought": {}}
 
 # ===========================================================================
 # 时间推进
@@ -157,6 +170,8 @@ func tick_hour(pending_actions: Array = []) -> Array:
 func _run_dawn() -> Array:
 	var logs := []
 	s["day"] = int(s["day"]) + 1
+	# 新的一天：台账清零（晚上结算时挂到当天快照）
+	s["ledgerToday"] = _empty_ledger(int(s["day"]))
 	_apply_actions(s["pending"])
 	s["pending"] = []
 	logs.append_array(_activate_completed())
@@ -357,19 +372,27 @@ func _run_production_step(fraction: float) -> void:
 		var def: Dictionary = db.buildings[shop["defId"]]
 		var recipe: Dictionary = db.recipes[def["recipe"]]
 		var batches = float(shop["planned"]) * fraction
+		var lt: Dictionary = s["ledgerToday"]
 		for g in (recipe["inputs"] as Dictionary).keys():
 			var q = float(recipe["inputs"][g])
 			if q > 0.0:
 				s["goods"][g] = float(s["goods"].get(g, 0.0)) - q * batches
 				s["reserved"][g] = maxf(0.0, float(s["reserved"].get(g, 0.0)) - q * batches)
+				lt["consumed"][g] = _r4(float(lt["consumed"].get(g, 0.0)) + q * batches)
 		var fuel = float(recipe.get("fuel", 0.0))
 		if fuel > 0.0:
 			s["goods"]["firewood"] = float(s["goods"].get("firewood", 0.0)) - fuel * batches
 			s["reserved"]["firewood"] = maxf(0.0, float(s["reserved"].get("firewood", 0.0)) - fuel * batches)
+			lt["consumed"]["firewood"] = _r4(float(lt["consumed"].get("firewood", 0.0)) + fuel * batches)
 		for g in (recipe["output"] as Dictionary).keys():
 			var q = float(recipe["output"][g])
 			if q > 0.0:
 				s["goods"][g] = float(s["goods"].get(g, 0.0)) + q * batches
+				lt["produced"][g] = _r4(float(lt["produced"].get(g, 0.0)) + q * batches)
+
+## 四位小数：小时累计的物料流量用它，避免逐小时四舍五入累积漂移
+func _r4(v: float) -> float:
+	return floor(v * 10000.0 + 0.5) / 10000.0
 
 func _apply_spoilage() -> void:
 	for gid in _pack()["goods"]:
@@ -558,6 +581,13 @@ func _pay_wages(day: int) -> Array:
 		r["savings"] = SimUtil.r2(float(r["savings"]) + gross - tax)
 		gross_total += gross
 		tax_total += tax
+		# 逐人记账：工资/保障金与代扣税。租与消费在后面两步追加到同一份账目。
+		var acc := _empty_account()
+		acc["wage"] = SimUtil.r2(gross)
+		acc["tax"] = SimUtil.r2(tax)
+		r["account"] = acc
+		s["ledgerToday"]["wages"] = SimUtil.r2(float(s["ledgerToday"]["wages"]) + gross)
+		s["ledgerToday"]["tax"] = SimUtil.r2(float(s["ledgerToday"]["tax"]) + tax)
 	s["government"]["money"] = SimUtil.r2(float(s["government"]["money"]) - gross_total + tax_total)
 	return [{"day": day, "kind": "finance", "text": "发放工资 ¥%.2f" % SimUtil.r2(gross_total)}]
 
@@ -650,12 +680,14 @@ func _collect_rent(day: int) -> Array:
 		var pay = minf(rent, float(r["savings"]))
 		r["savings"] = SimUtil.r2(float(r["savings"]) - pay)
 		gov_total += pay
+		_add_rent(r, pay)
 
 	var private_total = 0.0
 	for r in private_tenants:
 		var pay = minf(rent, float(r["savings"]))
 		r["savings"] = SimUtil.r2(float(r["savings"]) - pay)
 		private_total += pay
+		_add_rent(r, pay)
 
 	var brackets: Array = s["government"]["taxBrackets"]
 	var gross_share = private_total / float(owners.size()) if not owners.is_empty() else 0.0
@@ -667,7 +699,14 @@ func _collect_rent(day: int) -> Array:
 			o["savings"] = SimUtil.r2(float(o["savings"]) + net_share)
 
 	s["government"]["money"] = SimUtil.r2(float(s["government"]["money"]) + gov_total + rent_tax)
+	s["ledgerToday"]["rent"] = SimUtil.r2(float(s["ledgerToday"]["rent"]) + gov_total + rent_tax)
 	return []
+
+## 把一笔租金记到个人账目上（账目可能已被 _pay_wages 建好，也可能没有）
+func _add_rent(r: Dictionary, pay: float) -> void:
+	if not r.has("account"):
+		r["account"] = _empty_account()
+	r["account"]["rent"] = SimUtil.r2(float(r["account"]["rent"]) + pay)
 
 func _run_private_housing_market(day: int) -> Array:
 	var logs := []
@@ -754,6 +793,7 @@ func _run_consumption(day: int) -> Dictionary:
 			var comfort_consumed = 0.0
 			var price_num = 0.0
 			var price_den = 0.0
+			var spent_by_resident = 0.0
 			for need in def["needs"]:
 				var need_good = String(need["good"])
 				var gdef = db.goods.get(need_good, null)
@@ -792,6 +832,14 @@ func _run_consumption(day: int) -> Dictionary:
 				var cost = sold * price
 				r["savings"] = SimUtil.r2(maxf(0.0, float(r["savings"]) - cost))
 				revenue += cost
+				spent_by_resident += cost
+				if sold > 0.0:
+					if not r.has("account"):
+						r["account"] = _empty_account()
+					var bought: Dictionary = r["account"]["bought"]
+					bought[target] = SimUtil.r2(float(bought.get(target, 0.0)) + sold)
+					var lt: Dictionary = s["ledgerToday"]["bought"]
+					lt[target] = SimUtil.r2(float(lt.get(target, 0.0)) + sold)
 				if is_food:
 					food_needed += demand
 					food_consumed += sold
@@ -807,13 +855,26 @@ func _run_consumption(day: int) -> Dictionary:
 			food_sum += f
 			comfort_sum += c
 			price_sum += (price_num / price_den) if price_den > 0.0 else 1.0
-			if f < hungry_th:
+			var is_hungry = f < hungry_th
+			if is_hungry:
 				hungry += 1
+			# 逐人记账：当日消耗（bought）、支出、三项满足率、是否挨饿。
+			# 目前按阶层 perCapita 平均分配，所以逐人数值 == 阶层数值；
+			# 分开记录是为了将来做差异化分配时不必再动数据结构。
+			if not r.has("account"):
+				r["account"] = _empty_account()
+			var acc: Dictionary = r["account"]
+			acc["foodScore"] = floor(f * 1000.0 + 0.5) / 1000.0
+			acc["comfortScore"] = floor(c * 1000.0 + 0.5) / 1000.0
+			acc["priceScore"] = floor(((price_num / price_den) if price_den > 0.0 else 1.0) * 1000.0 + 0.5) / 1000.0
+			acc["hungry"] = is_hungry
+			acc["spent"] = SimUtil.r2(float(acc["spent"]) + spent_by_resident)
 		food_score[class_id] = food_sum / float(members.size())
 		comfort_score[class_id] = comfort_sum / float(members.size())
 		price_score_map[class_id] = price_sum / float(members.size())
 
 	s["government"]["money"] = SimUtil.r2(float(s["government"]["money"]) + revenue)
+	s["ledgerToday"]["sales"] = SimUtil.r2(float(s["ledgerToday"]["sales"]) + revenue)
 	return {"foodScore": food_score, "comfortScore": comfort_score, "priceScore": price_score_map, "hungry": hungry, "revenue": SimUtil.r2(revenue), "logs": []}
 
 # ===========================================================================
@@ -1150,6 +1211,8 @@ func _make_snapshot(hungry: int) -> Dictionary:
 		"money": float(s["government"]["money"]),
 		"hungry": hungry,
 		"employed": employed,
+		# 当日实际流量台账（逐人账目挂在每个 resident 的 account 上）
+		"ledger": s["ledgerToday"],
 	}
 
 func _build_alerts(hungry: int) -> Array:

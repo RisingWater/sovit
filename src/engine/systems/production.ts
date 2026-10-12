@@ -3,7 +3,7 @@ import type { ContentContext } from '../content/index.ts'
 import { ALL_GOODS } from '../content/index.ts'
 import { TUNING } from '../config.ts'
 import { assignedWorkers } from './labor.ts'
-import { round2 } from '../util.ts'
+import { round2, round4 } from '../util.ts'
 
 // ---------------------------------------------------------------------------
 // 生产（两阶段 · 公平配给 · 日计划 + 小时执行）
@@ -112,14 +112,20 @@ export function runProductionStep(state: GameState, ctx: ContentContext, fractio
       if (q && q > 0) {
         state.goods[g] = (state.goods[g] ?? 0) - q * batches
         state.reserved[g] = Math.max(0, (state.reserved[g] ?? 0) - q * batches)
+        // 当日台账：实际工业消耗（小时累计）
+        state.ledgerToday.consumed[g] = round4((state.ledgerToday.consumed[g] ?? 0) + q * batches)
       }
     }
     if (recipe.fuel && recipe.fuel > 0) {
       state.goods['firewood'] = (state.goods['firewood'] ?? 0) - recipe.fuel * batches
       state.reserved['firewood'] = Math.max(0, (state.reserved['firewood'] ?? 0) - recipe.fuel * batches)
+      state.ledgerToday.consumed['firewood'] = round4((state.ledgerToday.consumed['firewood'] ?? 0) + recipe.fuel * batches)
     }
     for (const [g, q] of Object.entries(recipe.output)) {
-      if (q && q > 0) state.goods[g] = (state.goods[g] ?? 0) + q * batches
+      if (q && q > 0) {
+        state.goods[g] = (state.goods[g] ?? 0) + q * batches
+        state.ledgerToday.produced[g] = round4((state.ledgerToday.produced[g] ?? 0) + q * batches)
+      }
     }
   }
 }

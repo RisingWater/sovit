@@ -51,6 +51,23 @@ export function payWages(state: GameState, day: number): LogEntry[] {
     r.savings = round2(r.savings + gross - tax)
     grossTotal += gross
     taxTotal += tax
+
+    // 逐人记账：工资/保障金与代扣税。租与消费在后面两步append到同一份账目上。
+    // 现在是"平均分配"，数值上个人账目汇总 == 阶层汇总；分开记录是为了将来
+    // 能做差异化（按收入/偏好/距离分配）时不必再动数据结构。
+    r.account = {
+      wage: round2(gross),
+      tax: round2(tax),
+      rent: 0,
+      spent: 0,
+      foodScore: 1,
+      comfortScore: 1,
+      priceScore: 1,
+      hungry: false,
+      bought: {},
+    }
+    state.ledgerToday.wages = round2(state.ledgerToday.wages + gross)
+    state.ledgerToday.tax = round2(state.ledgerToday.tax + tax)
   }
 
   state.government.money = round2(state.government.money - grossTotal + taxTotal)

@@ -1,7 +1,12 @@
-import type { GameState, PackID, Resident, Shop } from './types.ts'
+import type { DayLedger, GameState, PackID, Resident, Shop } from './types.ts'
 import { ALL_BUILDINGS, ALL_GOODS, buildContext } from './content/index.ts'
 import { DEFAULTS, ECONOMY } from './config.ts'
 import { createRng } from './rng.ts'
+
+/** 空白台账 / 空白个人账目。逐人账目与每日台账分开放，方便将来做差异化分配。 */
+export function emptyLedger(day: number): DayLedger {
+  return { day, wages: 0, tax: 0, rent: 0, sales: 0, produced: {}, consumed: {}, bought: {} }
+}
 
 // ---------------------------------------------------------------------------
 // 初始状态
@@ -102,6 +107,7 @@ export function createInitialState(options: CreateOptions = {}): GameState {
     shops,
     residents,
     construction: [],
+    ledgerToday: emptyLedger(0),
     history: [
       {
         day: 0,
@@ -110,6 +116,7 @@ export function createInitialState(options: CreateOptions = {}): GameState {
         money,
         hungry: 0,
         employed: 0,
+        ledger: emptyLedger(0),
       },
     ],
     log: [],

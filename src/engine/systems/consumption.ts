@@ -67,6 +67,7 @@ export function runConsumption(
       let comfortConsumed = 0
       let priceNum = 0
       let priceDen = 0
+      let spentByResident = 0
 
       for (const need of def.needs) {
         const isFood = ALL_GOODS[need.good]?.category === 'food'
@@ -97,6 +98,15 @@ export function runConsumption(
         const cost = sold * price
         r.savings = round2(Math.max(0, r.savings - cost))
         revenue += cost
+        spentByResident += cost
+        // 逐人消耗
+        if (sold > 0) {
+          if (!r.account) {
+            r.account = { wage: 0, tax: 0, rent: 0, spent: 0, foodScore: 1, comfortScore: 1, priceScore: 1, hungry: false, bought: {} }
+          }
+          r.account.bought[target] = round2((r.account.bought[target] ?? 0) + sold)
+          state.ledgerToday.bought[target] = round2((state.ledgerToday.bought[target] ?? 0) + sold)
+        }
 
         if (isFood) {
           foodNeeded += demand
@@ -117,7 +127,20 @@ export function runConsumption(
       foodSum += f
       comfortSum += c
       priceSum += priceDen > 0 ? priceNum / priceDen : 1
-      if (f < TUNING.hungryThreshold) hungry += 1
+      const isHungry = f < TUNING.hungryThreshold
+      if (isHungry) hungry += 1
+
+      // 逐人记账：当日消耗（bought）、支出、三项满足率、是否挨饿。
+      // 目前按阶层 perCapita 平均分配，所以逐人数值 == 阶层数值；分开记录是为了
+      // 将来做差异化分配时不必再改数据结构。
+      if (!r.account) {
+        r.account = { wage: 0, tax: 0, rent: 0, spent: 0, foodScore: 1, comfortScore: 1, priceScore: 1, hungry: false, bought: {} }
+      }
+      r.account.foodScore = Math.round(f * 1000) / 1000
+      r.account.comfortScore = Math.round(c * 1000) / 1000
+      r.account.priceScore = Math.round((priceDen > 0 ? priceNum / priceDen : 1) * 1000) / 1000
+      r.account.hungry = isHungry
+      r.account.spent = round2(r.account.spent + spentByResident)
     }
 
     foodScore[classId] = foodSum / members.length
@@ -126,6 +149,7 @@ export function runConsumption(
   }
 
   state.government.money = round2(state.government.money + revenue)
+  state.ledgerToday.sales = round2(state.ledgerToday.sales + revenue)
 
   const logs: LogEntry[] = []
   const soldParts = Object.entries(soldByGood)

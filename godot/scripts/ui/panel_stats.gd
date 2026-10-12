@@ -1,19 +1,21 @@
-﻿extends PanelContainer
+extends PanelContainer
 
 # 统计面板：资源 / 人口 / 财务 三个 Tab。
-# 数据全部来自 GameStats（表现层统计），不改仿真层。
 #
-# 口径标注约定：
-#   [实际] 直接读仿真状态
-#   [计划] 工坊当日 planned × 配方
-#   [公式] 用与仿真层相同的公式从可见状态重算
-#   [估算] 受库存约束的推算
+# 取数全部是仿真层的**权威记录**，面板不重算任何公式：
+#   GameStats 每过一个游戏日采样，数值取自 DaySnapshot.ledger（当日实际流量）
+#   与 resident.account（逐人账目）。
+#   只有"工坊数 / 工位 / 工人"是结构性数据，由 shops 现算。
 
 var runner: SimRunner
 var world: Node
 var stats: GameStats
 
 const TABS := ["资源", "人口", "财务"]
+
+## 表头颜色：必须用深色。UIKit.FG_LABEL 是浅米色，那是给深色 section 条用的，
+## 印在米黄面板上完全看不见。
+const HEAD_COL := Color(0.52, 0.31, 0.16)
 
 var _tab := 0
 var _tab_btns: Array[Button] = []
@@ -149,8 +151,8 @@ func _resources_tab() -> void:
 		{"name": "人口", "color": Color(0.45, 0.72, 0.95), "values": stats.population, "fill": true},
 		{"name": "就业", "color": Color(0.55, 0.85, 0.55), "values": stats.employed},
 	])
-	_note("产量与工业消耗为[计划]：工坊当日 planned 批次数 × 配方（planned 由黎明按在岗人数排出）。"
-		+ "民用消耗为[公式]：阶层 needs.perCapita × 该阶层人数。库存为[实际]。")
+	_note("全部为[实际]：库存读状态；产量、工业消耗、居民购买、工资/税收/租金/消费回款都读当天台账（DaySnapshot.ledger）。"
+		+ "工坊数 / 工位 / 工人是结构性数据，由 shops 现算。")
 
 	_section("商品明细")
 	# 每列都给固定宽度，否则右对齐的数字会各占各的宽度、整表错位
@@ -158,7 +160,7 @@ func _resources_tab() -> void:
 	var heads := ["商品", "库存", "日产", "工业耗", "民用耗", "净", "工坊", "工位", "工人"]
 	var g := _grid(9)
 	for i in heads.size():
-		_cell(g, heads[i], UIKit.FG_LABEL, widths[i], i > 0)
+		_cell(g, heads[i], HEAD_COL, widths[i], i > 0)
 	for gid in pack:
 		var gid2 := String(gid)
 		if not runner.db.goods.has(gid2):
@@ -233,7 +235,7 @@ func _people_tab() -> void:
 			employed += 1
 	var g := _grid(4)
 	for h in ["口径", "数值", "口径", "数值"]:
-		_cell(g, h, UIKit.FG_LABEL, 90.0)
+		_cell(g, h, HEAD_COL, 90.0)
 	_cell(g, "人口", UIKit.FG_HEAD, 90.0); _cell(g, "%d" % (s["residents"] as Array).size(), UIKit.FG_DARK, 60.0, true)
 	_cell(g, "就业", UIKit.FG_HEAD, 90.0); _cell(g, "%d" % employed, UIKit.FG_DARK, 60.0, true)
 	_cell(g, "岗位总量", UIKit.FG_HEAD, 90.0); _cell(g, "%d" % total_slots, UIKit.FG_DARK, 60.0, true)
@@ -242,7 +244,7 @@ func _people_tab() -> void:
 	_section("居民（点名字看详情）")
 	var gg := _grid(6)
 	for h in ["姓名", "阶层", "住房", "工作", "熟练", "满意"]:
-		_cell(gg, h, UIKit.FG_LABEL, 70.0)
+		_cell(gg, h, HEAD_COL, 70.0)
 	var shops_by_id := {}
 	for shop in s["shops"]:
 		shops_by_id[String(shop["id"])] = shop
@@ -271,7 +273,7 @@ func _people_tab() -> void:
 		_cell(gg, "%.0f" % float(r["satisfaction"]), UIKit.FG_DARK, 0.0, true)
 	if rows >= 60:
 		_note("（只列出前 60 位）")
-	_note("个人饥饿、个人每日消耗在仿真层没有逐人记录 —— 饥饿只有全城计数，消耗只按阶层汇总。")
+	_note("个人饥饿与个人每日消耗已逐人记录（resident.account）。目前按阶层平均分配，所以同阶层人人相同；结构已分开，将来可做差异化。")
 
 	if _sel_resident != "":
 		_body.add_child(UIKit.hsep())
@@ -309,30 +311,54 @@ func _resident_detail(rid: String, s: Dictionary) -> void:
 	_cell(g, "存款", UIKit.FG_HEAD, 90.0); _cell(g, "¥%.1f" % float(r["savings"]), UIKit.FG_DARK, 70.0)
 	_cell(g, "住房", UIKit.FG_HEAD, 90.0); _cell(g, "%s Lv%d" % [tenure, int(r.get("housingQuality", 0))], UIKit.FG_DARK, 70.0)
 	_cell(g, "工作", UIKit.FG_HEAD, 90.0); _cell(g, job, UIKit.FG_DARK, 70.0)
-	# 日收支（用与仿真一致的工资公式）
-	var eco: Dictionary = runner.db.economy
-	var brackets: Array = s["government"]["taxBrackets"]
-	var gross := 0.0
-	if js != null:
-		for shop in s["shops"]:
-			if String(shop["id"]) == String(js):
-				gross = float(shop["wage"]) * (float(eco["skillIncomeBase"]) + minf(float(eco["skillMax"]), float(r["skill"])) / 100.0)
-				var cap := float(shop["wageCap"])
-				if cap > 0.0:
-					gross = minf(gross, cap)
-				break
+	# 以下全部读仿真层记录的**个人账目**（resident.account），不是面板重算的
+	var acc: Dictionary = r.get("account", {})
+	if acc.is_empty():
+		_note("该居民尚无账目（账目在每个游戏日夜间结算时写入）。")
+		return
+	var is_hungry := bool(acc.get("hungry", false))
+	_cell(g, "今日饥饿", UIKit.FG_HEAD, 90.0)
+	_cell(g, "是" if is_hungry else "否",
+		Color(0.72, 0.22, 0.18) if is_hungry else Color(0.18, 0.45, 0.20), 70.0)
+	_cell(g, "食物满足", UIKit.FG_HEAD, 90.0)
+	_cell(g, "%.0f%%" % (float(acc.get("foodScore", 1.0)) * 100.0),
+		Color(0.72, 0.22, 0.18) if is_hungry else UIKit.FG_DARK, 70.0)
+	_cell(g, "舒适满足", UIKit.FG_HEAD, 90.0)
+	_cell(g, "%.0f%%" % (float(acc.get("comfortScore", 1.0)) * 100.0), UIKit.FG_DARK, 70.0)
+	_cell(g, "价格满意", UIKit.FG_HEAD, 90.0)
+	_cell(g, "%.0f%%" % (float(acc.get("priceScore", 1.0)) * 100.0), UIKit.FG_DARK, 70.0)
+	_cell(g, "今日工资", UIKit.FG_HEAD, 90.0); _cell(g, "¥%.2f" % float(acc.get("wage", 0.0)), UIKit.FG_DARK, 70.0)
+	_cell(g, "今日所得税", UIKit.FG_HEAD, 90.0); _cell(g, "¥%.2f" % float(acc.get("tax", 0.0)), UIKit.FG_DARK, 70.0)
+	_cell(g, "今日租金", UIKit.FG_HEAD, 90.0); _cell(g, "¥%.2f" % float(acc.get("rent", 0.0)), UIKit.FG_DARK, 70.0)
+	_cell(g, "今日消费", UIKit.FG_HEAD, 90.0); _cell(g, "¥%.2f" % float(acc.get("spent", 0.0)), UIKit.FG_DARK, 70.0)
+	var net := float(acc.get("wage", 0.0)) - float(acc.get("tax", 0.0)) - float(acc.get("rent", 0.0)) - float(acc.get("spent", 0.0))
+	_cell(g, "今日净额", UIKit.FG_HEAD, 90.0)
+	_cell(g, "¥%+.2f" % net,
+		Color(0.18, 0.45, 0.20) if net >= 0.0 else Color(0.65, 0.22, 0.18), 70.0)
+
+	# 逐人每日消耗（bought）：目前按阶层均分，所以同阶层人人相同
+	var bought: Dictionary = acc.get("bought", {})
+	_body.add_child(UIKit.hsep())
+	_body.add_child(UIKit.label("今日消耗（逐人记录）", UIKit.FG_HEAD))
+	if bought.is_empty():
+		_note("今日未购买任何商品。")
 	else:
-		gross = snappedf(float(eco["refWage"]) * float(eco["welfareRate"]), 0.01)
-	var tax := stats.progressive_tax(gross, brackets)
-	var rent := 0.0
-	if not bool(r.get("homeowner", false)):
-		rent = minf(float(s["government"]["rent"]), maxf(0.0, float(r["savings"]) + gross))
-	_cell(g, "日工资", UIKit.FG_HEAD, 90.0); _cell(g, "¥%.2f" % gross, UIKit.FG_DARK, 70.0)
-	_cell(g, "日所得税", UIKit.FG_HEAD, 90.0); _cell(g, "¥%.2f" % tax, UIKit.FG_DARK, 70.0)
-	_cell(g, "日租金", UIKit.FG_HEAD, 90.0); _cell(g, "¥%.2f" % rent, UIKit.FG_DARK, 70.0)
-	_cell(g, "日净收入", UIKit.FG_HEAD, 90.0)
-	_cell(g, "¥%+.2f" % (gross - tax - rent),
-		Color(0.18, 0.45, 0.20) if gross - tax - rent >= 0.0 else Color(0.65, 0.22, 0.18), 70.0)
+		var gb := _grid(6)
+		for hh in ["商品", "数量", "商品", "数量", "商品", "数量"]:
+			_cell(gb, hh, HEAD_COL, 76.0)
+		var keys: Array = bought.keys()
+		keys.sort()
+		var i := 0
+		while i < keys.size():
+			for c in 3:
+				if i < keys.size():
+					var gid := String(keys[i])
+					_cell(gb, _good_name(gid), UIKit.FG_HEAD, 76.0)
+					_cell(gb, "%.2f" % float(bought[gid]), UIKit.FG_DARK, 60.0, true)
+				else:
+					_cell(gb, "", UIKit.FG_DARK, 76.0)
+					_cell(gb, "", UIKit.FG_DARK, 60.0)
+				i += 1
 
 # ---------------------------------------------------------------------------
 # 财务
@@ -355,12 +381,12 @@ func _finance_tab() -> void:
 	_section("收支分项（7 日均值）")
 	var g2 := _grid(4)
 	for h in ["项目", "7 日均", "口径", "说明"]:
-		_cell(g2, h, UIKit.FG_LABEL, 80.0)
+		_cell(g2, h, HEAD_COL, 80.0)
 	var items := [
 		["工资支出", stats.avg(stats.wages), "公式", "∑ 居民 gross（工资×技能系数，封顶）"],
 		["所得税", stats.avg(stats.tax), "公式", "累进税表套在 gross 上"],
 		["租金收入", stats.avg(stats.rent), "公式", "国有租户实缴 + 私租抽税"],
-		["消费收入", stats.avg(stats.sales), "估算", "阶层需求 × 售价，受库存上限约束"],
+		["消费收入", stats.avg(stats.sales), "实际", "居民购买回款（读台账）"],
 		["建造支出", stats.avg(stats.build_cost), "实际", "在建项目的建造成本合计"],
 	]
 	for it in items:
@@ -368,13 +394,12 @@ func _finance_tab() -> void:
 		_cell(g2, "¥%.1f" % float(it[1]), UIKit.FG_DARK, 80.0, true)
 		_cell(g2, String(it[2]), Color(0.55, 0.42, 0.30), 60.0)
 		_cell(g2, String(it[3]), Color(0.55, 0.42, 0.30), 0.0)
-	_note("工资 / 税收 / 租金用与仿真层相同的公式从可见状态重算；"
-		+ "消费收入受库存与购买顺序影响，只能估算；国库余额与日净收支为[实际]。")
+	_note("全部为[实际]：工资/税收/租金/消费回款都读当天台账（DaySnapshot.ledger），不再由面板重算公式。")
 
 	_section("税收结构")
 	var g3 := _grid(3)
 	for h in ["档位", "上限", "税率"]:
-		_cell(g3, h, UIKit.FG_LABEL, 90.0)
+		_cell(g3, h, HEAD_COL, 90.0)
 	var i := 0
 	for b in (s["government"]["taxBrackets"] as Array):
 		i += 1
@@ -389,7 +414,7 @@ func _finance_tab() -> void:
 		_section("最近 12 天")
 		var g4 := _grid(6)
 		for h in ["天", "国库", "净额", "工资", "税收", "租金"]:
-			_cell(g4, h, UIKit.FG_LABEL, 70.0)
+			_cell(g4, h, HEAD_COL, 70.0)
 		var n := stats.days.size()
 		for k in range(maxi(0, n - 12), n):
 			_cell(g4, "D%d" % stats.days[k], UIKit.FG_HEAD, 70.0)

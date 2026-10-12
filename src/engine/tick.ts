@@ -4,6 +4,7 @@ import type { ContentContext } from './content/index.ts'
 import { createRng } from './rng.ts'
 import { TIME } from './config.ts'
 import { sum } from './util.ts'
+import { emptyLedger } from './state.ts'
 import { applyActions } from './actions.ts'
 import { assignLabor, growSkills } from './systems/labor.ts'
 import { planProduction, runProductionStep, applySpoilage } from './systems/production.ts'
@@ -38,6 +39,8 @@ function makeSnapshot(state: GameState, hungry: number): DaySnapshot {
     money: state.government.money,
     hungry,
     employed,
+    // 当日实际流量台账（逐人账目则挂在每个 resident.account 上）
+    ledger: state.ledgerToday,
   }
 }
 
@@ -57,6 +60,8 @@ function buildAlerts(state: GameState, hungry: number): Alert[] {
 export function runDawn(state: GameState, ctx: ContentContext): { logs: LogEntry[]; applied: AppliedAction[] } {
   const logs: LogEntry[] = []
   state.day += 1
+  // 新的一天：台账清零（晚上结算时挂到当天快照）
+  state.ledgerToday = emptyLedger(state.day)
 
   const applied = applyActions(state, ctx, state.pending)
   state.pending = []

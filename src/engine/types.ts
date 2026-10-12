@@ -234,6 +234,56 @@ export interface Resident {
   housingQuality?: number
   /** 作为房主所拥有住房的等级。 */
   ownedQuality?: number
+  /** 当日账目（每个游戏日结算一次，逐人记录）。 */
+  account?: ResidentAccount
+}
+
+// ---------------------------------------------------------------------------
+// 逐人账目 / 每日台账
+//
+// 现状是"平均分配"：所有人按各自阶层的 perCapita 需求购买，所以个人消耗数值
+// 上等于阶层汇总。但仍然**逐人分开记录**，这样将来要做差异化（按收入、按偏好、
+// 按距离…）时不必再改数据结构，只要改分配逻辑。
+// ---------------------------------------------------------------------------
+
+export interface ResidentAccount {
+  /** 当日毛收入（在职工资 / 失业保障金）。 */
+  wage: number
+  /** 当日所得税。 */
+  tax: number
+  /** 当日住房支出（国有租金 / 私租）。 */
+  rent: number
+  /** 当日购买商品支出。 */
+  spent: number
+  /** 当日食物满足率 0-1（< hungryThreshold 即挨饿）。 */
+  foodScore: number
+  /** 当日舒适度 0-1。 */
+  comfortScore: number
+  /** 当日价格满意度 0-1。 */
+  priceScore: number
+  /** 当日是否挨饿。 */
+  hungry: boolean
+  /** 当日买到的商品 good -> 数量（逐人消耗）。 */
+  bought: Record<string, number>
+}
+
+/** 每日台账：当天全社会的实际流量。挂到当天 DaySnapshot 上。 */
+export interface DayLedger {
+  day: number
+  /** 工资 / 保障金支出总额。 */
+  wages: number
+  /** 所得税收入总额。 */
+  tax: number
+  /** 住房租金收入（国有实收 + 私租累进税）。 */
+  rent: number
+  /** 居民消费回款。 */
+  sales: number
+  /** 各商品**实际**产量（生产小时累计）。 */
+  produced: Record<string, number>
+  /** 各商品**实际**工业消耗（生产投入 + 燃料）。 */
+  consumed: Record<string, number>
+  /** 各商品居民购买量合计。 */
+  bought: Record<string, number>
 }
 
 export interface Construction {
@@ -277,6 +327,8 @@ export interface DaySnapshot {
   money: number
   hungry: number
   employed: number
+  /** 当日台账（实际流量）。 */
+  ledger?: DayLedger
 }
 
 export interface LogEntry {
@@ -331,6 +383,9 @@ export interface GameState {
   shops: Shop[]
   residents: Resident[]
   construction: Construction[]
+
+  /** 当日台账累加器：黎明清零，夜间结算时挂到当天快照上。 */
+  ledgerToday: DayLedger
 
   history: DaySnapshot[]
   log: LogEntry[]
