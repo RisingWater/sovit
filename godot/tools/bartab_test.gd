@@ -21,6 +21,28 @@ func _run() -> void:
 		for id in ids:
 			names.append(bar._name_of(String(id)))
 		print("BARTAB [%s] %d 座: %s" % [cat, ids.size(), ", ".join(names)])
+	# 笔刷尺寸只在最后一个 Tab（其它）显示
+	for i in bar.TABS.size():
+		bar._select_tab(i)
+		await process_frame
+		var last: bool = bar.TABS[i] == "其它"
+		if bar._size_box.visible != last:
+			print("BARTAB FAIL: Tab「%s」的笔刷尺寸可见性应为 %s" % [bar.TABS[i], last])
+			quit(1); return
+	# 只有一页的 Tab 不该出现翻页控件
+	for i in bar.TABS.size():
+		bar._select_tab(i)
+		await process_frame
+		var cat: String = bar.TABS[i]
+		var n: int = 2 if cat == "其它" else bar._ids_of(cat).size()
+		var avail: float = (bar.size.x - 130.0) if bar.size.x > 300.0 else 1100.0
+		var per: int = maxi(1, int(avail / float(UIKit.CARD_W + UIKit.GAP)))
+		var pages: int = int(ceil(float(n) / float(per)))
+		if pages <= 1 and bar._prev_btn.visible:
+			print("BARTAB FAIL: Tab「%s」只有 %d 页却还显示翻页按钮" % [cat, pages])
+			quit(1); return
+	bar._select_tab(0)
+
 	print("BARTAB 建筑总数=%d" % total)
 	# 每座建筑只能出现在一个 tab
 	var seen := {}

@@ -24,6 +24,7 @@ var _page_label: Label
 var _prev_btn: Button
 var _next_btn: Button
 var _size_box: OptionButton
+var _size_label: Label
 
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
@@ -45,7 +46,9 @@ func _ready() -> void:
 		tabrow.add_child(b)
 		_tab_btns.append(b)
 	tabrow.add_child(UIKit.spacer())
-	tabrow.add_child(UIKit.label("笔刷尺寸", UIKit.FG_LABEL))
+	# 笔刷尺寸只对「其它」Tab（道路 / 地板）有意义，平时藏起来
+	_size_label = UIKit.label("笔刷尺寸", UIKit.FG_LABEL)
+	tabrow.add_child(_size_label)
 	_size_box = OptionButton.new()
 	_size_box.add_theme_font_override("font", UIKit.pixel_font())
 	_size_box.add_theme_font_size_override("font_size", UIKit.FS)
@@ -53,6 +56,8 @@ func _ready() -> void:
 		_size_box.add_item("%dx%d" % [i, i], i)
 	_size_box.selected = 0
 	tabrow.add_child(_size_box)
+	_size_label.visible = false
+	_size_box.visible = false
 
 	# --- 项目行
 	var itemrow := HBoxContainer.new()
@@ -177,6 +182,11 @@ func _rebuild() -> void:
 		c.queue_free()
 
 	var cat: String = TABS[_tab]
+	# 笔刷尺寸只在最后一个 Tab（其它 = 道路/地板）显示
+	var is_brush: bool = cat == "其它"
+	if _size_label != null:
+		_size_label.visible = is_brush
+		_size_box.visible = is_brush
 	if cat == "其它":
 		_page = 0
 		_prev_btn.visible = false
@@ -190,16 +200,17 @@ func _rebuild() -> void:
 			_items.add_child(b)
 		return
 
-	_prev_btn.visible = true
-	_next_btn.visible = true
-	_page_label.visible = true
-
 	var ids := _ids_of(cat)
 	# 每页放得下几张卡片
 	var avail := (size.x - 130.0) if size.x > 300.0 else 1100.0
 	var per: int = maxi(1, int(avail / float(UIKit.CARD_W + UIKit.GAP)))
 	var pages: int = int(ceil(float(ids.size()) / float(per)))
 	_page = clampi(_page, 0, maxi(0, pages - 1))
+	# 只有一页时不需要翻页 —— 藏掉「◀ 1/1 ▶」，别占位置
+	var paging: bool = pages > 1
+	_prev_btn.visible = paging
+	_next_btn.visible = paging
+	_page_label.visible = paging
 
 	for i in range(_page * per, mini(ids.size(), (_page + 1) * per)):
 		var id: String = ids[i]
