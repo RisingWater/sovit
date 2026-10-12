@@ -18,7 +18,32 @@
 | `tiny/deco.png` | 本项目自绘（树 4 种） | — | 同项目授权 |
 | `actors/*.png` | 本项目自绘（居民 4 阶层 × 4 向 × 4 帧） | — | 同项目授权 |
 | `ui/speed_*.png` | 本项目自绘（暂停 / 1x / 2x / 4x） | — | 同项目授权 |
+| `music/shimmer_sill_*.ogg` | [RPG Town Pack](https://talontrueblood.itch.io/) | **Talon Trueblood** | **免费使用 + 需署名** |
 | `props/src/house_*.png`<br>`props/thumb/*.png` | SUPER RETRO WORLD | Gif | **专有商用授权** |
+
+## music/ —— 需署名
+
+`godot/assets/music/shimmer_sill_dawn.ogg` 与 `shimmer_sill_dusk.ogg` 来自
+**RPG Town Pack**（Talon 目录，第 1 首 + Bonus）。原始授权文本见
+[`music/Read Me (RPG Town Pack).txt`](music/Read%20Me%20(RPG%20Town%20Pack).txt)：
+
+> Free to use in any Godot project with attribution.
+> Credit "Music: Talon Trueblood" in your game credits or itch.io page.
+> Commercial use permitted with credit.
+
+**必须在游戏的制作人员名单 / itch 页面署名**：
+
+```
+Music: Talon Trueblood
+```
+
+达成方式：`scripts/ui/music.gd` 会把曲名显示在顶栏"音乐"按钮的 tooltip 里；
+发布时另需在标题画面或致谢页放上 `Music: Talon Trueblood`。
+授权没有禁止再分发，所以这两首随仓库入库没有问题。
+
+两首曲子轮流播放（播完一首切下一首，**单曲不循环** —— 否则
+`AudioStreamPlayer.finished` 不触发，就会退化成单曲无限循环）。
+`tools/music_test.gd` 在门槛里锁住这一点。
 
 ## props/ —— 专有素材
 

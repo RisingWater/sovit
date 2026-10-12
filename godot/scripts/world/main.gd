@@ -8,11 +8,17 @@ var world
 var _inspector
 var _stats: GameStats
 var _panel_stats
+var _music
 
 func _ready() -> void:
 	runner = SimRunner.new()
 	runner.name = "SimRunner"
 	add_child(runner)
+
+	# 背景音乐：Shimmer Sill 两首轮流播放
+	_music = load("res://scripts/ui/music.gd").new()
+	_music.name = "Music"
+	add_child(_music)
 
 	world = load("res://scripts/world/world_view.gd").new()
 	world.name = "World"
@@ -43,6 +49,8 @@ func _ready() -> void:
 	hud.name = "HUD"
 	hud.runner = runner
 	hud.world = world
+	# 必须在 add_child 之前赋值：hud._ready() 里就会读 music 来刷新按钮文案
+	hud.music = _music
 	root_ui.add_child(hud)
 
 	var bar = load("res://scripts/ui/build_bar.gd").new()

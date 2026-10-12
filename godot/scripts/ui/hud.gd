@@ -7,6 +7,8 @@ extends PanelContainer
 var runner: SimRunner
 var world: Node
 var stats_panel: Control = null      # 统计面板（由 main 注入）
+var music: Node = null               # 背景音乐（由 main 注入）
+var _music_btn: Button = null
 
 const CFG_PATH := "user://hud.cfg"
 const DEFAULT_VISIBLE := ["wood", "stone", "brick", "clay", "firewood",
@@ -72,6 +74,11 @@ func _ready() -> void:
 	st.tooltip_text = "资源 / 人口 / 财务 明细与曲线"
 	st.pressed.connect(_open_stats)
 	row.add_child(st)
+	_music_btn = UIKit.button("音乐", true)
+	_music_btn.tooltip_text = "背景音乐开关（Shimmer Sill，Talon Trueblood）"
+	_music_btn.pressed.connect(_toggle_music)
+	row.add_child(_music_btn)
+	_refresh_music_btn()
 
 	# ---------------- 第二行：资源
 	_res_row = HBoxContainer.new()
@@ -88,6 +95,23 @@ func _ready() -> void:
 func _open_stats() -> void:
 	if stats_panel != null:
 		stats_panel.open()
+
+func _toggle_music() -> void:
+	if music == null:
+		return
+	music.toggle_mute()
+	_refresh_music_btn()
+
+func _refresh_music_btn() -> void:
+	if _music_btn == null:
+		return
+	if music == null:
+		_music_btn.text = "音乐—"
+		_music_btn.disabled = true
+		return
+	_music_btn.text = "音乐关" if music.is_muted() else "音乐开"
+	_music_btn.tooltip_text = "背景音乐：%s（Talon Trueblood）\n点击%s" % [
+		music.current_track_name(), "开启" if music.is_muted() else "静音"]
 
 # ---------------------------------------------------------------------------
 # 资源栏
