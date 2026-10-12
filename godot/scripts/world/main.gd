@@ -14,6 +14,9 @@ var _sfx
 var _minimap
 var _esc_menu
 var _new_game
+var _title
+var _title_layer
+var root_ui: Control
 
 func _ready() -> void:
 	runner = SimRunner.new()
@@ -55,7 +58,7 @@ func _ready() -> void:
 
 	var theme := UIKit.make_theme()
 
-	var root_ui := Control.new()
+	root_ui = Control.new()
 	root_ui.name = "Root"
 	root_ui.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	root_ui.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -117,6 +120,29 @@ func _ready() -> void:
 	_new_game.setup(runner, world)
 	root_ui.add_child(_new_game)
 	_esc_menu.new_game_dialog = _new_game
+
+	# 标题页：独立 CanvasLayer，压在整个游戏 UI 之上。
+	# 展示期间把 root_ui 整个藏掉 —— 玩家看不到 HUD、点不到建造栏、也够不着 ESC 菜单，
+	# 从玩家角度这局就是只读展示。开始游戏时再重新开局覆盖它。
+	_title_layer = CanvasLayer.new()
+	_title_layer.name = "TitleLayer"
+	_title_layer.layer = 20
+	add_child(_title_layer)
+	_title = load("res://scripts/ui/title_screen.gd").new()
+	_title.name = "Title"
+	_title.setup(runner, world, _new_game)
+	_title_layer.add_child(_title)
+	_title.start_requested.connect(_end_title)
+	root_ui.visible = false
+	_title.begin_showcase()
+
+## 标题页结束：露出游戏 UI（展示用的那局已被新游戏/读档覆盖）
+func _end_title() -> void:
+	root_ui.visible = true
+	_title_layer.visible = false
+	# 必须停掉 _process —— 它每帧都在改 camera.position，
+	# 不停的话开局/读档之后镜头还会被标题页的环绕拉走。
+	_title.set_process(false)
 
 func _process(_delta: float) -> void:
 	if _stats == null:

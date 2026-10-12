@@ -29,6 +29,11 @@ func _run() -> void:
 	await process_frame
 	await process_frame
 
+	# 标题页会藏掉整个游戏 UI 并接管镜头，测游戏内 UI 前先关掉它
+	if node.has_method("_end_title"):
+		node._end_title()
+		await process_frame
+
 	var panel = node.get_node_or_null("UI/Root/Stats")
 	if panel == null:
 		_fail("找不到 UI/Root/Stats")
