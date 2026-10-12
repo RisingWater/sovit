@@ -16,7 +16,10 @@ const UI_DIR := "res://assets/ui/"
 const FONT_PATH := "res://assets/fonts/fusion-pixel-12px-zh_hans.ttf"
 
 const FS := 12          # 字号 = 像素字体原生尺寸，禁止改
-## 世界内标签专用字号：12 的整数 2 倍，实测每像素正好 2x2，清晰且不随镜头缩放。
+## 大字档：12 的整数 2 倍。像素字体只能按整数倍放大，
+## 12 -> 16 这类非整数会被重采样糊掉；24 实测每像素正好 2x2。
+const BIG_FS := 24
+## 世界内标签专用字号：与大字档同值，理由同上。
 const LABEL_FS := 24
 const PAD_X := 9
 const BTN_H := 26

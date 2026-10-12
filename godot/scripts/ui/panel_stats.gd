@@ -217,6 +217,9 @@ func _good_name(gid: String) -> String:
 func _resources_tab() -> void:
 	var s: Dictionary = runner.sim.s
 	var pack: Array = runner.db.packs[String(s["pack"])]["goods"]
+	# 默认选中第一个，打开就有内容可看，不用先点一下
+	if _sel_good == "" and not pack.is_empty():
+		_sel_good = String(pack[0])
 
 	_section("全局产出")
 	_chart("人口 / 就业", [
@@ -226,52 +229,152 @@ func _resources_tab() -> void:
 	_note("全部为[实际]：库存读状态；产量、工业消耗、居民购买、工资/税收/租金/消费回款都读当天台账（DaySnapshot.ledger）。"
 		+ "工坊数 / 工位 / 工人是结构性数据，由 shops 现算。")
 
-	_section("商品明细")
-	# 每列都给固定宽度，否则右对齐的数字会各占各的宽度、整表错位
-	var widths := [92.0, 54.0, 54.0, 58.0, 58.0, 58.0, 44.0, 44.0, 44.0]
-	var heads := ["商品", "库存", "日产", "工业耗", "民用耗", "净", "工坊", "工位", "工人"]
-	var g := _grid(9)
-	for i in heads.size():
-		_cell(g, heads[i], HEAD_COL, widths[i], i > 0)
+	# 主从布局：左列表 + 右详情。不做一览表 —— 一屏 9 列挤在一起既难读也看不清重点。
+	var split := HBoxContainer.new()
+	split.add_theme_constant_override("separation", 10)
+	split.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_body.add_child(split)
+
+	# ---- 左：资源列表
+	var left := VBoxContainer.new()
+	left.custom_minimum_size = Vector2(296, 0)
+	left.add_theme_constant_override("separation", 4)
+	split.add_child(left)
+	var lhead := UIKit.panel(true)
+	var lh := UIKit.label("资源", UIKit.FG_LABEL)
+	lh.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	lhead.add_child(lh)
+	left.add_child(lhead)
+	var lscroll := ScrollContainer.new()
+	lscroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	lscroll.custom_minimum_size = Vector2(0, 470)
+	lscroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	left.add_child(lscroll)
+	var lv := VBoxContainer.new()
+	lv.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	lv.add_theme_constant_override("separation", 2)
+	lscroll.add_child(lv)
 	for gid in pack:
 		var gid2 := String(gid)
 		if not runner.db.goods.has(gid2):
 			continue
-		var r := stats.good_row(gid2)
-		var net := float(r["produced"]) - float(r["consumed_ind"]) - float(r["consumed_pop"])
-		var net_col := Color(0.18, 0.45, 0.20) if net >= 0.0 else Color(0.65, 0.22, 0.18)
-		var is_sel := gid2 == _sel_good
-		# 商品名做成一格按钮：点它就选中。不再在下面单开一排 Tab 式的选择按钮。
+		var row := HBoxContainer.new()
+		row.add_theme_constant_override("separation", 5)
+		var ic := TextureRect.new()
+		ic.texture = load("res://assets/goods/%s.png" % gid2)
+		ic.custom_minimum_size = Vector2(16, 16)
+		ic.stretch_mode = TextureRect.STRETCH_KEEP_CENTERED
+		row.add_child(ic)
 		var nb := UIKit.button(_good_name(gid2), true)
-		nb.custom_minimum_size = Vector2(widths[0], 0)
-		nb.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
-		nb.tooltip_text = "点击查看「%s」的曲线" % _good_name(gid2)
-		if is_sel:
+		nb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		nb.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		nb.tooltip_text = "点击查看「%s」的详细数据" % _good_name(gid2)
+		if gid2 == _sel_good:
 			nb.add_theme_stylebox_override("normal", UIKit.box(UIKit.T_BTN_ACTIVE))
 			nb.add_theme_color_override("font_color", UIKit.FG_LIGHT)
 		nb.pressed.connect(_on_pick_good.bind(gid2))
-		g.add_child(nb)
-		_cell(g, "%.0f" % float(r["stock"]), UIKit.FG_DARK, widths[1], true)
-		_cell(g, "%.1f" % float(r["produced"]), Color(0.18, 0.42, 0.24), widths[2], true)
-		_cell(g, "%.1f" % float(r["consumed_ind"]), Color(0.55, 0.30, 0.18), widths[3], true)
-		_cell(g, "%.1f" % float(r["consumed_pop"]), Color(0.55, 0.30, 0.18), widths[4], true)
-		_cell(g, "%+.1f" % net, net_col, widths[5], true)
-		_cell(g, "%d" % int(r["shops"]), UIKit.FG_DARK, widths[6], true)
-		_cell(g, "%d" % int(r["slots"]), UIKit.FG_DARK, widths[7], true)
-		_cell(g, "%d" % int(r["workers"]), UIKit.FG_DARK, widths[8], true)
+		row.add_child(nb)
+		var st := UIKit.label("%.0f" % float(stats.good_row(gid2)["stock"]), Color(0.62, 0.48, 0.34))
+		st.custom_minimum_size = Vector2(40, 0)
+		st.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		row.add_child(st)
+		var pad := Control.new()          # 给纵向滚动条留位置，否则数字被压住
+		pad.custom_minimum_size = Vector2(12, 0)
+		row.add_child(pad)
+		lv.add_child(row)
 
-	if _sel_good != "":
-		_section("%s 曲线" % _good_name(_sel_good))
-		_chart("库存", [{"name": "库存", "color": Color(0.85, 0.72, 0.35),
-			"values": stats.series(stats.stock, _sel_good), "fill": true}])
-		_chart("日产 / 工业耗", [
-			{"name": "日产", "color": Color(0.40, 0.75, 0.45),
-				"values": stats.series(stats.produced, _sel_good), "fill": true},
-			{"name": "工业耗", "color": Color(0.85, 0.45, 0.35),
-				"values": stats.series(stats.consumed_ind, _sel_good)},
-		], false, "%.1f")
-	else:
-		_note("点上面表格里的商品名，看它的库存与产耗曲线。")
+	# ---- 右：详情
+	var right := VBoxContainer.new()
+	right.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	right.add_theme_constant_override("separation", 6)
+	split.add_child(right)
+	_good_detail(right)
+
+## 右侧详情：图标 + 名称 + 大字数据 + 曲线
+func _good_detail(right: VBoxContainer) -> void:
+	if _sel_good == "":
+		var hint := UIKit.label("← 从左边选一个资源", UIKit.FG_HEAD)
+		right.add_child(hint)
+		return
+	var gd: Dictionary = runner.db.goods.get(_sel_good, {})
+	var r := stats.good_row(_sel_good)
+	var net := float(r["produced"]) - float(r["consumed_ind"]) - float(r["consumed_pop"])
+
+	# 图标 + 名称 + 净额
+	var head := HBoxContainer.new()
+	head.add_theme_constant_override("separation", 8)
+	var ic := TextureRect.new()
+	ic.texture = load("res://assets/goods/%s.png" % _sel_good)
+	ic.custom_minimum_size = Vector2(48, 48)
+	ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	head.add_child(ic)
+	var col := VBoxContainer.new()
+	col.add_theme_constant_override("separation", 0)
+	var nm := _big(_good_name(_sel_good))
+	col.add_child(nm)
+	var sub := UIKit.label(String(gd.get("category", "")), Color(0.62, 0.48, 0.34))
+	col.add_child(sub)
+	head.add_child(col)
+	head.add_child(UIKit.spacer())
+	var netcol := VBoxContainer.new()
+	netcol.add_theme_constant_override("separation", 0)
+	var nl := UIKit.label("净变化 / 日", HEAD_COL)
+	nl.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	netcol.add_child(nl)
+	var nv := _big("%+.1f" % net,
+		Color(0.18, 0.45, 0.20) if net >= 0.0 else Color(0.65, 0.22, 0.18))
+	nv.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	netcol.add_child(nv)
+	head.add_child(netcol)
+	right.add_child(head)
+	right.add_child(UIKit.hsep())
+
+	# 大字数据
+	var g := GridContainer.new()
+	g.columns = 2
+	g.add_theme_constant_override("h_separation", 16)
+	g.add_theme_constant_override("v_separation", 4)
+	right.add_child(g)
+	var rows := [
+		["库存", "%.0f" % float(r["stock"]), UIKit.FG_DARK],
+		["日产量", "%.1f" % float(r["produced"]), Color(0.18, 0.42, 0.24)],
+		["工业消耗 / 日", "%.1f" % float(r["consumed_ind"]), Color(0.55, 0.30, 0.18)],
+		["居民消耗 / 日", "%.1f" % float(r["consumed_pop"]), Color(0.55, 0.30, 0.18)],
+		["工坊数", "%d" % int(r["shops"]), UIKit.FG_DARK],
+		["工位总数", "%d" % int(r["slots"]), UIKit.FG_DARK],
+		["在岗工人", "%d" % int(r["workers"]), UIKit.FG_DARK],
+	]
+	for row in rows:
+		var kl := UIKit.label(String(row[0]), HEAD_COL)
+		kl.vertical_alignment = VERTICAL_ALIGNMENT_BOTTOM
+		g.add_child(kl)
+		var vl := _big(String(row[1]), row[2])
+		vl.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		vl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		g.add_child(vl)
+
+	# 曲线
+	var cv := Chart.new()
+	cv.custom_minimum_size = Vector2(0, 110)
+	cv.set_data("库存", [{"name": "库存", "color": Color(0.85, 0.72, 0.35),
+		"values": stats.series(stats.stock, _sel_good), "fill": true}], false, "%.0f")
+	right.add_child(cv)
+	var cp := Chart.new()
+	cp.custom_minimum_size = Vector2(0, 110)
+	cp.set_data("日产 / 工业耗", [
+		{"name": "日产", "color": Color(0.40, 0.75, 0.45),
+			"values": stats.series(stats.produced, _sel_good), "fill": true},
+		{"name": "工业耗", "color": Color(0.85, 0.45, 0.35),
+			"values": stats.series(stats.consumed_ind, _sel_good)},
+	], false, "%.1f")
+	right.add_child(cp)
+
+## 大字（12px 像素字体的整数 2 倍）
+func _big(t: String, col: Color = UIKit.FG_DARK) -> Label:
+	var l := UIKit.label(t, col)
+	l.add_theme_font_size_override("font_size", UIKit.BIG_FS)
+	return l
 
 func _on_pick_good(gid: String) -> void:
 	_sel_good = gid
