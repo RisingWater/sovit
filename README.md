@@ -1,12 +1,15 @@
-# sovit
+# sovit / The Village
 
 一个回合制经济沙盒：你是国有资本运营者，通过调工资、调价格、建店、建房、扩产，维持人口与满意度，并逐步私有化。
 
-> **当前进度：v0.3 = 纯函数引擎 + AI HTTP 接口（暂无 UI）。**
+> **当前进度：v0.3 引擎 + 可玩的 Godot 实时游戏。**
 > v0.3 是**财富分层社会**：居民按存款自动分为 穷 / 中产 / 富 / 老板；收入与技能挂钩；
-> 住房分三级（茅屋 / 木屋 / 砖房）且与阶层强制对应（富/老板住独居砖房）；只有中产及以上才私有化；
+> 住房分三级（茅屋 / 木屋 / 砖房）且与阶层强制对应；只有中产及以上才私有化；
 > 奢侈品低弹性高定价，用于从富人身上抽取财富。
-> 完整设计见 [`docs/plan_v0.1.md`](docs/plan_v0.1.md)；UI（React + 等距地图 + 图表）留待后续里程碑。
+> 完整设计见 [`docs/plan_v0.1.md`](docs/plan_v0.1.md)。
+>
+> Godot 侧已不只是 HUD：**标题页 + 小地图 + 建造/派人 + 统计面板 + ESC 菜单 + 昼夜光影 + 音乐音效**。
+> 16px 俯视像素美术。
 
 ---
 
@@ -24,23 +27,27 @@ npm run api         # 启动 AI HTTP 接口（http://localhost:8787）
 
 > 只测试**最新内容包**（当前 `v0.3`）。要跑其它包或时长：`npm run sim -- [天数] [种子] [内容包]`。
 
+**跑游戏**：用 Godot **4.7.2** 打开 `godot/`，或命令行 `godot --path godot`。
+门槛：`cd godot && bash verify.sh`（12 项，见下文）。
+
 ---
 
 ## 目录结构
 ```
 content/                   # 内容数据（JSON 驱动，改这里 = 改游戏）
 ├─ goods.json              # 商品（资源 / 加工品 / 消费品 / 投资品）
-├─ buildings.json          # 建筑（配方内嵌）
+├─ buildings.json          # 建筑（配方内嵌 + art 美术规格）
 ├─ classes.json            # 阶层与需求 + 阶层参数
 ├─ housing.json            # 住房
 ├─ packs.json              # 内容包（每局允许出现什么）+ 开局场景
 └─ economy.json            # schemaVersion + time + 全局参数 / 默认值 / 机制常数
 src/
 ├─ engine/                 # 纯函数引擎（不依赖 UI）
-│  ├─ types.ts             # 全部类型
+│  ├─ types.ts             # 全部类型（含 ResidentAccount / DayLedger）
 │  ├─ config.ts            # 由 content/economy.json 驱动的参数
 │  ├─ rng.ts               # 确定性随机（mulberry32）
 │  ├─ state.ts             # createInitialState
+│  ├─ util.ts              # 数值工具（r2 / round4）
 │  ├─ content/             # 内容加载器 load.ts + 校验器 validate.ts + bundle.ts
 │  ├─ systems/             # 生产 / 消费 / 人口 / 满意度 / 财政 / 投资 / 用工
 │  ├─ tick.ts              # advanceHour / advanceDay 主入口（小时制）
@@ -48,23 +55,39 @@ src/
 │  └─ observe.ts           # 观测 JSON
 ├─ ai/heuristic.ts         # 启发式基线 AI
 └─ api/server.ts           # AI HTTP 接口
-godot/                     # Godot 4.7 实时游戏（GDScript）
+godot/                     # Godot 4.7.2 实时游戏（GDScript）
 ├─ scripts/core/           # ContentDB / Rng / SaveManager / SimUtil
-├─ scripts/sim/            # SimCore（纯仿真，无 Node 依赖）
-├─ scripts/world/          # SimRunner / main
-├─ scripts/ui/             # HUD
+├─ scripts/sim/            # SimCore（纯仿真，无 Node 依赖）+ 逐人账目/每日台账
+├─ scripts/world/          # SimRunner / main / world_view / game_map / daylight
+├─ scripts/ui/             # 见下方「UI 层」
+├─ assets/                 # 像素美术 / 字体 / 音乐 / 音效（授权见 assets/CREDITS.md）
 ├─ content/                # 同步自 content/ 的副本
-├─ tests/                  # gdUnit4（golden 回放 + 存档往返）+ golden/
-├─ tools/                  # smoke_test.gd
+├─ tests/                  # gdUnit4（golden 回放 + 存档往返 + 逐人账目）+ golden/
+├─ tools/                  # 11 个门槛脚本 + 截图工具
 ├─ verify.sh               # headless 门槛
 └─ AGENTS.md
 docs/spec.md               # 跨语言仿真契约（TS ↔ GDScript）
-scripts/check-content.ts   # 内容自检
-scripts/golden.ts          # 黄金轨迹
-scripts/simulate.ts        # 无头验收脚本
+scripts/                   # check-content / golden / simulate / gen-art
 ```
 
 引擎与表现分离：`advanceHour` 是不修改入参的纯函数，带种子随机，TS / GDScript 共用同一套逻辑并以 golden 轨迹对拍。
+
+### UI 层（`godot/scripts/ui/`）
+
+| 文件 | 作用 |
+|---|---|
+| `ui_kit.gd` | 静态工具：字体 / 9-slice 样式盒 / 按钮 / 卡片 / 颜色常量 |
+| `hud.gd` | 顶栏（两行）：人口就业满意国库 + 资源条 + 快存快读统计菜单 |
+| `minimap_widget.gd` | 左上角挂件：日期时间框 + 圆形小地图 + 村名红巾（可改名） |
+| `build_bar.gd` | 底部建造栏：住宅/农场/食品加工/矿场/工业/娱乐/其它 + 笔刷尺寸 |
+| `inspector.gd` | 右侧详情：选中建筑/居民，移民开关 |
+| `panel_stats.gd` | 可拖动的统计面板：资源 / 人口 / 财务三 Tab |
+| `chart.gd` | 折线图控件（自绘） |
+| `game_stats.gd` | 统计采样（读 ledger 与 resident.account，不重算公式） |
+| `esc_menu.gd` | ESC 菜单：新游戏 / 保存 / 读取 / 音效 / 音乐 / 设置资源 / 退出 |
+| `new_game_dialog.gd` | 新游戏：村名（≤6 字）+ 难度（初始资源 ×0.5 / ×1 / ×2 / ×10 可选） |
+| `title_screen.gd` | 标题页：只读展示村庄 + 缓慢环绕镜头 + 定期换村庄 |
+| `music.gd` / `sfx.gd` | 背景音乐（两首轮流）/ 菜单音效（播放器池） |
 
 ---
 
@@ -101,13 +124,20 @@ console.log(observe(state))
 | `set_rent { value }` | 设定国有住房人均日租金 |
 | `set_tax { value }` | 设为**单一扁平税率**（会覆盖整张税表） |
 | `set_tax_bracket { index, upTo?, rate? }` | 编辑累进税**某档的阈值/税率**（last 档 `upTo:null`） |
+| `set_immigration { value }` | 设定接收移民上限（次日 06:00 生效） |
 | `end_turn` | 结算一天 |
 
 预留（返回 `not_implemented`）：`sell_shop`、`retake_shop`、`subsidy`。
 
-> **私有住房是最高层需求**：成交是自动的（`runPrivateHousingMarket`），居民需同时满足
-> 「满意度 ≥ `ECONOMY.privateHousingNeedThreshold`」「存款 ≥ 住房售价」「尚未拥有住房」。
-> 房主免租且满意度 +`privateHousingSatBonus`；非房主按人头交租。
+### 逐人账目与每日台账
+
+仿真层为每个人记录 `ResidentAccount`（当日工资/税/租金/消费/三项满足率/是否挨饿/逐商品购买量），
+并每天产出一份 `DayLedger`（社会总流量 + 逐商品产量/工业消耗/居民购买）。
+
+> 目前是**平均分配**，所以逐人数值 == 阶层数值 —— 但结构先分开，
+> 将来做差异化分配（按收入 / 偏好 / 距离）时不必再动数据结构。
+
+UI 的统计面板**直接读这两份记录**，不自己重算公式，因此不存在口径漂移。
 
 ---
 
@@ -168,14 +198,14 @@ curl -X POST http://localhost:8787/act \
 
 - **每日循环（计划经济）**：期初库存 → 按需**公平生产**（不依赖建筑顺序）→ 发工资 → 收租 → 购买消费品 → 投资买房 → 结算满意度。完整顺序见 [`docs/content.md`](docs/content.md) 第十节。
 - **封闭货币循环**：政府是唯一雇主与唯一卖方。恒等式：**政府净收入 ≡ −居民净储蓄**。
-- **所得税（累进，可运行时调整）**：税表 `government.taxBrackets` 由 AI/玩家编辑（`set_tax_bracket`，改档位阈值与税率）；对**工资**与**房东租金收入**同规则计征。默认 `[≤2:8%, 2–3.5:22%, >3.5:42%]`。没有增值税——政府独家售货时增值税与售价等价。
-- **建造走实物材料**：v0.2 建店 / 建房消耗木材 / 石块 / 粘土 / 砖，不依赖财政积累。
-- **住房租金**：国有住房租金属政府；私有住房租金由房客付给房主，其中按所得税扣税归政府（`set_rent`、`set_price { goodId: 'hut' }` 可调）。
+- **所得税（累进，可运行时调整）**：税表 `government.taxBrackets` 由玩家编辑（`set_tax_bracket`）；对**工资**与**房东租金收入**同规则计征。默认 `[≤2:8%, 2–3.5:22%, >3.5:42%]`。没有增值税——政府独家售货时增值税与售价等价。
+- **建造走实物材料**：建店 / 建房消耗木材 / 石块 / 粘土 / 砖，不依赖财政积累。
+- **住房租金**：国有住房租金属政府；私有住房租金由房客付给房主，其中按所得税扣税归政府。
 - **私有住房（最高层需求）**：只有 **中产及以上** 才会购买；且只能买与本阶层对应的等级（中产→木屋，富/老板→砖房）。
-- **财富分层（v0.3）**：居民按存款自动分为 穷 / 中产 / 富 / 老板（阈值见 `content/classes.json` 各阶层的 `wealthThreshold`）；收入与技能挂钩（`工资 × (0.5 + 技能/100)`），熟练者变富 → 升阶，形成流动。
-- **住房三级 + 阶层对应**：茅屋(4人)/木屋(3人)/砖房(2人，富/老板独居)；住低于本阶层要求的房会扣满意度（`housingQualityPenalty`）。
-- **奢侈品抽取（v0.3）**：衣物 / 日用 / 糕点属低弹性商品（`luxuryElasticity`），AI 按 `luxuryPriceMarkup` 提价，把中产/富人的存款抽回政府。
-- **接受赤字（设计决定）**：私有化让租金流向房东，而房东只存不花（v0.2 无双阶层 / 奢侈品消费出口），这部分钱退出政府循环，因此**政府长期必然赤字**。目前按设计接受赤字、把破产作为张力；要根除需引入财富税、再分配或 v1.0 的富人奢侈消费。
+- **财富分层**：居民按存款自动分为 穷 / 中产 / 富 / 老板（阈值见 `content/classes.json`）；收入与技能挂钩（`工资 × (0.5 + 技能/100)`），熟练者变富 → 升阶，形成流动。
+- **住房三级 + 阶层对应**：茅屋(4人)/木屋(3人)/砖房(2人，富/老板独居)；住低于本阶层要求的房会扣满意度。
+- **奢侈品抽取**：衣物 / 日用 / 糕点属低弹性商品（`luxuryElasticity`），把中产/富人的存款抽回政府。
+- **接受赤字（设计决定）**：私有化让租金流向房东，而房东只存不花，这部分钱退出政府循环，因此政府长期必然赤字。目前按设计接受赤字；要根除需引入财富税、再分配或富人奢侈消费。
 - **人口增长**：`人口上限 = min(住房容量, 岗位数)`，移民只在有空位时迁入；**土地无上限**。
 - **劳动力分配**：食品产业链优先（从成品回溯上游），剩余劳动力按需求比例分给建材链。
 - **失业保障**：失业者领取保障金（可温饱）但满意度较低。
@@ -188,23 +218,82 @@ curl -X POST http://localhost:8787/act \
 - **06:00 排产**（日界）：应用「次日生效」命令 → 启用昨日完工 → 用工 → 两阶段公平配给排产。
 - **06:00–18:00**：每小执行今日计划 × 1/12（生产结算按小时）。
 - **18:00 结算**：工资（日结）→ 收租 → 消费 → 买房 → 满意度 → 人口 → 移民 → 损耗 → 技能 → 施工进度。
-- **18:00–06:00**：夜间，昼夜交替，无生产。
-- **所有命令次日 06:00 生效**（玩家实时下令 / AI 每天一次；建筑、升级、建房、派人、停产、价格、税费一律延后）。
+- **18:00–06:00**：夜间，无生产。
+- **所有命令次日 06:00 生效**（建筑、升级、建房、派人、停产、价格、税费一律延后）。
 - 完整契约见 [`docs/spec.md`](docs/spec.md)。
 
-## Godot（实时游戏）
+---
 
-`godot/` 是一个 Godot **4.7.2** 工程（GDScript）：`scripts/sim/SimCore` 是 `docs/spec.md` 的忠实移植，纯 `RefCounted`、无 Node 依赖，能在 headless 下运行。
+## Godot 实时游戏
 
-- **对拍**：`godot/tests/test_golden.gd`（gdUnit4）回放 `scripts/golden.ts` 生成的轨迹，逐日比对 → 两套实现零漂移。
-- **门槛**：`godot/verify.sh`（import → 每个改动 `.gd` 过 `--check-only` → gdUnit4 → headless 冒烟）。
-- **运行**：用 Godot 打开 `godot/`（或命令行 `godot --path godot`）；HUD 显示时间/人口/库存/日志，按钮暂停/变速，F5 存档 / F9 读档。
-- 数据源是仓库根 `content/`；改完跑 `npm run sync:content` 同步到 `godot/content/`。
+`godot/` 是一个 Godot **4.7.2** 工程（GDScript）。`scripts/sim/SimCore` 是 `docs/spec.md` 的忠实移植，
+纯 `RefCounted`、无 Node 依赖，能在 headless 下运行。
+
+### 玩法
+
+- **标题页**：背景是只读展示的村庄（固定种子 + 缓慢环绕镜头 + 每 14 秒换一个村），
+  左下三个选项（开始游戏 / 读取进度 / 退出游戏）。
+- **新游戏**：设置村庄名（≤6 字）与难度（初始资源倍率），随机种子开局。
+- **建造**：底部建造栏按类别分 Tab，选建筑后在地图上落位，次日 06:00 生效。
+- **笔刷**：道路 / 地板 / **清除**（把路面地板抹回草地），笔刷尺寸可调。
+- **查看**：点击建筑或居民看详情；统计面板有资源 / 人口 / 财务三 Tab 与折线图。
+- **小地图**：左上角，跟随镜头位置与缩放；红巾显示村名，点击可改名。
+- **存档**：顶栏「快存 / 快读」走默认存档位（也支持 F5 / F9）；ESC 菜单里是文件对话框，可选路径。
+- **昼夜光影**：世界随时间调色（夜里偏蓝压暗、白天原色、日出黄昏偏金黄），UI 不受影响。
+
+### 对拍与门槛
+
+- **对拍**：`godot/tests/test_golden.gd` 回放 `scripts/golden.ts` 生成的轨迹，逐日比对 → 两套实现零漂移。
+- **门槛**：`cd godot && bash verify.sh`，12 项全绿才算过：
+
+| 项 | 检查什么 |
+|---|---|
+| `import` / `parse` | 资源导入、每个改动的 `.gd` 过 `--check-only` |
+| `gdUnit4` | golden 回放 + 存档往返 + 逐人账目 |
+| `smoke` / `move` | 基本可运行；移动建筑不崩、不泄漏标签 |
+| `music` | 两首曲子存在、**单曲不循环**（否则切歌失效） |
+| `sfx` | 音效池非空、按钮**真的**接上了回调 |
+| `daylight` | 色调曲线连续、白天纯白、夜间压暗、24 点接回 0 点 |
+| `bartab` | 建造栏每座建筑只出现在一个 Tab；单页不显示翻页；笔刷尺寸只在「其它」 |
+| `panel` | 面板可拖动、不被内容撑宽、**无新数据时不重建**（否则按钮点不动） |
+| `imm` | 移民按钮点完**显示立刻变化**（断言渲染文本，不是只看入队） |
+| `minimap` | 圆环贴图已加载、尺寸是 64 的整数倍、跟随镜头与缩放、顶栏无日期时间 |
+| `esc` | ESC 开关菜单、顶栏只留快存快读、保存/读取真的开 FileDialog |
+| `newgame` | 村名上限一致、倍率精确成比例、新游戏后仓库精灵还在 |
+
+- **数据源**是仓库根 `content/`；改完跑 `npm run sync:content` 同步到 `godot/content/`。
+
+---
+
+## 美术与音频素材
+
+全部清单与授权见 [`godot/assets/CREDITS.md`](godot/assets/CREDITS.md)。
+
+| 素材 | 来源 | 授权 |
+|---|---|---|
+| 地形 / 建筑 / 人物 | Kenney Tiny Town / Tiny Farm | CC0 |
+| 界面框 / 圆环 / 红巾 | Kenney UI Pack - Pixel Adventure | CC0 |
+| 光标 | Kenney Cursor Pixel Pack | CC0 |
+| 字体 | Fusion Pixel Font | OFL-1.1 |
+| 菜单音效 | Kenney UI SFX Set | CC0 |
+| 背景音乐 | RPG Town Pack（Talon Trueblood） | 免费 + **需署名** |
+| 12 张房屋贴图 + 标题 logo | SUPER RETRO WORLD / AI 生成 | ⚠️ **见下** |
+
+> ⚠️ **仓库必须保持私有。** `godot/assets/props/` 的 12 张房屋来自 SUPER RETRO WORLD，
+> 其授权**禁止**以可提取的独立形式再分发、**禁止上传到任何仓库**。
+> 标题 logo 为 AI 生成（带 WORKBUDDY 水印），授权归属需自行确认。
+> 音乐需在制作人员名单署名 `Music: Talon Trueblood`。
+> 详见 [`CREDITS.md`](godot/assets/CREDITS.md)。
+
+---
 
 ## 后续
 
-- Godot 侧继续做：地图/建筑视图、建造与派人 UI（当前 HUD 只读展示 + 暂停/变速 + 存档）
+- **标题页**：村庄规模比镜头可视范围大不少（铺到半径 75 格、可视约 33 格），可收紧半径让人更密
+- **性能**：`_render_base_terrain()` 每格都跑，512×512 全量重画偏慢，可只重画可视区
+- **重构**：`load_from` 与 `start_new_game` 的公共步骤抽成一个函数
+  （历史上"新游戏少一步、读档有"已经踩过两次）；占地时清除装饰应收敛进 `map.occupy()`
 - 分层趋于"全员富人"的问题：让需求/税制随财富升级（奢侈需求上限、累进税、财富税）
-- 用奢侈品抽取缩小结构性赤字（当前抽取部分有效，但富人囤积仍大于消费）
+- 用奢侈品抽取缩小结构性赤字
 - 竞争 / 老板经营（老板经营已预留接口签名）
 - 库存上限 / 损耗，抑制过量囤积
