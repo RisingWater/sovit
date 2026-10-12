@@ -63,6 +63,10 @@ func _ready() -> void:
 	root_ui.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	root_ui.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root_ui.theme = theme
+	# 主题还要挂到 **window** 上：提示框（TooltipPanel）是独立弹出窗口，
+	# 不在 root_ui 的子树里，只设 root_ui.theme 的话它拿不到。
+	# 这就是"提示框改了样式却没变化"的原因。
+	get_window().theme = theme
 	canvas.add_child(root_ui)
 	# 让世界知道 UI 根节点：鼠标落在 UI 面板上时不当作地图操作
 	world.ui_root = root_ui

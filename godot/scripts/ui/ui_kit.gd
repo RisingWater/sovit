@@ -154,17 +154,11 @@ static func make_theme() -> Theme:
 
 	th.set_stylebox("panel", "Panel", box(T_PANEL_DARK))
 
-	# 提示框：**不透明**。Godot 默认的 TooltipPanel 是半透明深色，
-	# 压在地图这种花花绿绿的背景上很难读。这里换成与 UI 同色系的实心米黄纸。
-	var tip := StyleBoxFlat.new()
-	tip.bg_color = Color(1.0, 0.94, 0.81)
-	tip.border_color = Color(0.43, 0.24, 0.14)
-	tip.set_border_width_all(2)
-	tip.content_margin_left = 8
-	tip.content_margin_right = 8
-	tip.content_margin_top = 6
-	tip.content_margin_bottom = 6
-	th.set_stylebox("panel", "TooltipPanel", tip)
+	# 提示框：用与其它面板同款的像素米黄纸框（不是纯色块），风格统一。
+	# ⚠️ 光设这里还不够 —— 提示框是个**独立弹出窗口**，不在 root_ui 的子树里，
+	#    拿不到 root_ui.theme。必须在 main.gd 里把主题挂到 window 上，
+	#    否则这里设了也是白设（这就是"设了还是不透明地没变化"的原因）。
+	th.set_stylebox("panel", "TooltipPanel", pad(box(T_PANEL_CREAM), 10, 7, 10, 7))
 	th.set_color("font_color", "TooltipLabel", FG_DARK)
 	th.set_font_size("font_size", "TooltipLabel", FS)
 	return th
