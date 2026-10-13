@@ -86,6 +86,7 @@ step "music" "$GODOT_BIN" --headless --path . -s res://tools/music_test.gd
 step "sfx" "$GODOT_BIN" --headless --path . -s res://tools/sfx_test.gd
 step "daylight" "$GODOT_BIN" --headless --path . -s res://tools/daylight_test.gd
 step "bartab" "$GODOT_BIN" --headless --path . -s res://tools/bartab_test.gd
+step "buildlock" "$GODOT_BIN" --headless --path . -s res://tools/buildlock_test.gd
 step "panel" "$GODOT_BIN" --headless --path . -s res://tools/panel_test.gd
 step "tech" "$GODOT_BIN" --headless --path . -s res://tools/tech_test.gd
 step "imm" "$GODOT_BIN" --headless --path . -s res://tools/imm_test.gd

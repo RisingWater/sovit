@@ -224,11 +224,46 @@ func _rebuild() -> void:
 	for i in range(_page * per, mini(ids.size(), (_page + 1) * per)):
 		var id: String = ids[i]
 		var b := UIKit.card(_name_of(id), _thumb_for(id))
-		b.tooltip_text = "%s\n%s" % [_name_of(id), _cost_text(id)]
-		b.pressed.connect(_on_build.bind(id))
+		if _locked(id):
+			# 科技没研究出来：灰显 + 「（锁）」+ 说明缺哪项科技。
+			# 刻意**不接** pressed —— 点了什么也不发生（不去跳科技面板，用户明确不要跳转）。
+			b.modulate = Color(0.55, 0.55, 0.55, 1.0)
+			b.tooltip_text = "需要科技：%s（未研究）\n研究完成后才能建造" % _tech_name(id)
+			_mark_locked(b)
+		else:
+			b.tooltip_text = "%s\n%s" % [_name_of(id), _cost_text(id)]
+			b.pressed.connect(_on_build.bind(id))
 		_items.add_child(b)
 
 	_page_label.text = "%d/%d" % [_page + 1, maxi(1, pages)]
+
+## 该建筑 / 住房的科技是否还没研究出来。
+func _locked(id: String) -> bool:
+	if runner == null or runner.sim == null or runner.db == null:
+		return false
+	if runner.db.housing.has(id):
+		return not runner.sim.is_housing_unlocked(id)
+	if not runner.db.buildings.has(id):
+		return false
+	return not runner.sim.is_building_unlocked(id)
+
+## 解锁它所需的科技中文名。
+func _tech_name(id: String) -> String:
+	var tid := ""
+	if runner.db.housing.has(id):
+		tid = runner.db.tech_for_housing(id)
+	else:
+		tid = runner.db.tech_for_building(id)
+	if tid == "" or not runner.db.techs.has(tid):
+		return "未知"
+	return String(runner.db.techs[tid]["nameZh"])
+
+## 在卡片名后面缀「（锁）」。短后缀是为了不撑破 CARD_W=112。
+func _mark_locked(b: Button) -> void:
+	for c in b.find_children("*", "Label", true, false):
+		var l := c as Label
+		l.text = "%s（锁）" % l.text
+		return
 
 func _on_build(id: String) -> void:
 	if world != null:
