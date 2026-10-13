@@ -14,6 +14,9 @@ from PIL import Image
 import os
 import sys
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from icon_util import dematt  # noqa: E402
+
 SRC = r'D:\wangxu\game\图标素材'
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DST = os.path.join(ROOT, 'godot', 'assets', 'ui', 'panel')
@@ -70,7 +73,16 @@ def main():
     for zh, gid in WANT.items():
         p = os.path.join(SRC, zh + '.png')
         if not os.path.exists(p):
-            missing.append((zh, gid))
+            # 源文件不在素材文件夹里（04_finance / 05_research 是从聊天附件来的），
+            # 但已导出的图还在。dematt 是**幂等**的，所以就地再处理一遍即可，
+            # 不用回头找原图。
+            out_p = os.path.join(DST, gid + '.png')
+            if os.path.exists(out_p):
+                fixed, n = dematt(Image.open(out_p))
+                fixed.save(out_p)
+                made.append((zh, gid, f'源缺失，就地去毛边 {n}px'))
+            else:
+                missing.append((zh, gid))
             continue
         im = Image.open(p).convert('RGBA')
         n = uniform_factor(im)
@@ -84,8 +96,10 @@ def main():
             out = im.resize((OUT, OUT), Image.NEAREST)
             how = f'{im.size} -> {OUT}（真高分辨率，最近邻）'
         assert out.size == (OUT, OUT)
+        # 去掉外圈那 1px 浅色毛边（在深色顶栏上看着就是白边）
+        out, n_removed = dematt(out)
         out.save(os.path.join(DST, gid + '.png'))
-        made.append((zh, gid, how))
+        made.append((zh, gid, how + (f'，去毛边 {n_removed}px' if n_removed else '')))
 
     print(f'导出 {len(made)} 个状态图标 -> {os.path.relpath(DST, ROOT)}')
     for zh, gid, how in made:

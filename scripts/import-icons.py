@@ -23,6 +23,9 @@ import os
 import re
 import sys
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from icon_util import dematt  # noqa: E402
+
 SRC = r'D:\wangxu\game\图标素材'
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DST = os.path.join(ROOT, 'godot', 'assets', 'icons')
@@ -163,6 +166,8 @@ def main():
             expected = fn
 
         assert img.size == (OUT_SIZE, OUT_SIZE), f'{gid} 尺寸不对: {img.size}'
+        # 去掉外圈那 1px 浅色毛边（在深色顶栏上看着就是白边）
+        img, _ = dematt(img)
         img.save(os.path.join(DST, f'{gid}.png'))
         made.append((gid, name_zh, expected or spec[1] or 'drawn/thumbs'))
 
