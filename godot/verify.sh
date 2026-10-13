@@ -26,13 +26,27 @@ strip_ansi() {
 }
 
 # 跑一条命令：回显输出 → 查退出码 → 扫脚本错误
+#
+# 带耗时：全套要跑二十来条命令，哪一条突然变慢（比如某次 --import 重新导入
+# 全部资源、或某个测试卡在 await 上）光看输出看不出来，所以每条都报时。
 step() {
   local name="$1"; shift
   echo "== $name =="
-  local tmp rc
+  local tmp rc t0 t1
   tmp=$(mktemp)
-  "$@" >"$tmp" 2>&1
+  t0=$(date +%s%N)
+  # ⚠️ 必须加超时。曾经有个测试引用了已被删掉的 hud._info，运行时报错后
+  # `_run()` 提前中断、永远走不到 quit()，进程就**挂着不退**，
+  # 整个 verify.sh 卡在那一关不动 —— 看起来像"门槛很慢"，其实是死等。
+  # 有超时的话 120 秒后返回 124，step 会明确报 FAIL。
+  timeout -k 5 "${STEP_TIMEOUT:-120}" "$@" >"$tmp" 2>&1
   rc=$?
+  t1=$(date +%s%N)
+  echo "   ($(( (t1 - t0) / 1000000 )) ms)"
+  if [ "$rc" -eq 124 ]; then
+    echo "FAIL: $name 超时（>${STEP_TIMEOUT:-120}s）—— 多半是测试里出错后没走到 quit()，进程挂住了" >&2
+    FAIL=1
+  fi
   strip_ansi "$tmp"
   if [ "$rc" -ne 0 ]; then
     echo "FAIL: $name 退出码 $rc" >&2

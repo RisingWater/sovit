@@ -56,8 +56,7 @@ func _ready() -> void:
 		pad.custom_minimum_size = Vector2(left_inset, 0)
 		row.add_child(pad)
 
-	_info = UIKit.label("", Color(0.89, 0.91, 0.94))
-	row.add_child(_info)
+	_build_stat_row(row)
 
 	row.add_child(UIKit.spacer())
 
@@ -82,18 +81,7 @@ func _ready() -> void:
 	ql.tooltip_text = "从默认存档位快速读取（F9）"
 	ql.pressed.connect(_on_load)
 	row.add_child(ql)
-	var st := UIKit.button("统计", true)
-	st.tooltip_text = "资源 / 人口 / 财务 明细与曲线"
-	st.pressed.connect(_open_stats)
-	row.add_child(st)
-	var tech := UIKit.button("科技", true)
-	tech.tooltip_text = "研究科技解锁新的建筑与商品（科研力由研究所提供）"
-	var tico := UIKit.panel_icon("research")
-	if tico != null:
-		tech.icon = tico
-		tech.add_theme_constant_override("icon_max_width", UIKit.PANEL_ICON_BTN)
-	tech.pressed.connect(_open_tech)
-	row.add_child(tech)
+	# 「统计 / 科技」按钮已移到左侧小地图下方的圆形按钮列（见 _build_nav）
 	var menu := UIKit.button("菜单", true)
 	menu.tooltip_text = "保存 / 读取 / 音效 / 音乐 / 资源 / 退出（ESC）"
 	menu.pressed.connect(func():
@@ -117,6 +105,7 @@ func _ready() -> void:
 		_res_row.move_child(pad2, 0)
 
 	_build_picker()
+	_build_nav()
 
 	if runner != null:
 		runner.hour_ticked.connect(_refresh)
@@ -126,9 +115,164 @@ func _open_stats() -> void:
 	if stats_panel != null:
 		stats_panel.open()
 
+func _open_stats_tab(i: int) -> void:
+	if stats_panel == null:
+		return
+	if stats_panel.has_method("open_tab"):
+		stats_panel.open_tab(i)
+	else:
+		stats_panel.open()
+
 func _open_tech() -> void:
 	if tech_panel != null:
 		tech_panel.open()
+
+# ---------------------------------------------------------------------------
+# 顶栏数值行：**只有图标 + 数字，不打中文标签**
+#
+# 每一格的 tooltip 负责说清这是什么 —— 顶栏放得下图标放不下字。
+# 「满意」没有图标可用，所以留成一个带 % 的裸数字（百分号本身就说明了量纲），
+# 它同时也在检视面板的「全局」页里写着「平均满意」。
+# ---------------------------------------------------------------------------
+## 第三项是**图标 id**（英文，落盘的文件名就是它），不是素材的中文名 ——
+## 素材中文名（人口.png / 金币.png …）只是导入脚本的输入，仓库里的文件叫 population.png / money.png。
+const STAT_ICONS := [
+	["population", "人口", "population"],
+	["employed", "就业", "employed"],
+	["satisfaction", "平均满意度（低于阈值会有人迁出）", ""],
+	["money", "国库", "money"],
+	["build", "建造力（人·天/日）", "build"],
+	["research", "科研力（科研力/日，由研究所提供）", "research"],
+]
+
+var _stat_labels: Dictionary = {}
+## 顶栏第一行那个"图标 + 数值"的容器。留着是给测试用的：
+## minimap_test 要检查小地图有没有压到顶栏第一行（以前它引用的是 _info 标签）。
+var _stats_row: HBoxContainer
+
+func _build_stat_row(row: HBoxContainer) -> void:
+	_stats_row = HBoxContainer.new()
+	_stats_row.add_theme_constant_override("separation", 10)
+	_stats_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.add_child(_stats_row)
+	var host := _stats_row
+	for spec in STAT_ICONS:
+		var key := String(spec[0])
+		var tip := String(spec[1])
+		var ico_name := String(spec[2])
+		var cell := HBoxContainer.new()
+		cell.add_theme_constant_override("separation", 2)
+		cell.mouse_filter = Control.MOUSE_FILTER_STOP
+		cell.tooltip_text = tip
+		var ico := UIKit.stat_icon(ico_name) if ico_name != "" else null
+		if ico != null:
+			var tr := TextureRect.new()
+			tr.texture = ico
+			tr.custom_minimum_size = Vector2(UIKit.STAT_ICON, UIKit.STAT_ICON)
+			tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+			tr.stretch_mode = TextureRect.STRETCH_KEEP_CENTERED
+			# SHRINK_CENTER：**不要**跟着 HBox 拉高。默认纵向 FILL 会把图标
+			# 撑到整行高，图标就被"居中"到了文字下方，看着像掉出顶栏被裁掉。
+			tr.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+			tr.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			cell.add_child(tr)
+		var l := UIKit.label("0", Color(0.89, 0.91, 0.94))
+		l.custom_minimum_size = Vector2(34, 0)
+		l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		l.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		l.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		cell.add_child(l)
+		_stat_labels[key] = l
+		host.add_child(cell)
+
+# ---------------------------------------------------------------------------
+# 左侧圆形按钮列：资源 / 人口 / 财政 / 科技
+#
+# 放在小地图挂件**下方**竖排。小地图占住左上角 left_inset 宽、266 高，
+# 所以这里从 NAV_TOP 起、水平居中在那一条里。
+#
+# 圆形用 StyleBoxFlat 的全圆角画，不额外做美术：
+# corner_radius 取按钮边长的一半就是正圆。
+# ---------------------------------------------------------------------------
+const NAV_BTN := 42
+const NAV_GAP := 8
+const NAV_TOP := 276.0      # 小地图挂件高 266，往下让 10px
+const NAV_ITEMS := [
+	["资源", "resource", 0],
+	["人口", "population", 1],
+	["财政", "finance", 2],
+	["科技", "research", -1],
+]
+
+func _build_nav() -> void:
+	var col := VBoxContainer.new()
+	col.name = "NavCol"
+	col.add_theme_constant_override("separation", NAV_GAP)
+	col.position = Vector2(maxf(4.0, (left_inset - NAV_BTN) * 0.5), NAV_TOP)
+	col.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	# ⚠️ 绝对不能 `add_child(col)` 到 self —— HUD 是 **PanelContainer**，
+	# 它会把每一个子节点强行拉伸到自己的内容区，圆钮列会被拉成一整块
+	# 盖住整个顶栏（第一版就是这么炸的）。
+	# 挂到父节点（root_ui，普通 Control）才能自由定位。
+	var host: Node = get_parent()
+	if host == null:
+		host = self
+	host.add_child(col)
+	for item in NAV_ITEMS:
+		var label := String(item[0])
+		var ico_name := String(item[1])
+		var tab := int(item[2])
+		var b := Button.new()
+		b.name = "Nav_" + ico_name
+		b.custom_minimum_size = Vector2(NAV_BTN, NAV_BTN)
+		b.focus_mode = Control.FOCUS_NONE
+		b.tooltip_text = label
+		var ico := UIKit.stat_icon(ico_name)
+		if ico != null:
+			b.icon = ico
+			b.add_theme_constant_override("icon_max_width", UIKit.STAT_ICON)
+			b.expand_icon = true
+		else:
+			b.text = label
+		_style_round(b)
+		if tab < 0:
+			b.pressed.connect(_open_tech)
+		else:
+			b.pressed.connect(_open_stats_tab.bind(tab))
+		col.add_child(b)
+
+## 把按钮画成正圆（全圆角 StyleBoxFlat），三种状态各一份。
+func _style_round(b: Button) -> void:
+	var r := int(NAV_BTN * 0.5)
+	for state in ["normal", "hover", "pressed", "focus", "disabled"]:
+		var sb := StyleBoxFlat.new()
+		sb.corner_radius_top_left = r
+		sb.corner_radius_top_right = r
+		sb.corner_radius_bottom_left = r
+		sb.corner_radius_bottom_right = r
+		sb.anti_aliasing = true
+		sb.content_margin_left = 3
+		sb.content_margin_right = 3
+		sb.content_margin_top = 3
+		sb.content_margin_bottom = 3
+		match state:
+			"hover":
+				sb.bg_color = Color(0.94, 0.90, 0.78)
+				sb.border_color = Color(0.55, 0.35, 0.18)
+			"pressed":
+				sb.bg_color = Color(0.78, 0.70, 0.55)
+				sb.border_color = Color(0.42, 0.26, 0.12)
+			"disabled":
+				sb.bg_color = Color(0.72, 0.70, 0.66, 0.7)
+				sb.border_color = Color(0.45, 0.42, 0.38)
+			"focus":
+				sb.bg_color = Color(0.90, 0.86, 0.74)
+				sb.border_color = Color(0.55, 0.35, 0.18)
+			_:
+				sb.bg_color = Color(0.89, 0.84, 0.70)
+				sb.border_color = Color(0.47, 0.29, 0.14)
+		sb.set_border_width_all(2)
+		b.add_theme_stylebox_override(state, sb)
 
 func _toggle_music() -> void:
 	if music == null:
@@ -324,9 +468,14 @@ func _refresh() -> void:
 	# 建造力与科研力都是**速率**（人·天/日），不是库存 —— 见 docs/construction.md / docs/technology.md
 	var build_rate := runner.sim.construction_rate()
 	var research_rate := runner.sim.research_rate()
-	_info.text = "人口%d  就业%d  满意%.1f  ¥%.0f  建造%.0f/天  科研%.1f/天  待生效%d" % [
-		residents.size(), employed, sat, float(gov["money"]), build_rate, research_rate, pending,
-	]
+	# 顶栏数值：只有图标 + 数字（中文说明在各自的 tooltip 里）
+	if not _stat_labels.is_empty():
+		(_stat_labels["population"] as Label).text = "%d" % residents.size()
+		(_stat_labels["employed"] as Label).text = "%d" % employed
+		(_stat_labels["satisfaction"] as Label).text = "%.0f%%" % sat
+		(_stat_labels["money"] as Label).text = "¥%.0f" % float(gov["money"])
+		(_stat_labels["build"] as Label).text = "%.0f" % build_rate
+		(_stat_labels["research"] as Label).text = "%.1f" % research_rate
 	# 资源数字
 	var goods: Dictionary = s["goods"]
 	var reserved: Dictionary = s.get("reserved", {})

@@ -62,16 +62,40 @@ func _run() -> void:
 		_fail("菜单关闭后 world 没有恢复输入处理")
 		return
 
-	# 2. 顶栏：必须有 快存/快读，不能有被移走的那些
+	# 2. 顶栏：必须有 快存/快读/菜单。
+	#    「统计 / 科技」已经搬到左侧小地图下方的圆形按钮列，顶栏不许再有它们。
 	var tops: Array = _labels(hud)
-	for need in ["快存", "快读", "统计", "菜单"]:
+	for need in ["快存", "快读", "菜单"]:
 		if not tops.has(need):
 			_fail("顶栏缺少按钮「%s」，实际：%s" % [need, tops])
 			return
-	for gone in ["保存", "读取", "资源", "音效", "音乐"]:
+	for gone in ["保存", "读取", "资源", "音效", "音乐", "统计", "科技"]:
 		if tops.has(gone):
 			_fail("顶栏还留着已移走的按钮「%s」" % gone)
 			return
+
+	# 2b. 左侧圆钮列：资源 / 人口 / 财政 / 科技，竖排小地图下方
+	var nav := hud.get_parent().get_node_or_null("NavCol")
+	if nav == null:
+		nav = hud.find_child("NavCol", true, false)
+	if nav == null:
+		_fail("找不到左侧圆钮列 NavCol")
+		return
+	var nav_btns: Array = []
+	for c in nav.get_children():
+		if c is Button:
+			nav_btns.append(c)
+	if nav_btns.size() != 4:
+		_fail("圆钮列应有 4 个按钮（资源/人口/财政/科技），实际 %d" % nav_btns.size())
+		return
+	for b in nav_btns:
+		if (b as Button).icon == null:
+			_fail("圆钮「%s」没有图标" % (b as Button).tooltip_text)
+			return
+	# 必须在小地图下方（小地图挂件高 266）
+	if (nav as Control).position.y < 266.0:
+		_fail("圆钮列 y=%.0f 压在小地图上了（应 ≥ 266）" % (nav as Control).position.y)
+		return
 
 	# 3. 菜单六项齐全
 	menu.open()
@@ -91,10 +115,10 @@ func _run() -> void:
 	if not has_sfx or not has_music:
 		_fail("菜单缺少音效/音乐开关，实际：%s" % items)
 		return
-	# 统计面板只在顶栏，菜单里不许再有一份
+	# 统计面板只在左侧圆钮列，菜单里不许再有一份
 	for s in items:
 		if String(s).begins_with("统计"):
-			_fail("统计面板应该只在顶栏，菜单里不该有：%s" % items)
+			_fail("统计面板应该只在左侧圆钮列，菜单里不该有：%s" % items)
 			return
 
 	# 4. 保存 / 读取 必须开 FileDialog

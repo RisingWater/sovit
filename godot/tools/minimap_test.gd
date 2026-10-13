@@ -79,7 +79,8 @@ func _run() -> void:
 	if hud == null:
 		_fail("找不到 HUD")
 		return
-	for pair in [["第一行", hud._info.get_parent()], ["资源行", hud._res_row]]:
+	# 顶栏第一行现在是"图标 + 数值"的 _stats_row（以前是个叫 _info 的标签）
+	for pair in [["第一行", hud._stats_row.get_parent()], ["资源行", hud._res_row]]:
 		var row = pair[1]
 		var first = row.get_child(1)      # 0 是间距占位，1 才是第一个真控件
 		if first == null:

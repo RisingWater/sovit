@@ -47,6 +47,19 @@ static func panel_icon(name: String) -> Texture2D:
 		return load(p)
 	return null
 
+## 顶栏 / 侧边圆钮用的"状态"图标（人口 / 就业 / 金币 / 建造力 / 研究力 / 移民 / 资源工业…）。
+##
+## 来自用户提供的素材包（作者 workbuddy，MIT），由 `scripts/import-stat-icons.py`
+## 导到 `assets/ui/panel/`。命名用**英文**（population / money / build …），
+## 不用中文文件名 —— 中文名在跨平台工具链里最容易出编码问题。
+const STAT_ICON := 24
+
+## 取状态图标；没有则返回 null（调用方自己决定要不要退回文字）。
+static func stat_icon(name: String) -> Texture2D:
+	if name == "":
+		return null
+	return panel_icon(name)
+
 ## 面板图标在按钮里的显示尺寸。按钮只有 21px 高，放 32px 会把整行撑开。
 const PANEL_ICON_BTN := 16
 

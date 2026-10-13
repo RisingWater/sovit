@@ -108,6 +108,11 @@ func open() -> void:
 	visible = true
 	refresh()
 
+## 打开并直接切到某个页签（顶栏左侧的圆钮用：资源 / 人口 / 财政）。
+func open_tab(i: int) -> void:
+	visible = true
+	_select_tab(clampi(i, 0, TABS.size() - 1))
+
 func _select_tab(i: int) -> void:
 	_tab = i
 	UIKit.play_switch()

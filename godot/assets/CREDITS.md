@@ -16,7 +16,7 @@
 | `buildings/*.png` | 本项目由 `content/*.json` 的 `art` 字段生成 | — | 同项目授权 |
 | `thumbs/*.png` | 同上（含自绘的道路/地板笔刷卡） | — | 同项目授权 |
 | `icons/*.png` | 用户提供的像素图标包，由 `scripts/import-icons.py` 导入 | **doubao** | **MIT**（见 `icons/LICENSE.txt`） |
-| `ui/panel/*.png` | 面板图标（财政 / 科技），由 `scripts/import-panel-icons.py` 导入 | **workbuddy** | **MIT**（见 `ui/panel/LICENSE.txt`） |
+| `ui/panel/*.png` | 面板 / 顶栏 / 圆钮图标（财政·科技·人口·就业·金币·建造力·研究力·移民·资源工业），由 `scripts/import-panel-icons.py` 与 `scripts/import-stat-icons.py` 导入 | **workbuddy** | **MIT**（见 `ui/panel/LICENSE.txt`） |
 | `goods/*.png` | 本项目自绘（36 个商品图标的**程序化兜底**，16×16） | — | 同项目授权 |
 | `tiny/extra.png` | 本项目自绘（道路 / 水面 / 桥 / 矿脉 / 砖石地板） | — | 同项目授权 |
 | `tiny/deco.png` | 本项目自绘（树 4 种） | — | 同项目授权 |

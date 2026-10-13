@@ -1,17 +1,28 @@
 # 面板图标（手绘）
 
-面板标题与页签用的小图标，32×32。
+面板标题、页签、顶栏数值与左侧圆钮用的图标，32×32。
 
 | 文件 | 用途 |
 |---|---|
-| `finance.png` | 统计面板的「财务」页签 |
-| `research.png` | 科技面板标题、顶栏「科技」按钮 |
+| `finance.png` | 统计面板「财务」页签 + 左侧圆钮「财政」 |
+| `research.png` | 科技面板标题 + 左侧圆钮「科技」（顶栏数值「科研力」也用） |
+| `research_panel.png` | `05_research_64x64` 原样另存（备用，未接） |
+| `population.png` | 顶栏「人口」+ 圆钮「人口」 |
+| `employed.png` | 顶栏「就业」 |
+| `money.png` | 顶栏「国库」 |
+| `build.png` | 顶栏「建造力」 |
+| `migration.png` | 移民相关（备用，未接） |
+| `resource.png` | 左侧圆钮「资源」 |
+
+素材里的中文名（`人口.png` / `金币.png` …）**只是导入脚本的输入**，
+落盘一律用英文 id —— 中文文件名在跨平台工具链里最容易出编码问题。
 
 ## 来源与授权
 
 - **作者**：workbuddy
 - **授权**：**MIT**（允许再分发）
-- 由 `scripts/import-panel-icons.py` 从用户提供的 64×64 原图导出；
+- 由 `scripts/import-panel-icons.py`（财政/科技）与 `scripts/import-stat-icons.py`
+  （人口/就业/金币/建造力/研究力/移民/资源工业）从本地素材包与用户提供的原图导出；
   原图**不入库**，只提交导出的 PNG，与 `assets/icons/` 的处理方式一致。
 
 > MIT 要求保留版权声明，所以 `LICENSE.txt` 必须随图标一起留在仓库里。

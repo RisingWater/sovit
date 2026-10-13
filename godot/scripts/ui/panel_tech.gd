@@ -178,8 +178,10 @@ func _queue_block(s: Dictionary, db: ContentDB) -> void:
 	var name := String(tech["nameZh"]) if tech != null else String(head["id"])
 	var left := float(head["remaining"])
 	var days := (left / rate) if rate > 0.0 else INF
+	# 4 个占位符对 4 个实参。多写一个 %s 会报
+	# "String formatting error: not enough arguments"（实测踩过）。
 	_body.add_child(UIKit.label(
-		"研究中：%s　%s/%s%s%s" % [
+		"研究中：%s　%s/%s%s" % [
 			name, _fmt(float(head["totalRequired"]) - left), _fmt(float(head["totalRequired"])),
 			("　（%s，还需约 %d 天）" % ["已开工" if bool(head["started"]) else "等待开工", int(ceil(days))]) if days < 999.0 else "　（无科研力）"],
 		Color(0.72, 0.35, 0.15)))

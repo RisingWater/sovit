@@ -277,7 +277,7 @@ curl -X POST http://localhost:8787/act \
 | 字体 | Fusion Pixel Font | OFL-1.1 |
 | 菜单音效 | Kenney UI SFX Set | CC0 |
 | **36 个商品图标** | 像素图标包（**doubao**） | **MIT** |
-| **面板图标**（财政 / 科技） | **workbuddy** | **MIT** |
+| **面板 / 顶栏图标**（财政·科技·人口·就业·金币·建造力…） | **workbuddy** | **MIT** |
 | 背景音乐 | RPG Town Pack（Talon Trueblood） | 免费 + **需署名** |
 | 12 张房屋贴图 + 标题 logo | SUPER RETRO WORLD / AI 生成 | ⚠️ **见下** |
 

@@ -25,17 +25,24 @@ func _run() -> void:
 		node._end_title()
 		await process_frame
 
-	# 1. 顶栏入口必须存在
+	# 1. 入口必须存在：科技按钮现在在左侧小地图下方的圆钮列里（不在顶栏）
 	var hud = node.get_node_or_null("UI/Root/HUD")
 	if hud == null:
 		_fail("找不到 UI/Root/HUD")
 		return
-	var has_btn := false
-	for c in hud.find_children("*", "Button", true, false):
-		if (c as Button).text == "科技":
-			has_btn = true
-	if not has_btn:
-		_fail("顶栏没有「科技」按钮")
+	var tech_btn: Button = null
+	var nav = hud.get_parent().get_node_or_null("NavCol")
+	if nav == null:
+		nav = hud.find_child("NavCol", true, false)
+	if nav != null:
+		for c in nav.get_children():
+			if c is Button and String((c as Button).tooltip_text) == "科技":
+				tech_btn = c
+	if tech_btn == null:
+		_fail("左侧圆钮列里找不到「科技」按钮")
+		return
+	if tech_btn.icon == null:
+		_fail("「科技」圆钮没有图标")
 		return
 
 	# 2. 面板能开、能列出全部科技
