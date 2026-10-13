@@ -18,6 +18,9 @@
    玩家已经懂建造力，就不用再学第二套语义。
 4. **研究所本身必须先研究出来**，但村子有一点点**基础科研力**兜底，避免"要研究所才能研究研究所"的死锁。
 5. **不打断现有经济**：不新增阶层、不改需求表、不改施工公式。科技只新增一件事——决定"能建什么"。
+6. **配套加一条工具产业链**（§八）：工具坊用木材 + 石块造**石制工具**，工坊按工位消耗工具，
+   换来**产出 ×1.25、投入不变**（"虚空产量"，灵感来自《戴森球计划》增产剂）。
+   它是本设计里唯一的"生产力型"内容，也因此是最需要调平衡的一环。
 
 ### 1.1 唯一硬规则：科技只花"已解锁"的原料
 
@@ -180,12 +183,14 @@ buildingAvailable(defId) =
   前置已满足、材料买得起的科技下单。
 - **研究所**：把「至少一座研究所」纳入建造优先级（排在建筑工坊之后、食品链之前还是之后需要实测），
   并在「研究队列长期非空」时扩建/升级研究所。
+- **工具坊**：研究出石制工具后建 1 座工具坊；当「生产工位数 ÷ 40」> 已有工具坊数时再建。
+  工具是耗材，必须持续生产——AI 要把它当**常驻产线**而不是一次性投资。
 
 ---
 
 ## 三、科技树总表
 
-**共 28 项科技，5 个纪元，1,522 科研力。**
+**共 29 项科技，5 个纪元，1,552 科研力。**
 
 - `科研力` = 完成所需的人·天。**没有金币成本**。
 - `花费` 是仓库里的实物原料（开工时扣）。
@@ -216,14 +221,16 @@ buildingAvailable(defId) =
 | 3 | 掘土 | `digging` | 20 | 木材 15 | — | 粘土坑 | 粘土 |
 | 4 | 薪柴 | `firewood` | 20 | 木材 20 | — | 木柴坊 | 木柴 |
 | 5 | 田猎 | `hunting` | 20 | 木材 20 | — | 狩猎营地 | 肉类、兽皮 |
+| 6 | **石制工具** | `toolmaking` | 30 | 木材 20 + 石块 20 | 石作 | **工具坊** | **石制工具**（工坊耗材） |
 
 > **#1 研究所必须第一项，而且必须便宜**：在它之前全村只有 2.0 科研力/天，
 > 12 科研力 = **6 天**——这是刻意设计的"土办法阶段"，让玩家先用基础科研力攒出研究所，
 > 之后产能跳到 16.4/天（基础 2.0 + 一座 1 级研究所 14.4）。
 > 这就是本设计的教学弧：**先熬，再投产。**
 >
-> 纪元 1 其余四项**互不为前置**，但 `粘土`/`木柴` 是纪元 2 两项加工的前置原料，
-> 所以 掘土 / 薪柴 优先级高于 田猎。
+> **#6 石制工具是全树唯一的生产力科技**（其余都是解锁）。它放在纪元 1 末尾是刻意的：
+> 拿到它需要先有石作（石块），而它和纪元 2 的「更多建筑种类」形成**真实取舍**——
+> 玩家可以先把现有产线整体提速 25%，也可以先铺开更多链。详见 §八。
 
 ### 纪元 2 · 营造与加工（各 30 科研力）
 
@@ -296,6 +303,7 @@ buildingAvailable(defId) =
 
 纪元1  研究所 ★首项 ──────────────────────► 研究所（科研力产能）
        石作 ──┬───────────────────────────► 采石场
+              ├───────────────────────────► 工具坊  ★生产力（§八）
        掘土 ──┼──────────┬────────────────► 粘土坑
        薪柴 ──┼──────────┼──┬─────────────► 木柴坊
        田猎 ──┼──────────┼──┼──┬──────────► 狩猎营地
@@ -346,19 +354,19 @@ buildingAvailable(defId) =
 | 1–6 | 只有 2.0 科研力/天，攒 **研究所**（12 科研力） |
 | 7–10 | 建研究所（12 木材 / 24 建造力）；产能跳到 16.4/天 |
 | 10–20 | 石作 → 掘土 → 薪柴 → **营造**；建建筑工坊 |
-| 20–35 | 制陶 / 烧砖 / 纤维作物 / 渔捞；中产开始出现，补木屋与陶器 |
+| 20–35 | **石制工具** → 建工具坊（现有产线整体 +25%）；制陶 / 烧砖 / 纤维作物 / 渔捞；中产开始出现，补木屋与陶器 |
 | 35–60 | 纪元 3 其余；白面包 / 肉类 / 粗布衣 / 娱乐上线 |
 | 60–110 | 纪元 4；奢侈品链成型，开始从富人身上收税。**同时应已扩建/升级研究所** |
 | 110+ | 纪元 5 |
 
-**总科研力 1,522**，不同研究所投入下的全树工期：
+**总科研力 1,552**，不同研究所投入下的全树工期：
 
 | 研究所配置 | 日产科研力 | 全树工期 |
 |---|---|---|
-| 无（只有基础） | 2.0 | 761 天（不可能） |
-| 1 座 1 级 | 16.4 | ~93 天 |
-| 2 座 2 级 | 58.2 | ~26 天 |
-| 3 座 3 级 | 140.3 | ~11 天 |
+| 无（只有基础） | 2.0 | 776 天（不可能） |
+| 1 座 1 级 | 16.4 | ~95 天 |
+| 2 座 2 级 | 58.2 | ~27 天 |
+| 3 座 3 级 | 140.2 | ~11 天 |
 
 > 这张表就是本设计想要的核心张力：**科技树不是"等时间"，而是"投多少研究所"。**
 > 但研究所吃人口、发工资，而这些人口本可以去产商品——所以"研究多快"是一场真实的经济取舍。
@@ -458,26 +466,30 @@ want = max(0, min(shop.targetWorkers, slots))
 | 文件 | 改动 |
 |---|---|
 | `content/technologies.json` | **新增**（数据源） |
-| `content/buildings.json` | **新增研究所**；给建筑工坊加 `capacity` 字段 |
-| `content/economy.json` | 加 `research.baseRate`；（若统一）删 `construction.workshopBase` |
-| `src/engine/types.ts` | `TechID`、`ResearchProject`、`GameState.research`、`BuildingDef.capacity`、`Action` 两个新动作 |
-| `src/engine/content/validate.ts` | 解析 + §6.1 六条校验 + `capacity` 校验 |
+| `content/goods.json` | **新增 `stone_tools`**（含 `toolBonus`）；`category` 加 `tool` |
+| `content/buildings.json` | **新增研究所 + 工具坊**；给建筑工坊加 `capacity` 字段 |
+| `content/economy.json` | 加 `research.baseRate` 与 `tools.{perWorkstation,order}`；（若统一）删 `construction.workshopBase` |
+| `src/engine/types.ts` | `TechID`、`ResearchProject`、`GameState.research`、`BuildingDef.capacity`、`GoodCategory` 加 `tool`、`GoodDef.toolBonus`、`Shop.toolBoost`、`Action` 两个新动作 |
+| `src/engine/content/validate.ts` | 解析 + §6.1 六条校验 + `capacity` 校验 + `CATEGORIES` 加 `tool` + `toolBonus` 校验 |
 | `src/engine/content/index.ts` | 导出 `TECHNOLOGIES` / `TECH_IDS` |
 | `src/engine/systems/research.ts` | **新增**：`researchRate` / `canResearch` / `startResearch` / `settleResearch` / `activateResearch` / `isBuildingUnlocked` |
+| `src/engine/systems/tools.ts` | **新增**：`allocateTools(state, ctx)`（§8.3 的黎明分配） |
+| `src/engine/systems/production.ts` | `runProductionStep` 产出两行乘 `shop.toolBoost`（**投入行不动**） |
 | `src/engine/systems/investment.ts` | `isConstructionWorks` 改用 `capacity.kind`；`constructionRate` 读建筑的 `perWorker` |
 | `src/engine/systems/labor.ts` | 工位上限随等级缩放（§6.2） |
 | `src/engine/actions.ts` | 接 `research` / `cancel_research`；`build*` 前置检查加"是否已解锁" |
-| `src/engine/tick.ts` | 夜晚 `settleConstruction` → `settleResearch`；黎明 `activateResearch` |
+| `src/engine/tick.ts` | 黎明 `allocateTools`（在 `planProduction` 之前）；夜晚 `settleConstruction` → `settleResearch`；黎明 `activateResearch` |
 | `src/engine/state.ts` | 初始化 `research`，应用 `start.techs` |
-| `src/ai/heuristic.ts` | §2.8：研究优先级表 + 研究所建造/扩建 |
-| `godot/scripts/core/content_db.gd` | 载入 `technologies.json`；`capacity` 字段 |
-| `godot/scripts/sim/sim_core.gd` | 镜像 `research` 全部逻辑 + 解锁判定 + 工位缩放 |
-| `godot/scripts/core/save_manager.gd` | 旧存档补 `research: { done: [], queue: [] }` |
+| `src/ai/heuristic.ts` | §2.8：研究优先级表 + 研究所建造/扩建 + 工具坊常驻产线 |
+| `godot/scripts/core/content_db.gd` | 载入 `technologies.json`；`capacity` 字段；`toolBonus` |
+| `godot/scripts/sim/sim_core.gd` | 镜像 `research` 全部逻辑 + 解锁判定 + 工位缩放 + 工具分配与产出加成 |
+| `godot/scripts/core/save_manager.gd` | 旧存档补 `research: { done: [], queue: [] }` 与 `shop.toolBoost = 1.0` |
 | `godot/scripts/ui/build_bar.gd` | 未解锁的建筑灰显 + 锁 tooltip |
 | `godot/scripts/ui/tech_panel.gd` | **新增**：科技面板 |
 | `godot/scripts/ui/hud.gd` | 顶栏加「科研力 x/天」与「科技」按钮 |
-| `docs/spec.md` | 新增「研究」章节（公式契约） |
-| `docs/content.md` | 商品表加「解锁科技」列；新增研究所；内容包表加 `start.techs` |
+| `godot/scripts/ui/game_stats.gd` | 工具消耗/库存走势（可选） |
+| `docs/spec.md` | 新增「研究」与「工具」章节（公式契约） |
+| `docs/content.md` | 商品表加「解锁科技」列 + 石制工具；建筑加研究所 / 工具坊；内容包表加 `start.techs` |
 | `godot/tests/golden/*.json` | 重新生成（行为有意改变） |
 
 ### 6.5 与其他系统的交界
@@ -522,8 +534,10 @@ want = max(0, min(shop.targetWorkers, slots))
    这个数直接决定"研究所"这座建筑的分量。
 2. **研究所该建几座**：人口是有限的，研究所吃掉的 6/9/12 人本可以去产商品。
    如果 AI 发现"多建研究所永远划算"，说明科研力定价太便宜，应下调 `perWorker` 或上调需求。
-3. **木材瓶颈**：研究所本体、升级、以及几乎每项研究的材料都含木材。
+3. **木材瓶颈**：研究所本体、升级、工具坊、以及几乎每项研究的材料都含木材。
    要确认 AI 会扩产伐木场（`maxWorkers` 可到 100），否则研究会卡在木材而不是科研力上。
+4. **工具是否无脑碾压**：见 §8.4 —— 尤其是"采集业零投入却吃 +25%"这一点，
+   可能让"先给采集业装工具"成为唯一最优解。
 
 ### 7.3 次要风险
 
@@ -535,10 +549,136 @@ want = max(0, min(shop.targetWorkers, slots))
 
 ---
 
-## 八、后续（本次不做）
+## 八、配套内容：工具产业链
+
+> ⚠️ 本节是**设计**，尚未实装。实装时：商品与配方进 `docs/content.md`，
+> 公式契约进 `docs/spec.md`（新增「工具」小节），本节的 §8.3 会被 spec 引用。
+
+### 8.1 商品：石制工具
+
+```jsonc
+// content/goods.json —— 新增 category "tool"
+{ "id": "stone_tools", "nameZh": "石制工具", "tier": 1, "category": "tool",
+  "storable": true, "baseValue": 4.0, "toolBonus": 0.25 }
+```
+
+- **不是消费品**：任何阶层都没有工具需求，所以它不参与居民购买，只走**工业消耗**
+  （`ledgerToday.consumed`，与 `recipe.inputs` 同一本账）。
+- `toolBonus` 是**这个工具品级**的产出加成，写在商品上而不是写在引擎里 —— 为了将来的分级（§8.5）。
+- 新增 `category: "tool"`：`GoodCategory` 联合类型与 `validate.ts` 的 `CATEGORIES` 都要加。
+  工具**不是奢侈品**（`isLuxuryGood` 读的是 `luxury` 标志，工具不设该标志）。
+
+### 8.2 建筑：工具坊
+
+```jsonc
+// content/buildings.json
+{
+  "id": "tool_works", "nameZh": "工具坊",
+  "tier": 2, "workers": 3, "maxWorkers": 6,
+  "buildCost": { "wood": 6, "stone": 3 },          // tier 2 标准成本
+  "recipe": { "inputs": { "wood": 5, "stone": 5 }, "output": { "stone_tools": 2 }, "baseRate": 1 },
+  "buildWork": 24                                  // 中产级加工
+}
+```
+
+满员（3 人）产 **2 石制工具/天**，日耗 **5 木材 + 5 石块**。
+
+### 8.3 机制：工位耗材 + 成品加成
+
+```jsonc
+// content/economy.json
+"tools": {
+  "perWorkstation": 0.05,          // 每个在岗工位每日消耗的工具数
+  "order": ["stone_tools"]         // 由低到高；将来加青铜/铁工具就往后排
+}
+```
+
+**黎明（在 `planProduction` 排产之前分配，当天不再变）**
+
+```
+for shop in shops:
+    if not (shop.active and def.recipe exists): continue     # 只有产商品的工坊
+    workers = assignedWorkers(shop.id)                       # 在岗工人数 = 实际运转的工位
+    if workers <= 0: continue
+    for gid in reverse(economy.tools.order):                 # 从最高级工具往下找
+        need = perWorkstation × workers
+        if goods[gid] >= need:
+            goods[gid] -= need
+            ledgerToday.consumed[gid] += need
+            shop.toolBoost = 1 + ALL_GOODS[gid].toolBonus     # 1.25
+            break
+    else:
+        shop.toolBoost = 1.0                                  # 没工具 → 无加成
+```
+
+**生产小时（`production.ts` 的 `runProductionStep`，只改产出那两行）**
+
+```
+goods[g]           += q × batches × shop.toolBoost      # ← 唯一改动
+ledgerToday.produced[g] += q × batches × shop.toolBoost
+
+# 投入的两行**完全不动**：q × batches
+```
+
+**这条修改的全部效果就是"投入不变、产出 ×1.25"** —— 单位原料的成品率提高 25%，
+多出来的 25% 是凭空出现的（"虚空产量"/合格率提升），正是《戴森球计划》增产剂的语义。
+
+**几条必须明确的边界**
+
+| 事项 | 结论 |
+|---|---|
+| 与熟练度叠加 | **乘性**：熟练度提升 `desired`（投入与产出一同变大），工具只放大产出。两者互不干扰 |
+| 分配粒度 | **每天黎明一次性分配**，当天不变；跳过中间态，也让存档只需保存 `shop.toolBoost` |
+| 工具不够时 | **按 `state.shops` 顺序**先到先得，耗尽后后面的工坊无加成（确定性，便于 golden 对拍）。
+替代方案是按需等比分配，但那会让"我到底有没有加成"变得不直观 |
+| 产能建筑 | **建筑工坊 / 研究所不耗工具**：它们不产商品，"1.25 倍成品"无从施加。
+将来可扩展为"工具提高建造力 / 科研力" |
+| 采集业（`inputs: {}`） | **照样吃加成**，且因为零投入，是**收益最高的目标**（详见 §8.4） |
+| 与研究/施工的关系 | 工具只影响 `recipe.output`，所以**不改建造力、不改科研力、不改研究工时** |
+
+### 8.4 数值与平衡
+
+| 项 | 值 |
+|---|---|
+| 一座满员工具坊 | 3 人 → 2 工具/天 |
+| 单工位日耗 | 0.05 工具 |
+| 一座工具坊能供养 | 2 ÷ 0.05 = **40 个在岗工位** |
+| 40 工位的收益 | 40 × 1.25 = 相当于**凭空多出 10 个工位的产能** |
+| 代价 | 3 个人（本可去产商品）+ 5 木材 + 5 石块/天 |
+
+**平衡判断：+25% 全局产出换 3 人 + 每天 5 木 5 石，明显划算，工具坊会成为"必建"。**
+这本身可以接受（它就该是核心基建），但实装后必须确认它**不是无脑碾压**：
+
+- 若发现"多建工具坊永远划算" → 下调 `toolBonus`（0.25 → 0.15）或上调 `perWorkstation`
+- 若发现"没人愿意建" → 反向调
+- **这两个数是本机制唯一的平衡旋钮**，其他都是设计给定（0.05 / 1.25）
+
+⚠️ **最需要实测的一点**：采集业（农田 / 伐木场 / 采石场 / 粘土坑）的 `inputs` 是空的，
+所以工具给它们的是"零成本 +25%"，收益最高。这会让"**先给采集业装工具**"成为最优解。
+这可能正是想要的效果（农具改良），也可能需要限制（例如采集业不耗工具也不加成）。
+**实装后要用 `npm run sim` 看清这一点再决定。**
+
+### 8.5 未来：工具分级
+
+引擎侧已经为分级留好了口子——只需往 `economy.tools.order` 后面追加 id，
+并在各自商品上写 `toolBonus`，分配逻辑会自动**优先用高级工具**：
+
+| 品级 | 前置产业链 | `toolBonus` |
+|---|---|---|
+| 石制工具（本期） | 木材 + 石块 | +25% |
+| 青铜工具（后续） | 需要矿石 + 冶炼链 | +40% |
+| 铁制工具（后续） | 需要铁矿 + 高炉 | +60% |
+
+这样"工具升级"本身就能成为一条长线科技 + 产业链，而不必再改引擎。
+
+---
+
+## 九、后续（本次不做）
 
 - **研究加成型科技**：本文只做**解锁**，不做数值加成（例如"农学"给农场 +10%）。
   加成会让 `docs/spec.md` 的公式契约复杂不少，且与 golden 对拍冲突面大。
+  **唯一的例外是工具（§八）**——它是耗材驱动的产出乘数，作用面窄（只乘 `recipe.output`），
+  契约可以写得很干净；其他"永久被动加成"仍不做。
 - **时代门槛**：纪元 N 需要人口 / 满意度 / 前纪元完成数达标，避免跳过纪元 1 直接冲富人链。
   当前只靠"前置 + 材料 + 科研力"间接约束。
 - **多研究所并行/分工**：目前所有研究所的科研力汇总投给队首。
