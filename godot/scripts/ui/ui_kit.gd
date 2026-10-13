@@ -34,6 +34,22 @@ const ROW_H := 18
 ## 商品图标显示尺寸。手绘图标原生 32（程序化兜底是 16，放大到 32 也是整数倍）。
 const CHIP_ICON := 32
 
+## 面板标题 / 页签用的小图标（财政、科技…）。
+##
+## 与商品图标分开放：`assets/ui/panel/` 是**面板装饰**，`assets/icons/` 是商品图标。
+## 混在一起的话 `GoodIcons.count_hand_drawn()` 会把面板图标也数进去。
+const PANEL_ICON_DIR := "res://assets/ui/panel/"
+
+## 取面板图标；没有则返回 null（调用方自己决定要不要留白）。
+static func panel_icon(name: String) -> Texture2D:
+	var p := PANEL_ICON_DIR + name + ".png"
+	if ResourceLoader.exists(p):
+		return load(p)
+	return null
+
+## 面板图标在按钮里的显示尺寸。按钮只有 21px 高，放 32px 会把整行撑开。
+const PANEL_ICON_BTN := 16
+
 ## 建筑 / 住房缩略图，带完整兜底链。
 ##
 ## prop 建筑（SUPER RETRO WORLD）的缩略图放在 `assets/props/thumb/`，

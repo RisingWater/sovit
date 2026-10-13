@@ -66,6 +66,11 @@ func _ready() -> void:
 	head.add_child(UIKit.label("统计", UIKit.FG_HEAD))
 	for i in TABS.size():
 		var b := UIKit.button(TABS[i], true)
+		# 页签图标：目前只有「财务」有（作者 workbuddy，MIT）
+		var ico := UIKit.panel_icon("finance") if TABS[i] == "财务" else null
+		if ico != null:
+			b.icon = ico
+			b.add_theme_constant_override("icon_max_width", UIKit.PANEL_ICON_BTN)
 		b.pressed.connect(_select_tab.bind(i))
 		head.add_child(b)
 		_tab_btns.append(b)

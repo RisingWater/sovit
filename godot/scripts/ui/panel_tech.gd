@@ -51,6 +51,14 @@ func _ready() -> void:
 	var head := HBoxContainer.new()
 	head.add_theme_constant_override("separation", 4)
 	root.add_child(head)
+	# 标题图标（作者 workbuddy，MIT）
+	var tico := UIKit.panel_icon("research")
+	if tico != null:
+		var tir := TextureRect.new()
+		tir.texture = tico
+		tir.custom_minimum_size = Vector2(UIKit.CHIP_ICON, UIKit.CHIP_ICON)
+		tir.stretch_mode = TextureRect.STRETCH_KEEP_CENTERED
+		head.add_child(tir)
 	head.add_child(UIKit.label("科技", UIKit.FG_HEAD))
 	var dragbar := Control.new()
 	dragbar.size_flags_horizontal = Control.SIZE_EXPAND_FILL

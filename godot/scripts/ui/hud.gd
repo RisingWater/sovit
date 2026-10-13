@@ -88,6 +88,10 @@ func _ready() -> void:
 	row.add_child(st)
 	var tech := UIKit.button("科技", true)
 	tech.tooltip_text = "研究科技解锁新的建筑与商品（科研力由研究所提供）"
+	var tico := UIKit.panel_icon("research")
+	if tico != null:
+		tech.icon = tico
+		tech.add_theme_constant_override("icon_max_width", UIKit.PANEL_ICON_BTN)
 	tech.pressed.connect(_open_tech)
 	row.add_child(tech)
 	var menu := UIKit.button("菜单", true)
