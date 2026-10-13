@@ -43,7 +43,7 @@ function foodChainGoods(ctx: ContentContext): Set<string> {
 
 /**
  * 食品产业链上的店铺 id 集合。
- * 用工优先级与基线 AI 的排班都以它为准：先保证吃饭，再把人力给别处。
+ * `assignLabor` 的用工优先级依据：先保证吃饭，再把人力给别处。
  */
 export function foodChainShopIds(state: GameState, ctx: ContentContext): Set<string> {
   const chain = foodChainGoods(ctx)

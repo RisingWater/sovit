@@ -1,9 +1,8 @@
-import type { Action, BuildingDef, GameState } from '../engine/types.ts'
+import type { Action, GameState } from '../engine/types.ts'
 import {
   ALL_GOODS,
   ECONOMY,
   buildContext,
-  foodChainShopIds,
   housingCapacity,
   isLuxuryGood,
 } from '../engine/index.ts'
@@ -13,14 +12,11 @@ import { clamp, sum } from '../engine/util.ts'
 // ---------------------------------------------------------------------------
 // 启发式基线 AI
 //
-// 两套策略，按内容包自动分派：
-//  - 增长策略（含住房的 pack，如 v0.2）：保持建材链运转，建住房提人口上限，
-//    补岗位与粮食，直到土地上限。
-//  - 稳态策略（v0.1，无住房）：满员用工、按需扩产，人口由岗位封顶。
+// 只有一套增长策略：保持建材链运转，建住房提人口上限，补岗位与粮食，直到土地上限。
 //
 // 施工是一条**串行**队列，产能 = 失业人口 + 建筑工坊工人（见 docs/construction.md）。
-// 因此有两条硬约束：① 不能无限下单（队列会永远排不完）；② 必须留人上工地
-// （全村满员就业 → 建造力 0 → 永久停工）。
+// 因此有两条硬约束：① 不能无限下单（队列会永远排不完）；② 必须靠建筑工坊提供建造力
+// （全村满员就业时产能为 0，且不能用"压低开岗数"留人——那会让移民一个都进不来）。
 // ---------------------------------------------------------------------------
 
 /** 同时排队施工的工程上限。 */
@@ -426,60 +422,7 @@ function decideGrowth(state: GameState, ctx: ContentContext): Action[] {
 }
 
 // ---------------------------------------------------------------------------
-// 稳态策略（v0.1）
-// ---------------------------------------------------------------------------
-
-function decideSteady(state: GameState, ctx: ContentContext): Action[] {
-  const pop = state.residents.length
-  const avgSat = avgSatOf(state)
-  const hungry = lookbackHungry(state)
-  const money = state.government.money
-  const actions = commonActions(state, ctx, avgSat, hungry)
-
-  const shopOf = (defId: string) => state.shops.find((s) => s.defId === defId)
-  const low = (gid: string, perCap: number) => (state.goods[gid] ?? 0) < pop * perCap
-  const canExpand = (s: { level: number } | undefined) => !!s && s.level < 5
-
-  const bakery = shopOf('coarse_bakery')
-  const mill = shopOf('coarse_mill')
-  const farm = shopOf('wheat_farm')
-  const veg = shopOf('vegetable_farm')
-
-  if (hungry > 0 && money > 200) {
-    if (veg && low('vegetable', 0.5) && canExpand(veg)) actions.push({ type: 'expand', shopId: veg.id })
-    else if (bakery && low('coarse_bread', 1.0) && canExpand(bakery)) actions.push({ type: 'expand', shopId: bakery.id })
-    else if (mill && low('coarse_flour', 1.0) && canExpand(mill)) actions.push({ type: 'expand', shopId: mill.id })
-    else if (farm && low('wheat', 1.0) && canExpand(farm)) actions.push({ type: 'expand', shopId: farm.id })
-  } else if (money > 300) {
-    if (veg && (state.goods['vegetable'] ?? 0) < pop * 0.3 && canExpand(veg)) {
-      actions.push({ type: 'expand', shopId: veg.id })
-    } else if (mill && (state.goods['coarse_flour'] ?? 0) < 2 && canExpand(mill)) {
-      actions.push({ type: 'expand', shopId: mill.id })
-    } else if (farm && (state.goods['wheat'] ?? 0) < 2 && canExpand(farm)) {
-      actions.push({ type: 'expand', shopId: farm.id })
-    } else if (money > 550) {
-      const order = ['wheat_farm', 'coarse_mill', 'coarse_bakery', 'vegetable_farm'].filter((id) =>
-        ctx.buildingSet.has(id),
-      )
-      if (order.length > 0) {
-        const counts: Record<string, number> = {}
-        for (const s of state.shops) counts[s.defId] = (counts[s.defId] ?? 0) + 1
-        let pick = order[0]!
-        for (const id of order) {
-          if ((counts[id] ?? 0) < (counts[pick] ?? 0)) pick = id
-        }
-        actions.push({ type: 'build', buildingId: pick })
-      }
-    }
-  }
-
-  actions.push({ type: 'end_turn' })
-  return actions
-}
-
-// ---------------------------------------------------------------------------
 
 export function decide(state: GameState): Action[] {
-  const ctx = buildContext(state.pack)
-  return ctx.pack.housing.length > 0 ? decideGrowth(state, ctx) : decideSteady(state, ctx)
+  return decideGrowth(state, buildContext(state.pack))
 }

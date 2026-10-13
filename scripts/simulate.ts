@@ -1,4 +1,4 @@
-import { PACKS, TIME, advanceHour, createInitialState } from '../src/engine/index.ts'
+import { TIME, advanceHour, createInitialState } from '../src/engine/index.ts'
 import type { GameState, PackID } from '../src/engine/index.ts'
 import { decide } from '../src/ai/heuristic.ts'
 
@@ -64,9 +64,8 @@ function main(): void {
   const result = run(pack, seed, days)
   const finalSnap = result.final.history[result.final.history.length - 1]!
 
-  const hasHousing = PACKS[pack].housing.length > 0
-
   // ---- 断言 -------------------------------------------------------------
+  // v0.3 / v1.0 都带住房，所以统一按「有住房」判（v0.1 / v0.2 已删除）。
   const checks: Array<{ name: string; ok: boolean; detail: string }> = [
     {
       name: '人口不崩（≥ 开局 70%）',
@@ -79,8 +78,8 @@ function main(): void {
       detail: `终值 ${finalSnap.avgSatisfaction.toFixed(1)}，最低 ${result.minSat.toFixed(1)}`,
     },
     {
-      name: hasHousing ? '政府赤字（私有化代价，仅报告）' : '政府余额 ≥ -1000',
-      ok: hasHousing ? finalSnap.money > -1e6 : finalSnap.money >= -1000,
+      name: '政府赤字（私有化代价，仅报告）',
+      ok: finalSnap.money > -1e6,
       detail: `终值 ¥${finalSnap.money.toFixed(0)}，最低 ¥${result.minMoney.toFixed(0)}`,
     },
     {
@@ -88,15 +87,12 @@ function main(): void {
       ok: false,
       detail: '',
     },
-  ]
-
-  if (hasHousing) {
-    checks.push({
+    {
       name: '人口增长（住房 + 建材链，≥ 开局 1.3 倍）',
       ok: finalSnap.population >= result.startPop * 1.3,
       detail: `${result.startPop} → ${finalSnap.population}`,
-    })
-  }
+    },
+  ]
 
   // 复现性：再跑一次，比较终局快照
   const rerun = run(pack, seed, days)

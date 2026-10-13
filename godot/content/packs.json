@@ -1,36 +1,6 @@
 {
   "packs": [
     {
-      "id": "v0.1",
-      "nameZh": "v0.1 面包与蔬菜",
-      "goods": ["wheat", "coarse_flour", "coarse_bread", "vegetable"],
-      "buildings": ["wheat_farm", "coarse_mill", "coarse_bakery", "vegetable_farm"],
-      "classes": ["poor"],
-      "housing": [],
-      "start": {
-        "population": 16,
-        "money": 1000,
-        "shops": { "wheat_farm": 1, "coarse_mill": 1, "coarse_bakery": 1, "vegetable_farm": 1 },
-        "housing": {},
-        "goods": { "wheat": 20, "coarse_flour": 10, "coarse_bread": 20, "vegetable": 10 }
-      }
-    },
-    {
-      "id": "v0.2",
-      "nameZh": "v0.2 住房与建材",
-      "goods": ["wheat", "coarse_flour", "coarse_bread", "vegetable", "wood", "stone", "clay", "firewood", "brick", "hut"],
-      "buildings": ["wheat_farm", "coarse_mill", "coarse_bakery", "vegetable_farm", "lumberjack", "quarry", "clay_pit", "firewood_works", "brick_kiln"],
-      "classes": ["poor"],
-      "housing": ["hut"],
-      "start": {
-        "population": 24,
-        "money": 1000,
-        "shops": { "wheat_farm": 1, "coarse_mill": 1, "coarse_bakery": 1, "vegetable_farm": 1, "lumberjack": 2, "quarry": 1, "clay_pit": 1 },
-        "housing": { "hut": 6 },
-        "goods": { "wheat": 20, "coarse_flour": 10, "coarse_bread": 20, "vegetable": 10, "wood": 30, "stone": 15, "clay": 15 }
-      }
-    },
-    {
       "id": "v0.3",
       "nameZh": "v0.3 分层社会",
       "goods": ["wheat", "coarse_flour", "coarse_bread", "vegetable", "fine_flour", "white_bread", "sugarcane", "sugar", "pastry", "flax", "cotton", "dye", "coarse_cloth", "fine_cloth", "coarse_clothes", "common_clothes", "luxury_clothes", "leather_clothes", "hide", "meat", "fish", "smoked_fish", "dried_meat", "pottery", "porcelain", "domestic_service", "entertainment", "wood", "stone", "clay", "firewood", "brick"],

@@ -4,7 +4,7 @@
 // 纯数据 + 纯类型。引擎不依赖任何 UI / 框架 / Node API。
 // ---------------------------------------------------------------------------
 
-export type PackID = 'v0.1' | 'v0.2' | 'v0.3' | 'v1.0'
+export type PackID = 'v0.3' | 'v1.0'
 
 // 商品、建筑、配方都用字符串 id，便于内容表扩展。
 export type GoodID = string
@@ -320,7 +320,7 @@ export interface Government {
   taxBrackets: TaxBracket[]
   /** 国有住房人均日租金（玩家可调）。 */
   rent: number
-  /** 日补贴预算，v0.1 未启用。 */
+  /** 日补贴预算（预留，未启用）。 */
   subsidyBudget: number
   /** 本回合允许迁入的人数上限（AI/玩家可调；默认不限）。 */
   immigrationAllowance: number

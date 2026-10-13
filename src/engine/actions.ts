@@ -150,7 +150,7 @@ export function applyActions(
       case 'subsidy':
       case 'sell_shop':
       case 'retake_shop': {
-        applied.push({ type: action.type, ok: false, reason: 'not_implemented（v0.1 预留）' })
+        applied.push({ type: action.type, ok: false, reason: 'not_implemented（预留接口）' })
         break
       }
 
