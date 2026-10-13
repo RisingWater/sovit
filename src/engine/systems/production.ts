@@ -48,7 +48,7 @@ export function planProduction(state: GameState, ctx: ContentContext): void {
     if (!shop.active) continue
     const def = ctx.buildings[shop.defId]
     if (!def) continue
-    const recipe = ctx.recipes[def.recipe]
+    const recipe = def.recipe ? ctx.recipes[def.recipe] : undefined
     if (!recipe) continue
     const workers = assignedWorkers(state, shop.id)
     if (workers <= 0) continue
@@ -104,7 +104,7 @@ export function runProductionStep(state: GameState, ctx: ContentContext, fractio
     if (!shop.active || shop.planned <= 0) continue
     const def = ctx.buildings[shop.defId]
     if (!def) continue
-    const recipe = ctx.recipes[def.recipe]
+    const recipe = def.recipe ? ctx.recipes[def.recipe] : undefined
     if (!recipe) continue
 
     const batches = shop.planned * fraction

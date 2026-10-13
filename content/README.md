@@ -39,15 +39,18 @@
 
 ```jsonc
 { "id": "iron_mine", "nameZh": "铁矿", "tier": 1, "workers": 3, "maxWorkers": 100,
-  "buildCost": { "wood": 4, "build_power": 1 },
-  "recipe": { "inputs": {}, "output": { "iron_ore": 8 }, "baseRate": 1 } }
+  "buildCost": { "wood": 4 },
+  "recipe": { "inputs": {}, "output": { "iron_ore": 8 }, "baseRate": 1 },
+  "buildWork": 12 }
 ```
 
 | 字段 | 说明 |
 |---|---|
 | `workers` | 参照满员工人数（决定人均产出基准） |
 | `maxWorkers` | 可选，**工位上限**（矿场/林场这类劳动密集型可调到 100） |
-| `buildCost` | 可选，建店消耗的实物材料（缺省用 money 兜底） |
+| `buildCost` | 可选，建店消耗的实物材料（缺省用 money 兜底）。**开工时才扣** |
+| `buildWork` | **必填**，施工所需建造力（人·天）。工期 = 该值 ÷ 每日产能，见 `docs/construction.md` |
+| `recipe` | **可选**。产商品的建筑必填；只提供"每日建造产能"的建筑（建筑工坊）**不写 `recipe`** |
 | `recipe.inputs` | 每批次投入（`{}` = 一级产业，不耗料） |
 | `recipe.output` | 每批次产出（不能为空） |
 | `recipe.baseRate` | 满员每日批次数 |
@@ -63,9 +66,9 @@
 // 1) goods.json 加：{ "id": "iron", ... }、{ "id": "tool", ... }
 // 2) buildings.json 加：
 { "id": "smelter", "nameZh": "熔炉", "tier": 2, "workers": 3,
-  "buildCost": { "stone": 6, "brick": 4, "build_power": 2 },
+  "buildCost": { "stone": 6, "brick": 4 }, "buildWork": 24,
   "recipe": { "inputs": { "iron_ore": 6 }, "output": { "iron": 4 }, "baseRate": 1, "fuel": 3 } }
-{ "id": "tool_works", "nameZh": "工具坊", "tier": 2, "workers": 3,
+{ "id": "tool_works", "nameZh": "工具坊", "tier": 2, "workers": 3, "buildWork": 24,
   "recipe": { "inputs": { "iron": 4 }, "output": { "tool": 3 }, "baseRate": 1 } }
 ```
 

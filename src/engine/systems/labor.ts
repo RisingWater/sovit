@@ -2,6 +2,7 @@ import type { GameState } from '../types.ts'
 import type { ContentContext } from '../content/index.ts'
 import { ALL_GOODS } from '../content/index.ts'
 import { ECONOMY, TUNING } from '../config.ts'
+import { round2 } from '../util.ts'
 
 // ---------------------------------------------------------------------------
 // 用工分配
@@ -40,30 +41,38 @@ function foodChainGoods(ctx: ContentContext): Set<string> {
   return set
 }
 
+/**
+ * 食品产业链上的店铺 id 集合。
+ * 用工优先级与基线 AI 的排班都以它为准：先保证吃饭，再把人力给别处。
+ */
+export function foodChainShopIds(state: GameState, ctx: ContentContext): Set<string> {
+  const chain = foodChainGoods(ctx)
+  const out = new Set<string>()
+  for (const shop of state.shops) {
+    const def = ctx.buildings[shop.defId]
+    const recipe = def?.recipe ? ctx.recipes[def.recipe] : undefined
+    if (!recipe) continue
+    if (Object.keys(recipe.output).some((g) => chain.has(g))) out.add(shop.id)
+  }
+  return out
+}
+
 export function assignLabor(state: GameState, ctx: ContentContext): void {
   for (const r of state.residents) {
     r.employed = false
     r.jobShopId = undefined
+    r.constructionPay = undefined
   }
 
   const pop = state.residents.length
-  const foodChain = foodChainGoods(ctx)
+  const foodChainShops = foodChainShopIds(state, ctx)
 
   const info = state.shops.map((shop) => {
     const def = ctx.buildings[shop.defId]
     const want = shop.active && def
       ? Math.max(0, Math.min(shop.targetWorkers, def.maxWorkers ?? def.workers))
       : 0
-    let priority = false
-    if (def) {
-      const recipe = ctx.recipes[def.recipe]
-      if (recipe) {
-        for (const gid of Object.keys(recipe.output)) {
-          if (foodChain.has(gid)) priority = true
-        }
-      }
-    }
-    return { want, priority }
+    return { want, priority: foodChainShops.has(shop.id) }
   })
 
   const assign = new Array<number>(state.shops.length).fill(0)
@@ -131,4 +140,29 @@ export function assignedWorkers(state: GameState, shopId: string): number {
   let n = 0
   for (const r of state.residents) if (r.jobShopId === shopId) n++
   return n
+}
+
+/**
+ * 建造结算后：把当日实际投入的建造力折算成「在工地上出工」的失业人口。
+ *
+ * 每人每日出 1.0 建造力，故出工人数 = ⌈投入量⌉（不足一日的按半日算，仍占一个人）。
+ * 工资按**实际投入量**计发（人·天 × refWage × wageRate），在出工者之间平均分配——
+ * 与消费一样先用「平均分配」，将来要做差异化时不必再动数据结构。
+ *
+ * 标记 `employed = true` 是刻意的：出工者当天算是就业（影响就业满意度），
+ * 且会通过 growSkills 长熟练度（第二步接进建造力）。次日黎明 assignLabor 会清空。
+ */
+export function markConstructionWorkers(state: GameState, work: number): void {
+  if (work <= 0) return
+  const idle = state.residents.filter((r) => !r.employed)
+  if (idle.length === 0) return
+
+  const n = Math.min(idle.length, Math.ceil(work - 1e-9))
+  const bill = round2(work * ECONOMY.refWage * ECONOMY.construction.wageRate)
+  const per = round2(bill / n)
+  for (let i = 0; i < n; i++) {
+    const r = idle[i]!
+    r.employed = true
+    r.constructionPay = per
+  }
 }

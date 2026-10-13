@@ -35,7 +35,6 @@
     { "id": "domestic_service", "nameZh": "家政服务", "tier": 2, "category": "service", "storable": false, "baseValue": 3, "perishRate": 1 },
     { "id": "entertainment", "nameZh": "娱乐", "tier": 2, "category": "entertainment", "storable": false, "baseValue": 4, "perishRate": 1, "luxury": true },
 
-    { "id": "build_power", "nameZh": "建造力", "tier": 3, "category": "investment", "storable": true, "baseValue": 6 },
     { "id": "hut", "nameZh": "茅屋", "tier": 3, "category": "housing", "storable": true, "baseValue": 15 },
     { "id": "wooden_house", "nameZh": "木屋", "tier": 3, "category": "housing", "storable": true, "baseValue": 30 },
     { "id": "brick_house", "nameZh": "砖房", "tier": 3, "category": "housing", "storable": true, "baseValue": 55 }

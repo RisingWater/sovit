@@ -190,6 +190,8 @@ func _run_dawn() -> Array:
 func _run_night() -> Array:
 	var day = int(s["day"])
 	var logs := []
+	# 施工结算必须在工资之前：它决定当天有多少失业人口「在工地上出工」（建造工资）。
+	logs.append_array(_settle_construction(day))
 	logs.append_array(_pay_wages(day))
 	_assign_tenure()
 	logs.append_array(_collect_rent(day))
@@ -200,7 +202,6 @@ func _run_night() -> Array:
 	_update_satisfaction(cons["foodScore"], cons["comfortScore"], cons["priceScore"])
 	logs.append_array(_update_population(cons["hungry"], day))
 	logs.append_array(_apply_admission(day))
-	_advance_construction()
 	_apply_spoilage()
 	_grow_skills()
 	_compute_arrivals()
@@ -328,6 +329,8 @@ func _plan_production() -> void:
 		if not bool(shop["active"]):
 			continue
 		var def: Dictionary = db.buildings[shop["defId"]]
+		if not def.has("recipe"):
+			continue
 		var recipe: Dictionary = db.recipes[def["recipe"]]
 		var workers = _assigned_workers(shop["id"])
 		if workers <= 0:
@@ -378,6 +381,8 @@ func _run_production_step(fraction: float) -> void:
 		if not bool(shop["active"]) or float(shop["planned"]) <= 0.0:
 			continue
 		var def: Dictionary = db.buildings[shop["defId"]]
+		if not def.has("recipe"):
+			continue
 		var recipe: Dictionary = db.recipes[def["recipe"]]
 		var batches = float(shop["planned"]) * fraction
 		var lt: Dictionary = s["ledgerToday"]
@@ -459,13 +464,31 @@ func _food_chain_goods() -> Dictionary:
 					changed = true
 	return setd
 
+func _food_chain_shop_ids() -> Dictionary:
+	## 食品产业链上的店铺 id 集合。
+	var chain = _food_chain_goods()
+	var out := {}
+	for shop in s["shops"]:
+		var def = db.buildings.get(shop["defId"], null)
+		if def == null or not def.has("recipe"):
+			continue
+		var recipe = db.recipes.get(String(def["recipe"]), null)
+		if recipe == null:
+			continue
+		for gid in (recipe["output"] as Dictionary).keys():
+			if chain.has(gid):
+				out[shop["id"]] = true
+				break
+	return out
+
 func _assign_labor() -> void:
 	for r in s["residents"]:
 		r["employed"] = false
 		r.erase("jobShopId")
+		r.erase("constructionPay")
 
 	var pop = s["residents"].size()
-	var food_chain = _food_chain_goods()
+	var food_chain_shops = _food_chain_shop_ids()
 
 	var info := []
 	for shop in s["shops"]:
@@ -473,13 +496,7 @@ func _assign_labor() -> void:
 		var want = 0
 		if bool(shop["active"]) and def != null:
 			want = int(maxf(0.0, minf(float(shop["targetWorkers"]), float(def["maxWorkers"]))))
-		var priority = false
-		if def != null:
-			var recipe: Dictionary = db.recipes[def["recipe"]]
-			for gid in (recipe["output"] as Dictionary).keys():
-				if food_chain.has(gid):
-					priority = true
-		info.append({"want": want, "priority": priority})
+		info.append({"want": want, "priority": food_chain_shops.has(shop["id"])})
 
 	var assign := []
 	assign.resize(s["shops"].size())
@@ -570,26 +587,30 @@ func _pay_wages(day: int) -> Array:
 		wage_by_shop[shop["id"]] = float(shop["wage"])
 		cap_by_shop[shop["id"]] = float(shop["wageCap"])
 	var brackets: Array = s["government"]["taxBrackets"]
-	var welfare = SimUtil.r2(float(db.economy["refWage"]) * float(db.economy["welfareRate"]))
 	var skill_base = float(db.economy["skillIncomeBase"])
 	var skill_max = float(db.economy["skillMax"])
 
 	var gross_total = 0.0
 	var tax_total = 0.0
 	for r in s["residents"]:
-		var employed = bool(r["employed"]) and r.get("jobShopId", null) != null
-		var wage_base = float(wage_by_shop.get(r.get("jobShopId", ""), 0.0)) if employed else welfare
-		var gross = wage_base
-		if employed:
+		var gross = 0.0
+		var build_pay = float(r.get("constructionPay", 0.0))
+		if build_pay > 0.0:
+			# 工地临时工：日薪已由施工结算按「当日实际投入的建造力」算出。
+			# 非熟练临时工，不吃熟练度加成、也不受工坊工资上限约束。
+			gross = build_pay
+		elif bool(r["employed"]) and r.get("jobShopId", null) != null:
+			var wage_base = float(wage_by_shop.get(r.get("jobShopId", ""), 0.0))
 			gross = wage_base * (skill_base + minf(skill_max, float(r["skill"])) / 100.0)
 			var cap = float(cap_by_shop.get(r.get("jobShopId", ""), 0.0))
 			if cap > 0.0:
 				gross = minf(gross, cap)
+		# else: 失业且没有工程可做 → 无收入（失业保障金已取消，见 docs/construction.md 五）
 		var tax = _progressive_tax(gross, brackets)
 		r["savings"] = SimUtil.r2(float(r["savings"]) + gross - tax)
 		gross_total += gross
 		tax_total += tax
-		# 逐人记账：工资/保障金与代扣税。租与消费在后面两步追加到同一份账目。
+		# 逐人记账：工资（含工地出工报酬）与代扣税。租与消费在后面两步追加到同一份账目。
 		var acc := _empty_account()
 		acc["wage"] = SimUtil.r2(gross)
 		acc["tax"] = SimUtil.r2(tax)
@@ -900,7 +921,6 @@ func _update_satisfaction(food_score: Dictionary, comfort_score: Dictionary, pri
 	var wage_by_shop := {}
 	for shop in s["shops"]:
 		wage_by_shop[shop["id"]] = float(shop["wage"])
-	var welfare = float(db.economy["refWage"]) * float(db.economy["welfareRate"])
 	var net_income = ref_wage - _progressive_tax(ref_wage, s["government"]["taxBrackets"])
 	var rent_pressure = clampf(float(s["government"]["rent"]) / maxf(0.1, net_income), 0.0, 1.0)
 
@@ -909,8 +929,14 @@ func _update_satisfaction(food_score: Dictionary, comfort_score: Dictionary, pri
 		var food = float(food_score.get(cid, 1.0))
 		var comfort = float(comfort_score.get(cid, 1.0))
 		var price = float(price_score_map.get(cid, 1.0))
-		var employed = bool(r["employed"]) and r.get("jobShopId", null) != null
-		var wage = float(wage_by_shop.get(r.get("jobShopId", ""), 0.0)) if employed else welfare
+		var employed = bool(r["employed"])
+		# 收入：在职工坊工资 / 工地出工报酬；失业且无工程可做 = 0（保障金已取消）
+		var build_pay = float(r.get("constructionPay", 0.0))
+		var wage = 0.0
+		if build_pay > 0.0:
+			wage = build_pay
+		elif employed and r.get("jobShopId", null) != null:
+			wage = float(wage_by_shop.get(r.get("jobShopId", ""), 0.0))
 		var wage_score = clampf(wage / ref_wage, 0.0, wage_cap) / wage_cap
 		var employment_score = 1.0 if employed else unemp_score
 		var base = 100.0 * (float(w["food"]) * food + float(w["wage"]) * wage_score + float(w["price"]) * price + float(w["employment"]) * employment_score + float(w["comfort"]) * comfort) / weight_sum
@@ -1078,28 +1104,99 @@ func _present_cost(def: Dictionary) -> Array:
 			out.append([gid, q])
 	return out
 
+func _upgrade_work(level: int) -> float:
+	## 升级所需建造力：每 +1 级 = upgradePerLevel × 当前等级。
+	return float(db.economy["construction"]["upgradePerLevel"]) * float(level)
+
+func _cost_of(c: Dictionary) -> Dictionary:
+	## 某工程的开工成本：{"mats": [[gid, qty]], "money": float}；定义缺失 → {}。
+	var kind = String(c["kind"])
+	if kind == "shop":
+		var bid = String(c.get("buildingId", ""))
+		var def = db.buildings.get(bid, null)
+		if def == null:
+			return {}
+		var mats = _present_cost(def)
+		if not mats.is_empty():
+			return {"mats": mats, "money": 0.0}
+		return {"mats": [], "money": float(db.economy["buildMoneyByTier"][str(int(def["tier"]))])}
+	if kind == "upgrade":
+		var shop = _find_shop(String(c.get("shopId", "")))
+		if shop == null or not db.buildings.has(shop["defId"]):
+			return {}
+		var def2: Dictionary = db.buildings[shop["defId"]]
+		var mats2 = _present_cost(def2)
+		if mats2.is_empty():
+			return {"mats": [], "money": float(db.economy["expandMoneyBase"]) * float(shop["level"])}
+		var scaled := []
+		for m in mats2:
+			scaled.append([m[0], float(m[1]) * float(shop["level"])])
+		return {"mats": scaled, "money": 0.0}
+	if kind == "housing":
+		var hid = String(c.get("housingId", ""))
+		if not db.housing.has(hid):
+			return {}
+		return {"mats": _present_cost(db.housing[hid]), "money": 0.0}
+	return {}
+
+func _shortage_reason(spec: Dictionary) -> String:
+	for m in spec["mats"]:
+		if float(s["goods"].get(m[0], 0.0)) < float(m[1]):
+			return "材料不足：%s 需 %s" % [m[0], SimUtil.r2(float(m[1]))]
+	if float(s["government"]["money"]) < float(spec["money"]):
+		return "资金不足（需 ¥%s）" % SimUtil.r2(float(spec["money"]))
+	return "资源不足"
+
+func _can_afford(spec: Dictionary) -> bool:
+	for m in spec["mats"]:
+		if float(s["goods"].get(m[0], 0.0)) < float(m[1]):
+			return false
+	return float(s["government"]["money"]) >= float(spec["money"])
+
+func _pay_cost(spec: Dictionary) -> void:
+	for m in spec["mats"]:
+		s["goods"][m[0]] = SimUtil.r2(float(s["goods"].get(m[0], 0.0)) - float(m[1]))
+	var money = float(spec["money"])
+	if money > 0.0:
+		s["government"]["money"] = SimUtil.r2(float(s["government"]["money"]) - money)
+
+func _label_of(c: Dictionary) -> String:
+	var kind = String(c["kind"])
+	if kind == "shop":
+		var def = db.buildings.get(String(c.get("buildingId", "")), null)
+		return String(def["nameZh"]) if def != null else String(c.get("buildingId", ""))
+	if kind == "housing":
+		var hdef = db.housing.get(String(c.get("housingId", "")), null)
+		return String(hdef["nameZh"]) if hdef != null else String(c.get("housingId", ""))
+	if kind == "upgrade":
+		var d2 = db.buildings.get(String(c.get("buildingId", "")), null)
+		return "%s 升级" % (String(d2["nameZh"]) if d2 != null else String(c.get("buildingId", "")))
+	return String(c["id"])
+
+func _order(c: Dictionary) -> void:
+	## 下单：只检查资源够不够并占住队列位，**不扣材料**（材料在开工时扣）。
+	var spec = _cost_of(c)
+	if spec.is_empty():
+		return
+	if not _can_afford(spec):
+		return
+	s["construction"].append(c)
+
 func _try_expand(shop_id: String) -> void:
 	var shop = _find_shop(shop_id)
 	if shop == null:
 		return
-	var def: Dictionary = db.buildings[shop["defId"]]
+	if not db.buildings.has(shop["defId"]):
+		return
 	for c in s["construction"]:
 		if String(c["kind"]) == "upgrade" and String(c.get("shopId", "")) == shop_id:
 			return
-	var mats = _present_cost(def)
-	if not mats.is_empty():
-		var scale = float(shop["level"])
-		for m in mats:
-			if float(s["goods"].get(m[0], 0.0)) < float(m[1]) * scale:
-				return
-		for m in mats:
-			s["goods"][m[0]] = SimUtil.r2(float(s["goods"].get(m[0], 0.0)) - float(m[1]) * scale)
-	else:
-		var cost = float(db.economy["expandMoneyBase"]) * float(shop["level"])
-		if float(s["government"]["money"]) < cost:
-			return
-		s["government"]["money"] = SimUtil.r2(float(s["government"]["money"]) - cost)
-	s["construction"].append(_new_construction("upgrade", "up-%s" % shop_id, shop["defId"], shop_id, ""))
+	var work = _upgrade_work(int(shop["level"]))
+	_order({
+		"id": "c#%d-up-%s" % [s["construction"].size() + 1, shop_id],
+		"kind": "upgrade", "buildingId": shop["defId"], "shopId": shop_id, "housingId": "",
+		"remaining": work, "totalRequired": work, "started": false,
+	})
 
 func _try_build(building_id: String) -> void:
 	if not _pack()["buildings"].has(building_id):
@@ -1107,19 +1204,12 @@ func _try_build(building_id: String) -> void:
 	var def: Dictionary = db.buildings[building_id]
 	if _used_slots() >= _max_slots():
 		return
-	var mats = _present_cost(def)
-	if not mats.is_empty():
-		for m in mats:
-			if float(s["goods"].get(m[0], 0.0)) < float(m[1]):
-				return
-		for m in mats:
-			s["goods"][m[0]] = SimUtil.r2(float(s["goods"].get(m[0], 0.0)) - float(m[1]))
-	else:
-		var cost = float(db.economy["buildMoneyByTier"][str(int(def["tier"]))])
-		if float(s["government"]["money"]) < cost:
-			return
-		s["government"]["money"] = SimUtil.r2(float(s["government"]["money"]) - cost)
-	s["construction"].append(_new_construction("shop", building_id, building_id, "", ""))
+	var work = float(def["buildWork"])
+	_order({
+		"id": "c#%d-%s" % [s["construction"].size() + 1, building_id],
+		"kind": "shop", "buildingId": building_id, "shopId": "", "housingId": "",
+		"remaining": work, "totalRequired": work, "started": false,
+	})
 
 func _try_build_housing(good_id: String) -> void:
 	if not _pack()["housing"].has(good_id):
@@ -1127,31 +1217,89 @@ func _try_build_housing(good_id: String) -> void:
 	var def: Dictionary = db.housing[good_id]
 	if _used_slots() >= _max_slots():
 		return
-	var mats = _present_cost(def)
-	for m in mats:
-		if float(s["goods"].get(m[0], 0.0)) < float(m[1]):
-			return
-	for m in mats:
-		s["goods"][m[0]] = SimUtil.r2(float(s["goods"].get(m[0], 0.0)) - float(m[1]))
-	s["construction"].append(_new_construction("housing", "house-%s" % good_id, "", "", good_id))
+	var work = float(def["buildWork"])
+	_order({
+		"id": "c#%d-house-%s" % [s["construction"].size() + 1, good_id],
+		"kind": "housing", "buildingId": "", "shopId": "", "housingId": good_id,
+		"remaining": work, "totalRequired": work, "started": false,
+	})
 
-func _new_construction(kind: String, tag: String, building_id: String, shop_id: String, housing_id: String) -> Dictionary:
-	var days = int(db.economy["constructionDays"])
-	return {
-		"id": "c#%d-%s" % [s["construction"].size() + 1, tag],
-		"kind": kind, "buildingId": building_id, "shopId": shop_id, "housingId": housing_id,
-		"daysLeft": days, "totalDays": days,
-	}
+func _is_construction_works(def: Dictionary) -> bool:
+	## 没有商品配方的建筑 = 产出「每日建造产能」的建筑（建筑工坊）。
+	return not def.has("recipe")
 
-func _advance_construction() -> void:
+func construction_rate() -> float:
+	## 供 UI 读取的当日建造力速率（人·天/日）。
+	return _construction_rate()
+
+func _construction_rate() -> float:
+	## 当日施工产能（建造力 / 人·天）：
+	##   失业人口 × unemployedRate
+	## + Σ(建筑工坊在岗工人 × workshopBase × (0.6 + 0.4 × 熟练度/100))
+	var cfg: Dictionary = db.economy["construction"]
+	var unemp_rate = float(cfg["unemployedRate"])
+	var rate = 0.0
+	for r in s["residents"]:
+		if not bool(r["employed"]):
+			rate += unemp_rate
+	for shop in s["shops"]:
+		var def = db.buildings.get(shop["defId"], null)
+		if def == null or not bool(shop["active"]) or not _is_construction_works(def):
+			continue
+		var skill_eff = float(db.tuning["skillEffectBase"]) + float(db.tuning["skillEffectSlope"]) * (float(shop["skill"]) / 100.0)
+		rate += float(_assigned_workers(shop["id"])) * float(cfg["workshopBase"]) * skill_eff
+	return SimUtil.r2(rate)
+
+func _mark_construction_workers(work: float) -> void:
+	## 建造结算后：把当日实际投入的建造力折算成「在工地上出工」的失业人口。
+	## 见 docs/construction.md 五：工地临时工拿 refWage × wageRate，没工程可做者 0。
+	if work <= 0.0:
+		return
+	var idle := []
+	for r in s["residents"]:
+		if not bool(r["employed"]):
+			idle.append(r)
+	if idle.is_empty():
+		return
+	var n = int(minf(float(idle.size()), ceil(work - 1e-9)))
+	var bill = SimUtil.r2(work * float(db.economy["refWage"]) * float(db.economy["construction"]["wageRate"]))
+	var per = SimUtil.r2(bill / float(n))
+	for i in range(n):
+		idle[i]["employed"] = true
+		idle[i]["constructionPay"] = per
+
+func _settle_construction(day: int) -> Array:
+	## 夜晚：把当日产能投入队首工程（先进先出，串行）。
+	## 队首未开工 → 先扣材料；材料不足 → 停在队首等待，不跳过。
+	var logs := []
+	var rate = _construction_rate()
+	var work = 0.0
 	for c in s["construction"]:
-		c["daysLeft"] = int(c["daysLeft"]) - 1
+		if rate <= 0.0:
+			break
+		if not bool(c.get("started", false)):
+			var spec = _cost_of(c)
+			if spec.is_empty():
+				logs.append({"day": day, "kind": "invest", "text": "%s 定义缺失，施工停摆" % _label_of(c)})
+				break
+			if not _can_afford(spec):
+				logs.append({"day": day, "kind": "invest", "text": "%s 等待材料（%s）" % [_label_of(c), _shortage_reason(spec)]})
+				break
+			_pay_cost(spec)
+			c["started"] = true
+			logs.append({"day": day, "kind": "invest", "text": "%s 开工（需建造力 %s）" % [_label_of(c), SimUtil.r2(float(c["totalRequired"]))]})
+		var used = minf(rate, float(c["remaining"]))
+		c["remaining"] = SimUtil.r2(float(c["remaining"]) - used)
+		rate = SimUtil.r2(rate - used)
+		work = SimUtil.r2(work + used)
+	_mark_construction_workers(work)
+	return logs
 
 func _activate_completed() -> Array:
 	var logs := []
 	var remaining := []
 	for c in s["construction"]:
-		if int(c["daysLeft"]) > 0:
+		if float(c["remaining"]) > 0.0:
 			remaining.append(c)
 			continue
 		var kind = String(c["kind"])

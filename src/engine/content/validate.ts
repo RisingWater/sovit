@@ -254,39 +254,45 @@ function parseBuildings(
       fail(`${p}.maxWorkers（${maxWorkers}）不能小于 workers（${workers}）`)
     }
 
-    const r = asObj(o.recipe, `${p}.recipe`)
-    const output = numMap(r.output, `${p}.recipe.output`, goodSet)
-    if (Object.keys(output).length === 0) fail(`${p}.recipe.output 不能为空`)
-    const fuel = r.fuel === undefined ? undefined : asNonNeg(r.fuel, `${p}.recipe.fuel`)
-    const recipe: RecipeDef = {
-      id: `r_${id}`,
-      building: id,
-      inputs: numMap(r.inputs, `${p}.recipe.inputs`, goodSet),
-      output,
-      baseRate: asPos(r.baseRate, `${p}.recipe.baseRate`),
-      ...(fuel !== undefined ? { fuel } : {}),
+    // 配方可选：产商品的建筑必须有配方；「建筑工坊」这类产出*建造产能*而非商品的
+    // 建筑没有配方（其产出由 docs/construction.md 的产能公式给出）。
+    let recipeId: RecipeID | undefined
+    if (o.recipe !== undefined) {
+      const r = asObj(o.recipe, `${p}.recipe`)
+      const output = numMap(r.output, `${p}.recipe.output`, goodSet)
+      if (Object.keys(output).length === 0) fail(`${p}.recipe.output 不能为空`)
+      const fuel = r.fuel === undefined ? undefined : asNonNeg(r.fuel, `${p}.recipe.fuel`)
+      const recipe: RecipeDef = {
+        id: `r_${id}`,
+        building: id,
+        inputs: numMap(r.inputs, `${p}.recipe.inputs`, goodSet),
+        output,
+        baseRate: asPos(r.baseRate, `${p}.recipe.baseRate`),
+        ...(fuel !== undefined ? { fuel } : {}),
+      }
+      if (recipes[recipe.id]) fail(`${p}.recipe 与其它建筑 id 冲突：${recipe.id}`)
+      recipes[recipe.id] = recipe
+      recipeByBuilding[id] = recipe
+      recipeId = recipe.id
     }
 
     const buildCost = numMap(o.buildCost, `${p}.buildCost`, goodSet)
     const art = parseArt(o.art, `${p}.art`)
     // 施工工时（人·天）。设计见 docs/construction.md。
-    // 目前引擎尚未使用它（施工仍走 constructionDays），先入库以便逐步迁移。
     const buildWork = o.buildWork === undefined ? undefined : asPos(o.buildWork, `${p}.buildWork`)
+    if (buildWork === undefined) fail(`${p}.buildWork 缺失（施工工时，见 docs/construction.md）`)
     buildings[id] = {
       id,
       nameZh: asStr(o.nameZh, `${p}.nameZh`),
       tier: asNumEnum(o.tier, [1, 2, 3], `${p}.tier`) as BuildingTier,
       workers,
       ...(maxWorkers !== undefined ? { maxWorkers } : {}),
-      recipe: recipe.id,
-      ...(buildWork !== undefined ? { buildWork } : {}),
+      ...(recipeId !== undefined ? { recipe: recipeId } : {}),
+      buildWork,
       ...(Object.keys(buildCost).length > 0 ? { buildCost } : {}),
       ...(art !== undefined ? { art } : {}),
     }
-    if (recipes[recipe.id]) fail(`${p}.recipe 与其它建筑 id 冲突：${recipe.id}`)
     ids.push(id)
-    recipes[recipe.id] = recipe
-    recipeByBuilding[id] = recipe
   })
 
   return { buildings, ids, recipes, recipeByBuilding }
@@ -354,13 +360,14 @@ function parseHousing(
     const salePrice = o.salePrice === undefined ? undefined : asNonNeg(o.salePrice, `${p}.salePrice`)
     const art = parseArt(o.art, `${p}.art`)
     const buildWork = o.buildWork === undefined ? undefined : asPos(o.buildWork, `${p}.buildWork`)
+    if (buildWork === undefined) fail(`${p}.buildWork 缺失（施工工时，见 docs/construction.md）`)
     housing[id] = {
       id,
       nameZh: asStr(o.nameZh, `${p}.nameZh`),
       quality: asNumEnum(o.quality, [1, 2, 3], `${p}.quality`),
       capacity: asPos(o.capacity, `${p}.capacity`),
       classId,
-      ...(buildWork !== undefined ? { buildWork } : {}),
+      buildWork,
       ...(Object.keys(buildCost).length > 0 ? { buildCost } : {}),
       ...(salePrice !== undefined ? { salePrice } : {}),
       ...(art !== undefined ? { art } : {}),
@@ -469,10 +476,10 @@ function parseEconomy(
     e.maxBuildingSlots === null || e.maxBuildingSlots === undefined
       ? Infinity
       : asNonNeg(e.maxBuildingSlots, 'economy.maxBuildingSlots')
+  const c = asObj(e.construction, 'economy.construction')
 
   const economy: EconomyConfig = {
     refWage: asNonNeg(e.refWage, 'economy.refWage'),
-    welfareRate: asNonNeg(e.welfareRate, 'economy.welfareRate'),
     defaultTaxBrackets: asArr(e.defaultTaxBrackets, 'economy.defaultTaxBrackets').map((b, i) => {
       const bp = `economy.defaultTaxBrackets[${i}]`
       const bo = asObj(b, bp)
@@ -506,7 +513,12 @@ function parseEconomy(
     },
     expandMoneyBase: asNonNeg(e.expandMoneyBase, 'economy.expandMoneyBase'),
     maxBuildingSlots: maxSlots,
-    constructionDays: asNonNeg(e.constructionDays, 'economy.constructionDays'),
+    construction: {
+      unemployedRate: asNonNeg(c.unemployedRate, 'economy.construction.unemployedRate'),
+      workshopBase: asNonNeg(c.workshopBase, 'economy.construction.workshopBase'),
+      wageRate: asNonNeg(c.wageRate, 'economy.construction.wageRate'),
+      upgradePerLevel: asPos(c.upgradePerLevel, 'economy.construction.upgradePerLevel'),
+    },
     defaultRent: asNonNeg(e.defaultRent, 'economy.defaultRent'),
     privateHousingSatBonus: asNum(e.privateHousingSatBonus, 'economy.privateHousingSatBonus'),
     privateTenantSatBonus: asNum(e.privateTenantSatBonus, 'economy.privateTenantSatBonus'),

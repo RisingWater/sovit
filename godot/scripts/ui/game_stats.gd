@@ -111,12 +111,16 @@ func _sample(s: Dictionary) -> void:
 		var def_id := String(shop["defId"])
 		if not runner.db.buildings.has(def_id):
 			continue
-		var rec: Dictionary = runner.db.recipes.get(String(runner.db.buildings[def_id]["recipe"]), {})
+		var bdef: Dictionary = runner.db.buildings[def_id]
+		# 建筑工坊这类产出「建造产能」的建筑没有配方，按产出商品归类时跳过
+		if not bdef.has("recipe"):
+			continue
+		var rec: Dictionary = runner.db.recipes.get(String(bdef["recipe"]), {})
 		if rec.is_empty():
 			continue
 		var sid := String(shop["id"])
 		var workers := int(shop["targetWorkers"])
-		var slots := int(runner.db.buildings[def_id]["maxWorkers"])
+		var slots := int(bdef["maxWorkers"])
 		for gid in (rec.get("output", {}) as Dictionary).keys():
 			var g := String(gid)
 			last_shop_count[g] = int(last_shop_count.get(g, 0)) + (1 if bool(shop["active"]) else 0)

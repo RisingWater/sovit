@@ -42,11 +42,11 @@ static func load_into(path: String, db: ContentDB) -> SimCore:
 	var sim := SimCore.new(db)
 	sim.s = data["state"]
 	sim.rng = Rng.new(int(data["rngState"]))
-	_sanitize(sim.s)
+	_sanitize(sim.s, db)
 	return sim
 
 # JSON 把整数读成 float；把需要为整数的字段还原（其余访问处已用 int()/float() 包裹）。
-static func _sanitize(s: Dictionary) -> void:
+static func _sanitize(s: Dictionary, db: ContentDB) -> void:
 	s["day"] = int(s.get("day", 0))
 	s["hour"] = int(s.get("hour", 0))
 	s["arrivals"] = int(s.get("arrivals", 0))
@@ -75,8 +75,23 @@ static func _sanitize(s: Dictionary) -> void:
 		shop["targetWorkers"] = int(shop.get("targetWorkers", 0))
 		shop["planned"] = float(shop.get("planned", 0.0))
 	for c in s["construction"]:
-		c["daysLeft"] = int(c.get("daysLeft", 0))
-		c["totalDays"] = int(c.get("totalDays", 0))
+		# 旧存档是「逐项倒计时（daysLeft/totalDays）」，新模型是「队列 + 建造力（remaining）」
+		if c.has("remaining"):
+			c["remaining"] = float(c.get("remaining", 0.0))
+		else:
+			# 迁移：把剩余天数换成剩余建造力（用当前建筑的 buildWork 折算）
+			var bwork = 0.0
+			var bid = String(c.get("buildingId", ""))
+			if bid != "" and db.buildings.has(bid) and db.buildings[bid].has("buildWork"):
+				bwork = float(db.buildings[bid]["buildWork"])
+			var hid = String(c.get("housingId", ""))
+			if hid != "" and db.housing.has(hid) and db.housing[hid].has("buildWork"):
+				bwork = float(db.housing[hid]["buildWork"])
+			c["remaining"] = SimUtil.r2(bwork * maxf(0.0, float(c.get("daysLeft", 0))))
+		c["totalRequired"] = float(c.get("totalRequired", c["remaining"]))
+		c["started"] = bool(c.get("started", true))
+		c.erase("daysLeft")
+		c.erase("totalDays")
 	var gov = s.get("government", {})
 	gov["money"] = float(gov.get("money", 0.0))
 	if not gov.has("immigrationAllowance"):

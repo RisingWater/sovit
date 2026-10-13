@@ -130,10 +130,11 @@ export interface BuildingDef {
   workers: number
   /** 工位上限（最多容纳多少工人）；缺省 = workers。产出随实际用工人数线性增长。 */
   maxWorkers?: number
-  recipe: RecipeID
-  /** 施工工时（人·天）。设计见 docs/construction.md。引擎尚未使用，先入库。 */
-  buildWork?: number
-  /** 建造成本（材料 / 建造力）；v0.1 仅扩产使用。 */
+  /** 生产配方。产出「建造产能」而非商品时缺省（如建筑工坊）。 */
+  recipe?: RecipeID
+  /** 施工工时（建造力 / 人·天）。设计见 docs/construction.md。 */
+  buildWork: number
+  /** 建造成本（实物原料）；全为包外商品时回退为金钱成本。 */
   buildCost?: Partial<Record<GoodID, number>>
   /** 外观规格（缺省时 gen-art 用兜底样式）。 */
   art?: BuildingArt
@@ -160,8 +161,8 @@ export interface HousingDef {
   /** 每单位住房容纳人口。 */
   capacity: number
   classId: ClassID
-  /** 施工工时（人·天）。设计见 docs/construction.md。引擎尚未使用，先入库。 */
-  buildWork?: number
+  /** 施工工时（建造力 / 人·天）。设计见 docs/construction.md。 */
+  buildWork: number
   /** 建造该住房所需的实物材料（占用一个土地名额）。 */
   buildCost?: Partial<Record<GoodID, number>>
   /** 私有化售价（玩家可调，默认取此值）。 */
@@ -228,8 +229,13 @@ export interface Resident {
   /** 熟练度 0-100。 */
   skill: number
   jobShopId?: string
-  /** 是否被雇佣。 */
+  /** 是否被雇佣（含在工地出工的临时工）。 */
   employed: boolean
+  /**
+   * 当日工地出工报酬（毛额，未扣税）。>0 表示当天在工地上干活。
+   * 由建造结算写入、当晚工资结算读取；次日黎明 assignLabor 时清空。
+   */
+  constructionPay?: number
   /** 是否已拥有私有住房（房主 / 房东）。 */
   homeowner?: boolean
   /** 是否租住在私有住房（房客，向房主交租）。 */
@@ -251,7 +257,7 @@ export interface Resident {
 // ---------------------------------------------------------------------------
 
 export interface ResidentAccount {
-  /** 当日毛收入（在职工资 / 失业保障金）。 */
+  /** 当日毛收入（在职工资 / 工地出工报酬；失业无收入）。 */
   wage: number
   /** 当日所得税。 */
   tax: number
@@ -274,7 +280,7 @@ export interface ResidentAccount {
 /** 每日台账：当天全社会的实际流量。挂到当天 DaySnapshot 上。 */
 export interface DayLedger {
   day: number
-  /** 工资 / 保障金支出总额。 */
+  /** 工资（含工地出工报酬）支出总额。 */
   wages: number
   /** 所得税收入总额。 */
   tax: number
@@ -300,9 +306,12 @@ export interface Construction {
   shopId?: string
   /** kind=housing 时的住房 id。 */
   housingId?: GoodID
-  /** 还需天数。 */
-  daysLeft: number
-  totalDays: number
+  /** 还差的建造力（人·天）。开工时 = buildWork，逐日被产能扣减。 */
+  remaining: number
+  /** 总建造力需求（进度条用）。 */
+  totalRequired: number
+  /** 是否已开工（材料已在开工时扣除）。未开工的停在队首等材料。 */
+  started: boolean
 }
 
 export interface Government {

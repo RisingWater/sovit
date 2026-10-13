@@ -243,8 +243,7 @@
         "stone": 150,
         "clay": 150,
         "firewood": 80,
-        "brick": 80,
-        "build_power": 80
+        "brick": 80
       },
       "prices": {
         "wheat": 1,
@@ -279,7 +278,6 @@
         "clay": 1.2,
         "firewood": 1.6,
         "brick": 3,
-        "build_power": 6,
         "hut": 10,
         "wooden_house": 25,
         "brick_house": 50
@@ -295,9 +293,9 @@
       "day": 1,
       "hour": 0,
       "population": 12,
-      "satisfaction": 68.971,
+      "satisfaction": 69.438,
       "hungry": 0,
-      "money": 1991.96,
+      "money": 1997.6,
       "goods": {
         "wheat": 0,
         "coarse_flour": 0,
@@ -326,12 +324,11 @@
         "porcelain": 0,
         "domestic_service": 0,
         "entertainment": 0,
-        "wood": 238,
-        "stone": 134,
+        "wood": 296,
+        "stone": 150,
         "clay": 150,
         "firewood": 80,
-        "brick": 71,
-        "build_power": 67
+        "brick": 80
       },
       "prices": {
         "wheat": 1,
@@ -366,7 +363,6 @@
         "clay": 1.2,
         "firewood": 1.6,
         "brick": 3,
-        "build_power": 6,
         "hut": 10,
         "wooden_house": 25,
         "brick_house": 50
@@ -382,11 +378,11 @@
       "day": 2,
       "hour": 0,
       "population": 12,
-      "satisfaction": 72.148,
+      "satisfaction": 73.255,
       "hungry": 0,
-      "money": 1983.92,
+      "money": 1991.98,
       "goods": {
-        "wheat": 0,
+        "wheat": 9.744,
         "coarse_flour": 0,
         "coarse_bread": 176,
         "vegetable": 70.74,
@@ -413,12 +409,11 @@
         "porcelain": 0,
         "domestic_service": 0,
         "entertainment": 0,
-        "wood": 238,
-        "stone": 134,
+        "wood": 292,
+        "stone": 150,
         "clay": 150,
         "firewood": 80,
-        "brick": 71,
-        "build_power": 67
+        "brick": 80
       },
       "prices": {
         "wheat": 1,
@@ -453,7 +448,6 @@
         "clay": 1.2,
         "firewood": 1.6,
         "brick": 3,
-        "build_power": 6,
         "hut": 10,
         "wooden_house": 25,
         "brick_house": 50
@@ -463,20 +457,28 @@
         "wooden_house": 0,
         "brick_house": 0
       },
-      "shops": []
+      "shops": [
+        {
+          "id": "wheat_farm#1",
+          "defId": "wheat_farm",
+          "level": 1,
+          "workers": 6,
+          "active": true
+        }
+      ]
     },
     {
       "day": 3,
       "hour": 0,
       "population": 12,
-      "satisfaction": 75.69,
+      "satisfaction": 76.309,
       "hungry": 0,
-      "money": 1974.65,
+      "money": 1986.29,
       "goods": {
-        "wheat": 9.72,
+        "wheat": 19.512,
         "coarse_flour": 0,
         "coarse_bread": 164,
-        "vegetable": 67.17,
+        "vegetable": 58.27,
         "fine_flour": 0,
         "white_bread": 0,
         "sugarcane": 0,
@@ -500,12 +502,11 @@
         "porcelain": 0,
         "domestic_service": 0,
         "entertainment": 0,
-        "wood": 238,
-        "stone": 134,
+        "wood": 292,
+        "stone": 150,
         "clay": 150,
         "firewood": 80,
-        "brick": 71,
-        "build_power": 67
+        "brick": 80
       },
       "prices": {
         "wheat": 1,
@@ -540,80 +541,16 @@
         "clay": 1.2,
         "firewood": 1.6,
         "brick": 3,
-        "build_power": 6,
         "hut": 10,
         "wooden_house": 25,
         "brick_house": 50
       },
       "housing": {
-        "hut": 8,
+        "hut": 5,
         "wooden_house": 0,
         "brick_house": 0
       },
       "shops": [
-        {
-          "id": "brick_kiln#1",
-          "defId": "brick_kiln",
-          "level": 1,
-          "workers": 2,
-          "active": true
-        },
-        {
-          "id": "clay_pit#1",
-          "defId": "clay_pit",
-          "level": 1,
-          "workers": 3,
-          "active": true
-        },
-        {
-          "id": "coarse_bakery#1",
-          "defId": "coarse_bakery",
-          "level": 1,
-          "workers": 2,
-          "active": true
-        },
-        {
-          "id": "coarse_mill#1",
-          "defId": "coarse_mill",
-          "level": 1,
-          "workers": 2,
-          "active": true
-        },
-        {
-          "id": "construction_works#1",
-          "defId": "construction_works",
-          "level": 1,
-          "workers": 3,
-          "active": true
-        },
-        {
-          "id": "firewood_works#1",
-          "defId": "firewood_works",
-          "level": 1,
-          "workers": 2,
-          "active": true
-        },
-        {
-          "id": "lumberjack#1",
-          "defId": "lumberjack",
-          "level": 1,
-          "workers": 3,
-          "active": true
-        },
-        {
-          "id": "quarry#1",
-          "defId": "quarry",
-          "level": 1,
-          "workers": 3,
-          "active": true
-        },
-        {
-          "id": "vegetable_farm#1",
-          "defId": "vegetable_farm",
-          "level": 1,
-          "workers": 4,
-          "active": true
-        },
         {
           "id": "wheat_farm#1",
           "defId": "wheat_farm",
@@ -627,14 +564,14 @@
       "day": 4,
       "hour": 0,
       "population": 12,
-      "satisfaction": 78.523,
+      "satisfaction": 78.929,
       "hungry": 0,
-      "money": 1965.25,
+      "money": 1977.98,
       "goods": {
-        "wheat": 9.744,
-        "coarse_flour": 9.72,
+        "wheat": 29.304,
+        "coarse_flour": 0,
         "coarse_bread": 152,
-        "vegetable": 63.97,
+        "vegetable": 56.01,
         "fine_flour": 0,
         "white_bread": 0,
         "sugarcane": 0,
@@ -658,12 +595,11 @@
         "porcelain": 0,
         "domestic_service": 0,
         "entertainment": 0,
-        "wood": 226,
-        "stone": 134,
+        "wood": 286,
+        "stone": 147,
         "clay": 150,
         "firewood": 80,
-        "brick": 62,
-        "build_power": 67
+        "brick": 80
       },
       "prices": {
         "wheat": 1,
@@ -698,73 +634,16 @@
         "clay": 1.2,
         "firewood": 1.6,
         "brick": 3,
-        "build_power": 6,
         "hut": 10,
         "wooden_house": 25,
         "brick_house": 50
       },
       "housing": {
-        "hut": 8,
+        "hut": 5,
         "wooden_house": 0,
         "brick_house": 0
       },
       "shops": [
-        {
-          "id": "brick_kiln#1",
-          "defId": "brick_kiln",
-          "level": 1,
-          "workers": 2,
-          "active": true
-        },
-        {
-          "id": "clay_pit#1",
-          "defId": "clay_pit",
-          "level": 1,
-          "workers": 6,
-          "active": true
-        },
-        {
-          "id": "coarse_bakery#1",
-          "defId": "coarse_bakery",
-          "level": 1,
-          "workers": 2,
-          "active": true
-        },
-        {
-          "id": "coarse_mill#1",
-          "defId": "coarse_mill",
-          "level": 1,
-          "workers": 2,
-          "active": true
-        },
-        {
-          "id": "construction_works#1",
-          "defId": "construction_works",
-          "level": 1,
-          "workers": 3,
-          "active": true
-        },
-        {
-          "id": "firewood_works#1",
-          "defId": "firewood_works",
-          "level": 1,
-          "workers": 2,
-          "active": true
-        },
-        {
-          "id": "lumberjack#1",
-          "defId": "lumberjack",
-          "level": 1,
-          "workers": 8,
-          "active": true
-        },
-        {
-          "id": "quarry#1",
-          "defId": "quarry",
-          "level": 1,
-          "workers": 6,
-          "active": true
-        },
         {
           "id": "vegetable_farm#1",
           "defId": "vegetable_farm",
@@ -785,14 +664,14 @@
       "day": 5,
       "hour": 0,
       "population": 12,
-      "satisfaction": 80.79,
+      "satisfaction": 81.026,
       "hungry": 0,
-      "money": 1955.71,
+      "money": 1969.54,
       "goods": {
-        "wheat": 9.768,
-        "coarse_flour": 19.464,
+        "wheat": 39.12,
+        "coarse_flour": 0,
         "coarse_bread": 140,
-        "vegetable": 61.12,
+        "vegetable": 53.99,
         "fine_flour": 0,
         "white_bread": 0,
         "sugarcane": 0,
@@ -816,12 +695,11 @@
         "porcelain": 0,
         "domestic_service": 0,
         "entertainment": 0,
-        "wood": 226,
-        "stone": 134,
+        "wood": 286,
+        "stone": 147,
         "clay": 150,
         "firewood": 80,
-        "brick": 62,
-        "build_power": 67
+        "brick": 80
       },
       "prices": {
         "wheat": 1,
@@ -856,73 +734,16 @@
         "clay": 1.2,
         "firewood": 1.6,
         "brick": 3,
-        "build_power": 6,
         "hut": 10,
         "wooden_house": 25,
         "brick_house": 50
       },
       "housing": {
-        "hut": 8,
+        "hut": 5,
         "wooden_house": 0,
         "brick_house": 0
       },
       "shops": [
-        {
-          "id": "brick_kiln#1",
-          "defId": "brick_kiln",
-          "level": 1,
-          "workers": 2,
-          "active": true
-        },
-        {
-          "id": "clay_pit#1",
-          "defId": "clay_pit",
-          "level": 1,
-          "workers": 6,
-          "active": true
-        },
-        {
-          "id": "coarse_bakery#1",
-          "defId": "coarse_bakery",
-          "level": 1,
-          "workers": 2,
-          "active": true
-        },
-        {
-          "id": "coarse_mill#1",
-          "defId": "coarse_mill",
-          "level": 1,
-          "workers": 2,
-          "active": true
-        },
-        {
-          "id": "construction_works#1",
-          "defId": "construction_works",
-          "level": 1,
-          "workers": 3,
-          "active": true
-        },
-        {
-          "id": "firewood_works#1",
-          "defId": "firewood_works",
-          "level": 1,
-          "workers": 2,
-          "active": true
-        },
-        {
-          "id": "lumberjack#1",
-          "defId": "lumberjack",
-          "level": 1,
-          "workers": 8,
-          "active": true
-        },
-        {
-          "id": "quarry#1",
-          "defId": "quarry",
-          "level": 1,
-          "workers": 6,
-          "active": true
-        },
         {
           "id": "vegetable_farm#1",
           "defId": "vegetable_farm",
@@ -943,14 +764,14 @@
       "day": 6,
       "hour": 0,
       "population": 12,
-      "satisfaction": 82.603,
+      "satisfaction": 82.703,
       "hungry": 0,
-      "money": 1946.05,
+      "money": 1961,
       "goods": {
-        "wheat": 9.792,
-        "coarse_flour": 29.232,
+        "wheat": 48.96,
+        "coarse_flour": 0,
         "coarse_bread": 128,
-        "vegetable": 58.57,
+        "vegetable": 52.2,
         "fine_flour": 0,
         "white_bread": 0,
         "sugarcane": 0,
@@ -974,12 +795,11 @@
         "porcelain": 0,
         "domestic_service": 0,
         "entertainment": 0,
-        "wood": 202,
-        "stone": 128,
+        "wood": 286,
+        "stone": 147,
         "clay": 150,
         "firewood": 80,
-        "brick": 56,
-        "build_power": 62
+        "brick": 80
       },
       "prices": {
         "wheat": 1,
@@ -1014,73 +834,16 @@
         "clay": 1.2,
         "firewood": 1.6,
         "brick": 3,
-        "build_power": 6,
         "hut": 10,
         "wooden_house": 25,
         "brick_house": 50
       },
       "housing": {
-        "hut": 11,
+        "hut": 5,
         "wooden_house": 0,
         "brick_house": 0
       },
       "shops": [
-        {
-          "id": "brick_kiln#1",
-          "defId": "brick_kiln",
-          "level": 1,
-          "workers": 2,
-          "active": true
-        },
-        {
-          "id": "clay_pit#1",
-          "defId": "clay_pit",
-          "level": 1,
-          "workers": 6,
-          "active": true
-        },
-        {
-          "id": "coarse_bakery#1",
-          "defId": "coarse_bakery",
-          "level": 1,
-          "workers": 2,
-          "active": true
-        },
-        {
-          "id": "coarse_mill#1",
-          "defId": "coarse_mill",
-          "level": 1,
-          "workers": 2,
-          "active": true
-        },
-        {
-          "id": "construction_works#1",
-          "defId": "construction_works",
-          "level": 1,
-          "workers": 3,
-          "active": true
-        },
-        {
-          "id": "firewood_works#1",
-          "defId": "firewood_works",
-          "level": 1,
-          "workers": 2,
-          "active": true
-        },
-        {
-          "id": "lumberjack#1",
-          "defId": "lumberjack",
-          "level": 1,
-          "workers": 8,
-          "active": true
-        },
-        {
-          "id": "quarry#1",
-          "defId": "quarry",
-          "level": 1,
-          "workers": 6,
-          "active": true
-        },
         {
           "id": "vegetable_farm#1",
           "defId": "vegetable_farm",
@@ -1101,14 +864,14 @@
       "day": 7,
       "hour": 0,
       "population": 12,
-      "satisfaction": 84.054,
+      "satisfaction": 84.045,
       "hungry": 0,
-      "money": 1936.24,
+      "money": 1952.36,
       "goods": {
-        "wheat": 9.816,
-        "coarse_flour": 39.024,
+        "wheat": 58.824,
+        "coarse_flour": 0,
         "coarse_bread": 116,
-        "vegetable": 56.3,
+        "vegetable": 50.61,
         "fine_flour": 0,
         "white_bread": 0,
         "sugarcane": 0,
@@ -1132,12 +895,11 @@
         "porcelain": 0,
         "domestic_service": 0,
         "entertainment": 0,
-        "wood": 202,
-        "stone": 128,
+        "wood": 286,
+        "stone": 147,
         "clay": 150,
         "firewood": 80,
-        "brick": 56,
-        "build_power": 62
+        "brick": 80
       },
       "prices": {
         "wheat": 1,
@@ -1172,73 +934,16 @@
         "clay": 1.2,
         "firewood": 1.6,
         "brick": 3,
-        "build_power": 6,
         "hut": 10,
         "wooden_house": 25,
         "brick_house": 50
       },
       "housing": {
-        "hut": 11,
+        "hut": 5,
         "wooden_house": 0,
         "brick_house": 0
       },
       "shops": [
-        {
-          "id": "brick_kiln#1",
-          "defId": "brick_kiln",
-          "level": 1,
-          "workers": 2,
-          "active": true
-        },
-        {
-          "id": "clay_pit#1",
-          "defId": "clay_pit",
-          "level": 1,
-          "workers": 6,
-          "active": true
-        },
-        {
-          "id": "coarse_bakery#1",
-          "defId": "coarse_bakery",
-          "level": 1,
-          "workers": 2,
-          "active": true
-        },
-        {
-          "id": "coarse_mill#1",
-          "defId": "coarse_mill",
-          "level": 1,
-          "workers": 2,
-          "active": true
-        },
-        {
-          "id": "construction_works#1",
-          "defId": "construction_works",
-          "level": 1,
-          "workers": 3,
-          "active": true
-        },
-        {
-          "id": "firewood_works#1",
-          "defId": "firewood_works",
-          "level": 1,
-          "workers": 2,
-          "active": true
-        },
-        {
-          "id": "lumberjack#1",
-          "defId": "lumberjack",
-          "level": 1,
-          "workers": 8,
-          "active": true
-        },
-        {
-          "id": "quarry#1",
-          "defId": "quarry",
-          "level": 1,
-          "workers": 6,
-          "active": true
-        },
         {
           "id": "vegetable_farm#1",
           "defId": "vegetable_farm",
@@ -1259,14 +964,14 @@
       "day": 8,
       "hour": 0,
       "population": 12,
-      "satisfaction": 85.214,
+      "satisfaction": 85.118,
       "hungry": 0,
-      "money": 1926.31,
+      "money": 1943.59,
       "goods": {
-        "wheat": 9.84,
-        "coarse_flour": 48.84,
+        "wheat": 68.712,
+        "coarse_flour": 0,
         "coarse_bread": 104,
-        "vegetable": 54.28,
+        "vegetable": 49.2,
         "fine_flour": 0,
         "white_bread": 0,
         "sugarcane": 0,
@@ -1290,12 +995,11 @@
         "porcelain": 0,
         "domestic_service": 0,
         "entertainment": 0,
-        "wood": 188,
-        "stone": 125,
+        "wood": 286,
+        "stone": 147,
         "clay": 150,
         "firewood": 80,
-        "brick": 50,
-        "build_power": 60
+        "brick": 80
       },
       "prices": {
         "wheat": 1,
@@ -1330,87 +1034,16 @@
         "clay": 1.2,
         "firewood": 1.6,
         "brick": 3,
-        "build_power": 6,
         "hut": 10,
         "wooden_house": 25,
         "brick_house": 50
       },
       "housing": {
-        "hut": 13,
+        "hut": 5,
         "wooden_house": 0,
         "brick_house": 0
       },
       "shops": [
-        {
-          "id": "brick_kiln#1",
-          "defId": "brick_kiln",
-          "level": 1,
-          "workers": 2,
-          "active": true
-        },
-        {
-          "id": "clay_pit#1",
-          "defId": "clay_pit",
-          "level": 1,
-          "workers": 6,
-          "active": true
-        },
-        {
-          "id": "coarse_bakery#1",
-          "defId": "coarse_bakery",
-          "level": 1,
-          "workers": 2,
-          "active": true
-        },
-        {
-          "id": "coarse_bakery#2",
-          "defId": "coarse_bakery",
-          "level": 1,
-          "workers": 2,
-          "active": true
-        },
-        {
-          "id": "coarse_mill#1",
-          "defId": "coarse_mill",
-          "level": 1,
-          "workers": 2,
-          "active": true
-        },
-        {
-          "id": "coarse_mill#2",
-          "defId": "coarse_mill",
-          "level": 1,
-          "workers": 2,
-          "active": true
-        },
-        {
-          "id": "construction_works#1",
-          "defId": "construction_works",
-          "level": 1,
-          "workers": 3,
-          "active": true
-        },
-        {
-          "id": "firewood_works#1",
-          "defId": "firewood_works",
-          "level": 1,
-          "workers": 2,
-          "active": true
-        },
-        {
-          "id": "lumberjack#1",
-          "defId": "lumberjack",
-          "level": 1,
-          "workers": 8,
-          "active": true
-        },
-        {
-          "id": "quarry#1",
-          "defId": "quarry",
-          "level": 1,
-          "workers": 6,
-          "active": true
-        },
         {
           "id": "vegetable_farm#1",
           "defId": "vegetable_farm",
@@ -1420,13 +1053,6 @@
         },
         {
           "id": "wheat_farm#1",
-          "defId": "wheat_farm",
-          "level": 1,
-          "workers": 6,
-          "active": true
-        },
-        {
-          "id": "wheat_farm#2",
           "defId": "wheat_farm",
           "level": 1,
           "workers": 6,
@@ -1438,14 +1064,14 @@
       "day": 9,
       "hour": 0,
       "population": 12,
-      "satisfaction": 86.143,
+      "satisfaction": 85.977,
       "hungry": 0,
-      "money": 1916.26,
+      "money": 1934.72,
       "goods": {
-        "wheat": 9.864,
-        "coarse_flour": 58.68,
+        "wheat": 78.624,
+        "coarse_flour": 0,
         "coarse_bread": 92,
-        "vegetable": 52.48,
+        "vegetable": 47.95,
         "fine_flour": 0,
         "white_bread": 0,
         "sugarcane": 0,
@@ -1469,12 +1095,11 @@
         "porcelain": 0,
         "domestic_service": 0,
         "entertainment": 0,
-        "wood": 188,
-        "stone": 125,
+        "wood": 286,
+        "stone": 147,
         "clay": 150,
         "firewood": 80,
-        "brick": 50,
-        "build_power": 60
+        "brick": 80
       },
       "prices": {
         "wheat": 1,
@@ -1509,87 +1134,16 @@
         "clay": 1.2,
         "firewood": 1.6,
         "brick": 3,
-        "build_power": 6,
         "hut": 10,
         "wooden_house": 25,
         "brick_house": 50
       },
       "housing": {
-        "hut": 13,
+        "hut": 5,
         "wooden_house": 0,
         "brick_house": 0
       },
       "shops": [
-        {
-          "id": "brick_kiln#1",
-          "defId": "brick_kiln",
-          "level": 1,
-          "workers": 2,
-          "active": true
-        },
-        {
-          "id": "clay_pit#1",
-          "defId": "clay_pit",
-          "level": 1,
-          "workers": 6,
-          "active": true
-        },
-        {
-          "id": "coarse_bakery#1",
-          "defId": "coarse_bakery",
-          "level": 1,
-          "workers": 2,
-          "active": true
-        },
-        {
-          "id": "coarse_bakery#2",
-          "defId": "coarse_bakery",
-          "level": 1,
-          "workers": 2,
-          "active": true
-        },
-        {
-          "id": "coarse_mill#1",
-          "defId": "coarse_mill",
-          "level": 1,
-          "workers": 2,
-          "active": true
-        },
-        {
-          "id": "coarse_mill#2",
-          "defId": "coarse_mill",
-          "level": 1,
-          "workers": 2,
-          "active": true
-        },
-        {
-          "id": "construction_works#1",
-          "defId": "construction_works",
-          "level": 1,
-          "workers": 3,
-          "active": true
-        },
-        {
-          "id": "firewood_works#1",
-          "defId": "firewood_works",
-          "level": 1,
-          "workers": 2,
-          "active": true
-        },
-        {
-          "id": "lumberjack#1",
-          "defId": "lumberjack",
-          "level": 1,
-          "workers": 8,
-          "active": true
-        },
-        {
-          "id": "quarry#1",
-          "defId": "quarry",
-          "level": 1,
-          "workers": 6,
-          "active": true
-        },
         {
           "id": "vegetable_farm#1",
           "defId": "vegetable_farm",
@@ -1599,13 +1153,6 @@
         },
         {
           "id": "wheat_farm#1",
-          "defId": "wheat_farm",
-          "level": 1,
-          "workers": 6,
-          "active": true
-        },
-        {
-          "id": "wheat_farm#2",
           "defId": "wheat_farm",
           "level": 1,
           "workers": 6,
@@ -1617,14 +1164,14 @@
       "day": 10,
       "hour": 0,
       "population": 12,
-      "satisfaction": 86.885,
+      "satisfaction": 86.753,
       "hungry": 0,
-      "money": 1906.06,
+      "money": 1924.28,
       "goods": {
-        "wheat": 9.888,
-        "coarse_flour": 68.544,
+        "wheat": 78.384,
+        "coarse_flour": 10.176,
         "coarse_bread": 80,
-        "vegetable": 50.89,
+        "vegetable": 46.85,
         "fine_flour": 0,
         "white_bread": 0,
         "sugarcane": 0,
@@ -1648,12 +1195,11 @@
         "porcelain": 0,
         "domestic_service": 0,
         "entertainment": 0,
-        "wood": 188,
-        "stone": 125,
+        "wood": 286,
+        "stone": 147,
         "clay": 150,
         "firewood": 80,
-        "brick": 50,
-        "build_power": 60
+        "brick": 80
       },
       "prices": {
         "wheat": 1,
@@ -1688,85 +1234,21 @@
         "clay": 1.2,
         "firewood": 1.6,
         "brick": 3,
-        "build_power": 6,
         "hut": 10,
         "wooden_house": 25,
         "brick_house": 50
       },
       "housing": {
-        "hut": 15,
+        "hut": 5,
         "wooden_house": 0,
         "brick_house": 0
       },
       "shops": [
         {
-          "id": "brick_kiln#1",
-          "defId": "brick_kiln",
-          "level": 1,
-          "workers": 2,
-          "active": true
-        },
-        {
-          "id": "clay_pit#1",
-          "defId": "clay_pit",
-          "level": 1,
-          "workers": 6,
-          "active": true
-        },
-        {
-          "id": "coarse_bakery#1",
-          "defId": "coarse_bakery",
-          "level": 2,
-          "workers": 2,
-          "active": true
-        },
-        {
-          "id": "coarse_bakery#2",
-          "defId": "coarse_bakery",
-          "level": 1,
-          "workers": 2,
-          "active": true
-        },
-        {
           "id": "coarse_mill#1",
           "defId": "coarse_mill",
           "level": 1,
           "workers": 2,
-          "active": true
-        },
-        {
-          "id": "coarse_mill#2",
-          "defId": "coarse_mill",
-          "level": 1,
-          "workers": 2,
-          "active": true
-        },
-        {
-          "id": "construction_works#1",
-          "defId": "construction_works",
-          "level": 1,
-          "workers": 3,
-          "active": true
-        },
-        {
-          "id": "firewood_works#1",
-          "defId": "firewood_works",
-          "level": 1,
-          "workers": 2,
-          "active": true
-        },
-        {
-          "id": "lumberjack#1",
-          "defId": "lumberjack",
-          "level": 1,
-          "workers": 8,
-          "active": true
-        },
-        {
-          "id": "quarry#1",
-          "defId": "quarry",
-          "level": 1,
-          "workers": 6,
           "active": true
         },
         {
@@ -1778,13 +1260,6 @@
         },
         {
           "id": "wheat_farm#1",
-          "defId": "wheat_farm",
-          "level": 1,
-          "workers": 6,
-          "active": true
-        },
-        {
-          "id": "wheat_farm#2",
           "defId": "wheat_farm",
           "level": 1,
           "workers": 6,
@@ -1796,14 +1271,14 @@
       "day": 11,
       "hour": 0,
       "population": 12,
-      "satisfaction": 87.48,
+      "satisfaction": 87.373,
       "hungry": 0,
-      "money": 1895.73,
+      "money": 1913.7,
       "goods": {
-        "wheat": 9.912,
-        "coarse_flour": 78.432,
+        "wheat": 78.144,
+        "coarse_flour": 20.376,
         "coarse_bread": 68,
-        "vegetable": 49.47,
+        "vegetable": 45.88,
         "fine_flour": 0,
         "white_bread": 0,
         "sugarcane": 0,
@@ -1827,12 +1302,11 @@
         "porcelain": 0,
         "domestic_service": 0,
         "entertainment": 0,
-        "wood": 188,
-        "stone": 125,
+        "wood": 286,
+        "stone": 147,
         "clay": 150,
         "firewood": 80,
-        "brick": 50,
-        "build_power": 60
+        "brick": 80
       },
       "prices": {
         "wheat": 1,
@@ -1867,85 +1341,21 @@
         "clay": 1.2,
         "firewood": 1.6,
         "brick": 3,
-        "build_power": 6,
         "hut": 10,
         "wooden_house": 25,
         "brick_house": 50
       },
       "housing": {
-        "hut": 15,
+        "hut": 5,
         "wooden_house": 0,
         "brick_house": 0
       },
       "shops": [
         {
-          "id": "brick_kiln#1",
-          "defId": "brick_kiln",
-          "level": 1,
-          "workers": 2,
-          "active": true
-        },
-        {
-          "id": "clay_pit#1",
-          "defId": "clay_pit",
-          "level": 1,
-          "workers": 6,
-          "active": true
-        },
-        {
-          "id": "coarse_bakery#1",
-          "defId": "coarse_bakery",
-          "level": 2,
-          "workers": 2,
-          "active": true
-        },
-        {
-          "id": "coarse_bakery#2",
-          "defId": "coarse_bakery",
-          "level": 1,
-          "workers": 2,
-          "active": true
-        },
-        {
           "id": "coarse_mill#1",
           "defId": "coarse_mill",
           "level": 1,
           "workers": 2,
-          "active": true
-        },
-        {
-          "id": "coarse_mill#2",
-          "defId": "coarse_mill",
-          "level": 1,
-          "workers": 2,
-          "active": true
-        },
-        {
-          "id": "construction_works#1",
-          "defId": "construction_works",
-          "level": 1,
-          "workers": 3,
-          "active": true
-        },
-        {
-          "id": "firewood_works#1",
-          "defId": "firewood_works",
-          "level": 1,
-          "workers": 2,
-          "active": true
-        },
-        {
-          "id": "lumberjack#1",
-          "defId": "lumberjack",
-          "level": 1,
-          "workers": 8,
-          "active": true
-        },
-        {
-          "id": "quarry#1",
-          "defId": "quarry",
-          "level": 1,
-          "workers": 6,
           "active": true
         },
         {
@@ -1957,13 +1367,6 @@
         },
         {
           "id": "wheat_farm#1",
-          "defId": "wheat_farm",
-          "level": 1,
-          "workers": 6,
-          "active": true
-        },
-        {
-          "id": "wheat_farm#2",
           "defId": "wheat_farm",
           "level": 1,
           "workers": 6,
@@ -1975,14 +1378,14 @@
       "day": 12,
       "hour": 0,
       "population": 12,
-      "satisfaction": 87.955,
+      "satisfaction": 87.87,
       "hungry": 0,
-      "money": 1885.29,
+      "money": 1902.99,
       "goods": {
-        "wheat": 9.936,
-        "coarse_flour": 88.344,
+        "wheat": 77.904,
+        "coarse_flour": 30.6,
         "coarse_bread": 56,
-        "vegetable": 48.21,
+        "vegetable": 45.03,
         "fine_flour": 0,
         "white_bread": 0,
         "sugarcane": 0,
@@ -2006,12 +1409,11 @@
         "porcelain": 0,
         "domestic_service": 0,
         "entertainment": 0,
-        "wood": 170,
-        "stone": 122,
+        "wood": 286,
+        "stone": 147,
         "clay": 150,
         "firewood": 80,
-        "brick": 44,
-        "build_power": 57
+        "brick": 80
       },
       "prices": {
         "wheat": 1,
@@ -2046,85 +1448,21 @@
         "clay": 1.2,
         "firewood": 1.6,
         "brick": 3,
-        "build_power": 6,
         "hut": 10,
         "wooden_house": 25,
         "brick_house": 50
       },
       "housing": {
-        "hut": 15,
+        "hut": 5,
         "wooden_house": 0,
         "brick_house": 0
       },
       "shops": [
         {
-          "id": "brick_kiln#1",
-          "defId": "brick_kiln",
-          "level": 1,
-          "workers": 2,
-          "active": true
-        },
-        {
-          "id": "clay_pit#1",
-          "defId": "clay_pit",
-          "level": 1,
-          "workers": 6,
-          "active": true
-        },
-        {
-          "id": "coarse_bakery#1",
-          "defId": "coarse_bakery",
-          "level": 2,
-          "workers": 2,
-          "active": true
-        },
-        {
-          "id": "coarse_bakery#2",
-          "defId": "coarse_bakery",
-          "level": 1,
-          "workers": 2,
-          "active": true
-        },
-        {
           "id": "coarse_mill#1",
           "defId": "coarse_mill",
           "level": 1,
           "workers": 2,
-          "active": true
-        },
-        {
-          "id": "coarse_mill#2",
-          "defId": "coarse_mill",
-          "level": 1,
-          "workers": 2,
-          "active": true
-        },
-        {
-          "id": "construction_works#1",
-          "defId": "construction_works",
-          "level": 1,
-          "workers": 3,
-          "active": true
-        },
-        {
-          "id": "firewood_works#1",
-          "defId": "firewood_works",
-          "level": 1,
-          "workers": 2,
-          "active": true
-        },
-        {
-          "id": "lumberjack#1",
-          "defId": "lumberjack",
-          "level": 1,
-          "workers": 8,
-          "active": true
-        },
-        {
-          "id": "quarry#1",
-          "defId": "quarry",
-          "level": 1,
-          "workers": 6,
           "active": true
         },
         {
@@ -2136,13 +1474,6 @@
         },
         {
           "id": "wheat_farm#1",
-          "defId": "wheat_farm",
-          "level": 1,
-          "workers": 6,
-          "active": true
-        },
-        {
-          "id": "wheat_farm#2",
           "defId": "wheat_farm",
           "level": 1,
           "workers": 6,
@@ -2154,14 +1485,14 @@
       "day": 13,
       "hour": 0,
       "population": 12,
-      "satisfaction": 88.335,
+      "satisfaction": 88.267,
       "hungry": 0,
-      "money": 1874.71,
+      "money": 1892.18,
       "goods": {
-        "wheat": 9.96,
-        "coarse_flour": 98.28,
+        "wheat": 77.664,
+        "coarse_flour": 40.848,
         "coarse_bread": 44,
-        "vegetable": 47.11,
+        "vegetable": 44.29,
         "fine_flour": 0,
         "white_bread": 0,
         "sugarcane": 0,
@@ -2185,12 +1516,11 @@
         "porcelain": 0,
         "domestic_service": 0,
         "entertainment": 0,
-        "wood": 170,
-        "stone": 122,
+        "wood": 286,
+        "stone": 147,
         "clay": 150,
         "firewood": 80,
-        "brick": 44,
-        "build_power": 57
+        "brick": 80
       },
       "prices": {
         "wheat": 1,
@@ -2225,85 +1555,21 @@
         "clay": 1.2,
         "firewood": 1.6,
         "brick": 3,
-        "build_power": 6,
         "hut": 10,
         "wooden_house": 25,
         "brick_house": 50
       },
       "housing": {
-        "hut": 15,
+        "hut": 5,
         "wooden_house": 0,
         "brick_house": 0
       },
       "shops": [
         {
-          "id": "brick_kiln#1",
-          "defId": "brick_kiln",
-          "level": 1,
-          "workers": 2,
-          "active": true
-        },
-        {
-          "id": "clay_pit#1",
-          "defId": "clay_pit",
-          "level": 1,
-          "workers": 6,
-          "active": true
-        },
-        {
-          "id": "coarse_bakery#1",
-          "defId": "coarse_bakery",
-          "level": 2,
-          "workers": 2,
-          "active": true
-        },
-        {
-          "id": "coarse_bakery#2",
-          "defId": "coarse_bakery",
-          "level": 1,
-          "workers": 2,
-          "active": true
-        },
-        {
           "id": "coarse_mill#1",
           "defId": "coarse_mill",
           "level": 1,
           "workers": 2,
-          "active": true
-        },
-        {
-          "id": "coarse_mill#2",
-          "defId": "coarse_mill",
-          "level": 1,
-          "workers": 2,
-          "active": true
-        },
-        {
-          "id": "construction_works#1",
-          "defId": "construction_works",
-          "level": 1,
-          "workers": 3,
-          "active": true
-        },
-        {
-          "id": "firewood_works#1",
-          "defId": "firewood_works",
-          "level": 1,
-          "workers": 2,
-          "active": true
-        },
-        {
-          "id": "lumberjack#1",
-          "defId": "lumberjack",
-          "level": 1,
-          "workers": 8,
-          "active": true
-        },
-        {
-          "id": "quarry#1",
-          "defId": "quarry",
-          "level": 1,
-          "workers": 6,
           "active": true
         },
         {
@@ -2315,13 +1581,6 @@
         },
         {
           "id": "wheat_farm#1",
-          "defId": "wheat_farm",
-          "level": 1,
-          "workers": 6,
-          "active": true
-        },
-        {
-          "id": "wheat_farm#2",
           "defId": "wheat_farm",
           "level": 1,
           "workers": 6,
@@ -2333,14 +1592,14 @@
       "day": 14,
       "hour": 0,
       "population": 12,
-      "satisfaction": 88.639,
+      "satisfaction": 88.585,
       "hungry": 0,
-      "money": 1864,
+      "money": 1881.23,
       "goods": {
-        "wheat": 9.984,
-        "coarse_flour": 108.24,
+        "wheat": 77.424,
+        "coarse_flour": 51.12,
         "coarse_bread": 32,
-        "vegetable": 46.13,
+        "vegetable": 43.64,
         "fine_flour": 0,
         "white_bread": 0,
         "sugarcane": 0,
@@ -2364,12 +1623,11 @@
         "porcelain": 0,
         "domestic_service": 0,
         "entertainment": 0,
-        "wood": 170,
-        "stone": 122,
+        "wood": 286,
+        "stone": 147,
         "clay": 150,
         "firewood": 80,
-        "brick": 44,
-        "build_power": 57
+        "brick": 80
       },
       "prices": {
         "wheat": 1,
@@ -2404,92 +1662,21 @@
         "clay": 1.2,
         "firewood": 1.6,
         "brick": 3,
-        "build_power": 6,
         "hut": 10,
         "wooden_house": 25,
         "brick_house": 50
       },
       "housing": {
-        "hut": 17,
+        "hut": 5,
         "wooden_house": 0,
         "brick_house": 0
       },
       "shops": [
         {
-          "id": "brick_kiln#1",
-          "defId": "brick_kiln",
-          "level": 1,
-          "workers": 2,
-          "active": true
-        },
-        {
-          "id": "clay_pit#1",
-          "defId": "clay_pit",
-          "level": 1,
-          "workers": 6,
-          "active": true
-        },
-        {
-          "id": "coarse_bakery#1",
-          "defId": "coarse_bakery",
-          "level": 2,
-          "workers": 2,
-          "active": true
-        },
-        {
-          "id": "coarse_bakery#2",
-          "defId": "coarse_bakery",
-          "level": 1,
-          "workers": 2,
-          "active": true
-        },
-        {
           "id": "coarse_mill#1",
           "defId": "coarse_mill",
           "level": 1,
           "workers": 2,
-          "active": true
-        },
-        {
-          "id": "coarse_mill#2",
-          "defId": "coarse_mill",
-          "level": 1,
-          "workers": 2,
-          "active": true
-        },
-        {
-          "id": "coarse_mill#3",
-          "defId": "coarse_mill",
-          "level": 1,
-          "workers": 2,
-          "active": true
-        },
-        {
-          "id": "construction_works#1",
-          "defId": "construction_works",
-          "level": 1,
-          "workers": 3,
-          "active": true
-        },
-        {
-          "id": "firewood_works#1",
-          "defId": "firewood_works",
-          "level": 1,
-          "workers": 2,
-          "active": true
-        },
-        {
-          "id": "lumberjack#1",
-          "defId": "lumberjack",
-          "level": 1,
-          "workers": 8,
-          "active": true
-        },
-        {
-          "id": "quarry#1",
-          "defId": "quarry",
-          "level": 1,
-          "workers": 6,
           "active": true
         },
         {
@@ -2501,20 +1688,6 @@
         },
         {
           "id": "wheat_farm#1",
-          "defId": "wheat_farm",
-          "level": 1,
-          "workers": 6,
-          "active": true
-        },
-        {
-          "id": "wheat_farm#2",
-          "defId": "wheat_farm",
-          "level": 1,
-          "workers": 6,
-          "active": true
-        },
-        {
-          "id": "wheat_farm#3",
           "defId": "wheat_farm",
           "level": 1,
           "workers": 6,
@@ -2526,14 +1699,14 @@
       "day": 15,
       "hour": 0,
       "population": 12,
-      "satisfaction": 88.883,
+      "satisfaction": 88.839,
       "hungry": 0,
-      "money": 1853.19,
+      "money": 1870.15,
       "goods": {
-        "wheat": 10.008,
-        "coarse_flour": 118.224,
+        "wheat": 77.184,
+        "coarse_flour": 61.416,
         "coarse_bread": 20,
-        "vegetable": 45.28,
+        "vegetable": 43.07,
         "fine_flour": 0,
         "white_bread": 0,
         "sugarcane": 0,
@@ -2557,12 +1730,11 @@
         "porcelain": 0,
         "domestic_service": 0,
         "entertainment": 0,
-        "wood": 170,
-        "stone": 122,
+        "wood": 286,
+        "stone": 147,
         "clay": 150,
         "firewood": 80,
-        "brick": 44,
-        "build_power": 57
+        "brick": 80
       },
       "prices": {
         "wheat": 1,
@@ -2597,92 +1769,21 @@
         "clay": 1.2,
         "firewood": 1.6,
         "brick": 3,
-        "build_power": 6,
         "hut": 10,
         "wooden_house": 25,
         "brick_house": 50
       },
       "housing": {
-        "hut": 17,
+        "hut": 5,
         "wooden_house": 0,
         "brick_house": 0
       },
       "shops": [
         {
-          "id": "brick_kiln#1",
-          "defId": "brick_kiln",
-          "level": 1,
-          "workers": 2,
-          "active": true
-        },
-        {
-          "id": "clay_pit#1",
-          "defId": "clay_pit",
-          "level": 1,
-          "workers": 6,
-          "active": true
-        },
-        {
-          "id": "coarse_bakery#1",
-          "defId": "coarse_bakery",
-          "level": 2,
-          "workers": 2,
-          "active": true
-        },
-        {
-          "id": "coarse_bakery#2",
-          "defId": "coarse_bakery",
-          "level": 1,
-          "workers": 2,
-          "active": true
-        },
-        {
           "id": "coarse_mill#1",
           "defId": "coarse_mill",
           "level": 1,
           "workers": 2,
-          "active": true
-        },
-        {
-          "id": "coarse_mill#2",
-          "defId": "coarse_mill",
-          "level": 1,
-          "workers": 2,
-          "active": true
-        },
-        {
-          "id": "coarse_mill#3",
-          "defId": "coarse_mill",
-          "level": 1,
-          "workers": 2,
-          "active": true
-        },
-        {
-          "id": "construction_works#1",
-          "defId": "construction_works",
-          "level": 1,
-          "workers": 3,
-          "active": true
-        },
-        {
-          "id": "firewood_works#1",
-          "defId": "firewood_works",
-          "level": 1,
-          "workers": 2,
-          "active": true
-        },
-        {
-          "id": "lumberjack#1",
-          "defId": "lumberjack",
-          "level": 1,
-          "workers": 8,
-          "active": true
-        },
-        {
-          "id": "quarry#1",
-          "defId": "quarry",
-          "level": 1,
-          "workers": 6,
           "active": true
         },
         {
@@ -2694,20 +1795,6 @@
         },
         {
           "id": "wheat_farm#1",
-          "defId": "wheat_farm",
-          "level": 1,
-          "workers": 6,
-          "active": true
-        },
-        {
-          "id": "wheat_farm#2",
-          "defId": "wheat_farm",
-          "level": 1,
-          "workers": 6,
-          "active": true
-        },
-        {
-          "id": "wheat_farm#3",
           "defId": "wheat_farm",
           "level": 1,
           "workers": 6,
@@ -2719,14 +1806,14 @@
       "day": 16,
       "hour": 0,
       "population": 12,
-      "satisfaction": 89.077,
+      "satisfaction": 89.043,
       "hungry": 0,
-      "money": 1842.24,
+      "money": 1858.95,
       "goods": {
-        "wheat": 10.032,
-        "coarse_flour": 128.232,
+        "wheat": 76.944,
+        "coarse_flour": 71.736,
         "coarse_bread": 8,
-        "vegetable": 44.53,
+        "vegetable": 42.59,
         "fine_flour": 0,
         "white_bread": 0,
         "sugarcane": 0,
@@ -2750,12 +1837,11 @@
         "porcelain": 0,
         "domestic_service": 0,
         "entertainment": 0,
-        "wood": 152,
-        "stone": 119,
+        "wood": 286,
+        "stone": 147,
         "clay": 150,
         "firewood": 80,
-        "brick": 38,
-        "build_power": 54
+        "brick": 80
       },
       "prices": {
         "wheat": 1,
@@ -2790,92 +1876,21 @@
         "clay": 1.2,
         "firewood": 1.6,
         "brick": 3,
-        "build_power": 6,
         "hut": 10,
         "wooden_house": 25,
         "brick_house": 50
       },
       "housing": {
-        "hut": 17,
+        "hut": 5,
         "wooden_house": 0,
         "brick_house": 0
       },
       "shops": [
         {
-          "id": "brick_kiln#1",
-          "defId": "brick_kiln",
-          "level": 1,
-          "workers": 2,
-          "active": true
-        },
-        {
-          "id": "clay_pit#1",
-          "defId": "clay_pit",
-          "level": 1,
-          "workers": 6,
-          "active": true
-        },
-        {
-          "id": "coarse_bakery#1",
-          "defId": "coarse_bakery",
-          "level": 2,
-          "workers": 2,
-          "active": true
-        },
-        {
-          "id": "coarse_bakery#2",
-          "defId": "coarse_bakery",
-          "level": 1,
-          "workers": 2,
-          "active": true
-        },
-        {
           "id": "coarse_mill#1",
           "defId": "coarse_mill",
           "level": 1,
           "workers": 2,
-          "active": true
-        },
-        {
-          "id": "coarse_mill#2",
-          "defId": "coarse_mill",
-          "level": 1,
-          "workers": 2,
-          "active": true
-        },
-        {
-          "id": "coarse_mill#3",
-          "defId": "coarse_mill",
-          "level": 1,
-          "workers": 2,
-          "active": true
-        },
-        {
-          "id": "construction_works#1",
-          "defId": "construction_works",
-          "level": 1,
-          "workers": 3,
-          "active": true
-        },
-        {
-          "id": "firewood_works#1",
-          "defId": "firewood_works",
-          "level": 1,
-          "workers": 2,
-          "active": true
-        },
-        {
-          "id": "lumberjack#1",
-          "defId": "lumberjack",
-          "level": 1,
-          "workers": 8,
-          "active": true
-        },
-        {
-          "id": "quarry#1",
-          "defId": "quarry",
-          "level": 1,
-          "workers": 6,
           "active": true
         },
         {
@@ -2887,20 +1902,6 @@
         },
         {
           "id": "wheat_farm#1",
-          "defId": "wheat_farm",
-          "level": 1,
-          "workers": 6,
-          "active": true
-        },
-        {
-          "id": "wheat_farm#2",
-          "defId": "wheat_farm",
-          "level": 1,
-          "workers": 6,
-          "active": true
-        },
-        {
-          "id": "wheat_farm#3",
           "defId": "wheat_farm",
           "level": 1,
           "workers": 6,
@@ -2912,14 +1913,14 @@
       "day": 17,
       "hour": 0,
       "population": 12,
-      "satisfaction": 89.233,
+      "satisfaction": 89.205,
       "hungry": 0,
-      "money": 1830.76,
+      "money": 1847.23,
       "goods": {
-        "wheat": 10.056,
-        "coarse_flour": 138.264,
+        "wheat": 76.704,
+        "coarse_flour": 82.08,
         "coarse_bread": 0,
-        "vegetable": 40.28,
+        "vegetable": 38.57,
         "fine_flour": 0,
         "white_bread": 0,
         "sugarcane": 0,
@@ -2943,12 +1944,11 @@
         "porcelain": 0,
         "domestic_service": 0,
         "entertainment": 0,
-        "wood": 152,
-        "stone": 119,
+        "wood": 286,
+        "stone": 147,
         "clay": 150,
         "firewood": 80,
-        "brick": 38,
-        "build_power": 54
+        "brick": 80
       },
       "prices": {
         "wheat": 1,
@@ -2983,92 +1983,21 @@
         "clay": 1.2,
         "firewood": 1.6,
         "brick": 3,
-        "build_power": 6,
         "hut": 10,
         "wooden_house": 25,
         "brick_house": 50
       },
       "housing": {
-        "hut": 17,
+        "hut": 5,
         "wooden_house": 0,
         "brick_house": 0
       },
       "shops": [
         {
-          "id": "brick_kiln#1",
-          "defId": "brick_kiln",
-          "level": 1,
-          "workers": 2,
-          "active": true
-        },
-        {
-          "id": "clay_pit#1",
-          "defId": "clay_pit",
-          "level": 1,
-          "workers": 6,
-          "active": true
-        },
-        {
-          "id": "coarse_bakery#1",
-          "defId": "coarse_bakery",
-          "level": 2,
-          "workers": 2,
-          "active": true
-        },
-        {
-          "id": "coarse_bakery#2",
-          "defId": "coarse_bakery",
-          "level": 1,
-          "workers": 2,
-          "active": true
-        },
-        {
           "id": "coarse_mill#1",
           "defId": "coarse_mill",
           "level": 1,
           "workers": 2,
-          "active": true
-        },
-        {
-          "id": "coarse_mill#2",
-          "defId": "coarse_mill",
-          "level": 1,
-          "workers": 2,
-          "active": true
-        },
-        {
-          "id": "coarse_mill#3",
-          "defId": "coarse_mill",
-          "level": 1,
-          "workers": 2,
-          "active": true
-        },
-        {
-          "id": "construction_works#1",
-          "defId": "construction_works",
-          "level": 1,
-          "workers": 3,
-          "active": true
-        },
-        {
-          "id": "firewood_works#1",
-          "defId": "firewood_works",
-          "level": 1,
-          "workers": 2,
-          "active": true
-        },
-        {
-          "id": "lumberjack#1",
-          "defId": "lumberjack",
-          "level": 1,
-          "workers": 8,
-          "active": true
-        },
-        {
-          "id": "quarry#1",
-          "defId": "quarry",
-          "level": 1,
-          "workers": 6,
           "active": true
         },
         {
@@ -3080,20 +2009,6 @@
         },
         {
           "id": "wheat_farm#1",
-          "defId": "wheat_farm",
-          "level": 1,
-          "workers": 6,
-          "active": true
-        },
-        {
-          "id": "wheat_farm#2",
-          "defId": "wheat_farm",
-          "level": 1,
-          "workers": 6,
-          "active": true
-        },
-        {
-          "id": "wheat_farm#3",
           "defId": "wheat_farm",
           "level": 1,
           "workers": 6,
@@ -3105,14 +2020,14 @@
       "day": 18,
       "hour": 0,
       "population": 12,
-      "satisfaction": 89.358,
+      "satisfaction": 89.336,
       "hungry": 0,
-      "money": 1818.36,
+      "money": 1834.59,
       "goods": {
-        "wheat": 10.08,
-        "coarse_flour": 148.32,
+        "wheat": 76.464,
+        "coarse_flour": 92.448,
         "coarse_bread": 0,
-        "vegetable": 29.28,
+        "vegetable": 27.78,
         "fine_flour": 0,
         "white_bread": 0,
         "sugarcane": 0,
@@ -3136,12 +2051,11 @@
         "porcelain": 0,
         "domestic_service": 0,
         "entertainment": 0,
-        "wood": 152,
-        "stone": 119,
+        "wood": 286,
+        "stone": 147,
         "clay": 150,
         "firewood": 80,
-        "brick": 38,
-        "build_power": 54
+        "brick": 80
       },
       "prices": {
         "wheat": 1,
@@ -3176,99 +2090,21 @@
         "clay": 1.2,
         "firewood": 1.6,
         "brick": 3,
-        "build_power": 6,
         "hut": 10,
         "wooden_house": 25,
         "brick_house": 50
       },
       "housing": {
-        "hut": 19,
+        "hut": 5,
         "wooden_house": 0,
         "brick_house": 0
       },
       "shops": [
         {
-          "id": "brick_kiln#1",
-          "defId": "brick_kiln",
-          "level": 1,
-          "workers": 2,
-          "active": true
-        },
-        {
-          "id": "clay_pit#1",
-          "defId": "clay_pit",
-          "level": 1,
-          "workers": 6,
-          "active": true
-        },
-        {
-          "id": "coarse_bakery#1",
-          "defId": "coarse_bakery",
-          "level": 2,
-          "workers": 2,
-          "active": true
-        },
-        {
-          "id": "coarse_bakery#2",
-          "defId": "coarse_bakery",
-          "level": 1,
-          "workers": 2,
-          "active": true
-        },
-        {
-          "id": "coarse_bakery#3",
-          "defId": "coarse_bakery",
-          "level": 1,
-          "workers": 2,
-          "active": true
-        },
-        {
           "id": "coarse_mill#1",
           "defId": "coarse_mill",
           "level": 1,
           "workers": 2,
-          "active": true
-        },
-        {
-          "id": "coarse_mill#2",
-          "defId": "coarse_mill",
-          "level": 1,
-          "workers": 2,
-          "active": true
-        },
-        {
-          "id": "coarse_mill#3",
-          "defId": "coarse_mill",
-          "level": 1,
-          "workers": 2,
-          "active": true
-        },
-        {
-          "id": "construction_works#1",
-          "defId": "construction_works",
-          "level": 1,
-          "workers": 3,
-          "active": true
-        },
-        {
-          "id": "firewood_works#1",
-          "defId": "firewood_works",
-          "level": 1,
-          "workers": 2,
-          "active": true
-        },
-        {
-          "id": "lumberjack#1",
-          "defId": "lumberjack",
-          "level": 1,
-          "workers": 8,
-          "active": true
-        },
-        {
-          "id": "quarry#1",
-          "defId": "quarry",
-          "level": 1,
-          "workers": 6,
           "active": true
         },
         {
@@ -3279,28 +2115,7 @@
           "active": true
         },
         {
-          "id": "vegetable_farm#2",
-          "defId": "vegetable_farm",
-          "level": 1,
-          "workers": 4,
-          "active": true
-        },
-        {
           "id": "wheat_farm#1",
-          "defId": "wheat_farm",
-          "level": 1,
-          "workers": 6,
-          "active": true
-        },
-        {
-          "id": "wheat_farm#2",
-          "defId": "wheat_farm",
-          "level": 1,
-          "workers": 6,
-          "active": true
-        },
-        {
-          "id": "wheat_farm#3",
           "defId": "wheat_farm",
           "level": 1,
           "workers": 6,
@@ -3312,14 +2127,14 @@
       "day": 19,
       "hour": 0,
       "population": 12,
-      "satisfaction": 89.457,
+      "satisfaction": 89.44,
       "hungry": 0,
-      "money": 1805.84,
+      "money": 1821.82,
       "goods": {
-        "wheat": 10.104,
-        "coarse_flour": 158.4,
+        "wheat": 76.224,
+        "coarse_flour": 102.84,
         "coarse_bread": 0,
-        "vegetable": 19.4,
+        "vegetable": 18.09,
         "fine_flour": 0,
         "white_bread": 0,
         "sugarcane": 0,
@@ -3343,12 +2158,11 @@
         "porcelain": 0,
         "domestic_service": 0,
         "entertainment": 0,
-        "wood": 152,
-        "stone": 119,
+        "wood": 286,
+        "stone": 147,
         "clay": 150,
         "firewood": 80,
-        "brick": 38,
-        "build_power": 54
+        "brick": 80
       },
       "prices": {
         "wheat": 1,
@@ -3383,99 +2197,21 @@
         "clay": 1.2,
         "firewood": 1.6,
         "brick": 3,
-        "build_power": 6,
         "hut": 10,
         "wooden_house": 25,
         "brick_house": 50
       },
       "housing": {
-        "hut": 19,
+        "hut": 5,
         "wooden_house": 0,
         "brick_house": 0
       },
       "shops": [
         {
-          "id": "brick_kiln#1",
-          "defId": "brick_kiln",
-          "level": 1,
-          "workers": 2,
-          "active": true
-        },
-        {
-          "id": "clay_pit#1",
-          "defId": "clay_pit",
-          "level": 1,
-          "workers": 6,
-          "active": true
-        },
-        {
-          "id": "coarse_bakery#1",
-          "defId": "coarse_bakery",
-          "level": 2,
-          "workers": 2,
-          "active": true
-        },
-        {
-          "id": "coarse_bakery#2",
-          "defId": "coarse_bakery",
-          "level": 1,
-          "workers": 2,
-          "active": true
-        },
-        {
-          "id": "coarse_bakery#3",
-          "defId": "coarse_bakery",
-          "level": 1,
-          "workers": 2,
-          "active": true
-        },
-        {
           "id": "coarse_mill#1",
           "defId": "coarse_mill",
           "level": 1,
           "workers": 2,
-          "active": true
-        },
-        {
-          "id": "coarse_mill#2",
-          "defId": "coarse_mill",
-          "level": 1,
-          "workers": 2,
-          "active": true
-        },
-        {
-          "id": "coarse_mill#3",
-          "defId": "coarse_mill",
-          "level": 1,
-          "workers": 2,
-          "active": true
-        },
-        {
-          "id": "construction_works#1",
-          "defId": "construction_works",
-          "level": 1,
-          "workers": 3,
-          "active": true
-        },
-        {
-          "id": "firewood_works#1",
-          "defId": "firewood_works",
-          "level": 1,
-          "workers": 2,
-          "active": true
-        },
-        {
-          "id": "lumberjack#1",
-          "defId": "lumberjack",
-          "level": 1,
-          "workers": 8,
-          "active": true
-        },
-        {
-          "id": "quarry#1",
-          "defId": "quarry",
-          "level": 1,
-          "workers": 6,
           "active": true
         },
         {
@@ -3486,28 +2222,7 @@
           "active": true
         },
         {
-          "id": "vegetable_farm#2",
-          "defId": "vegetable_farm",
-          "level": 1,
-          "workers": 4,
-          "active": true
-        },
-        {
           "id": "wheat_farm#1",
-          "defId": "wheat_farm",
-          "level": 1,
-          "workers": 6,
-          "active": true
-        },
-        {
-          "id": "wheat_farm#2",
-          "defId": "wheat_farm",
-          "level": 1,
-          "workers": 6,
-          "active": true
-        },
-        {
-          "id": "wheat_farm#3",
           "defId": "wheat_farm",
           "level": 1,
           "workers": 6,
@@ -3519,14 +2234,14 @@
       "day": 20,
       "hour": 0,
       "population": 12,
-      "satisfaction": 89.537,
+      "satisfaction": 89.523,
       "hungry": 0,
-      "money": 1793.2,
+      "money": 1808.93,
       "goods": {
-        "wheat": 10.128,
-        "coarse_flour": 168.504,
+        "wheat": 75.984,
+        "coarse_flour": 113.256,
         "coarse_bread": 0,
-        "vegetable": 10.53,
+        "vegetable": 9.39,
         "fine_flour": 0,
         "white_bread": 0,
         "sugarcane": 0,
@@ -3550,12 +2265,11 @@
         "porcelain": 0,
         "domestic_service": 0,
         "entertainment": 0,
-        "wood": 152,
-        "stone": 119,
+        "wood": 286,
+        "stone": 147,
         "clay": 150,
         "firewood": 80,
-        "brick": 38,
-        "build_power": 54
+        "brick": 80
       },
       "prices": {
         "wheat": 1,
@@ -3590,99 +2304,21 @@
         "clay": 1.2,
         "firewood": 1.6,
         "brick": 3,
-        "build_power": 6,
         "hut": 10,
         "wooden_house": 25,
         "brick_house": 50
       },
       "housing": {
-        "hut": 19,
+        "hut": 5,
         "wooden_house": 0,
         "brick_house": 0
       },
       "shops": [
         {
-          "id": "brick_kiln#1",
-          "defId": "brick_kiln",
-          "level": 1,
-          "workers": 2,
-          "active": true
-        },
-        {
-          "id": "clay_pit#1",
-          "defId": "clay_pit",
-          "level": 1,
-          "workers": 6,
-          "active": true
-        },
-        {
-          "id": "coarse_bakery#1",
-          "defId": "coarse_bakery",
-          "level": 2,
-          "workers": 2,
-          "active": true
-        },
-        {
-          "id": "coarse_bakery#2",
-          "defId": "coarse_bakery",
-          "level": 1,
-          "workers": 2,
-          "active": true
-        },
-        {
-          "id": "coarse_bakery#3",
-          "defId": "coarse_bakery",
-          "level": 1,
-          "workers": 2,
-          "active": true
-        },
-        {
           "id": "coarse_mill#1",
           "defId": "coarse_mill",
           "level": 1,
           "workers": 2,
-          "active": true
-        },
-        {
-          "id": "coarse_mill#2",
-          "defId": "coarse_mill",
-          "level": 1,
-          "workers": 2,
-          "active": true
-        },
-        {
-          "id": "coarse_mill#3",
-          "defId": "coarse_mill",
-          "level": 1,
-          "workers": 2,
-          "active": true
-        },
-        {
-          "id": "construction_works#1",
-          "defId": "construction_works",
-          "level": 1,
-          "workers": 3,
-          "active": true
-        },
-        {
-          "id": "firewood_works#1",
-          "defId": "firewood_works",
-          "level": 1,
-          "workers": 2,
-          "active": true
-        },
-        {
-          "id": "lumberjack#1",
-          "defId": "lumberjack",
-          "level": 1,
-          "workers": 8,
-          "active": true
-        },
-        {
-          "id": "quarry#1",
-          "defId": "quarry",
-          "level": 1,
-          "workers": 6,
           "active": true
         },
         {
@@ -3693,28 +2329,7 @@
           "active": true
         },
         {
-          "id": "vegetable_farm#2",
-          "defId": "vegetable_farm",
-          "level": 1,
-          "workers": 4,
-          "active": true
-        },
-        {
           "id": "wheat_farm#1",
-          "defId": "wheat_farm",
-          "level": 1,
-          "workers": 6,
-          "active": true
-        },
-        {
-          "id": "wheat_farm#2",
-          "defId": "wheat_farm",
-          "level": 1,
-          "workers": 6,
-          "active": true
-        },
-        {
-          "id": "wheat_farm#3",
           "defId": "wheat_farm",
           "level": 1,
           "workers": 6,

@@ -798,7 +798,7 @@ func load_from(path: String) -> bool:
 	var sim := SimCore.new(runner.db)
 	sim.s = sp["state"]
 	sim.rng = Rng.new(int(sp.get("rngState", 0)))
-	SaveManager._sanitize(sim.s)
+	SaveManager._sanitize(sim.s, runner.db)
 	runner.sim = sim
 	runner.recent_logs = []
 

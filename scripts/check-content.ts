@@ -19,7 +19,7 @@ console.log(
   `商品 ${GOOD_IDS.length} · 建筑 ${BUILDING_IDS.length} · 阶层 ${CLASS_IDS.length} · 住房 ${Object.keys(ALL_HOUSING).length} · 内容包 ${PACK_IDS.length}`,
 )
 console.log(
-  `参数：refWage ${ECONOMY.refWage} · 税表 ${ECONOMY.defaultTaxBrackets.length} 档 · 施工 ${ECONOMY.constructionDays} 天 · 基础食物 ${TUNING.basicFoods.join('、')} · 口粮链种子 ${TUNING.foodChainSeedClass}`,
+  `参数：refWage ${ECONOMY.refWage} · 税表 ${ECONOMY.defaultTaxBrackets.length} 档 · 失业人口建造力 ${ECONOMY.construction.unemployedRate}/日 · 基础食物 ${TUNING.basicFoods.join('、')} · 口粮链种子 ${TUNING.foodChainSeedClass}`,
 )
 for (const id of PACK_IDS) {
   const p = PACKS[id]

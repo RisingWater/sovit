@@ -41,28 +41,31 @@ func _load() -> void:
 
 	var b: Dictionary = _read_json("buildings.json")
 	for it in b["buildings"]:
-		var rec: Dictionary = it["recipe"]
-		var rid := "r_" + String(it["id"])
-		recipes[rid] = {
-			"id": rid,
-			"building": String(it["id"]),
-			"inputs": rec.get("inputs", {}),
-			"output": rec["output"],
-			"baseRate": float(rec["baseRate"]),
-			"fuel": float(rec.get("fuel", 0.0)),
-		}
 		var bdef := {
 			"id": String(it["id"]),
 			"nameZh": String(it["nameZh"]),
 			"tier": int(it["tier"]),
 			"workers": int(it["workers"]),
 			"maxWorkers": int(it.get("maxWorkers", it["workers"])),
-			"recipe": rid,
 			"buildCost": it.get("buildCost", {}),
 			# 外观规格：UI 分类与占地都靠它，必须保留
 			"art": it.get("art", {}),
 		}
-		# 施工工时（人·天）。引擎尚未使用，但数据层要保留 —— 设计见 docs/construction.md
+		# 配方：产商品的建筑必有；「建筑工坊」这类产出*建造产能*的建筑没有配方
+		# （其产出由 docs/construction.md 的产能公式给出），故 recipe 只在存在时写入。
+		if it.has("recipe"):
+			var rec: Dictionary = it["recipe"]
+			var rid := "r_" + String(it["id"])
+			recipes[rid] = {
+				"id": rid,
+				"building": String(it["id"]),
+				"inputs": rec.get("inputs", {}),
+				"output": rec["output"],
+				"baseRate": float(rec["baseRate"]),
+				"fuel": float(rec.get("fuel", 0.0)),
+			}
+			bdef["recipe"] = rid
+		# 施工工时（建造力 / 人·天）。设计见 docs/construction.md
 		if it.has("buildWork"):
 			bdef["buildWork"] = int(it["buildWork"])
 		# terrain 只在存在时写入，避免 has("terrain") 永远为真

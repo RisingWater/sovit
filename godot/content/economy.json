@@ -12,7 +12,6 @@
 
   "economy": {
     "refWage": 3,
-    "welfareRate": 1.0,
     "defaultTaxBrackets": [
       { "upTo": 2, "rate": 0.08 },
       { "upTo": 3.5, "rate": 0.22 },
@@ -33,7 +32,14 @@
     "buildMoneyByTier": { "1": 100, "2": 250, "3": 500 },
     "expandMoneyBase": 80,
     "maxBuildingSlots": null,
-    "constructionDays": 2,
+
+    "construction": {
+      "unemployedRate": 1.0,
+      "workshopBase": 2.5,
+      "wageRate": 0.8,
+      "upgradePerLevel": 24
+    },
+
     "defaultRent": 0.05,
     "privateHousingSatBonus": 12,
     "privateTenantSatBonus": 4,

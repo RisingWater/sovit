@@ -1,5 +1,12 @@
-import type { Action, GameState } from '../engine/types.ts'
-import { ALL_GOODS, ECONOMY, buildContext, housingCapacity, isLuxuryGood } from '../engine/index.ts'
+import type { Action, BuildingDef, GameState } from '../engine/types.ts'
+import {
+  ALL_GOODS,
+  ECONOMY,
+  buildContext,
+  foodChainShopIds,
+  housingCapacity,
+  isLuxuryGood,
+} from '../engine/index.ts'
 import type { ContentContext } from '../engine/index.ts'
 import { clamp, sum } from '../engine/util.ts'
 
@@ -10,7 +17,16 @@ import { clamp, sum } from '../engine/util.ts'
 //  - 增长策略（含住房的 pack，如 v0.2）：保持建材链运转，建住房提人口上限，
 //    补岗位与粮食，直到土地上限。
 //  - 稳态策略（v0.1，无住房）：满员用工、按需扩产，人口由岗位封顶。
+//
+// 施工是一条**串行**队列，产能 = 失业人口 + 建筑工坊工人（见 docs/construction.md）。
+// 因此有两条硬约束：① 不能无限下单（队列会永远排不完）；② 必须留人上工地
+// （全村满员就业 → 建造力 0 → 永久停工）。
 // ---------------------------------------------------------------------------
+
+/** 同时排队施工的工程上限。 */
+const MAX_CONSTRUCTION_QUEUE = 4
+/** 有在建工程时，留给工地的常住人口比例。 */
+const CONSTRUCTION_RESERVE_RATIO = 0.25
 
 function lookbackHungry(state: GameState): number {
   return state.history[state.history.length - 1]?.hungry ?? 0
@@ -42,6 +58,13 @@ function commonActions(
   const money = state.government.money
   const pop = state.residents.length
 
+  // 用工：全部按参照用工满员开岗。
+  //
+  // 这里**刻意不给工地预留人手**。曾经试过"按比例留下建造队"，结果是：
+  // 人口迁入的闸门是 `jobCapacity = Σ targetWorkers`（population.ts），
+  // 一压低开岗数，jobCapacity 就低于人口 → 一个移民也进不来 → 村子上限被锁死。
+  // 建造力因此改由**建筑工坊**（固定工位，一人顶两个闲人）提供：
+  // 开局靠失业人口起手，之后靠工坊，两者都不需要压低开岗数。
   for (const shop of state.shops) {
     const def = ctx.buildings[shop.defId]
     if (!def) continue
@@ -134,6 +157,8 @@ function decideGrowth(state: GameState, ctx: ContentContext): Action[] {
   const housingCap = housingCapacity(state, ctx)
   const housingRoom = housingCap - pop
   const jobRoom = jobCapacity(state, ctx) - pop
+  // 富余劳动力：一个闲人都没有时再建店，只会把现有工坊一起摊瘦（施工还要另留人）。
+  const spareJobs = pop - jobCapacity(state, ctx)
 
   // 产能（满员近似）：某商品每日最大产出。
   const productionCapacity = (gid: string): number => {
@@ -142,7 +167,7 @@ function decideGrowth(state: GameState, ctx: ContentContext): Action[] {
       if (!shop.active) continue
       const def = ctx.buildings[shop.defId]
       if (!def) continue
-      const recipe = ctx.recipes[def.recipe]
+      const recipe = def.recipe ? ctx.recipes[def.recipe] : undefined
       if (!recipe) continue
       const out = recipe.output[gid]
       if (out) cap += recipe.baseRate * shop.level * out
@@ -203,8 +228,13 @@ function decideGrowth(state: GameState, ctx: ContentContext): Action[] {
   const canAfford = (mats: Array<[string, number]>) => mats.every(([g, q]) => afford(g, q))
   const payMats = (mats: Array<[string, number]>) => mats.forEach(([g, q]) => spend(g, q))
 
+  // 施工是**串行**队列，下单也不再扣材料（开工时才扣），所以必须自己限流：
+  // 排太多的话队尾永远轮不到，且材料会被反复"看上去够"而超订。
+  const queueFull = (): boolean => state.construction.length >= MAX_CONSTRUCTION_QUEUE
+
   const pushExpand = (defId: string): void => {
     if (picks.length >= MAX_PICKS) return
+    if (queueFull()) return
     const shop = shopOf(defId)
     if (!shop || shop.level >= 8) return
     const key = 'e:' + shop.id
@@ -223,11 +253,16 @@ function decideGrowth(state: GameState, ctx: ContentContext): Action[] {
   }
   const pushBuild = (id: string, n: number): void => {
     if (picks.length >= MAX_PICKS) return
+    if (queueFull()) return
     if ((counts[id] ?? 0) >= n || !ctx.buildingSet.has(id)) return
-    const key = 'b:' + id
-    if (picked.has(key)) return
     const def = ctx.buildings[id]
     if (!def) return
+    // 没有富余劳动力就先别建店：工位空着没有意义，反而摊薄现有工坊的人手。
+    // 例外：建筑工坊不产商品，它把工人**变成建造力**（一人顶两个闲人）——
+    // 村里没有闲人是常态，恰恰得靠它才能继续施工。
+    if (spareJobs <= 0 && def.recipe !== undefined) return
+    const key = 'b:' + id
+    if (picked.has(key)) return
     const mats = matsOf(def.buildCost)
     if (mats.length > 0) {
       if (!canAfford(mats)) return
@@ -240,6 +275,7 @@ function decideGrowth(state: GameState, ctx: ContentContext): Action[] {
   }
   const pushHouse = (gid: string): void => {
     if (picks.length >= MAX_PICKS) return
+    if (queueFull()) return
     const key = 'h:' + gid
     if (picked.has(key)) return
     const def = ctx.housing[gid]
@@ -250,6 +286,13 @@ function decideGrowth(state: GameState, ctx: ContentContext): Action[] {
     picks.push({ type: 'build_housing', goodId: gid })
     picked.add(key)
   }
+
+  // 0. 建造力引擎：建筑工坊必须是**第一座**建筑。
+  //    施工能力一旦归零（全村满员就业且没有工坊）就再也建不动任何东西——死锁：
+  //    没有工坊 → 没有建造力 → 建不出工坊。开局那批失业人口是唯一的起手资本，
+  //    必须优先拿去建工坊，而不是被食品链一次吃光。
+  //    它不产商品，只把工人变成 2 倍建造力，是村子唯一的产能增量来源。
+  if (ctx.buildingSet.has('construction_works')) pushBuild('construction_works', 2)
 
   // 1. 木材（通用建材）：木材偏低时补伐木场
   if ((state.goods['wood'] ?? 0) < pop * 2) pushExpand('lumberjack')
@@ -272,13 +315,15 @@ function decideGrowth(state: GameState, ctx: ContentContext): Action[] {
   if (vegRatio < 1) pushExpand('vegetable_farm')
 
   // 3. 建材 / 建造力链最小规模
+  // 建筑工坊排第一：它是建造力的**唯一增量来源**（把工人变成 2 倍建造力），
+  // 不先把它建起来，村子一旦满员就业就再也动不了工。
   const minChain: Array<[string, number]> = [
+    ['construction_works', 2],
     ['lumberjack', 3],
     ['quarry', 1],
     ['clay_pit', 1],
     ['firewood_works', 1],
     ['brick_kiln', 1],
-    ['construction_works', 2],
   ]
   for (const [id, n] of minChain) pushBuild(id, n)
 

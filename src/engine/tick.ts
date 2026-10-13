@@ -13,14 +13,15 @@ import { collectRent, assignTenure, runPrivateHousingMarket } from './systems/ho
 import { runConsumption } from './systems/consumption.ts'
 import { updateSatisfaction } from './systems/satisfaction.ts'
 import { updatePopulation, applyAdmission, computeArrivals } from './systems/population.ts'
-import { advanceConstruction, activateCompleted } from './systems/investment.ts'
+import { settleConstruction, activateCompleted } from './systems/investment.ts'
 
 // ---------------------------------------------------------------------------
 // 每日结算（小时制）
 //
 // 06:00 黎明：day++ → 应用「次日生效」队列 → 启用昨日完工 → 用工 → 排产
 // 06–18 白天：每小执行今日计划 × 1/工作小时数
-// 18:00 夜晚：工资 → 收租 → 消费 → 买房 → 满意度 → 人口 → 移民 → 损耗 → 技能 → 施工
+// 18:00 夜晚：施工结算（产能投队列、开工扣材料）→ 工资 → 收租 → 消费 → 买房
+//             → 满意度 → 人口 → 移民 → 损耗 → 技能
 // ---------------------------------------------------------------------------
 
 const WORK_HOURS = TIME.workEnd - TIME.workStart
@@ -77,6 +78,8 @@ export function runNight(state: GameState, ctx: ContentContext, rng: ReturnType<
   const day = state.day
   const logs: LogEntry[] = []
 
+  // 施工结算必须在工资之前：它决定当天有多少失业人口「在工地上出工」（建造工资）。
+  logs.push(...settleConstruction(state, ctx, day))
   logs.push(...payWages(state, day))
   assignTenure(state, ctx)
   logs.push(...collectRent(state, ctx, day))
@@ -91,7 +94,6 @@ export function runNight(state: GameState, ctx: ContentContext, rng: ReturnType<
 
   logs.push(...updatePopulation(state, ctx, rng, consumption.hungry, day))
   logs.push(...applyAdmission(state, ctx, rng, day))
-  advanceConstruction(state)
   applySpoilage(state, ctx)
   growSkills(state)
   computeArrivals(state)

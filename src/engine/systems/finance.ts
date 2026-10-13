@@ -6,7 +6,8 @@ import { clamp, round2 } from '../util.ts'
 // 财政
 //
 // 累进所得税：按可运行时调整的税表分档计征（工资与租金收入同规则）。
-// 政府付 gross（工资/保障金），按累进税率代扣，余额给居民。
+// 政府付 gross（工坊工资 / 工地出工报酬），按累进税率代扣，余额给居民。
+// 失业且没有工程可做者收入为 0（失业保障金已取消，见 docs/construction.md 五）。
 // ---------------------------------------------------------------------------
 
 /** 累进所得税：对一笔收入按税表分档计征。 */
@@ -31,30 +32,34 @@ export function payWages(state: GameState, day: number): LogEntry[] {
     capByShop.set(s.id, s.wageCap)
   }
   const brackets = state.government.taxBrackets
-  const welfareGross = round2(ECONOMY.refWage * ECONOMY.welfareRate)
 
   let grossTotal = 0
   let taxTotal = 0
   for (const r of state.residents) {
-    const employed = r.employed && r.jobShopId
-    const wageBase = employed ? wageByShop.get(r.jobShopId!) ?? 0 : welfareGross
-    // 技能挂钩收入：熟练者更富，形成阶层流动。
-    let gross = employed
-      ? wageBase * (ECONOMY.skillIncomeBase + Math.min(ECONOMY.skillMax, r.skill) / 100)
-      : wageBase
-    // 工坊工资上限：封顶每人实际工资。
-    if (employed) {
-      const cap = capByShop.get(r.jobShopId!) ?? 0
+    let gross: number
+    if (r.constructionPay !== undefined && r.constructionPay > 0) {
+      // 工地临时工：日薪已由建造结算按「当日实际投入的建造力」算出。
+      // 非熟练临时工，不吃熟练度加成、也不受工坊工资上限约束。
+      gross = r.constructionPay
+    } else if (r.employed && r.jobShopId) {
+      const wageBase = wageByShop.get(r.jobShopId) ?? 0
+      // 技能挂钩收入：熟练者更富，形成阶层流动。
+      gross = wageBase * (ECONOMY.skillIncomeBase + Math.min(ECONOMY.skillMax, r.skill) / 100)
+      // 工坊工资上限：封顶每人实际工资。
+      const cap = capByShop.get(r.jobShopId) ?? 0
       if (cap > 0) gross = Math.min(gross, cap)
+    } else {
+      // 失业且没有工程可做：无收入（失业保障金已取消，见 docs/construction.md 五）
+      gross = 0
     }
     const tax = progressiveTax(gross, brackets)
     r.savings = round2(r.savings + gross - tax)
     grossTotal += gross
     taxTotal += tax
 
-    // 逐人记账：工资/保障金与代扣税。租与消费在后面两步append到同一份账目上。
+    // 逐人记账：工资（含工地出工报酬）与代扣税。租与消费在后面两步append到同一份账目上。
     // 现在是"平均分配"，数值上个人账目汇总 == 阶层汇总；分开记录是为了将来
-    // 能做差异化（按收入/偏好/距离分配）时不必再动数据结构。
+    // 能做差异化（按收入、按偏好、按距离…）时不必再动数据结构。
     r.account = {
       wage: round2(gross),
       tax: round2(tax),

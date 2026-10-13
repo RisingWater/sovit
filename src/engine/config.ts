@@ -8,11 +8,20 @@ import { CONTENT } from './content/bundle.ts'
 // 改这些值只需编辑 economy.json。
 // ---------------------------------------------------------------------------
 
+export interface ConstructionConfig {
+  /** 失业人口每人每日提供的建造力（非熟练工，固定）。 */
+  unemployedRate: number
+  /** 建筑工坊工人每人每日的建造力基数（乘熟练度曲线）。 */
+  workshopBase: number
+  /** 工地临时工工资 = refWage × 该值（失业人口上工地的报酬）。 */
+  wageRate: number
+  /** 扩产（+1 级）所需建造力 = 该值 × 当前等级。 */
+  upgradePerLevel: number
+}
+
 export interface EconomyConfig {
   /** 工资水平的参照基准。 */
   refWage: number
-  /** 失业者领取的保障金 = refWage × welfareRate。 */
-  welfareRate: number
   /** 默认累进所得税税表（AI/玩家可运行时调整）。 */
   defaultTaxBrackets: TaxBracket[]
   /** 需求价格弹性：价格越高需求越低。 */
@@ -42,8 +51,8 @@ export interface EconomyConfig {
   expandMoneyBase: number
   /** 土地上限：建筑总数（含在建、住房）不得超过该值（Infinity = 不限）。 */
   maxBuildingSlots: number
-  /** 施工天数。 */
-  constructionDays: number
+  /** 建造力（每日施工产能）参数。设计见 docs/construction.md。 */
+  construction: ConstructionConfig
   /** 默认人均日租金（国有住房）。 */
   defaultRent: number
   /** 私有住房（房主）带来的满意度加成（点数）。 */

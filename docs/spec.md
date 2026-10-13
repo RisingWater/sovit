@@ -65,10 +65,10 @@ goods[g] += output[g]  * batches
 
 ## 3. 用工 `assignLabor`（黎明）
 
-1. 重置所有居民 `employed=false, jobShopId=undefined`。
+1. 重置所有居民 `employed=false, jobShopId=undefined, constructionPay=undefined`。
 2. **口粮链**：以 `tuning.foodChainSeedClass` 的食物 `needs` 为种子，对 `recipes` 反复回溯上游投入（仅限本 pack 商品），得到集合 `F`。
    - 若种子阶层无食物需求：退化为「本 pack 所有 `category=food` 商品」。
-3. 建筑分为两档：`priority`（其配方任一产出 ∈ F）与其余。
+3. 建筑分为两档：`priority`（其配方任一产出 ∈ F；**无配方的建筑不算**）与其余。
 4. 分配（`budget = pop`）：
    - priority 按 `state.shops` 顺序依次满足 `want = min(targetWorkers, def.maxWorkers ?? def.workers)`。
    - 其余按 `want` 比例用**最大余数法**分配剩余 `budget`。
@@ -82,8 +82,11 @@ goods[g] += output[g]  * batches
 
 ### 4.2 工资 `payWages`（夜晚，每天一次）
 ```
-welfareGross = refWage * welfareRate
-gross = employed ? min(wage*(skillIncomeBase + min(skillMax,skill)/100), wageCap||∞) : welfareGross
+# 失业保障金已取消：没有工程可做 = 零收入（见 §9 与 docs/construction.md）
+buildPay = resident.constructionPay ?? 0
+gross = buildPay > 0            ? buildPay                         # 工地临时工，固定日薪
+      : employed && jobShopId   ? min(wage*(skillIncomeBase+min(skillMax,skill)/100), wageCap||∞)
+      : 0
 tax = progressiveTax(gross, brackets)
 savings += gross − tax ;  government.money += (Σtax − Σgross)
 ```
@@ -150,10 +153,42 @@ satisfaction = clamp(satisfaction + (target−satisfaction)*satisfactionSmoothin
 
 ## 9. 施工（建店 / 升级 / 建房）
 
-- `tryBuild/tryExpand/tryBuildHousing`：立即扣材料（或资金），压入 `construction{kind, daysLeft=constructionDays}`。
-- **夜晚** `advanceConstruction`：`daysLeft -= 1`。
-- **黎明** `activateCompleted`：`daysLeft<=0` 的按 kind 生效（建店/升级/建房）。
+> **建造力 = 每日施工产能（速率，不是库存）**。完整设计见 `docs/construction.md`。
+
+### 9.1 每日产能 `constructionRate`
+```
+rate = Σ(失业居民) × construction.unemployedRate
+     + Σ(建筑工坊在岗工人) × construction.workshopBase × (skillEffectBase + skillEffectSlope × 熟练度/100)
+```
+- 「建筑工坊」= **没有 `recipe` 的建筑**（产出建造产能而非商品）。
+- 失业居民 = `!resident.employed`。产能**不结转**，当天没用完即作废。
+
+### 9.2 下单 `tryBuild` / `tryExpand` / `tryBuildHousing`
+只检查资源是否够，占住队列位，**不扣材料**；压入
+`construction{kind, remaining=buildWork, totalRequired, started=false}`。
+- 建筑工时 `buildWork` 见 `content/buildings.json`；住房见 `housing.json`。
+- 升级工时 = `construction.upgradePerLevel × 当前等级`。
 - `usedSlots = shops + 在建(非 upgrade) + housing`。
+
+### 9.3 夜晚 `settleConstruction`（**在 `payWages` 之前**）
+先进先出，串行投入：
+```
+for c in construction:                       # 队首 → 队尾
+    if !c.started:
+        spec = costOf(c)                     # 实物原料，或（无可用原料时）资金
+        不足 → 记日志「等待材料」，break      # 停在队首，不跳过
+        足够 → payCost(spec); c.started = true
+    used = min(rate, c.remaining)
+    c.remaining -= used ; rate -= used ; work += used
+    rate <= 0 → break
+markConstructionWorkers(work)
+```
+`markConstructionWorkers`：出工人数 `n = min(失业人数, ceil(work))`；
+总工资 `bill = work × refWage × construction.wageRate`，在 n 人之间平均分配，
+写入 `resident.constructionPay` 并置 `employed = true`（当晚算就业、计熟练度增长）。
+
+### 9.4 黎明 `activateCompleted`
+`remaining <= 0` 的按 kind 生效（建店 / 升级 / 建房），其余留队。
 
 ## 10. 初始状态 `createInitialState`
 

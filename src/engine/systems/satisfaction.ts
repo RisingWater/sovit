@@ -25,7 +25,6 @@ export function updateSatisfaction(
     weights.food + weights.wage + weights.price + weights.employment + weights.comfort
   const wageByShop = new Map<string, number>()
   for (const s of state.shops) wageByShop.set(s.id, s.wage)
-  const welfare = ECONOMY.refWage * ECONOMY.welfareRate
   const netIncome = ECONOMY.refWage - progressiveTax(ECONOMY.refWage, state.government.taxBrackets)
   const rentPressure = clamp(state.government.rent / Math.max(0.1, netIncome), 0, 1)
 
@@ -33,8 +32,14 @@ export function updateSatisfaction(
     const food = foodScore[r.classId] ?? 1
     const comfort = comfortScore[r.classId] ?? 1
     const price = priceScoreMap[r.classId] ?? 1
-    const employed = r.employed && r.jobShopId !== undefined
-    const wage = employed ? wageByShop.get(r.jobShopId!) ?? 0 : welfare
+    const employed = r.employed
+    // 收入：在职工坊工资 / 工地出工报酬；失业且无工程可做 = 0（保障金已取消）
+    const wage =
+      r.constructionPay !== undefined && r.constructionPay > 0
+        ? r.constructionPay
+        : employed && r.jobShopId
+          ? wageByShop.get(r.jobShopId) ?? 0
+          : 0
     const wageScore = clamp(wage / refWage, 0, TUNING.wageScoreCap) / TUNING.wageScoreCap
     const employmentScore = employed ? 1 : TUNING.unemployedEmploymentScore
 

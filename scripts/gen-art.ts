@@ -794,10 +794,6 @@ function goodIcon(id: string): Canvas {
       c.rect(11, 3, 1, 4, I_DARK)
       c.disc(5, 11, 2, I_PURPLE)
       break
-    case 'build_power':
-      c.rect(3, 8, 10, 3, I_GREY); c.stroke(3, 8, 10, 3, I_DARK)
-      c.rect(7, 2, 3, 7, I_WOOD); c.stroke(7, 2, 3, 7, I_DARK)
-      break
     case 'hut': case 'wooden_house': case 'brick_house':
       c.rect(3, 8, 10, 5, id === 'brick_house' ? I_CLAY : I_WOOD)
       c.rect(2, 5, 12, 3, id === 'hut' ? I_RED_D : I_STONE)
