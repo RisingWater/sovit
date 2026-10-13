@@ -104,8 +104,8 @@ func _icon_row(gid: String, right: String, color: Color = UIKit.FG_DARK) -> void
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 5)
 	var tr := TextureRect.new()
-	tr.texture = load("res://assets/goods/%s.png" % gid)
-	tr.custom_minimum_size = Vector2(16, 16)
+	tr.texture = GoodIcons.tex(gid)
+	tr.custom_minimum_size = Vector2(UIKit.CHIP_ICON, UIKit.CHIP_ICON)
 	tr.stretch_mode = TextureRect.STRETCH_KEEP_CENTERED
 	row.add_child(tr)
 	var nm = String(runner.db.goods[gid]["nameZh"]) if runner.db.goods.has(gid) else gid

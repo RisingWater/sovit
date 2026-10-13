@@ -31,6 +31,8 @@ const GAP := 4
 const BAR_H := 58
 const BOT_H := 134
 const ROW_H := 18
+## 商品图标显示尺寸。手绘图标原生 32（程序化兜底是 16，放大到 32 也是整数倍）。
+const CHIP_ICON := 32
 const CORNER := 5       # 9-slice 角尺寸
 
 # 取件（来自清册核对）

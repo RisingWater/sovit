@@ -218,6 +218,18 @@ func _tech_row(s: Dictionary, db: ContentDB, tid: String) -> void:
 	var req_lbl := UIKit.label("科研力 %s" % _fmt(float(tech["research"])), UIKit.FG_DIM)
 	req_lbl.custom_minimum_size = Vector2(78, 0)
 	row.add_child(req_lbl)
+	# 解锁的产品图标：一眼看出这项科技值不值得研究
+	# （建筑用它的建造栏缩略图；住房同理）
+	var unlocks: Array = []
+	unlocks.append_array(tech["unlocks"]["buildings"])
+	unlocks.append_array(tech["unlocks"]["housing"])
+	for bid in unlocks:
+		var ic := TextureRect.new()
+		ic.texture = GoodIcons.tex(String(bid)) if db.goods.has(String(bid)) else load("res://assets/thumbs/%s.png" % bid)
+		ic.custom_minimum_size = Vector2(UIKit.CHIP_ICON, UIKit.CHIP_ICON)
+		ic.stretch_mode = TextureRect.STRETCH_KEEP_CENTERED
+		ic.tooltip_text = "解锁：" + (String(db.goods[bid]["nameZh"]) if db.goods.has(String(bid)) else String(bid))
+		row.add_child(ic)
 	var cost_lbl := UIKit.label("、".join(cost_parts) if cost_parts.size() > 0 else "无",
 		UIKit.FG_DARK if afford else Color(0.70, 0.25, 0.20))
 	cost_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL

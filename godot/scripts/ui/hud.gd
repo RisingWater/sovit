@@ -150,8 +150,9 @@ func _chip(gid: String) -> HBoxContainer:
 	var h := HBoxContainer.new()
 	h.add_theme_constant_override("separation", 3)
 	var tr := TextureRect.new()
-	tr.texture = load("res://assets/goods/%s.png" % gid)
-	tr.custom_minimum_size = Vector2(16, 16)
+	# 走单点加载器：手绘 icons/ 优先，回落程序化 goods/
+	tr.texture = GoodIcons.tex(gid)
+	tr.custom_minimum_size = Vector2(UIKit.CHIP_ICON, UIKit.CHIP_ICON)
 	tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	tr.stretch_mode = TextureRect.STRETCH_KEEP_CENTERED
 	h.add_child(tr)
@@ -207,6 +208,11 @@ func _build_picker() -> void:
 		cb.text = String(runner.db.goods[gid]["nameZh"])
 		cb.add_theme_font_override("font", UIKit.pixel_font())
 		cb.add_theme_font_size_override("font_size", UIKit.FS)
+		# 选项也带上图标，一眼能认出是哪种资源
+		var ic: Texture2D = GoodIcons.tex(String(gid))
+		if ic != null:
+			cb.icon = ic
+			cb.add_theme_constant_override("icon_max_width", UIKit.CHIP_ICON)
 		cb.button_pressed = _visible.has(gid)
 		cb.toggled.connect(_on_toggle.bind(String(gid)))
 		grid.add_child(cb)

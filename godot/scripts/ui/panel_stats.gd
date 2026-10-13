@@ -262,8 +262,8 @@ func _resources_tab() -> void:
 		var row := HBoxContainer.new()
 		row.add_theme_constant_override("separation", 5)
 		var ic := TextureRect.new()
-		ic.texture = load("res://assets/goods/%s.png" % gid2)
-		ic.custom_minimum_size = Vector2(16, 16)
+		ic.texture = GoodIcons.tex(gid2)
+		ic.custom_minimum_size = Vector2(UIKit.CHIP_ICON, UIKit.CHIP_ICON)
 		ic.stretch_mode = TextureRect.STRETCH_KEEP_CENTERED
 		row.add_child(ic)
 		var nb := UIKit.button(_good_name(gid2), true)
@@ -305,7 +305,7 @@ func _good_detail(right: VBoxContainer) -> void:
 	var head := HBoxContainer.new()
 	head.add_theme_constant_override("separation", 8)
 	var ic := TextureRect.new()
-	ic.texture = load("res://assets/goods/%s.png" % _sel_good)
+	ic.texture = GoodIcons.tex(_sel_good)
 	ic.custom_minimum_size = Vector2(48, 48)
 	ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED

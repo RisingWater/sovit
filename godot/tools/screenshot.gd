@@ -46,6 +46,21 @@ func _run() -> void:
 		quit(1)
 		return
 
+	# 标题页会盖住整个游戏 UI 并接管镜头 —— 不关掉的话截出来的永远是标题页。
+	if node.has_method("_end_title"):
+		node._end_title()
+		await process_frame
+
+	# 建筑现在带科技锁，不先解锁的话 _try_place 全部会被拒（截图里空空如也）。
+	# 这里只为截图把科技全开，不改引擎。
+	if runner.sim != null and runner.db != null:
+		var all: Array = []
+		for t in runner.db.tech_ids:
+			all.append(String(t))
+		runner.sim.s["research"]["done"] = all
+		# 人口上限放开，免得截图里没人
+		runner.sim.s["government"]["populationCap"] = 999.0
+
 	# 摆一批建筑，覆盖各种外形（农业 / 工坊 / 矿场 / 剧院 / 大工坊）
 	# 间距要按新占地算：农田 6x6、大工坊 5x3，所以用 12x9 的网格
 	var c: Vector2i = world.map.center
@@ -148,6 +163,14 @@ func _run() -> void:
 			panel._select_tab(int(mode.substr(5)) if mode.length() > 5 else 0)
 			await process_frame
 			print("SCREENSHOT stats tab -> ", mode)
+
+	# 科技面板
+	if mode == "tech":
+		var tp = node.get_node_or_null("UI/Root/Tech")
+		if tp != null:
+			tp.open()
+			await process_frame
+			print("SCREENSHOT tech panel opened")
 
 	# 可选：切到指定建造 Tab（0=住宅 1=农业 2=矿场 3=工业 4=娱乐 5=其它）
 	if args.size() > 2:
