@@ -196,9 +196,16 @@ func _build_stat_row(row: HBoxContainer) -> void:
 # 圆形用 StyleBoxFlat 的全圆角画，不额外做美术：
 # corner_radius 取按钮边长的一半就是正圆。
 # ---------------------------------------------------------------------------
-const NAV_BTN := 42
-const NAV_GAP := 8
-const NAV_TOP := 276.0      # 小地图挂件高 266，往下让 10px
+const NAV_BTN := 84
+const NAV_GAP := 10
+## 贴着窗体左边缘停靠（0 = 真正齐边；StyleBoxFlat 的边框画在矩形内侧，不会被裁）
+const NAV_LEFT := 0.0
+## 小地图挂件：custom_minimum_size = RING_D(128)，再加下方那条飘带到 ~140。
+## 所以 150 起就是"最上面的按钮停在小地图下方"。
+const NAV_TOP := 150.0
+## 圆钮里的图标尺寸。**必须是图标原生尺寸(32)的整数倍**，
+## 64 = 32 x 2 —— 非整数倍会把像素拉得大小不一（项目用 Nearest 过滤，肉眼可见）。
+const NAV_ICON := 64
 const NAV_ITEMS := [
 	["资源", "resource", 0],
 	["人口", "population", 1],
@@ -210,7 +217,7 @@ func _build_nav() -> void:
 	var col := VBoxContainer.new()
 	col.name = "NavCol"
 	col.add_theme_constant_override("separation", NAV_GAP)
-	col.position = Vector2(maxf(4.0, (left_inset - NAV_BTN) * 0.5), NAV_TOP)
+	col.position = Vector2(NAV_LEFT, NAV_TOP)
 	col.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	# ⚠️ 绝对不能 `add_child(col)` 到 self —— HUD 是 **PanelContainer**，
 	# 它会把每一个子节点强行拉伸到自己的内容区，圆钮列会被拉成一整块
@@ -236,7 +243,7 @@ func _build_nav() -> void:
 			# 即使没文字也会偏到左上角（实测圆钮里图标就是歪的）。
 			# 关掉 expand_icon，改成限定最大宽度 + 三向居中。
 			b.expand_icon = false
-			b.add_theme_constant_override("icon_max_width", NAV_BTN - 14)
+			b.add_theme_constant_override("icon_max_width", NAV_ICON)
 			b.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
 			b.alignment = HORIZONTAL_ALIGNMENT_CENTER
 			b.vertical_icon_alignment = VERTICAL_ALIGNMENT_CENTER
