@@ -120,6 +120,27 @@ func _load() -> void:
 	tuning = e["tuning"]
 	time = e["time"]
 
+## 商品 category 的中文名。
+##
+## category 是**引擎用的英文键**（raw / food / material …），不是给玩家看的词。
+## 任何要显示给玩家的地方都必须过这个函数 —— 直接把键印出来会得到「（raw）」这种。
+const CATEGORY_ZH := {
+	"raw": "原料",
+	"food": "食物",
+	"material": "材料",
+	"clothing": "衣物",
+	"household": "家用",
+	"fuel": "燃料",
+	"service": "服务",
+	"entertainment": "娱乐",
+	"tool": "工具",
+	"housing": "住房",
+}
+
+## 取 category 的中文名；未知的 category 原样返回（宁可露出键，也不要显示空白）。
+func category_zh(cat: String) -> String:
+	return String(CATEGORY_ZH.get(cat, cat))
+
 func is_luxury(gid: String) -> bool:
 	var g = goods.get(gid, null)
 	return g != null and bool(g.get("luxury", false))

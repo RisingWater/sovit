@@ -173,11 +173,15 @@ func _run() -> void:
 			if not chips.is_empty():
 				var chip: Control = chips.values()[0]
 				var gp := chip.get_global_rect().get_center()
-				var ev := InputEventMouseMotion.new()
-				ev.position = gp
-				ev.global_position = gp
-				Input.parse_input_event(ev)
-				await create_timer(2.0).timeout
+				# 先把指针挪开、再挪上去 —— Godot 只在"鼠标**移入**"时起 tooltip 计时，
+				# 直接原地发一个 motion 事件有时不触发（实测时灵时不灵）。
+				for pos in [Vector2(4, 4), gp]:
+					var ev := InputEventMouseMotion.new()
+					ev.position = pos
+					ev.global_position = pos
+					Input.parse_input_event(ev)
+					await create_timer(0.15).timeout
+				await create_timer(1.5).timeout
 				print("SCREENSHOT tip hover at ", gp, " tip=", chip.tooltip_text.replace("\n", " / "))
 
 	# 科技面板

@@ -347,7 +347,9 @@ func _chip_tip(gid: String, amt: float, rsv: float, s: Dictionary) -> String:
 	if db != null and db.goods.has(gid):
 		var gdef: Dictionary = db.goods[gid]
 		nm = String(gdef["nameZh"])
-		lines.append("%s　（%s）" % [nm, String(gdef.get("category", ""))])
+		# 显示**中文**类别。绝不印内部的英文键（raw / food 这种）——
+		# 那是给引擎用的，印出来玩家看不懂，就是「（raw）」那种毛病。
+		lines.append("%s · %s" % [nm, db.category_zh(String(gdef.get("category", "")))])
 	else:
 		lines.append(nm)
 	lines.append("库存 %s" % _amt(amt))

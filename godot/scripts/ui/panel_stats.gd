@@ -314,7 +314,8 @@ func _good_detail(right: VBoxContainer) -> void:
 	col.add_theme_constant_override("separation", 0)
 	var nm := _big(_good_name(_sel_good))
 	col.add_child(nm)
-	var sub := UIKit.label(String(gd.get("category", "")), Color(0.62, 0.48, 0.34))
+	# 中文类别（内部键是英文，直接印出来会变成「raw」这种）
+	var sub := UIKit.label(runner.db.category_zh(String(gd.get("category", ""))), Color(0.62, 0.48, 0.34))
 	col.add_child(sub)
 	head.add_child(col)
 	head.add_child(UIKit.spacer())
