@@ -276,6 +276,7 @@ curl -X POST http://localhost:8787/act \
 | 光标 | Kenney Cursor Pixel Pack | CC0 |
 | 字体 | Fusion Pixel Font | OFL-1.1 |
 | 菜单音效 | Kenney UI SFX Set | CC0 |
+| **36 个商品图标** | 像素图标包（**doubao**） | **MIT** |
 | 背景音乐 | RPG Town Pack（Talon Trueblood） | 免费 + **需署名** |
 | 12 张房屋贴图 + 标题 logo | SUPER RETRO WORLD / AI 生成 | ⚠️ **见下** |
 
@@ -283,6 +284,7 @@ curl -X POST http://localhost:8787/act \
 > 其授权**禁止**以可提取的独立形式再分发、**禁止上传到任何仓库**。
 > 标题 logo 为 AI 生成（带 WORKBUDDY 水印），授权归属需自行确认。
 > 音乐需在制作人员名单署名 `Music: Talon Trueblood`。
+> 商品图标为 MIT（作者 doubao），许可证原文见 `godot/assets/icons/LICENSE.txt`，**随仓库保留**。
 > 详见 [`CREDITS.md`](godot/assets/CREDITS.md)。
 
 ---

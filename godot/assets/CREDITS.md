@@ -1,7 +1,9 @@
 # 第三方素材授权（godot/assets/）
 
-本项目的美术素材来自以下开源资源。**除字体外全部为 CC0（公有领域），可商用、无需署名**
+本项目的美术素材来自以下开源资源。多数为 CC0（公有领域），可商用、无需署名
 （署名是自愿的，这里列出以示尊重）。字体为 OFL-1.1，可自由嵌入与再分发。
+**例外**：商品图标为 **MIT**（需保留版权声明）；`props/` 的房屋为**专有商用授权**
+（禁止散装再分发，所以本仓库应保持私有 —— 见下文）。
 
 | 目录 / 文件 | 来源 | 作者 | 授权 |
 |---|---|---|---|
@@ -13,7 +15,8 @@
 | `fonts/fusion-pixel-12px-zh_hans.ttf` | 同上（当前 UI 用的就是这一档） | TakWolf | **OFL-1.1** |
 | `buildings/*.png` | 本项目由 `content/*.json` 的 `art` 字段生成 | — | 同项目授权 |
 | `thumbs/*.png` | 同上（含自绘的道路/地板笔刷卡） | — | 同项目授权 |
-| `goods/*.png` | 本项目自绘（36 个商品图标） | — | 同项目授权 |
+| `icons/*.png` | 用户提供的像素图标包，由 `scripts/import-icons.py` 导入 | **doubao** | **MIT**（见 `icons/LICENSE.txt`） |
+| `goods/*.png` | 本项目自绘（36 个商品图标的**程序化兜底**，16×16） | — | 同项目授权 |
 | `tiny/extra.png` | 本项目自绘（道路 / 水面 / 桥 / 矿脉 / 砖石地板） | — | 同项目授权 |
 | `tiny/deco.png` | 本项目自绘（树 4 种） | — | 同项目授权 |
 | `actors/*.png` | 本项目自绘（居民 4 阶层 × 4 向 × 4 帧） | — | 同项目授权 |
@@ -21,6 +24,18 @@
 | `music/shimmer_sill_*.ogg` | [RPG Town Pack](https://talontrueblood.itch.io/) | **Talon Trueblood** | **免费使用 + 需署名** |
 | `sfx/*.ogg` | [UI SFX Set](https://kenney.nl/assets/ui-audio) | Kenney | **CC0 1.0** |
 | `props/src/house_*.png`<br>`props/thumb/*.png` | SUPER RETRO WORLD | Gif | **专有商用授权** |
+
+## icons/ —— MIT，需保留版权声明
+
+36 个 32×32 手绘商品图标。UI 一律通过 `scripts/ui/good_icons.gd` 取用
+（`icons/` 优先、`goods/` 程序化兜底）。
+
+- **作者**：doubao
+- **授权**：MIT，许可证原文见 [`icons/LICENSE.txt`](icons/LICENSE.txt)
+- 素材包本身**不入库**（与 Tiny / UI / Props 包的处理方式一致），只提交导出的 PNG；
+  重新导入用 `python scripts/import-icons.py`（读本地素材包）。
+
+> MIT 要求保留版权声明，所以 `LICENSE.txt` 必须随图标一起留在仓库里。
 
 ## music/ —— 需署名
 
