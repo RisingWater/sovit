@@ -3,6 +3,10 @@ dist/
 *.log
 .DS_Store
 
+# Python（scripts/ 下的导入脚本会被 import，跑一次就生成 .pyc）
+__pycache__/
+*.pyc
+
 # 美术工作区（上游素材包 + 审图产物，约 130MB；实际用到的素材已落到 godot/assets/）
 shots/
 
