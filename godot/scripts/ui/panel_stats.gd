@@ -74,7 +74,10 @@ func _ready() -> void:
 		if ico != null:
 			b.icon = ico
 			b.add_theme_constant_override("icon_max_width", UIKit.PANEL_ICON_BTN)
-			b.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
+			# ⚠️ 这里**不能**设 icon_alignment。带文字的按钮里，icon_alignment=CENTER
+			# 会让图标自己居中、直接压在文字上（"资源/人口/财务"就是这么重叠的）。
+			# 默认的左对齐才是"图标在左、文字在右"。
+			# （左侧圆钮那四个**没有文字**，那边设 CENTER 是对的。）
 		b.pressed.connect(_select_tab.bind(i))
 		head.add_child(b)
 		_tab_btns.append(b)
