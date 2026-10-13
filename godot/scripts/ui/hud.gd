@@ -196,14 +196,14 @@ func _build_stat_row(row: HBoxContainer) -> void:
 # 圆形用 StyleBoxFlat 的全圆角画，不额外做美术：
 # corner_radius 取按钮边长的一半就是正圆。
 # ---------------------------------------------------------------------------
-## 圆钮边长：原尺寸 42 的 1.5 倍
-const NAV_BTN := 63
+## 圆钮边长：原尺寸 42 的 1.3 倍
+const NAV_BTN := 55
 const NAV_GAP := 10
-## 贴着窗体左边缘停靠（0 = 真正齐边；StyleBoxFlat 的边框画在矩形内侧，不会被裁）
-const NAV_LEFT := 0.0
+## 距窗体左边缘的留白
+const NAV_LEFT := 10.0
 ## 小地图挂件：custom_minimum_size = RING_D(128)，再加下方那条飘带到 ~140。
-## 所以 150 起就是"最上面的按钮停在小地图下方"。
-const NAV_TOP := 150.0
+## 140 就是"紧贴着小地图下方"。
+const NAV_TOP := 140.0
 ## 圆钮里的图标尺寸。**必须是图标原生尺寸(32)的整数倍**：
 ## 32 = 原生 1 倍。非整数倍会把像素拉得大小不一（项目用 Nearest 过滤，肉眼可见）。
 const NAV_ICON := 32

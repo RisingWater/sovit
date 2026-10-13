@@ -96,9 +96,9 @@ func _run() -> void:
 	if (nav as Control).position.y < 130.0:
 		_fail("圆钮列 y=%.0f 压在小地图上了（应 ≥ 130）" % (nav as Control).position.y)
 		return
-	# 必须贴着窗体左边缘停靠
-	if (nav as Control).position.x > 8.0:
-		_fail("圆钮列 x=%.0f 没有贴左边缘" % (nav as Control).position.x)
+	# 必须贴着左侧（留白不超过 ~14px），别被挪回中间
+	if (nav as Control).position.x > 14.0:
+		_fail("圆钮列 x=%.0f 没贴着左边缘（留白应 ≤ 14）" % (nav as Control).position.x)
 		return
 
 	# 3. 菜单六项齐全
