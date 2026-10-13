@@ -196,16 +196,17 @@ func _build_stat_row(row: HBoxContainer) -> void:
 # 圆形用 StyleBoxFlat 的全圆角画，不额外做美术：
 # corner_radius 取按钮边长的一半就是正圆。
 # ---------------------------------------------------------------------------
-const NAV_BTN := 84
+## 圆钮边长：原尺寸 42 的 1.5 倍
+const NAV_BTN := 63
 const NAV_GAP := 10
 ## 贴着窗体左边缘停靠（0 = 真正齐边；StyleBoxFlat 的边框画在矩形内侧，不会被裁）
 const NAV_LEFT := 0.0
 ## 小地图挂件：custom_minimum_size = RING_D(128)，再加下方那条飘带到 ~140。
 ## 所以 150 起就是"最上面的按钮停在小地图下方"。
 const NAV_TOP := 150.0
-## 圆钮里的图标尺寸。**必须是图标原生尺寸(32)的整数倍**，
-## 64 = 32 x 2 —— 非整数倍会把像素拉得大小不一（项目用 Nearest 过滤，肉眼可见）。
-const NAV_ICON := 64
+## 圆钮里的图标尺寸。**必须是图标原生尺寸(32)的整数倍**：
+## 32 = 原生 1 倍。非整数倍会把像素拉得大小不一（项目用 Nearest 过滤，肉眼可见）。
+const NAV_ICON := 32
 const NAV_ITEMS := [
 	["资源", "resource", 0],
 	["人口", "population", 1],
@@ -258,7 +259,9 @@ func _build_nav() -> void:
 
 ## 把按钮画成正圆（全圆角 StyleBoxFlat），三种状态各一份。
 func _style_round(b: Button) -> void:
-	var r := int(NAV_BTN * 0.5)
+	# 边长为奇数时 int() 会少 1px（63 -> 31），圆角就差了半个像素。
+	# 用 ceil 保证圆角盖满半边长，看着才是正圆。
+	var r := int(ceil(NAV_BTN * 0.5))
 	for state in ["normal", "hover", "pressed", "focus", "disabled"]:
 		var sb := StyleBoxFlat.new()
 		sb.corner_radius_top_left = r
