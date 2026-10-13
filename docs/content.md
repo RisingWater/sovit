@@ -70,6 +70,10 @@
 > **每日施工产能（速率）**，见 `docs/construction.md` 与 `docs/spec.md` §9。
 > 建筑工坊因此没有配方，它的产出由产能公式给出。
 
+> **这些商品将来不是一开始就能生产的。** 规划中的科技树让商品与建筑逐项研究解锁，
+> 只有最初级食物链免费 —— 见 [`docs/technology.md`](technology.md)（该文档的表格含"解锁产品"列，
+> 可直接与本文的商品表对照）。
+
 **奢侈品**（`isLuxuryGood`）：category 为 `clothing` / `household` / `entertainment`，或商品为 `pastry` → 低价格弹性，用于对富人提价抽取财富。
 
 ---
