@@ -164,6 +164,22 @@ func _run() -> void:
 			await process_frame
 			print("SCREENSHOT stats tab -> ", mode)
 
+	# 顶栏资源 chip 的 tooltip：合成一个鼠标移动事件悬停到第一条 chip 上，
+	# 等过 tooltip 延迟再截图（headless 下没法真悬停，只能这样验证 tip 弹不弹）
+	if mode == "tip":
+		var hud2 = node.get_node_or_null("UI/Root/HUD")
+		if hud2 != null:
+			var chips: Dictionary = hud2.get("_chip_nodes")
+			if not chips.is_empty():
+				var chip: Control = chips.values()[0]
+				var gp := chip.get_global_rect().get_center()
+				var ev := InputEventMouseMotion.new()
+				ev.position = gp
+				ev.global_position = gp
+				Input.parse_input_event(ev)
+				await create_timer(2.0).timeout
+				print("SCREENSHOT tip hover at ", gp, " tip=", chip.tooltip_text.replace("\n", " / "))
+
 	# 科技面板
 	if mode == "tech":
 		var tp = node.get_node_or_null("UI/Root/Tech")

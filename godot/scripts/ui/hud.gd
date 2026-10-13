@@ -27,6 +27,9 @@ var _speed_btns: Array[Button] = []
 
 var _res_row: HBoxContainer
 var _chip_labels: Dictionary = {}
+## gid -> 整条 chip（图标 + 数字）。tooltip 挂在这上面，
+## 所以图标和数字都要 mouse_filter=IGNORE，否则鼠标落在它们身上就不冒泡到 chip。
+var _chip_nodes: Dictionary = {}
 var _visible: Array = []
 var _picker: PopupPanel
 var _checks: Dictionary = {}
@@ -149,17 +152,23 @@ func _refresh_music_btn() -> void:
 func _chip(gid: String) -> HBoxContainer:
 	var h := HBoxContainer.new()
 	h.add_theme_constant_override("separation", 3)
+	# tooltip 挂在整条 chip 上；子节点让开鼠标事件，否则悬停在图标上时
+	# Godot 找不到带 tooltip 的控件，tip 就不弹（这是最常见的"tip 不显示"原因）
+	h.mouse_filter = Control.MOUSE_FILTER_STOP
 	var tr := TextureRect.new()
 	# 走单点加载器：手绘 icons/ 优先，回落程序化 goods/
 	tr.texture = GoodIcons.tex(gid)
 	tr.custom_minimum_size = Vector2(UIKit.CHIP_ICON, UIKit.CHIP_ICON)
 	tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	tr.stretch_mode = TextureRect.STRETCH_KEEP_CENTERED
+	tr.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	h.add_child(tr)
 	var l := UIKit.label("0", Color(0.95, 0.93, 0.86))
 	l.custom_minimum_size = Vector2(38, 0)
+	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	h.add_child(l)
 	_chip_labels[gid] = l
+	_chip_nodes[gid] = h
 	return h
 
 func _rebuild_chips() -> void:
@@ -168,6 +177,7 @@ func _rebuild_chips() -> void:
 	for c in _res_row.get_children():
 		c.queue_free()
 	_chip_labels.clear()
+	_chip_nodes.clear()
 	for gid in _visible:
 		if runner != null and runner.db != null and not runner.db.goods.has(gid):
 			continue
@@ -325,3 +335,42 @@ func _refresh() -> void:
 			l.add_theme_color_override("font_color", Color(0.75, 0.79, 0.62))
 		else:
 			l.add_theme_color_override("font_color", Color(0.95, 0.93, 0.86))
+		# tooltip：悬停看得到这项资源的全貌，不用去开统计面板
+		if _chip_nodes.has(gid):
+			(_chip_nodes[gid] as Control).tooltip_text = _chip_tip(String(gid), amt, rsv, s)
+
+## 顶栏资源 chip 的悬停提示。
+func _chip_tip(gid: String, amt: float, rsv: float, s: Dictionary) -> String:
+	var db = runner.db if runner != null else null
+	var nm := gid
+	var lines: Array[String] = []
+	if db != null and db.goods.has(gid):
+		var gdef: Dictionary = db.goods[gid]
+		nm = String(gdef["nameZh"])
+		lines.append("%s　（%s）" % [nm, String(gdef.get("category", ""))])
+	else:
+		lines.append(nm)
+	lines.append("库存 %s" % _amt(amt))
+	if rsv > 0.01:
+		lines.append("已预留 %s　（今天计划要花掉的）" % _amt(rsv))
+	var price := float((s["prices"] as Dictionary).get(gid, 0.0))
+	if price > 0.0:
+		lines.append("市场价 ¥%.2f" % price)
+	if db != null and db.goods.has(gid):
+		var gd: Dictionary = db.goods[gid]
+		# 工具类：说明它给工坊带来什么
+		var tb := float(gd.get("toolBonus", 0.0))
+		if tb > 0.0:
+			lines.append("工具：已装配的工坊产出 ×%.2f（投入不变）" % (1.0 + tb))
+		# 住房：说明能住多少人
+		if db.housing.has(gid):
+			lines.append("住房：可住 %d 人/座" % int(db.housing[gid]["capacity"]))
+		if bool(gd.get("luxury", false)):
+			lines.append("奢侈品：低价格弹性（对富人提价更好赚）")
+	return "\n".join(lines)
+
+## 数量显示：小的带一位小数（0.5 个蔬菜这种），大的取整
+func _amt(v: float) -> String:
+	if absf(v) < 100.0 and absf(v - round(v)) > 0.005:
+		return "%.1f" % v
+	return "%.0f" % v

@@ -148,17 +148,8 @@ func _thumb_for(id: String) -> Texture2D:
 		a = runner.db.buildings[id].get("art", {})
 	elif runner.db.housing.has(id):
 		a = runner.db.housing[id].get("art", {})
-	var path := "res://assets/thumbs/%s.png" % id
-	if String(a.get("arch", "")) == "prop":
-		# prop 建筑没有受版本管理的缩略图（授权原因），用 gitignore 下的那份；
-		# 没装素材包时退回自绘兜底。
-		path = "res://assets/props/thumb/%s.png" % id
-	var t: Texture2D = load(path)
-	if t == null:
-		t = load("res://assets/thumbs/_prop_fallback.png")
-	if t == null:
-		t = load("res://assets/buildings/%s.png" % id)
-	return t
+	# 统一走 UIKit.thumb 的兜底链（prop 缩略图不在版本管理里）
+	return UIKit.thumb(id, String(a.get("arch", "")) == "prop")
 
 func _name_of(id: String) -> String:
 	if runner.db.housing.has(id):

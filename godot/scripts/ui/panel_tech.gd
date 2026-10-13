@@ -225,7 +225,10 @@ func _tech_row(s: Dictionary, db: ContentDB, tid: String) -> void:
 	unlocks.append_array(tech["unlocks"]["housing"])
 	for bid in unlocks:
 		var ic := TextureRect.new()
-		ic.texture = GoodIcons.tex(String(bid)) if db.goods.has(String(bid)) else load("res://assets/thumbs/%s.png" % bid)
+		# prop 建筑的缩略图不在版本管理里，必须走带兜底链的 UIKit.thumb
+		# （直接 load 会刷一屏 "Resource file not found" 并拿到 null）
+		var bdef: Dictionary = db.buildings.get(String(bid), db.housing.get(String(bid), {}))
+		ic.texture = UIKit.thumb(String(bid), UIKit.is_prop(bdef))
 		ic.custom_minimum_size = Vector2(UIKit.CHIP_ICON, UIKit.CHIP_ICON)
 		ic.stretch_mode = TextureRect.STRETCH_KEEP_CENTERED
 		ic.tooltip_text = "解锁：" + (String(db.goods[bid]["nameZh"]) if db.goods.has(String(bid)) else String(bid))

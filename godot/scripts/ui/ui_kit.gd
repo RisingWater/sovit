@@ -33,6 +33,30 @@ const BOT_H := 134
 const ROW_H := 18
 ## 商品图标显示尺寸。手绘图标原生 32（程序化兜底是 16，放大到 32 也是整数倍）。
 const CHIP_ICON := 32
+
+## 建筑 / 住房缩略图，带完整兜底链。
+##
+## prop 建筑（SUPER RETRO WORLD）的缩略图放在 `assets/props/thumb/`，
+## 那个目录**不受版本管理**（授权原因），所以没装素材包的机器上这些文件不存在 ——
+## 直接 `load()` 会刷一屏 "Resource file not found"，而且拿到 null。
+##
+## 全 UI 走这一个入口：建造栏和科技面板各写一份的话，
+## 迟早有一处漏掉兜底（科技面板就是这么漏的）。
+static func thumb(id: String, is_prop: bool = false) -> Texture2D:
+	var cands: Array[String] = []
+	if is_prop:
+		cands.append("res://assets/props/thumb/%s.png" % id)
+	cands.append("res://assets/thumbs/%s.png" % id)
+	cands.append("res://assets/thumbs/_prop_fallback.png")
+	cands.append("res://assets/buildings/%s.png" % id)
+	for p in cands:
+		if ResourceLoader.exists(p):
+			return load(p)
+	return null
+
+## 判断某建筑 / 住房是不是 prop（缩略图不在版本管理里的那批）。
+static func is_prop(def: Dictionary) -> bool:
+	return String((def.get("art", {}) as Dictionary).get("arch", "")) == "prop"
 const CORNER := 5       # 9-slice 角尺寸
 
 # 取件（来自清册核对）
