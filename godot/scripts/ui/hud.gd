@@ -139,10 +139,11 @@ func _open_tech() -> void:
 const STAT_ICONS := [
 	["population", "人口", "population"],
 	["employed", "就业", "employed"],
-	["satisfaction", "平均满意度（低于阈值会有人迁出）", ""],
+	["satisfaction", "平均满意度（低于阈值会有人迁出）", "satisfaction"],
 	["money", "国库", "money"],
 	["build", "建造力（人·天/日）", "build"],
 	["research", "科研力（科研力/日，由研究所提供）", "research"],
+	["pending", "待生效的指令数（次日 06:00 生效）", "migration"],
 ]
 
 var _stat_labels: Dictionary = {}
@@ -152,7 +153,7 @@ var _stats_row: HBoxContainer
 
 func _build_stat_row(row: HBoxContainer) -> void:
 	_stats_row = HBoxContainer.new()
-	_stats_row.add_theme_constant_override("separation", 10)
+	_stats_row.add_theme_constant_override("separation", 14)
 	_stats_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	row.add_child(_stats_row)
 	var host := _stats_row
@@ -161,7 +162,8 @@ func _build_stat_row(row: HBoxContainer) -> void:
 		var tip := String(spec[1])
 		var ico_name := String(spec[2])
 		var cell := HBoxContainer.new()
-		cell.add_theme_constant_override("separation", 2)
+		# 图标与数字之间留够空隙：贴在一起会看着像"图标压着数字"
+		cell.add_theme_constant_override("separation", 6)
 		cell.mouse_filter = Control.MOUSE_FILTER_STOP
 		cell.tooltip_text = tip
 		var ico := UIKit.stat_icon(ico_name) if ico_name != "" else null
@@ -230,8 +232,14 @@ func _build_nav() -> void:
 		var ico := UIKit.stat_icon(ico_name)
 		if ico != null:
 			b.icon = ico
-			b.add_theme_constant_override("icon_max_width", UIKit.STAT_ICON)
-			b.expand_icon = true
+			# 图标要**居中**。Button 默认把 icon+text 当一组靠左排，
+			# 即使没文字也会偏到左上角（实测圆钮里图标就是歪的）。
+			# 关掉 expand_icon，改成限定最大宽度 + 三向居中。
+			b.expand_icon = false
+			b.add_theme_constant_override("icon_max_width", NAV_BTN - 14)
+			b.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
+			b.alignment = HORIZONTAL_ALIGNMENT_CENTER
+			b.vertical_icon_alignment = VERTICAL_ALIGNMENT_CENTER
 		else:
 			b.text = label
 		_style_round(b)
@@ -473,9 +481,11 @@ func _refresh() -> void:
 		(_stat_labels["population"] as Label).text = "%d" % residents.size()
 		(_stat_labels["employed"] as Label).text = "%d" % employed
 		(_stat_labels["satisfaction"] as Label).text = "%.0f%%" % sat
-		(_stat_labels["money"] as Label).text = "¥%.0f" % float(gov["money"])
+		# 不带 ¥：币种符号挤在图标旁边更挤，且国库只有一个，不会有歧义
+		(_stat_labels["money"] as Label).text = "%.0f" % float(gov["money"])
 		(_stat_labels["build"] as Label).text = "%.0f" % build_rate
 		(_stat_labels["research"] as Label).text = "%.1f" % research_rate
+		(_stat_labels["pending"] as Label).text = "%d" % pending
 	# 资源数字
 	var goods: Dictionary = s["goods"]
 	var reserved: Dictionary = s.get("reserved", {})

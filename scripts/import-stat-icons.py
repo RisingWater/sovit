@@ -28,6 +28,7 @@ WANT = {
     '研究力': 'research',
     '移民': 'migration',
     '资源工业': 'resource',
+    '满意度': 'satisfaction',
     '04_finance_64x64': 'finance',
     '05_research_64x64': 'research_panel',
 }

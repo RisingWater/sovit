@@ -12,6 +12,8 @@ var world: Node
 var stats: GameStats
 
 const TABS := ["资源", "人口", "财务"]
+## 页签 -> 图标 id（assets/ui/panel/）。
+const TAB_ICONS := {"资源": "resource", "人口": "population", "财务": "finance"}
 
 ## 表头颜色：必须用深色。UIKit.FG_LABEL 是浅米色，那是给深色 section 条用的，
 ## 印在米黄面板上完全看不见。
@@ -66,11 +68,13 @@ func _ready() -> void:
 	head.add_child(UIKit.label("统计", UIKit.FG_HEAD))
 	for i in TABS.size():
 		var b := UIKit.button(TABS[i], true)
-		# 页签图标：目前只有「财务」有（作者 workbuddy，MIT）
-		var ico := UIKit.panel_icon("finance") if TABS[i] == "财务" else null
+		# 三个页签都给图标（作者 workbuddy，MIT）。只给一个的话，
+		# 三个并排的页签里只有一个带图，看着像漏做了。
+		var ico := UIKit.panel_icon(TAB_ICONS.get(TABS[i], ""))
 		if ico != null:
 			b.icon = ico
 			b.add_theme_constant_override("icon_max_width", UIKit.PANEL_ICON_BTN)
+			b.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		b.pressed.connect(_select_tab.bind(i))
 		head.add_child(b)
 		_tab_btns.append(b)

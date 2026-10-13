@@ -36,6 +36,11 @@ EXPLICIT = {
     'wheat':            ('sheet', '小麦（第7行第6列）.png', (7, 6)),
     'vegetable':        ('sheet', '蔬菜（第4行第1列）.png', (4, 1)),
     'cotton':           ('sheet', '棉花（第6行第1列）.png', (6, 1)),
+    # 这两张是 **3x3 的 16px 图集**（同一张海鲜表），不是单图。
+    # 整张 48x48 当图标用会糊成一团（实测截图里就是这样）。
+    # 按文件名给的行列号裁：鱼=第1行第1列(蓝鱼)，熏鱼=第3行第2列(棕鳟)。
+    'fish':             ('sheet', '鱼（第一行第一列）.png', (1, 1)),
+    'smoked_fish':      ('sheet', '熏鱼（第3行第2列） - 副本.png', (3, 2)),
     'domestic_service': ('file', '家政.png', None),
     'entertainment':    ('file', '娱乐.png', None),
     'hut':              ('thumb', 'hut.png', None),
