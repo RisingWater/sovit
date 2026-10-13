@@ -131,6 +131,8 @@ export interface BuildingDef {
   /** 工位上限（最多容纳多少工人）；缺省 = workers。产出随实际用工人数线性增长。 */
   maxWorkers?: number
   recipe: RecipeID
+  /** 施工工时（人·天）。设计见 docs/construction.md。引擎尚未使用，先入库。 */
+  buildWork?: number
   /** 建造成本（材料 / 建造力）；v0.1 仅扩产使用。 */
   buildCost?: Partial<Record<GoodID, number>>
   /** 外观规格（缺省时 gen-art 用兜底样式）。 */
@@ -158,6 +160,8 @@ export interface HousingDef {
   /** 每单位住房容纳人口。 */
   capacity: number
   classId: ClassID
+  /** 施工工时（人·天）。设计见 docs/construction.md。引擎尚未使用，先入库。 */
+  buildWork?: number
   /** 建造该住房所需的实物材料（占用一个土地名额）。 */
   buildCost?: Partial<Record<GoodID, number>>
   /** 私有化售价（玩家可调，默认取此值）。 */

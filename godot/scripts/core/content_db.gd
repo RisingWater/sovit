@@ -62,6 +62,9 @@ func _load() -> void:
 			# 外观规格：UI 分类与占地都靠它，必须保留
 			"art": it.get("art", {}),
 		}
+		# 施工工时（人·天）。引擎尚未使用，但数据层要保留 —— 设计见 docs/construction.md
+		if it.has("buildWork"):
+			bdef["buildWork"] = int(it["buildWork"])
 		# terrain 只在存在时写入，避免 has("terrain") 永远为真
 		if it.has("terrain"):
 			bdef["terrain"] = String(it["terrain"])

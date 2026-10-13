@@ -269,6 +269,9 @@ function parseBuildings(
 
     const buildCost = numMap(o.buildCost, `${p}.buildCost`, goodSet)
     const art = parseArt(o.art, `${p}.art`)
+    // 施工工时（人·天）。设计见 docs/construction.md。
+    // 目前引擎尚未使用它（施工仍走 constructionDays），先入库以便逐步迁移。
+    const buildWork = o.buildWork === undefined ? undefined : asPos(o.buildWork, `${p}.buildWork`)
     buildings[id] = {
       id,
       nameZh: asStr(o.nameZh, `${p}.nameZh`),
@@ -276,6 +279,7 @@ function parseBuildings(
       workers,
       ...(maxWorkers !== undefined ? { maxWorkers } : {}),
       recipe: recipe.id,
+      ...(buildWork !== undefined ? { buildWork } : {}),
       ...(Object.keys(buildCost).length > 0 ? { buildCost } : {}),
       ...(art !== undefined ? { art } : {}),
     }
@@ -349,12 +353,14 @@ function parseHousing(
     const buildCost = numMap(o.buildCost, `${p}.buildCost`, goodSet)
     const salePrice = o.salePrice === undefined ? undefined : asNonNeg(o.salePrice, `${p}.salePrice`)
     const art = parseArt(o.art, `${p}.art`)
+    const buildWork = o.buildWork === undefined ? undefined : asPos(o.buildWork, `${p}.buildWork`)
     housing[id] = {
       id,
       nameZh: asStr(o.nameZh, `${p}.nameZh`),
       quality: asNumEnum(o.quality, [1, 2, 3], `${p}.quality`),
       capacity: asPos(o.capacity, `${p}.capacity`),
       classId,
+      ...(buildWork !== undefined ? { buildWork } : {}),
       ...(Object.keys(buildCost).length > 0 ? { buildCost } : {}),
       ...(salePrice !== undefined ? { salePrice } : {}),
       ...(art !== undefined ? { art } : {}),
