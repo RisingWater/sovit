@@ -8,6 +8,7 @@ var world
 var _inspector
 var _stats: GameStats
 var _panel_stats
+var _panel_tech
 var _music
 var _daylight
 var _sfx
@@ -98,6 +99,12 @@ func _ready() -> void:
 	_panel_stats.setup(runner, world, _stats)
 	root_ui.add_child(_panel_stats)
 	hud.stats_panel = _panel_stats
+
+	_panel_tech = load("res://scripts/ui/panel_tech.gd").new()
+	_panel_tech.name = "Tech"
+	_panel_tech.setup(runner, world)
+	root_ui.add_child(_panel_tech)
+	hud.tech_panel = _panel_tech
 
 	world.select_building.connect(_inspector.show_building)
 	world.select_housing.connect(_inspector.show_housing)

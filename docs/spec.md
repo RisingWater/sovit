@@ -146,10 +146,14 @@ satisfaction = clamp(satisfaction + (target−satisfaction)*satisfactionSmoothin
   按满意度最低者淘汰，**遗产充公**（政府 +Σsavings）。
 - **迁出**：若 `avgSat < emigrationSatThreshold`，`leave = min(max(1,floor(pop*0.02)), pop−minPopulation)`；带走存款。
 - **分层** `updateClasses`：按 pack 允许阶层的 `wealthThreshold` 升序，取 `savings` 满足的最高阶层。
-- **放行** `applyAdmission`：`admit = min(arrivals, floor(immigrationAllowance), housingCapacity−pop, jobCapacity−pop)`；
+- **放行** `applyAdmission`：`admit = min(arrivals, housingCapacity−pop, populationCap−pop)`；
   新居民默认最低阶层，属性取 `defaults.newResident`。
-- **想来人数** `computeArrivals`：`avgSat < immigrationSatThreshold` → 0；
-  否则 `round(pop * immigrationRate * (avgSat−th)/(100−th))`。
+  **岗位数不参与**：岗位可以后补，把 `Σ targetWorkers` 当闸门会让村子永远长不大
+  （建造队与移民会互斥）。规模由玩家设定的人口上限（`government.populationCap`）兜住。
+- **想来人数** `computeArrivals`（job 无关，只看满意度与饥荒）：
+  1. 昨日 `hungry > max(1, pop × immigrationHungryRate)` → `arrivals = 0`（"食物充足"这一条）
+  2. `avgSat < immigrationSatThreshold` → 0
+  3. 否则 `round(pop × immigrationRate × (avgSat−th)/(100−th))`
 
 ## 9. 施工（建店 / 升级 / 建房）
 
@@ -190,13 +194,92 @@ markConstructionWorkers(work)
 ### 9.4 黎明 `activateCompleted`
 `remaining <= 0` 的按 kind 生效（建店 / 升级 / 建房），其余留队。
 
-## 10. 初始状态 `createInitialState`
+## 10. 研究（科技解锁）
+
+> **科研力 = 每日产能（速率，不是库存）**，与建造力同构。完整设计见 `docs/technology.md`。
+
+### 10.1 每日产能 `researchRate`
+```
+rate = economy.research.baseRate
+     + Σ(研究所在岗工人 × capacity.perWorker × (1 + capacity.levelBonus × (等级−1))
+                              × (skillEffectBase + skillEffectSlope × 熟练度/100))
+```
+- 「研究所」= `capacity.kind == 'research'` 的建筑（不产商品）。
+- 基础项**不需要任何建筑**（2.0/天）：保证"研究所"本身能被研究出来，不会自锁。
+- 产能**不结转**，当天没用完即作废。
+
+### 10.2 下单 `research { techId }`
+只检查材料是否够，占住队列位，**不扣材料**；压入
+`research.queue{id, remaining = tech.research, totalRequired, started = false}`。
+拒绝条件（按顺序）：科技不存在 / 已完成 / 已在队列 / **前置未完成** / 材料不足。
+
+`cancel_research { techId }` 从队列移除，**已扣材料不退**（与施工一致）。
+
+### 10.3 夜晚 `settleResearch`（紧接 `settleConstruction` 之后）
+```
+for p in research.queue:                 # 队首 → 队尾
+    if rate <= 0: break
+    if !p.started:
+        材料不足 → 记日志「等待材料」，break   # 停在队首，不跳过
+        足够   → 扣材料; p.started = true
+    used = min(rate, p.remaining)
+    p.remaining -= used ; rate -= used
+    rate <= 0 → break
+```
+
+### 10.4 黎明 `activateResearch`
+`queue[0].remaining <= 0` 时出队并 push 进 `research.done`（解锁随之生效），可连出多项。
+
+### 10.5 解锁判定
+```
+可建(建筑) = 没有任何科技 unlocks 它          # 开局免费
+          或 解锁它的科技 ∈ research.done
+```
+住房同理（`unlocks.housing`）。`unlocks` 里每座建筑**至多出现一次**（内容校验强制）。
+**商品不单独设锁**：商品的可用性由"产出它的建筑是否解锁"决定。
+
+开局已研究的科技取 `pack.start.techs`（缺省空）。开局自带某建筑**实例**的 pack
+必须把解锁它的科技也列进去，否则会出现"有这座建筑但建造栏里是锁的"。
+
+## 11. 工具（工坊耗材与产出加成）
+
+> 完整设计见 `docs/technology.md` §八。
+
+- `economy.tools.perWorkstation`（0.05）：每个**在岗工位**每日消耗的工具数。
+- 商品带 `toolBonus`（category = `tool`）；`economy.tools.order` 由低到高排工具品级。
+
+### 11.1 黎明 `allocateTools`（**必须在 `planProduction` 之前**）
+```
+for shop in shops:
+    shop.toolBoost = 1
+    if !shop.active or 该建筑没有 recipe: continue    # 产能建筑不产商品，加成无从施加
+    workers = 在岗工人数;  if workers <= 0: continue
+    need = perWorkstation × workers
+    for gid in reverse(economy.tools.order):          # 从**最高级**工具往下找
+        if goods[gid] >= need:
+            goods[gid] -= need ; ledgerToday.consumed[gid] += need
+            shop.toolBoost = 1 + ALL_GOODS[gid].toolBonus
+            break
+```
+工具不够时按 `state.shops` 顺序先到先得（确定性，便于对拍）。
+
+### 11.2 生产小时 `runProductionStep`
+```
+goods[g] += q × batches × shop.toolBoost          # 只放大**产出**
+ledgerToday.produced[g] += 同上
+# 投入与燃料那几行**完全不动**
+```
+效果即"投入不变、产出 ×1.25" —— 单位原料成品率提高（"虚空产量"）。
+
+## 12. 初始状态 `createInitialState`
 
 - 商品/价格/住房取自 `ctx.pack.goods` / `pack.housing`，数量取自 `pack.start`。
 - 建筑取自 `pack.start.shops`；居民默认值取 `defaults.startResident`，阶层分布取 `defaults.startDistribution`。
+- 科技：`research.done = pack.start.techs ?? []`，`research.queue = []`。
+- 工具：新建 / 初始店铺 `toolBoost = 1`。
 - `hour=0, day=0, pending=[]`。
 
-## 11. 随机数（mulberry32）
+## 13. 随机数（mulberry32）
 
 ```
 state = (state + 0x6d2b79f5) & 0xFFFFFFFF
@@ -207,11 +290,11 @@ out = ((t ^ (t >> 14)) & 0xFFFFFFFF) / 2^32
 ```
 > GDScript 无无符号移位/32 位乘法，需手动 `& 0xFFFFFFFF`。
 
-## 12. 内容 schema
+## 14. 内容 schema
 
 见 `content/README.md`。`economy.json.schemaVersion` 必须等于引擎支持的版本（当前 `1`）。
 
-## 13. 黄金轨迹（golden）
+## 15. 黄金轨迹（golden）
 
 - `scripts/golden.ts`：固定 `pack/seed/脚本`，逐日输出 `godot/tests/golden/<pack>-<seed>.json`。
 - Godot 侧 `tests/` 用 gdUnit4 回放同一脚本，逐日比对摘要（数值容差 ~1e-3）。

@@ -1,7 +1,10 @@
 # 科技树设计（研究力与解锁）
 
-> 状态：**设计，尚未实现**。
-> 本文是实装依据；实装后需同步改写 `docs/spec.md`（新增「研究」章节）与 `docs/content.md`（内容包 / 商品表）。
+> 状态：**已实装**（TS + Godot 双边）。
+> TS：`src/engine/systems/research.ts` / `tools.ts` / `investment.ts` / `labor.ts`；
+> GDScript：`godot/scripts/sim/sim_core.gd`；
+> 公式契约已写进 `docs/spec.md` §10（研究）与 §11（工具）；
+> 科技面板：`godot/scripts/ui/panel_tech.gd`（顶栏「科技」按钮）。
 >
 > 一句话：**商品与建筑要一项项研究出来；研究消耗原材料 + 科研力；科研力由「研究所」提供。**
 

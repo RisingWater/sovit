@@ -7,6 +7,7 @@ extends PanelContainer
 var runner: SimRunner
 var world: Node
 var stats_panel: Control = null      # 统计面板（由 main 注入）
+var tech_panel: Control = null       # 科技面板（由 main 注入）
 var music: Node = null               # 背景音乐（由 main 注入）
 var sfx: Node = null                 # 菜单音效（由 main 注入）
 var _sfx_btn: Button = null
@@ -82,6 +83,10 @@ func _ready() -> void:
 	st.tooltip_text = "资源 / 人口 / 财务 明细与曲线"
 	st.pressed.connect(_open_stats)
 	row.add_child(st)
+	var tech := UIKit.button("科技", true)
+	tech.tooltip_text = "研究科技解锁新的建筑与商品（科研力由研究所提供）"
+	tech.pressed.connect(_open_tech)
+	row.add_child(tech)
 	var menu := UIKit.button("菜单", true)
 	menu.tooltip_text = "保存 / 读取 / 音效 / 音乐 / 资源 / 退出（ESC）"
 	menu.pressed.connect(func():
@@ -113,6 +118,10 @@ func _ready() -> void:
 func _open_stats() -> void:
 	if stats_panel != null:
 		stats_panel.open()
+
+func _open_tech() -> void:
+	if tech_panel != null:
+		tech_panel.open()
 
 func _toggle_music() -> void:
 	if music == null:
@@ -292,10 +301,11 @@ func _refresh() -> void:
 		sat += float(r["satisfaction"])
 	sat = sat / float(residents.size()) if not residents.is_empty() else 0.0
 	var pending: int = (s["pending"] as Array).size()
-	# 建造力是**速率**（人·天/日），不是库存 —— 见 docs/construction.md
+	# 建造力与科研力都是**速率**（人·天/日），不是库存 —— 见 docs/construction.md / docs/technology.md
 	var build_rate := runner.sim.construction_rate()
-	_info.text = "人口%d  就业%d  满意%.1f  ¥%.0f  建造%.0f/天  待生效%d" % [
-		residents.size(), employed, sat, float(gov["money"]), build_rate, pending,
+	var research_rate := runner.sim.research_rate()
+	_info.text = "人口%d  就业%d  满意%.1f  ¥%.0f  建造%.0f/天  科研%.1f/天  待生效%d" % [
+		residents.size(), employed, sat, float(gov["money"]), build_rate, research_rate, pending,
 	]
 	# 资源数字
 	var goods: Dictionary = s["goods"]
