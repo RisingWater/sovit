@@ -3,6 +3,7 @@ import type { ContentContext } from '../content/index.ts'
 import { ALL_GOODS } from '../content/index.ts'
 import { TUNING } from '../config.ts'
 import { assignedWorkers } from './labor.ts'
+import { shopToolBoost } from './tools.ts'
 import { round2, round4 } from '../util.ts'
 
 // ---------------------------------------------------------------------------
@@ -121,10 +122,12 @@ export function runProductionStep(state: GameState, ctx: ContentContext, fractio
       state.reserved['firewood'] = Math.max(0, (state.reserved['firewood'] ?? 0) - recipe.fuel * batches)
       state.ledgerToday.consumed['firewood'] = round4((state.ledgerToday.consumed['firewood'] ?? 0) + recipe.fuel * batches)
     }
+    // 只放大**产出**，投入（上面两段）完全不动 —— 这就是"虚空产量"。
+    const boost = shopToolBoost(shop)
     for (const [g, q] of Object.entries(recipe.output)) {
       if (q && q > 0) {
-        state.goods[g] = (state.goods[g] ?? 0) + q * batches
-        state.ledgerToday.produced[g] = round4((state.ledgerToday.produced[g] ?? 0) + q * batches)
+        state.goods[g] = (state.goods[g] ?? 0) + q * batches * boost
+        state.ledgerToday.produced[g] = round4((state.ledgerToday.produced[g] ?? 0) + q * batches * boost)
       }
     }
   }

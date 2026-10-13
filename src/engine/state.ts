@@ -63,6 +63,7 @@ export function createInitialState(options: CreateOptions = {}): GameState {
         profit: 0,
         skill: DEFAULTS.newShop.skill,
         planned: 0,
+        toolBoost: 1,
       })
     }
   }
@@ -99,7 +100,7 @@ export function createInitialState(options: CreateOptions = {}): GameState {
       taxBrackets: ECONOMY.defaultTaxBrackets.map((b) => ({ ...b })),
       rent: ECONOMY.defaultRent,
       subsidyBudget: 0,
-      immigrationAllowance: 1e9,
+      populationCap: 1e9,
     },
     goods,
     housing,
@@ -108,6 +109,8 @@ export function createInitialState(options: CreateOptions = {}): GameState {
     shops,
     residents,
     construction: [],
+    // 开局已研究的科技来自 pack.start.techs（缺省空 = 只有无科技锁的建筑可建）
+    research: { done: [...(start.techs ?? [])], queue: [] },
     ledgerToday: emptyLedger(0),
     history: [
       {

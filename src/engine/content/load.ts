@@ -14,6 +14,7 @@ export interface RawContent {
   housing: unknown
   packs: unknown
   economy: unknown
+  technologies: unknown
 }
 
 const CONTENT_DIR = new URL('../../../content/', import.meta.url)
@@ -36,5 +37,6 @@ export function loadContentFiles(): RawContent {
     housing: read('housing.json'),
     packs: read('packs.json'),
     economy: read('economy.json'),
+    technologies: read('technologies.json'),
   }
 }

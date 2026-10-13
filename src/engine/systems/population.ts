@@ -10,18 +10,10 @@ import { housingCapacity } from './housing.ts'
 //
 // 满意度高、无饥饿、且存在住房与岗位空缺时 → 迁入；
 // 满意度低或有人饥饿 → 迁出 / 死亡。新居民默认进入穷人阶层。
+//
+// 迁入**不看岗位数**：岗位可以后补，卡它会让村子永远长不大。
+// 规模由玩家设定的「人口上限」控制（防止一口气涌进来一堆人、粮食跟不上饿死）。
 // ---------------------------------------------------------------------------
-
-function jobCapacity(state: GameState, ctx: ContentContext): number {
-  let total = 0
-  for (const shop of state.shops) {
-    if (!shop.active) continue
-    const def = ctx.buildings[shop.defId]
-    // 岗位 = 该店实际开出的用工数（工位上限只是容量）
-    if (def) total += Math.min(shop.targetWorkers, def.maxWorkers ?? def.workers)
-  }
-  return total
-}
 
 function nextResidentIndex(state: GameState): number {
   let max = state.residents.length
@@ -124,11 +116,23 @@ export function updatePopulation(
   return logs
 }
 
-/** 计算本回合“想来”的移民人数（写入 state.arrivals），供下一回合由 AI 决定放行多少。 */
+/**
+ * 计算本回合"想来"的移民人数（写入 state.arrivals）。
+ *
+ * 只看两件事：**满意度够不够**，以及**昨天有没有闹饥荒**。
+ * 岗位数**不参与**——岗位是可以后补的，卡它会让村子永远长不大
+ * （见 docs/spec.md §8「迁入不再看岗位」）。
+ */
 export function computeArrivals(state: GameState): void {
   const pop = state.residents.length
   const th = ECONOMY.immigrationSatThreshold
   if (pop === 0) {
+    state.arrivals = 0
+    return
+  }
+  // 食物充足：昨天的饥饿比例超过阈值就没有人来（饿着肚子还招人只会更糟）
+  const hungry = state.history[state.history.length - 1]?.hungry ?? 0
+  if (hungry > Math.max(1, pop * ECONOMY.immigrationHungryRate)) {
     state.arrivals = 0
     return
   }
@@ -143,7 +147,12 @@ export function computeArrivals(state: GameState): void {
   )
 }
 
-/** 放行移民：最多放行 min(想来人数, 允许上限, 住房余量, 岗位余量) 人。 */
+/**
+ * 放行移民：`admit = min(想来人数, 住房余量, 人口上限 − 人口)`。
+ *
+ * **不看岗位数**：岗位是可以后补的（盖房/建店都行），而人口上限由玩家设定，
+ * 用来防止"一口气涌进来一堆人、粮食跟不上饿死"。见 docs/spec.md §8。
+ */
 export function applyAdmission(
   state: GameState,
   ctx: ContentContext,
@@ -152,12 +161,9 @@ export function applyAdmission(
 ): LogEntry[] {
   const pop = state.residents.length
   if (pop === 0 || state.arrivals <= 0) return []
-  const room = Math.max(
-    0,
-    Math.min(housingCapacity(state, ctx) - pop, jobCapacity(state, ctx) - pop),
-  )
-  const allow = Math.max(0, Math.floor(state.government.immigrationAllowance))
-  const admit = Math.min(state.arrivals, allow, room)
+  const cap = state.government.populationCap
+  const room = Math.max(0, Math.min(housingCapacity(state, ctx) - pop, cap - pop))
+  const admit = Math.min(state.arrivals, room)
   if (admit <= 0) return []
   for (let i = 0; i < admit; i++) {
     state.residents.push(makeResident(state, rng, 'poor'))

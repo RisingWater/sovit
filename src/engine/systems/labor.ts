@@ -69,9 +69,11 @@ export function assignLabor(state: GameState, ctx: ContentContext): void {
 
   const info = state.shops.map((shop) => {
     const def = ctx.buildings[shop.defId]
-    const want = shop.active && def
-      ? Math.max(0, Math.min(shop.targetWorkers, def.maxWorkers ?? def.workers))
+    // 工位上限随等级增长（研究所这类产能建筑升级会加 slotsPerLevel 个工位）
+    const slots = def
+      ? (def.maxWorkers ?? def.workers) + (def.capacity?.slotsPerLevel ?? 0) * (shop.level - 1)
       : 0
+    const want = shop.active && def ? Math.max(0, Math.min(shop.targetWorkers, slots)) : 0
     return { want, priority: foodChainShops.has(shop.id) }
   })
 

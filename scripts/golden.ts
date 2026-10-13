@@ -18,7 +18,8 @@ const SCRIPT: Array<{ tick: number; actions: Action[] }> = [
   {
     tick: 0,
     actions: [
-      { type: 'set_immigration', value: 0 },
+      // 人口上限钉在开局人口 = 这一局不接移民，让对拍只反映生产/财政
+      { type: 'set_population_cap', value: 12 },
       { type: 'build', buildingId: 'wheat_farm' },
       { type: 'build', buildingId: 'vegetable_farm' },
       { type: 'build', buildingId: 'coarse_mill' },

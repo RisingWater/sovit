@@ -10,6 +10,7 @@ export type PackID = 'v0.3' | 'v1.0'
 export type GoodID = string
 export type BuildingID = string
 export type RecipeID = string
+export type TechID = string
 
 export type ClassID = string
 export type OwnerID = 'state' | string
@@ -26,6 +27,8 @@ export type GoodCategory =
   | 'investment'
   | 'service'
   | 'entertainment'
+  /** 工具：工坊耗材，不是消费品（无阶层需求）。 */
+  | 'tool'
 
 export type BuildingTier = 1 | 2 | 3
 export type ShopStatus = 'green' | 'yellow' | 'red'
@@ -47,6 +50,11 @@ export interface GoodDef {
   perishRate?: number
   /** 是否奢侈品：低价格弹性，可提价抽取富人财富。缺省 false。 */
   luxury?: boolean
+  /**
+   * 工具品级：装配该工具的工坊**产出 ×(1 + toolBonus)、投入不变**。
+   * 只有 category = 'tool' 的商品该有此项。见 docs/technology.md §八。
+   */
+  toolBonus?: number
 }
 
 export interface NeedDef {
@@ -122,18 +130,35 @@ export interface BuildingArt {
   crop?: ArtCrop
 }
 
+/**
+ * 产能建筑的参数：不产商品、只产「每日产能」的建筑（建筑工坊 / 研究所）。
+ * 见 docs/technology.md §6.2。
+ */
+export interface CapacityDef {
+  /** 产能种类：build = 建造力，research = 科研力。 */
+  kind: 'build' | 'research'
+  /** 每个在岗工人的基础产能（再乘熟练度曲线）。 */
+  perWorker: number
+  /** 每升 1 级，每人产能 ×(1 + levelBonus × (等级−1))。 */
+  levelBonus: number
+  /** 每升 1 级，工位上限 +slotsPerLevel。 */
+  slotsPerLevel: number
+}
+
 export interface BuildingDef {
   id: BuildingID
   nameZh: string
   tier: BuildingTier
   /** 参照满员工人数（决定每人产出基准）。 */
   workers: number
-  /** 工位上限（最多容纳多少工人）；缺省 = workers。产出随实际用工人数线性增长。 */
+  /** 工位上限（最多容纳多少工人）；缺省 = workers。升级时再加 capacity.slotsPerLevel。 */
   maxWorkers?: number
-  /** 生产配方。产出「建造产能」而非商品时缺省（如建筑工坊）。 */
+  /** 生产配方。产出「建造产能」而非商品时缺省（如建筑工坊、研究所）。 */
   recipe?: RecipeID
   /** 施工工时（建造力 / 人·天）。设计见 docs/construction.md。 */
   buildWork: number
+  /** 产能参数（只有不产商品的建筑有）；缺省表示它靠 recipe 产商品。 */
+  capacity?: CapacityDef
   /** 建造成本（实物原料）；全为包外商品时回退为金钱成本。 */
   buildCost?: Partial<Record<GoodID, number>>
   /** 外观规格（缺省时 gen-art 用兜底样式）。 */
@@ -182,6 +207,13 @@ export interface PackStart {
   housing: Record<string, number>
   /** 开局库存：商品 id → 数量。 */
   goods: Record<string, number>
+  /**
+   * 开局已研究完的科技（见 docs/technology.md）。
+   * 缺省为空 —— 此时只有「没有任何科技解锁它」的建筑可建。
+   * 注意：开局自带某座建筑的**实例**时，必须把解锁它的科技也列进来，
+   * 否则玩家会看到「我有一座采石场，但建造栏里的采石场是锁的」。
+   */
+  techs?: TechID[]
 }
 
 export interface ContentPack {
@@ -218,6 +250,11 @@ export interface Shop {
   skill: number
   /** 今日计划批次数（黎明排产，白天按小时执行 planned / 工作小时数）。 */
   planned: number
+  /**
+   * 今日的产出倍率：装了工具就是 1 + toolBonus，否则 1。
+   * 黎明一次性分配、当天不变（见 docs/technology.md §8.3）。
+   */
+  toolBoost?: number
 }
 
 export interface Resident {
@@ -314,16 +351,56 @@ export interface Construction {
   started: boolean
 }
 
-export interface Government {
-  money: number
+// ---------------------------------------------------------------------------
+// 研究（见 docs/technology.md）
+// ---------------------------------------------------------------------------
+
+/** 一项科技：解锁一组建筑 / 住房，消耗科研力 + 原料。 */
+export interface TechDef {
+  id: TechID
+  nameZh: string
+  /** 所属纪元（只用于 UI 分组与排序）。 */
+  era: number
+  /** 完成所需的科研力（人·天）。 */
+  research: number
+  /** 开工时扣除的实物原料。 */
+  cost: { goods: Partial<Record<GoodID, number>> }
+  /** 知识前置。 */
+  requires: TechID[]
+  /** 本科技解锁的建筑与住房。每座建筑至多被一项科技解锁。 */
+  unlocks: { buildings: BuildingID[]; housing: GoodID[] }
+}
+
+/** 队列里的一项在研科技。结构与 Construction 刻意保持一致。 */
+export interface ResearchProject {
+  id: TechID
+  /** 还差的科研力。 */
+  remaining: number
+  /** 总需求（进度条用）。 */
+  totalRequired: number
+  /** 材料是否已扣（队首开始投入科研力时扣）。 */
+  started: boolean
+}
+
+export interface ResearchState {
+  /** 已研究完成的科技。 */
+  done: TechID[]
+  /** 先进先出队列；只有队首在推进。 */
+  queue: ResearchProject[]
+}
+
+export interface Government {  money: number
   /** 累进所得税税表（可运行时调整）。最后一段 upTo 为 null 表示无上限。 */
   taxBrackets: TaxBracket[]
   /** 国有住房人均日租金（玩家可调）。 */
   rent: number
   /** 日补贴预算（预留，未启用）。 */
   subsidyBudget: number
-  /** 本回合允许迁入的人数上限（AI/玩家可调；默认不限）。 */
-  immigrationAllowance: number
+  /**
+   * 人口上限（玩家可调）：迁入到该数就停。
+   * 用来防止"一口气涌进来一堆人、粮食跟不上饿死"。1e9 = 不限。
+   */
+  populationCap: number
 }
 
 export interface TaxBracket {
@@ -398,6 +475,8 @@ export interface GameState {
   shops: Shop[]
   residents: Resident[]
   construction: Construction[]
+  /** 科技：已完成的 + 在研队列。见 docs/technology.md。 */
+  research: ResearchState
 
   /** 当日台账累加器：黎明清零，夜间结算时挂到当天快照上。 */
   ledgerToday: DayLedger
@@ -427,8 +506,10 @@ export type Action =
   | { type: 'set_tax'; value: number }
   | { type: 'set_tax_bracket'; index: number; upTo?: number | null; rate?: number }
   | { type: 'set_rent'; value: number }
-  | { type: 'set_immigration'; value: number }
+  | { type: 'set_population_cap'; value: number }
   | { type: 'subsidy'; shopId?: string; amount: number }
+  | { type: 'research'; techId: TechID }
+  | { type: 'cancel_research'; techId: TechID }
   | { type: 'end_turn' }
 
 export interface AppliedAction {
@@ -481,7 +562,7 @@ export interface Observation {
     housingCapacity: number
     /** 本回合想来的移民人数，以及本回合允许上限。 */
     arrivals: number
-    immigrationAllowance: number
+    populationCap: number
   }
   shops: ObserveShop[]
   market: {

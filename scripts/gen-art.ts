@@ -608,31 +608,20 @@ function brushThumb(kind: 'road' | 'floor'): Canvas {
 // 所以这四个按 UI 包的配色自绘：暂停 = 两条竖线，1x/2x/4x = 1/2/3 个箭羽。
 // ---------------------------------------------------------------------------
 // 图标画在 UI 包的米黄按钮上，所以必须用深色；用浅色会完全看不见。
-const SP_INK: RGBA = [58, 40, 30, 255]
-const SP_LIT: RGBA = [246, 242, 230, 255]
+const SP_INK: RGBA = [59, 41, 28, 255]
 
 function speedIcon(kind: string): Canvas {
   const c = new Canvas(G, G)
   if (kind === 'pause') {
-    for (const x of [4, 9]) {
-      c.rect(x, 3, 3, 10, SP_INK)
-      c.rect(x, 3, 1, 10, SP_LIT)
-    }
+    for (const x of [4, 9]) c.rect(x, 3, 3, 9, SP_INK)
     return c
   }
   const n = kind === '1x' ? 1 : kind === '2x' ? 2 : 3
-  const th = n === 1 ? 3 : 2          // 笔画粗细
-  const wid = n === 1 ? 6 : n === 2 ? 4 : 3
-  const step = wid + th              // 一个箭羽占的宽度 + 1px 间隙
-  const total = n * step - 1
-  const x0 = Math.max(0, Math.floor((G - total) / 2))
+  const x0 = n === 1 ? 6 : n === 2 ? 3 : 1
+  const widths = [1, 2, 3, 4, 4, 4, 3, 2, 1]
   for (let i = 0; i < n; i++) {
-    const x = x0 + i * step
-    for (let r = 0; r < 10; r++) {
-      const t = 1 - Math.abs(r - 4.5) / 4.5
-      const d = Math.round(t * (wid - 1))
-      c.rect(x + d, 3 + r, th, 1, SP_INK)
-    }
+    const x = x0 + i * 5
+    for (let r = 0; r < widths.length; r++) c.rect(x, 3 + r, widths[r]!, 1, SP_INK)
   }
   return c
 }
@@ -798,6 +787,14 @@ function goodIcon(id: string): Canvas {
       c.rect(3, 8, 10, 5, id === 'brick_house' ? I_CLAY : I_WOOD)
       c.rect(2, 5, 12, 3, id === 'hut' ? I_RED_D : I_STONE)
       c.rect(7, 10, 2, 3, I_DARK)
+      break
+    case 'stone_tools':
+      // 石锤：木柄 + 石块锤头（工具坊的产出）
+      c.rect(3, 3, 10, 4, I_STONE)
+      c.rect(3, 3, 10, 1, I_STONE_L)
+      c.rect(7, 7, 2, 8, I_WOOD)
+      c.stroke(3, 3, 10, 4, I_DARK)
+      c.stroke(7, 7, 2, 8, I_DARK)
       break
     default:
       ingot(c, I_GOLD, I_GOLD_D)

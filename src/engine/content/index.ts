@@ -10,6 +10,8 @@ import type {
   PackID,
   RecipeDef,
   RecipeID,
+  TechDef,
+  TechID,
 } from '../types.ts'
 import { CONTENT } from './bundle.ts'
 
@@ -38,6 +40,26 @@ export const HOUSING_IDS: GoodID[] = CONTENT.housingIds
 export const PACKS: Record<PackID, ContentPack> = CONTENT.packs
 export const PACK_IDS: PackID[] = CONTENT.packIds
 
+export const ALL_TECHS: Record<TechID, TechDef> = CONTENT.technologies
+export const TECH_IDS: TechID[] = CONTENT.techIds
+export const ERA_IDS: number[] = CONTENT.eraIds
+
+/** 某建筑由哪项科技解锁；返回 undefined 表示「开局即可建」（没有科技锁）。 */
+export function techUnlockingBuilding(buildingId: BuildingID): TechID | undefined {
+  for (const id of TECH_IDS) {
+    if (ALL_TECHS[id]!.unlocks.buildings.includes(buildingId)) return id
+  }
+  return undefined
+}
+
+/** 某种住房由哪项科技解锁；undefined = 开局即可建。 */
+export function techUnlockingHousing(housingId: GoodID): TechID | undefined {
+  for (const id of TECH_IDS) {
+    if (ALL_TECHS[id]!.unlocks.housing.includes(housingId)) return id
+  }
+  return undefined
+}
+
 export function getPack(id: PackID): ContentPack {
   const pack = PACKS[id]
   if (!pack) throw new Error(`unknown content pack: ${id}`)
@@ -56,6 +78,7 @@ export interface ContentContext {
   recipes: Record<RecipeID, RecipeDef>
   classes: Record<ClassID, ClassDef>
   housing: Record<GoodID, HousingDef>
+  technologies: Record<TechID, TechDef>
   goodSet: Set<GoodID>
   buildingSet: Set<BuildingID>
   classSet: Set<ClassID>
@@ -71,6 +94,7 @@ export function buildContext(packId: PackID): ContentContext {
     recipes: ALL_RECIPES,
     classes: ALL_CLASSES,
     housing: ALL_HOUSING,
+    technologies: ALL_TECHS,
     goodSet: new Set(pack.goods),
     buildingSet: new Set(pack.buildings),
     classSet: new Set(pack.classes),

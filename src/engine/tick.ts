@@ -14,6 +14,8 @@ import { runConsumption } from './systems/consumption.ts'
 import { updateSatisfaction } from './systems/satisfaction.ts'
 import { updatePopulation, applyAdmission, computeArrivals } from './systems/population.ts'
 import { settleConstruction, activateCompleted } from './systems/investment.ts'
+import { settleResearch, activateResearch } from './systems/research.ts'
+import { allocateTools } from './systems/tools.ts'
 
 // ---------------------------------------------------------------------------
 // 每日结算（小时制）
@@ -68,7 +70,10 @@ export function runDawn(state: GameState, ctx: ContentContext): { logs: LogEntry
   state.pending = []
 
   logs.push(...activateCompleted(state, ctx, state.day))
+  logs.push(...activateResearch(state, ctx, state.day))
   assignLabor(state, ctx)
+  // 工具必须在排产之前分配：它决定今天各工坊的产出倍率（shop.toolBoost）
+  logs.push(...allocateTools(state, ctx, state.day))
   planProduction(state, ctx)
   return { logs, applied }
 }
@@ -80,6 +85,8 @@ export function runNight(state: GameState, ctx: ContentContext, rng: ReturnType<
 
   // 施工结算必须在工资之前：它决定当天有多少失业人口「在工地上出工」（建造工资）。
   logs.push(...settleConstruction(state, ctx, day))
+  // 研究独立成队、不占人口：只消耗科研力（研究所）与材料
+  logs.push(...settleResearch(state, ctx, day))
   logs.push(...payWages(state, day))
   assignTenure(state, ctx)
   logs.push(...collectRent(state, ctx, day))

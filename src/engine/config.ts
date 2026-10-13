@@ -11,12 +11,24 @@ import { CONTENT } from './content/bundle.ts'
 export interface ConstructionConfig {
   /** 失业人口每人每日提供的建造力（非熟练工，固定）。 */
   unemployedRate: number
-  /** 建筑工坊工人每人每日的建造力基数（乘熟练度曲线）。 */
-  workshopBase: number
   /** 工地临时工工资 = refWage × 该值（失业人口上工地的报酬）。 */
   wageRate: number
   /** 扩产（+1 级）所需建造力 = 该值 × 当前等级。 */
   upgradePerLevel: number
+}
+
+/** 研究参数（见 docs/technology.md §2）。 */
+export interface ResearchConfig {
+  /** 全村基础科研力/天：不需要任何建筑，但慢到必须建研究所。 */
+  baseRate: number
+}
+
+/** 工具参数（见 docs/technology.md §8.3）。 */
+export interface ToolsConfig {
+  /** 每个在岗工位每日消耗的工具数。 */
+  perWorkstation: number
+  /** 工具品级，由低到高；分配时从**最高级**往下找第一个够用的。 */
+  order: string[]
 }
 
 export interface EconomyConfig {
@@ -40,6 +52,8 @@ export interface EconomyConfig {
   /** 移民触发与速率。 */
   immigrationSatThreshold: number
   immigrationRate: number
+  /** 昨日饥饿人数占比超过该值 → 无人愿意迁入（"食物充足"这一条）。 */
+  immigrationHungryRate: number
   /** 迁出触发。 */
   emigrationSatThreshold: number
   /** 饥饿致死的比例。 */
@@ -53,6 +67,10 @@ export interface EconomyConfig {
   maxBuildingSlots: number
   /** 建造力（每日施工产能）参数。设计见 docs/construction.md。 */
   construction: ConstructionConfig
+  /** 研究（每日科研力）参数。设计见 docs/technology.md。 */
+  research: ResearchConfig
+  /** 工具（工坊耗材 + 产出加成）参数。设计见 docs/technology.md §八。 */
+  tools: ToolsConfig
   /** 默认人均日租金（国有住房）。 */
   defaultRent: number
   /** 私有住房（房主）带来的满意度加成（点数）。 */

@@ -11,7 +11,7 @@ import { assignedWorkers } from './labor.ts'
 //
 // **建造力 = 每日施工产能（速率，不是库存）**，设计见 docs/construction.md：
 //   每日产能 = 失业人口 × unemployedRate
-//            + Σ(建筑工坊工人 × workshopBase × (0.6 + 0.4 × 熟练度/100))
+//            + Σ(建筑工坊工人 × capacity.perWorker × (1 + levelBonus × (等级−1)) × 熟练度曲线)
 //   一个工程需要「n 建造力」= n 个人·天，工期 = 需求量 ÷ 每日产能。
 //   建造与升级共用一条**先进先出**队列，串行投入；当天没用完的产能作废（不结转）。
 //
@@ -210,33 +210,34 @@ export function tryBuildHousing(state: GameState, ctx: ContentContext, goodId: s
 }
 
 /**
- * 该建筑是否「建筑工坊」：没有商品配方的建筑，产出的是**每日建造产能**而非商品。
+ * 该建筑是否某种产能来源（不产商品、只产每日产能）。见 docs/technology.md §6.2。
  */
-export function isConstructionWorks(def: BuildingDef): boolean {
-  return def.recipe === undefined
+export function isCapacityKind(def: BuildingDef, kind: 'build' | 'research'): boolean {
+  return def.capacity?.kind === kind
 }
 
 /**
  * 当日施工产能（建造力 / 人·天）。
  *
- *   产能 = 失业人口 × unemployedRate
- *        + Σ(建筑工坊在岗工人 × workshopBase × (0.6 + 0.4 × 熟练度/100))
+ *   产能 = 失业人口 × construction.unemployedRate
+ *        + Σ(建筑工坊在岗工人 × capacity.perWorker × (1 + levelBonus × (等级−1)) × 熟练度曲线)
  *
  * 熟练度曲线沿用产量那条（production.ts），不引入第二套熟练度语义。
- * 新工坊默认熟练度 50 → 系数 0.8 → `2.5 × 0.8 = 2.0`，正好「一人顶两个失业人口」。
- * 建筑工坊的熟练度随 `growSkills` 逐日增长（工人是 employed），故长期产能会爬升到 2.5 上限。
+ * 建筑工坊的 `perWorker` 取 2.5：新工坊熟练度 50 → 曲线 0.8 → `2.5 × 0.8 = 2.0`，
+ * 正好「一人顶两个失业人口」。它的 `levelBonus` 是 0，所以升级不影响每人产能。
  */
 export function constructionRate(state: GameState, ctx: ContentContext): number {
-  const { unemployedRate, workshopBase } = ECONOMY.construction
+  const { unemployedRate } = ECONOMY.construction
   let rate = 0
   for (const r of state.residents) {
     if (!r.employed) rate += unemployedRate
   }
   for (const shop of state.shops) {
     const def = ctx.buildings[shop.defId]
-    if (!def || !shop.active || !isConstructionWorks(def)) continue
+    if (!def || !shop.active || !def.capacity || def.capacity.kind !== 'build') continue
     const skillEff = TUNING.skillEffectBase + TUNING.skillEffectSlope * (shop.skill / 100)
-    rate += assignedWorkers(state, shop.id) * workshopBase * skillEff
+    const levelMul = 1 + def.capacity.levelBonus * (shop.level - 1)
+    rate += assignedWorkers(state, shop.id) * def.capacity.perWorker * levelMul * skillEff
   }
   return round2(rate)
 }
@@ -319,6 +320,7 @@ export function activateCompleted(state: GameState, ctx: ContentContext, day: nu
         profit: 0,
         skill: DEFAULTS.newShop.skill,
         planned: 0,
+        toolBoost: 1,
       }
       state.shops.push(shop)
       logs.push({ day, kind: 'invest', text: `${def.nameZh} 建成投产` })

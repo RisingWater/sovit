@@ -2,6 +2,14 @@ import type { Action, AppliedAction, GameState, TaxBracket } from './types.ts'
 import type { ContentContext } from './content/index.ts'
 import { clamp, round2 } from './util.ts'
 import { tryBuild, tryBuildHousing, tryExpand } from './systems/investment.ts'
+import {
+  cancelResearch,
+  isBuildingUnlocked,
+  isHousingUnlocked,
+  startResearch,
+  techForBuilding,
+  techForHousing,
+} from './systems/research.ts'
 
 /** 规范化税表：保证 upTo 递增、最后一档为 null、税率合法。 */
 function sanitizeBrackets(bs: TaxBracket[]): void {
@@ -99,13 +107,44 @@ export function applyActions(
       }
 
       case 'build': {
+        // 科技门槛放在最前面：理由最明确（"还没研究出来"）
+        if (!isBuildingUnlocked(state, ctx, action.buildingId)) {
+          const t = techForBuilding(ctx, action.buildingId)
+          applied.push({
+            type: action.type,
+            ok: false,
+            reason: `需要科技：${t?.nameZh ?? '未知'}`,
+          })
+          break
+        }
         const res = tryBuild(state, ctx, action.buildingId)
         applied.push({ type: action.type, ok: res.ok, reason: res.reason })
         break
       }
 
       case 'build_housing': {
+        if (!isHousingUnlocked(state, ctx, action.goodId)) {
+          const t = techForHousing(ctx, action.goodId)
+          applied.push({
+            type: action.type,
+            ok: false,
+            reason: `需要科技：${t?.nameZh ?? '未知'}`,
+          })
+          break
+        }
         const res = tryBuildHousing(state, ctx, action.goodId)
+        applied.push({ type: action.type, ok: res.ok, reason: res.reason })
+        break
+      }
+
+      case 'research': {
+        const res = startResearch(state, ctx, action.techId)
+        applied.push({ type: action.type, ok: res.ok, reason: res.reason })
+        break
+      }
+
+      case 'cancel_research': {
+        const res = cancelResearch(state, action.techId)
         applied.push({ type: action.type, ok: res.ok, reason: res.reason })
         break
       }
@@ -141,8 +180,9 @@ export function applyActions(
         break
       }
 
-      case 'set_immigration': {
-        state.government.immigrationAllowance = Math.max(0, Math.floor(action.value))
+      case 'set_population_cap': {
+        // 人口上限：迁入到该数就停（防止一口气涌进来一堆人、粮食跟不上饿死）
+        state.government.populationCap = Math.max(0, Math.floor(action.value))
         applied.push({ type: action.type, ok: true })
         break
       }

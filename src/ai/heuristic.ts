@@ -2,8 +2,12 @@ import type { Action, GameState } from '../engine/types.ts'
 import {
   ALL_GOODS,
   ECONOMY,
+  assignedWorkers,
   buildContext,
+  canResearch,
+  foodChainShopIds,
   housingCapacity,
+  isBuildingUnlocked,
   isLuxuryGood,
 } from '../engine/index.ts'
 import type { ContentContext } from '../engine/index.ts'
@@ -23,6 +27,48 @@ import { clamp, sum } from '../engine/util.ts'
 const MAX_CONSTRUCTION_QUEUE = 4
 /** 有在建工程时，留给工地的常住人口比例。 */
 const CONSTRUCTION_RESERVE_RATIO = 0.25
+/** 常备建造队占人口的比例：低于这个数就不再开新工位（见 pushBuild 内注释）。 */
+const CREW_RESERVE_RATIO = 0.2
+
+/**
+ * 研究优先级 = docs/technology.md 依赖图的拓扑序。
+ * 每天只在队列为空时补一项；买不起 / 前置未满足就顺延到下一项。
+ */
+const RESEARCH_ORDER: string[] = [  'research_institute',
+  'stonework',
+  'digging',
+  'firewood',
+  'construction',
+  'toolmaking',
+  'hunting',
+  'brickmaking',
+  'pottery',
+  'fiber_crops',
+  'fishing',
+  'carpentry',
+  'fine_milling',
+  'white_baking',
+  'coarse_weaving',
+  'fine_weaving',
+  'curing',
+  'coarse_tailoring',
+  'entertainment',
+  'cash_crops',
+  'sugar_refining',
+  'common_tailoring',
+  'leatherwork',
+  'pastry_baking',
+  'masonry_housing',
+  'porcelain',
+  'luxury_tailoring',
+  'domestic_service',
+  'housing_works',
+]
+
+/** "引擎"建筑：不产商品、只产每日产能（建造力 / 科研力）。它们优先于一切生产建筑。 */
+function isEngineBuilding(def: { capacity?: unknown }): boolean {
+  return def.capacity !== undefined
+}
 
 function lookbackHungry(state: GameState): number {
   return state.history[state.history.length - 1]?.hungry ?? 0
@@ -54,18 +100,50 @@ function commonActions(
   const money = state.government.money
   const pop = state.residents.length
 
-  // 用工：全部按参照用工满员开岗。
+  // 用工：**留一支常备建造队**，其余按「食品链 → 引擎 → 其余」三档分配。
   //
-  // 这里**刻意不给工地预留人手**。曾经试过"按比例留下建造队"，结果是：
-  // 人口迁入的闸门是 `jobCapacity = Σ targetWorkers`（population.ts），
-  // 一压低开岗数，jobCapacity 就低于人口 → 一个移民也进不来 → 村子上限被锁死。
-  // 建造力因此改由**建筑工坊**（固定工位，一人顶两个闲人）提供：
-  // 开局靠失业人口起手，之后靠工坊，两者都不需要压低开岗数。
-  for (const shop of state.shops) {
-    const def = ctx.buildings[shop.defId]
-    if (!def) continue
-    // 基线 AI 只用参照用工（稳定）；矿场/林场等可由玩家/AI 用 set_workers 逐步加人（上限 = 工位）。
-    actions.push({ type: 'set_workers', shopId: shop.id, value: def.workers })
+  // 建造力 = 失业人口，所以必须让一部分人不上岗；否则全村满员就业 → 建造力 0
+  // → 连"建筑工坊"（唯一能打破僵局的建筑）都盖不出来。
+  // 早先不敢这么做，是因为迁入闸门曾经是 `jobCapacity = Σ targetWorkers`，
+  // 压低开岗数会让移民一个都进不来；**现在迁入只看住房 + 粮食 + 满意度**，这个顾虑没有了。
+  //
+  // ⚠️ 一定要分档：把所有工坊**一起**等比摊薄会连食品链一起削，
+  //    实测直接从 20 人饿到 4 人。食品链必须优先拿满它的份额。
+  {
+    const crewNeed = Math.max(2, Math.round(pop * CREW_RESERVE_RATIO))
+    const foodIds = foodChainShopIds(state, ctx)
+    let budget = Math.max(0, pop - crewNeed)
+
+    const targets = new Map<string, number>()
+    const defOf = (s: { defId: string }) => ctx.buildings[s.defId]
+
+    // ① 食品链：在预算内等比摊派（吃饭优先）
+    const foodShops = state.shops.filter((s) => foodIds.has(s.id))
+    const foodWant = foodShops.reduce((a, s) => a + (defOf(s)?.workers ?? 0), 0)
+    const foodScale = foodWant > budget ? budget / foodWant : 1
+    for (const s of foodShops) {
+      const w = Math.floor((defOf(s)?.workers ?? 0) * foodScale)
+      targets.set(s.id, w)
+      budget -= w
+    }
+    // ② 引擎建筑（研究所 / 建筑工坊）：固定工位，本身就是产能来源
+    for (const s of state.shops) {
+      if (targets.has(s.id)) continue
+      const def = defOf(s)
+      if (!def || !def.capacity) continue
+      targets.set(s.id, def.workers)
+    }
+    // ③ 其余：只能用①②剩下的零头
+    const rest = state.shops.filter((s) => !targets.has(s.id))
+    const restWant = rest.reduce((a, s) => a + (defOf(s)?.workers ?? 0), 0)
+    const restScale = restWant > budget ? budget / restWant : 1
+    for (const s of rest) {
+      targets.set(s.id, Math.floor((defOf(s)?.workers ?? 0) * restScale))
+    }
+
+    for (const s of state.shops) {
+      actions.push({ type: 'set_workers', shopId: s.id, value: targets.get(s.id) ?? 0 })
+    }
   }
 
   let wage = ECONOMY.refWage
@@ -226,7 +304,23 @@ function decideGrowth(state: GameState, ctx: ContentContext): Action[] {
 
   // 施工是**串行**队列，下单也不再扣材料（开工时才扣），所以必须自己限流：
   // 排太多的话队尾永远轮不到，且材料会被反复"看上去够"而超订。
-  const queueFull = (): boolean => state.construction.length >= MAX_CONSTRUCTION_QUEUE
+  //
+  // ⚠️ 必须把**今天已经放进 picks 的单**也算进去：只数 `state.construction`
+  // 会在一天里连推好几个（每个都看到 length < 4），把队列顶到 6–9，
+  // 之后每天都判定"队满" → 研究所/建筑工坊这类关键建筑永远排不进去。
+  const queuedTotal = (): number =>
+    state.construction.length +
+    picks.filter((p) => p.type === 'build' || p.type === 'build_housing' || p.type === 'expand').length
+
+  // 开局"引擎优先"：研究所还没研究出来时把队列压到 1 项，这样它一解锁就能
+  // 立刻排到队首（否则被 30+ 建造力的杂项埋在队尾，白白多磨十几天）。
+  // 不能连生产建筑一起禁掉——失业人口的**唯一收入**就是上工地（见 docs/technology.md §五），
+  // 队列一空全村零收入，直接饿死。
+  const bootstrapping =
+    !state.research.done.includes('research_institute') &&
+    (state.goods['coarse_bread'] ?? 0) > pop * 8
+  const queueLimit = bootstrapping ? 1 : MAX_CONSTRUCTION_QUEUE
+  const queueFull = (): boolean => queuedTotal() >= queueLimit
 
   const pushExpand = (defId: string): void => {
     if (picks.length >= MAX_PICKS) return
@@ -251,12 +345,22 @@ function decideGrowth(state: GameState, ctx: ContentContext): Action[] {
     if (picks.length >= MAX_PICKS) return
     if (queueFull()) return
     if ((counts[id] ?? 0) >= n || !ctx.buildingSet.has(id)) return
+    // 科技没研究出来就别下单（不然白白占一个 pick，引擎会拒绝）
+    if (!isBuildingUnlocked(state, ctx, id)) return
     const def = ctx.buildings[id]
     if (!def) return
-    // 没有富余劳动力就先别建店：工位空着没有意义，反而摊薄现有工坊的人手。
-    // 例外：建筑工坊不产商品，它把工人**变成建造力**（一人顶两个闲人）——
-    // 村里没有闲人是常态，恰恰得靠它才能继续施工。
-    if (spareJobs <= 0 && def.recipe !== undefined) return
+
+    // 留一支建造队：建造力 = **失业人口**，所以必须让一部分人不上岗，
+    // 否则全村满员就业 → 建造力 0 → 连"建筑工坊"都盖不出来（唯一能打破僵局的建筑）。
+    // 迁入已经不看岗位数了（population.ts），所以压低开岗数不再会挡住移民。
+    const crewNeed = Math.max(2, Math.round(pop * CREW_RESERVE_RATIO))
+    if (spareJobs <= crewNeed && !isEngineBuilding(def)) return
+
+    // 没有富余劳动力时，**引擎建筑照建**：它们把工人变成产能（一人顶两个闲人）。
+    // 生产建筑也不再拦 —— 迁入闸门是 `jobCapacity = Σ targetWorkers`（population.ts），
+    // 岗位数不高于人口就一个移民都进不来，村子会被永久锁死在当前规模。
+    // 食品链优先由 `assignLabor` 的优先级保证，不靠这里限建。
+    if (spareJobs <= 0 && isEngineBuilding(def)) { /* 引擎建筑永远可建 */ }
     const key = 'b:' + id
     if (picked.has(key)) return
     const mats = matsOf(def.buildCost)
@@ -290,6 +394,37 @@ function decideGrowth(state: GameState, ctx: ContentContext): Action[] {
   //    它不产商品，只把工人变成 2 倍建造力，是村子唯一的产能增量来源。
   if (ctx.buildingSet.has('construction_works')) pushBuild('construction_works', 2)
 
+  // 0. 科技：研究队列空着就按优先级表补一项。
+  //
+  // 顺序 = docs/technology.md 依赖图的拓扑序。**研究所必须第一项**：
+  // 在它之前全村只有 2.0 科研力/天（12 科研力要熬 6 天），而它一投产就跳到 ~16/天。
+  // 之后 营造（建筑工坊）是最关键的一步：不研究它，村子满员就业后建造力归零、彻底停工。
+  if (state.research.queue.length === 0) {
+    for (const tid of RESEARCH_ORDER) {
+      if (!ctx.technologies[tid]) continue
+      const check = canResearch(state, ctx, tid)
+      if (check.ok) {
+        picks.push({ type: 'research', techId: tid })
+        break
+      }
+    }
+  }
+
+  // 0b. 产能与耗材产线：研究所 / 建筑工坊 / 工具坊 —— 这三座是"引擎"，优先于一切生产建筑。
+  // ⚠️ 每样**只要 1 座**：`counts` 把在 builder 也算进去，写 2 会导致第一座还没盖好
+  //    就再排一座，把施工队列占满，食品链（尤其蔬菜农场）永远排不进去
+  //    —— 而蔬菜产能是迁入闸门 `foodCapOk` 的一半，卡住它 = 人口永久冻结。
+  if (ctx.buildingSet.has('research_institute')) pushBuild('research_institute', 1)
+  if (ctx.buildingSet.has('construction_works')) pushBuild('construction_works', 1)
+  if (ctx.buildingSet.has('tool_works')) {
+    // 一座满员工具坊供养约 40 个在岗工位（每工位日耗 0.05）；不够就再建
+    const workstations = state.shops.reduce(
+      (a, s) => a + (ctx.buildings[s.defId]?.recipe ? assignedWorkers(state, s.id) : 0),
+      0,
+    )
+    pushBuild('tool_works', Math.max(1, Math.ceil(workstations / 40)))
+  }
+
   // 1. 木材（通用建材）：木材偏低时补伐木场
   if ((state.goods['wood'] ?? 0) < pop * 2) pushExpand('lumberjack')
 
@@ -310,11 +445,8 @@ function decideGrowth(state: GameState, ctx: ContentContext): Action[] {
   }
   if (vegRatio < 1) pushExpand('vegetable_farm')
 
-  // 3. 建材 / 建造力链最小规模
-  // 建筑工坊排第一：它是建造力的**唯一增量来源**（把工人变成 2 倍建造力），
-  // 不先把它建起来，村子一旦满员就业就再也动不了工。
+  // 3. 建材链最小规模（建筑工坊已在上面的"引擎"段处理）
   const minChain: Array<[string, number]> = [
-    ['construction_works', 2],
     ['lumberjack', 3],
     ['quarry', 1],
     ['clay_pit', 1],
@@ -403,17 +535,19 @@ function decideGrowth(state: GameState, ctx: ContentContext): Action[] {
     }
   }
 
-  // 移民放行：以「粮食产能 vs 需求」判断（库存天然≈当日产销，不能作为紧缺信号）。
+  // 人口上限：AI 把上限钉在「粮食产能养得起的人数」，但**至少留出 +2 的余量**。
+  // 这是迁入的**唯一**规模闸门（已不看岗位数），用来防止一口气涌进来一堆人、
+  // 粮食跟不上饿死 —— 正是玩家用这个旋钮要做的事。
+  // ⚠️ 不能把上限钉死在当前人口上：那样"没粮食 → 不招人 → 没人手建粮食链"会自锁，
+  //    所以永远留一点增量；真的粮食不够时由引擎的饥饿闸门兜底（昨日饥饿 >5% → 无人愿来）。
   {
-    const arrivalsNow = state.arrivals ?? 0
-    const foodCapOk =
-      productionCapacity('coarse_bread') >= pop * 1.1 &&
-      productionCapacity('vegetable') >= pop * 0.55
-    let allow = arrivalsNow
-    if (!foodCapOk || hungry > pop * 0.03) {
-      allow = Math.floor(pop * 0.03)
+    const breadCap = productionCapacity('coarse_bread') / 1.15 // 穷人 1.0 粗面包/人·天 + 余量
+    const vegCap = productionCapacity('vegetable') / 0.55 // 穷人 0.5 蔬菜/人·天 + 余量
+    const foodCap = Math.floor(Math.min(breadCap, vegCap))
+    const cap = Math.max(pop + 2, foodCap)
+    if (cap !== state.government.populationCap) {
+      actions.push({ type: 'set_population_cap', value: cap })
     }
-    actions.push({ type: 'set_immigration', value: allow })
   }
 
   for (const a of picks) actions.push(a)

@@ -33,3 +33,17 @@ export { observe } from './observe.ts'
 export { housingCapacity, privateCapacity, splitOccupancy } from './systems/housing.ts'
 export { usedSlots, constructionRate } from './systems/investment.ts'
 export { foodChainShopIds, assignedWorkers } from './systems/labor.ts'
+export {
+  activateResearch,
+  canResearch,
+  cancelResearch,
+  isBuildingUnlocked,
+  isHousingUnlocked,
+  isResearched,
+  researchRate,
+  settleResearch,
+  startResearch,
+  techForBuilding,
+  techForHousing,
+} from './systems/research.ts'
+export { allocateTools, shopToolBoost } from './systems/tools.ts'

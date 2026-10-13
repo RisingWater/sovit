@@ -3,6 +3,7 @@ import type {
   BuildingDef,
   BuildingID,
   BuildingTier,
+  CapacityDef,
   ClassDef,
   ClassID,
   ContentPack,
@@ -16,6 +17,8 @@ import type {
   PackStart,
   RecipeDef,
   RecipeID,
+  TechDef,
+  TechID,
 } from '../types.ts'
 import type { DefaultsConfig, EconomyConfig, TimeConfig, TuningConfig } from '../config.ts'
 import type { RawContent } from './load.ts'
@@ -44,12 +47,15 @@ export interface ParsedContent {
   defaults: DefaultsConfig
   tuning: TuningConfig
   time: TimeConfig
+  technologies: Record<TechID, TechDef>
+  techIds: TechID[]
+  eraIds: number[]
 }
 
 const SCHEMA_VERSION = 1
 
 const CATEGORIES: readonly GoodCategory[] = [
-  'raw', 'food', 'clothing', 'household', 'fuel', 'material', 'housing', 'investment', 'service', 'entertainment',
+  'raw', 'food', 'clothing', 'household', 'fuel', 'material', 'housing', 'investment', 'service', 'entertainment', 'tool',
 ]
 
 function fail(msg: string): never {
@@ -139,6 +145,11 @@ function strArr(v: unknown, p: string, set?: Set<string>): string[] {
   })
 }
 
+/** 字符串数组；缺省视为空数组（requires / unlocks 允许省略）。 */
+function strList(v: unknown, p: string): string[] {
+  return v === undefined ? [] : strArr(v, p)
+}
+
 // ---------------------------------------------------------------------------
 // 外观规格
 // ---------------------------------------------------------------------------
@@ -212,15 +223,25 @@ function parseGoods(raw: unknown): { goods: Record<GoodID, GoodDef>; ids: GoodID
     if (goods[id]) fail(`${p}.id 重复：${id}`)
     const perishRate = o.perishRate === undefined ? undefined : asNonNeg(o.perishRate, `${p}.perishRate`)
     if (perishRate !== undefined && perishRate > 1) fail(`${p}.perishRate 必须在 0–1`)
+    const category = asEnum(o.category, CATEGORIES, `${p}.category`)
+    // 工具品级：只有 category='tool' 才能带；tool 商品必须带（否则装了工具也没效果）
+    const toolBonus = o.toolBonus === undefined ? undefined : asPos(o.toolBonus, `${p}.toolBonus`)
+    if (category === 'tool' && toolBonus === undefined) {
+      fail(`${p}（${id}）category=tool 必须给 toolBonus（产出加成，见 docs/technology.md §八）`)
+    }
+    if (category !== 'tool' && toolBonus !== undefined) {
+      fail(`${p}（${id}）非 tool 商品不能有 toolBonus`)
+    }
     goods[id] = {
       id,
       nameZh: asStr(o.nameZh, `${p}.nameZh`),
       tier: asNumEnum(o.tier, [0, 1, 2, 3], `${p}.tier`) as GoodTier,
-      category: asEnum(o.category, CATEGORIES, `${p}.category`),
+      category,
       storable: asBool(o.storable, `${p}.storable`),
       baseValue: asNonNeg(o.baseValue, `${p}.baseValue`),
       luxury: o.luxury === undefined ? false : asBool(o.luxury, `${p}.luxury`),
       ...(perishRate !== undefined ? { perishRate } : {}),
+      ...(toolBonus !== undefined ? { toolBonus } : {}),
     }
     ids.push(id)
   })
@@ -281,6 +302,26 @@ function parseBuildings(
     // 施工工时（人·天）。设计见 docs/construction.md。
     const buildWork = o.buildWork === undefined ? undefined : asPos(o.buildWork, `${p}.buildWork`)
     if (buildWork === undefined) fail(`${p}.buildWork 缺失（施工工时，见 docs/construction.md）`)
+
+    // 产能建筑：不产商品、只产每日产能（建筑工坊 / 研究所）。有 recipe 就不该有 capacity，反之亦然。
+    let capacity: CapacityDef | undefined
+    if (o.capacity !== undefined) {
+      const c = asObj(o.capacity, `${p}.capacity`)
+      const kind = asEnum(c.kind, ['build', 'research'] as const, `${p}.capacity.kind`)
+      if (recipeId !== undefined) {
+        fail(`${p} 同时有 recipe 和 capacity：产商品的建筑不该再产产能`)
+      }
+      capacity = {
+        kind,
+        perWorker: asPos(c.perWorker, `${p}.capacity.perWorker`),
+        levelBonus: asNonNeg(c.levelBonus, `${p}.capacity.levelBonus`),
+        slotsPerLevel: asNonNeg(c.slotsPerLevel, `${p}.capacity.slotsPerLevel`),
+      }
+    }
+    if (recipeId === undefined && capacity === undefined) {
+      fail(`${p} 既没有 recipe 也没有 capacity：建筑总得产出点什么`)
+    }
+
     buildings[id] = {
       id,
       nameZh: asStr(o.nameZh, `${p}.nameZh`),
@@ -288,6 +329,7 @@ function parseBuildings(
       workers,
       ...(maxWorkers !== undefined ? { maxWorkers } : {}),
       ...(recipeId !== undefined ? { recipe: recipeId } : {}),
+      ...(capacity !== undefined ? { capacity } : {}),
       buildWork,
       ...(Object.keys(buildCost).length > 0 ? { buildCost } : {}),
       ...(art !== undefined ? { art } : {}),
@@ -384,14 +426,17 @@ function parseStart(
   goodSet: Set<string>,
   buildingSet: Set<string>,
   housingSet: Set<string>,
+  techSet: Set<string>,
 ): PackStart {
   const s = asObj(raw, p)
+  const techs = s.techs === undefined ? [] : strArr(s.techs, `${p}.techs`, techSet)
   return {
     population: asNonNeg(s.population, `${p}.population`),
     money: asNonNeg(s.money, `${p}.money`),
     shops: numMap(s.shops, `${p}.shops`, buildingSet),
     housing: numMap(s.housing, `${p}.housing`, housingSet),
     goods: numMap(s.goods, `${p}.goods`, goodSet),
+    techs,
   }
 }
 
@@ -401,6 +446,7 @@ function parsePacks(
   buildingSet: Set<string>,
   classSet: Set<string>,
   housingSet: Set<string>,
+  techSet: Set<string>,
 ): { packs: Record<PackID, ContentPack>; ids: PackID[] } {
   const list = asArr(asObj(raw, 'packs.json').packs, 'packs.json.packs')
   const packs = {} as Record<PackID, ContentPack>
@@ -418,7 +464,7 @@ function parsePacks(
       buildings: strArr(o.buildings, `${p}.buildings`, buildingSet),
       classes: strArr(o.classes, `${p}.classes`, classSet) as ClassID[],
       housing: strArr(o.housing, `${p}.housing`, housingSet),
-      start: parseStart(o.start, `${p}.start`, goodSet, buildingSet, housingSet),
+      start: parseStart(o.start, `${p}.start`, goodSet, buildingSet, housingSet, techSet),
     }
     ids.push(id)
   })
@@ -477,6 +523,8 @@ function parseEconomy(
       ? Infinity
       : asNonNeg(e.maxBuildingSlots, 'economy.maxBuildingSlots')
   const c = asObj(e.construction, 'economy.construction')
+  const rc = asObj(e.research, 'economy.research')
+  const toolsCfg = asObj(e.tools, 'economy.tools')
 
   const economy: EconomyConfig = {
     refWage: asNonNeg(e.refWage, 'economy.refWage'),
@@ -503,6 +551,7 @@ function parseEconomy(
     priceSlope: asNum(e.priceSlope, 'economy.priceSlope'),
     immigrationSatThreshold: asNum(e.immigrationSatThreshold, 'economy.immigrationSatThreshold'),
     immigrationRate: asNonNeg(e.immigrationRate, 'economy.immigrationRate'),
+    immigrationHungryRate: asNonNeg(e.immigrationHungryRate, 'economy.immigrationHungryRate'),
     emigrationSatThreshold: asNum(e.emigrationSatThreshold, 'economy.emigrationSatThreshold'),
     hungerDeathRate: asRate(e.hungerDeathRate, 'economy.hungerDeathRate'),
     minPopulation: asNonNeg(e.minPopulation, 'economy.minPopulation'),
@@ -515,9 +564,15 @@ function parseEconomy(
     maxBuildingSlots: maxSlots,
     construction: {
       unemployedRate: asNonNeg(c.unemployedRate, 'economy.construction.unemployedRate'),
-      workshopBase: asNonNeg(c.workshopBase, 'economy.construction.workshopBase'),
       wageRate: asNonNeg(c.wageRate, 'economy.construction.wageRate'),
       upgradePerLevel: asPos(c.upgradePerLevel, 'economy.construction.upgradePerLevel'),
+    },
+    research: {
+      baseRate: asNonNeg(rc.baseRate, 'economy.research.baseRate'),
+    },
+    tools: {
+      perWorkstation: asNonNeg(toolsCfg.perWorkstation, 'economy.tools.perWorkstation'),
+      order: strArr(toolsCfg.order, 'economy.tools.order', goodSet),
     },
     defaultRent: asNonNeg(e.defaultRent, 'economy.defaultRent'),
     privateHousingSatBonus: asNum(e.privateHousingSatBonus, 'economy.privateHousingSatBonus'),
@@ -571,9 +626,147 @@ function parseEconomy(
   return { economy, defaults, tuning, time }
 }
 
+// ---------------------------------------------------------------------------
+// 科技树（content/technologies.json）
+//
+// 设计见 docs/technology.md。这里除了字段校验，还强制两条结构性规则：
+//   1. 每座建筑 / 住房至多被一项科技解锁（否则「解锁」语义模糊）
+//   2. §1.1：一项科技花费的每种原料，必须能由「开局免费建筑 + 它的传递前置解锁的建筑」产出
+//      —— 这条直接挡住「要研究 X 却要先有 X 的产物」的死锁
+// ---------------------------------------------------------------------------
+
+function parseTechnologies(
+  raw: unknown,
+  goodSet: Set<string>,
+  buildingSet: Set<string>,
+  housingSet: Set<string>,
+  buildings: Record<BuildingID, BuildingDef>,
+  recipes: Record<RecipeID, RecipeDef>,
+): { technologies: Record<TechID, TechDef>; techIds: TechID[]; eraIds: number[] } {
+  const root = asObj(raw, 'technologies.json')
+  const eraList = asArr(root.eras, 'technologies.json.eras')
+  const eraIds: number[] = []
+  const eraNames = new Map<number, string>()
+  eraList.forEach((e, i) => {
+    const p = `eras[${i}]`
+    const o = asObj(e, p)
+    const id = asPos(o.id, `${p}.id`)
+    if (eraNames.has(id)) fail(`${p}.id 重复：${id}`)
+    eraNames.set(id, asStr(o.nameZh, `${p}.nameZh`))
+    eraIds.push(id)
+  })
+
+  const list = asArr(root.technologies, 'technologies.json.technologies')
+  const technologies: Record<TechID, TechDef> = {}
+  const techIds: TechID[] = []
+  for (let i = 0; i < list.length; i++) {
+    const p = `technologies[${i}]`
+    const o = asObj(list[i], p)
+    const id = asStr(o.id, `${p}.id`)
+    if (technologies[id]) fail(`${p}.id 重复：${id}`)
+    const era = asPos(o.era, `${p}.era`)
+    if (!eraNames.has(era)) fail(`${p}.era 引用了未定义的纪元：${era}`)
+    const costObj = asObj(o.cost, `${p}.cost`)
+    const goods = numMap(costObj.goods, `${p}.cost.goods`, goodSet)
+    const unlocksRaw = asObj(o.unlocks, `${p}.unlocks`)
+    const unlocks = {
+      buildings: strList(unlocksRaw.buildings, `${p}.unlocks.buildings`),
+      housing: strList(unlocksRaw.housing, `${p}.unlocks.housing`),
+    }
+    for (const b of unlocks.buildings) {
+      if (!buildingSet.has(b)) fail(`${p}.unlocks.buildings 引用了未定义的建筑：${b}`)
+    }
+    for (const h of unlocks.housing) {
+      if (!housingSet.has(h)) fail(`${p}.unlocks.housing 引用了未定义的住房：${h}`)
+    }
+    if (unlocks.buildings.length + unlocks.housing.length === 0) {
+      fail(`${p} 什么都没解锁：科技至少要给出一座建筑或一种住房`)
+    }
+    technologies[id] = {
+      id,
+      nameZh: asStr(o.nameZh, `${p}.nameZh`),
+      era,
+      research: asPos(o.research, `${p}.research`),
+      cost: { goods },
+      requires: strList(o.requires, `${p}.requires`),
+      unlocks,
+    }
+    techIds.push(id)
+  }
+
+  // requires 存在 + 无环（Kahn 拓扑）
+  for (const id of techIds) {
+    for (const r of technologies[id]!.requires) {
+      if (!technologies[r]) fail(`technologies.${id}.requires 引用了未定义的科技：${r}`)
+    }
+  }
+  {
+    const indeg = new Map(techIds.map((id) => [id, technologies[id]!.requires.length]))
+    const edges = new Map<string, string[]>(techIds.map((id) => [id, []]))
+    for (const id of techIds) for (const r of technologies[id]!.requires) edges.get(r)!.push(id)
+    const queue = techIds.filter((id) => indeg.get(id) === 0)
+    let seen = 0
+    while (queue.length > 0) {
+      const id = queue.shift()!
+      seen++
+      for (const nx of edges.get(id)!) {
+        indeg.set(nx, indeg.get(nx)! - 1)
+        if (indeg.get(nx) === 0) queue.push(nx)
+      }
+    }
+    if (seen !== techIds.length) fail('technologies.json 的 requires 存在环（无法拓扑排序）')
+  }
+
+  // 唯一解锁：每座建筑 / 住房至多被一项科技解锁
+  const owner = new Map<string, string>()
+  for (const id of techIds) {
+    const t = technologies[id]!
+    for (const b of [...t.unlocks.buildings, ...t.unlocks.housing]) {
+      const prev = owner.get(b)
+      if (prev) fail(`「${b}」被多项科技解锁：${prev} 与 ${id}（每座建筑至多一项）`)
+      owner.set(b, id)
+    }
+  }
+
+  // §1.1：花费的原料必须来自「免费建筑 + 传递前置解锁的建筑」
+  // 「免费」= 没有任何科技解锁它的建筑（开局即可建造）
+  const freeBuildings = [...buildingSet].filter((b) => !owner.has(b))
+  const outputsOf = (bid: string): string[] => {
+    const def = buildings[bid]
+    if (!def || !def.recipe) return []
+    return Object.keys(recipes[def.recipe]?.output ?? {})
+  }
+  const closureOf = (id: string): Set<string> => {
+    const seen = new Set<string>()
+    const walk = (x: string): void => {
+      if (seen.has(x)) return
+      seen.add(x)
+      for (const r of technologies[x]!.requires) walk(r)
+    }
+    walk(id)
+    return seen
+  }
+  for (const id of techIds) {
+    const t = technologies[id]!
+    const avail = new Set<string>(freeBuildings.flatMap(outputsOf))
+    for (const pre of closureOf(id)) {
+      for (const b of technologies[pre]!.unlocks.buildings) for (const g of outputsOf(b)) avail.add(g)
+    }
+    for (const g of Object.keys(t.cost.goods)) {
+      if (!avail.has(g)) {
+        fail(
+          `technologies.${id}（${t.nameZh}）花费里有「${g}」，但它的前置解锁不出这种原料` +
+            `（违反 docs/technology.md §1.1，会形成死锁）`,
+        )
+      }
+    }
+  }
+
+  return { technologies, techIds, eraIds }
+}
+
 /** 校验并组装全部内容表。 */
-export function parseContent(files: RawContent): ParsedContent {
-  const { goods, ids: goodIds } = parseGoods(files.goods)
+export function parseContent(files: RawContent): ParsedContent {  const { goods, ids: goodIds } = parseGoods(files.goods)
   const goodSet = new Set(goodIds)
 
   const { buildings, ids: buildingIds, recipes, recipeByBuilding } = parseBuildings(files.buildings, goodSet)
@@ -585,7 +778,24 @@ export function parseContent(files: RawContent): ParsedContent {
   const { housing, ids: housingIds } = parseHousing(files.housing, classSet, goodSet)
   const housingSet = new Set(housingIds)
 
-  const { packs, ids: packIds } = parsePacks(files.packs, goodSet, buildingSet, classSet, housingSet)
+  // 科技要在 packs 之前解析：packs 的 start.techs 要引用科技 id
+  const { technologies, techIds, eraIds } = parseTechnologies(
+    files.technologies,
+    goodSet,
+    buildingSet,
+    housingSet,
+    buildings,
+    recipes,
+  )
+
+  const { packs, ids: packIds } = parsePacks(
+    files.packs,
+    goodSet,
+    buildingSet,
+    classSet,
+    housingSet,
+    new Set(techIds),
+  )
   const { economy, defaults, tuning, time } = parseEconomy(files.economy, goodSet, classSet)
 
   if (packIds.length === 0) fail('packs.json 至少要有一个内容包')
@@ -598,5 +808,6 @@ export function parseContent(files: RawContent): ParsedContent {
     housing, housingIds,
     packs, packIds,
     economy, defaults, tuning, time,
+    technologies, techIds, eraIds,
   }
 }
