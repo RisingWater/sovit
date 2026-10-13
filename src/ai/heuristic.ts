@@ -117,7 +117,7 @@ function commonActions(
     const targets = new Map<string, number>()
     const defOf = (s: { defId: string }) => ctx.buildings[s.defId]
 
-    // ① 食品链：在预算内等比摊派（吃饭优先）
+    // ① 食品链：在预算内等比摊派（吃饭优先 —— 引擎再重要也不能把人饿死）
     const foodShops = state.shops.filter((s) => foodIds.has(s.id))
     const foodWant = foodShops.reduce((a, s) => a + (defOf(s)?.workers ?? 0), 0)
     const foodScale = foodWant > budget ? budget / foodWant : 1
@@ -126,14 +126,18 @@ function commonActions(
       targets.set(s.id, w)
       budget -= w
     }
-    // ② 引擎建筑（研究所 / 建筑工坊）：固定工位，本身就是产能来源
+    // ② 引擎建筑（研究所 / 建筑工坊）：**只能用食品链剩下的**，并且要扣预算。
+    //    曾经写成"直接给满 def.workers 且不扣 budget"，于是研究所那 6 个人是白加的：
+    //    食品链 14 + 研究所 6 = 20 = 全人口，常备建造队被悄悄吃光，
+    //    实测建造力恒为 **0**，队首的伐木场从第 20 天卡到第 100 天一动不动。
     for (const s of state.shops) {
-      if (targets.has(s.id)) continue
       const def = defOf(s)
       if (!def || !def.capacity) continue
-      targets.set(s.id, def.workers)
+      const w = Math.max(0, Math.min(def.workers, budget))
+      targets.set(s.id, w)
+      budget -= w
     }
-    // ③ 其余：只能用①②剩下的零头
+    // ③ 其余：只剩零头
     const rest = state.shops.filter((s) => !targets.has(s.id))
     const restWant = rest.reduce((a, s) => a + (defOf(s)?.workers ?? 0), 0)
     const restScale = restWant > budget ? budget / restWant : 1
