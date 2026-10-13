@@ -30,9 +30,15 @@ func _summary(s: Dictionary) -> Dictionary:
 	var total := 0.0
 	for g in s["goods"].keys():
 		total += float(s["goods"][g])
+	# 存档是 JSON：浮点往返有 ulp 级误差（980.82 → 980.82000000000005），
+	# 直接比 float 会因为表示误差判不等。按 1e-6 收敛：既容忍表示误差，
+	# 又抓得住真正的数值漂移（那至少是 1e-3 量级）。
 	return {
 		"day": int(s["day"]), "hour": int(s["hour"]),
 		"pop": (s["residents"] as Array).size(),
-		"money": float(s["government"]["money"]),
-		"goods": total,
+		"money": _snap(float(s["government"]["money"])),
+		"goods": _snap(total),
 	}
+
+func _snap(v: float) -> float:
+	return round(v * 1000000.0) / 1000000.0

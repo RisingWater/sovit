@@ -1,0 +1,279 @@
+{
+  "schemaVersion": 1,
+
+  "eras": [
+    { "id": 1, "nameZh": "启蒙与原料" },
+    { "id": 2, "nameZh": "营造与加工" },
+    { "id": 3, "nameZh": "中产生活" },
+    { "id": 4, "nameZh": "富庶" },
+    { "id": 5, "nameZh": "市政" }
+  ],
+
+  "technologies": [
+    {
+      "id": "research_institute",
+      "nameZh": "研究所",
+      "era": 1,
+      "research": 12,
+      "cost": { "goods": { "wood": 10 } },
+      "requires": [],
+      "unlocks": { "buildings": ["research_institute"], "housing": [] }
+    },
+    {
+      "id": "stonework",
+      "nameZh": "石作",
+      "era": 1,
+      "research": 20,
+      "cost": { "goods": { "wood": 15 } },
+      "requires": [],
+      "unlocks": { "buildings": ["quarry"], "housing": [] }
+    },
+    {
+      "id": "digging",
+      "nameZh": "掘土",
+      "era": 1,
+      "research": 20,
+      "cost": { "goods": { "wood": 15 } },
+      "requires": [],
+      "unlocks": { "buildings": ["clay_pit"], "housing": [] }
+    },
+    {
+      "id": "firewood",
+      "nameZh": "薪柴",
+      "era": 1,
+      "research": 20,
+      "cost": { "goods": { "wood": 20 } },
+      "requires": [],
+      "unlocks": { "buildings": ["firewood_works"], "housing": [] }
+    },
+    {
+      "id": "hunting",
+      "nameZh": "田猎",
+      "era": 1,
+      "research": 20,
+      "cost": { "goods": { "wood": 20 } },
+      "requires": [],
+      "unlocks": { "buildings": ["hunting_camp"], "housing": [] }
+    },
+    {
+      "id": "toolmaking",
+      "nameZh": "石制工具",
+      "era": 1,
+      "research": 30,
+      "cost": { "goods": { "wood": 20, "stone": 20 } },
+      "requires": ["stonework"],
+      "unlocks": { "buildings": ["tool_works"], "housing": [] }
+    },
+
+    {
+      "id": "construction",
+      "nameZh": "营造",
+      "era": 2,
+      "research": 30,
+      "cost": { "goods": { "wood": 30, "stone": 15 } },
+      "requires": ["stonework"],
+      "unlocks": { "buildings": ["construction_works"], "housing": [] }
+    },
+    {
+      "id": "brickmaking",
+      "nameZh": "烧砖",
+      "era": 2,
+      "research": 30,
+      "cost": { "goods": { "clay": 30, "firewood": 25 } },
+      "requires": ["digging", "firewood"],
+      "unlocks": { "buildings": ["brick_kiln"], "housing": [] }
+    },
+    {
+      "id": "pottery",
+      "nameZh": "制陶",
+      "era": 2,
+      "research": 30,
+      "cost": { "goods": { "clay": 30, "firewood": 25 } },
+      "requires": ["digging", "firewood"],
+      "unlocks": { "buildings": ["pottery_works"], "housing": [] }
+    },
+    {
+      "id": "fiber_crops",
+      "nameZh": "纤维作物",
+      "era": 2,
+      "research": 30,
+      "cost": { "goods": { "wood": 30 } },
+      "requires": [],
+      "unlocks": { "buildings": ["flax_farm", "cotton_farm"], "housing": [] }
+    },
+    {
+      "id": "fishing",
+      "nameZh": "渔捞",
+      "era": 2,
+      "research": 30,
+      "cost": { "goods": { "wood": 25 } },
+      "requires": [],
+      "unlocks": { "buildings": ["fishery"], "housing": [] }
+    },
+
+    {
+      "id": "carpentry",
+      "nameZh": "木作住房",
+      "era": 3,
+      "research": 50,
+      "cost": { "goods": { "wood": 60, "stone": 20 } },
+      "requires": ["construction", "stonework"],
+      "unlocks": { "buildings": [], "housing": ["wooden_house"] }
+    },
+    {
+      "id": "fine_milling",
+      "nameZh": "精磨",
+      "era": 3,
+      "research": 50,
+      "cost": { "goods": { "wood": 25, "stone": 20 } },
+      "requires": ["stonework"],
+      "unlocks": { "buildings": ["fine_mill"], "housing": [] }
+    },
+    {
+      "id": "white_baking",
+      "nameZh": "白面包烘焙",
+      "era": 3,
+      "research": 50,
+      "cost": { "goods": { "wood": 30, "brick": 20, "fine_flour": 20 } },
+      "requires": ["fine_milling", "brickmaking"],
+      "unlocks": { "buildings": ["white_bakery"], "housing": [] }
+    },
+    {
+      "id": "coarse_weaving",
+      "nameZh": "粗织",
+      "era": 3,
+      "research": 50,
+      "cost": { "goods": { "wood": 40 } },
+      "requires": ["fiber_crops"],
+      "unlocks": { "buildings": ["coarse_weaver"], "housing": [] }
+    },
+    {
+      "id": "coarse_tailoring",
+      "nameZh": "粗布裁衣",
+      "era": 3,
+      "research": 50,
+      "cost": { "goods": { "wood": 30, "coarse_cloth": 20 } },
+      "requires": ["coarse_weaving"],
+      "unlocks": { "buildings": ["coarse_clothes_shop"], "housing": [] }
+    },
+    {
+      "id": "fine_weaving",
+      "nameZh": "细织",
+      "era": 3,
+      "research": 50,
+      "cost": { "goods": { "wood": 40, "stone": 15 } },
+      "requires": ["fiber_crops", "stonework"],
+      "unlocks": { "buildings": ["fine_weaver"], "housing": [] }
+    },
+    {
+      "id": "curing",
+      "nameZh": "腌熏",
+      "era": 3,
+      "research": 50,
+      "cost": { "goods": { "wood": 40, "stone": 20, "firewood": 20 } },
+      "requires": ["hunting", "fishing", "firewood", "stonework"],
+      "unlocks": { "buildings": ["smokehouse", "dried_meat_works"], "housing": [] }
+    },
+    {
+      "id": "entertainment",
+      "nameZh": "娱乐",
+      "era": 3,
+      "research": 50,
+      "cost": { "goods": { "wood": 60, "stone": 30, "brick": 20 } },
+      "requires": ["carpentry", "brickmaking"],
+      "unlocks": { "buildings": ["theater"], "housing": [] }
+    },
+
+    {
+      "id": "common_tailoring",
+      "nameZh": "常服裁制",
+      "era": 4,
+      "research": 80,
+      "cost": { "goods": { "wood": 40, "fine_cloth": 25 } },
+      "requires": ["fine_weaving", "coarse_tailoring"],
+      "unlocks": { "buildings": ["common_clothes_shop"], "housing": [] }
+    },
+    {
+      "id": "cash_crops",
+      "nameZh": "糖料与染料",
+      "era": 4,
+      "research": 80,
+      "cost": { "goods": { "wood": 35, "stone": 20 } },
+      "requires": ["stonework"],
+      "unlocks": { "buildings": ["sugarcane_farm", "dye_farm"], "housing": [] }
+    },
+    {
+      "id": "sugar_refining",
+      "nameZh": "制糖",
+      "era": 4,
+      "research": 80,
+      "cost": { "goods": { "wood": 35, "stone": 25 } },
+      "requires": ["cash_crops"],
+      "unlocks": { "buildings": ["sugar_works"], "housing": [] }
+    },
+    {
+      "id": "pastry_baking",
+      "nameZh": "糕点烘焙",
+      "era": 4,
+      "research": 80,
+      "cost": { "goods": { "wood": 40, "brick": 30, "fine_flour": 25, "sugar": 15 } },
+      "requires": ["white_baking", "sugar_refining"],
+      "unlocks": { "buildings": ["pastry_shop"], "housing": [] }
+    },
+    {
+      "id": "masonry_housing",
+      "nameZh": "砖石住房",
+      "era": 4,
+      "research": 80,
+      "cost": { "goods": { "wood": 50, "stone": 40, "brick": 30 } },
+      "requires": ["carpentry", "brickmaking"],
+      "unlocks": { "buildings": [], "housing": ["brick_house"] }
+    },
+    {
+      "id": "leatherwork",
+      "nameZh": "皮革",
+      "era": 4,
+      "research": 80,
+      "cost": { "goods": { "wood": 30, "hide": 25 } },
+      "requires": ["hunting"],
+      "unlocks": { "buildings": ["leather_shop"], "housing": [] }
+    },
+    {
+      "id": "luxury_tailoring",
+      "nameZh": "华服裁制",
+      "era": 4,
+      "research": 80,
+      "cost": { "goods": { "wood": 40, "fine_cloth": 30, "dye": 20 } },
+      "requires": ["common_tailoring", "cash_crops"],
+      "unlocks": { "buildings": ["luxury_clothes_shop"], "housing": [] }
+    },
+    {
+      "id": "porcelain",
+      "nameZh": "制瓷",
+      "era": 4,
+      "research": 80,
+      "cost": { "goods": { "clay": 50, "firewood": 50, "brick": 20 } },
+      "requires": ["pottery", "brickmaking"],
+      "unlocks": { "buildings": ["porcelain_works"], "housing": [] }
+    },
+
+    {
+      "id": "domestic_service",
+      "nameZh": "家政",
+      "era": 5,
+      "research": 120,
+      "cost": { "goods": { "wood": 40, "brick": 20 } },
+      "requires": ["masonry_housing"],
+      "unlocks": { "buildings": ["domestic_service"], "housing": [] }
+    },
+    {
+      "id": "housing_works",
+      "nameZh": "住房坊",
+      "era": 5,
+      "research": 120,
+      "cost": { "goods": { "wood": 80, "brick": 40 } },
+      "requires": ["carpentry", "brickmaking"],
+      "unlocks": { "buildings": ["housing_works"], "housing": [] }
+    }
+  ]
+}

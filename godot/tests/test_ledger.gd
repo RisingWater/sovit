@@ -10,6 +10,9 @@ func _mk() -> SimCore:
 	var db := ContentDB.load_all()
 	var sim := SimCore.new(db)
 	sim.new_game("v0.3", 2024)
+	# 冻结人口：这个套件测的是账目结构，不是移民。
+	# 不冻结的话，最后一晚刚迁入的居民还没经过 _pay_wages，自然没有 account。
+	sim.s["government"]["populationCap"] = float((sim.s["residents"] as Array).size())
 	return sim
 
 func test_ledger_recorded_every_day() -> void:

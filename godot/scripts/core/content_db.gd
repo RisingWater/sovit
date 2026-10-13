@@ -10,6 +10,9 @@ var recipes: Dictionary = {}    # id -> RecipeDef
 var classes: Dictionary = {}    # id -> ClassDef
 var housing: Dictionary = {}    # id -> HousingDef
 var packs: Dictionary = {}      # id -> ContentPack
+var techs: Dictionary = {}      # id -> TechDef
+var tech_ids: Array = []
+var eras: Array = []            # [{id, nameZh}]
 var economy: Dictionary = {}
 var defaults: Dictionary = {}
 var tuning: Dictionary = {}
@@ -68,6 +71,9 @@ func _load() -> void:
 		# 施工工时（建造力 / 人·天）。设计见 docs/construction.md
 		if it.has("buildWork"):
 			bdef["buildWork"] = int(it["buildWork"])
+		# 产能参数（建筑工坊 / 研究所）：不产商品、只产每日产能。见 docs/technology.md §6.2
+		if it.has("capacity"):
+			bdef["capacity"] = it["capacity"]
 		# terrain 只在存在时写入，避免 has("terrain") 永远为真
 		if it.has("terrain"):
 			bdef["terrain"] = String(it["terrain"])
@@ -85,6 +91,28 @@ func _load() -> void:
 	for it in p["packs"]:
 		packs[String(it["id"])] = it
 
+	# 科技树（见 docs/technology.md）。era 只是 UI 分组用的标签。
+	var t: Dictionary = _read_json("technologies.json")
+	for it in t["eras"]:
+		eras.append({"id": int(it["id"]), "nameZh": String(it["nameZh"])})
+	for it in t["technologies"]:
+		var tid := String(it["id"])
+		var cost: Dictionary = it.get("cost", {})
+		var unlocks: Dictionary = it.get("unlocks", {})
+		techs[tid] = {
+			"id": tid,
+			"nameZh": String(it["nameZh"]),
+			"era": int(it["era"]),
+			"research": float(it["research"]),
+			"cost": {"goods": cost.get("goods", {})},
+			"requires": it.get("requires", []),
+			"unlocks": {
+				"buildings": unlocks.get("buildings", []),
+				"housing": unlocks.get("housing", []),
+			},
+		}
+		tech_ids.append(tid)
+
 	var e: Dictionary = _read_json("economy.json")
 	schema_version = int(e.get("schemaVersion", 0))
 	economy = e["economy"]
@@ -95,3 +123,24 @@ func _load() -> void:
 func is_luxury(gid: String) -> bool:
 	var g = goods.get(gid, null)
 	return g != null and bool(g.get("luxury", false))
+
+## 解锁某建筑的科技 id；返回 "" 表示没有科技锁（开局即可建）。
+func tech_for_building(bid: String) -> String:
+	for tid in tech_ids:
+		if (techs[tid]["unlocks"]["buildings"] as Array).has(bid):
+			return tid
+	return ""
+
+## 解锁某种住房的科技 id；"" = 开局即可建。
+func tech_for_housing(hid: String) -> String:
+	for tid in tech_ids:
+		if (techs[tid]["unlocks"]["housing"] as Array).has(hid):
+			return tid
+	return ""
+
+## 某商品的工具加成；0 = 不是工具商品。
+func tool_bonus(gid: String) -> float:
+	var g = goods.get(gid, null)
+	if g == null:
+		return 0.0
+	return float(g.get("toolBonus", 0.0))

@@ -300,8 +300,8 @@ func _housing_panel() -> void:
 	_gap()
 	_buttons([["移动", func(): _begin_move_housing()]])
 
-func _set_immigration(value: int) -> void:
-	runner.enqueue([{"type": "set_immigration", "value": value}])
+func _set_population_cap(value: int) -> void:
+	runner.enqueue([{"type": "set_population_cap", "value": value}])
 	# 必须立刻重建：命令排到次日 06:00 才生效，不重建的话点完屏幕上
 	# 一点变化都没有，看起来就像按钮没反应。
 	_rebuild()
@@ -327,48 +327,44 @@ func _global_panel() -> void:
 		Color(0.18, 0.45, 0.20) if float(s["government"]["money"]) >= 0.0 else Color(0.60, 0.20, 0.18))
 
 	_gap()
-	_title("移民")
+	_title("人口")
 	var arrivals = int(s["arrivals"])
-	var allow = int(float(s["government"]["immigrationAllowance"]))
+	var cap = int(float(s["government"]["populationCap"]))
 	# 命令是"次日 06:00 生效"的，所以点完按钮后状态里还是旧值 ——
-	# 面板必须先看 pending 队列，否则点"全收"屏幕上一点变化都没有，像没反应。
-	var pending_allow := -1
+	# 面板必须先看 pending 队列，否则点"不限"屏幕上一点变化都没有，像没反应。
+	var pending_cap := -1
 	for a in (s["pending"] as Array):
-		if String(a.get("type", "")) == "set_immigration":
-			pending_allow = int(float(a["value"]))
-	var eff_allow: int = pending_allow if pending_allow >= 0 else allow
-	var allow_txt = "不限" if eff_allow >= 100000000 else str(eff_allow)
+		if String(a.get("type", "")) == "set_population_cap":
+			pending_cap = int(float(a["value"]))
+	var eff_cap: int = pending_cap if pending_cap >= 0 else cap
+	var cap_txt = "不限" if eff_cap >= 100000000 else str(eff_cap)
 	_kv("本回合想来", "%d 人" % arrivals, Color(0.55, 0.35, 0.15) if arrivals > 0 else UIKit.FG_DARK)
-	_kv("当前允许" + ("（已排队）" if pending_allow >= 0 else ""), allow_txt,
-		Color(0.72, 0.35, 0.15) if pending_allow >= 0 else UIKit.FG_DARK)
+	_kv("人口上限" + ("（已排队）" if pending_cap >= 0 else ""), cap_txt,
+		Color(0.72, 0.35, 0.15) if pending_cap >= 0 else UIKit.FG_DARK)
 	var popn = residents.size()
 	var hcap = 0
 	for gid in (s["housing"] as Dictionary).keys():
 		if runner.db.housing.has(gid):
 			hcap += int(runner.db.housing[gid]["capacity"]) * int(floor(float(s["housing"][gid])))
-	var jcap = 0
-	for sh in s["shops"]:
-		if bool(sh["active"]):
-			var defx = runner.db.buildings.get(String(sh["defId"]), null)
-			if defx != null:
-				jcap += int(minf(float(sh["targetWorkers"]), float(defx["maxWorkers"])))
-	var room := maxi(0, mini(hcap - popn, jcap - popn))
+	_kv("当前人口", "%d" % popn)
 	_kv("空房", "%d" % maxi(0, hcap - popn))
-	_kv("空岗", "%d" % maxi(0, jcap - popn))
-	# 这才是会真正发生的事：想来 ∩ 允许 ∩ 空房空岗
-	var will_come: int = mini(arrivals, mini(eff_allow if eff_allow < 100000000 else arrivals, room))
+	# 这才是会真正发生的事：想来 ∩ 空房 ∩ (上限 − 人口)。
+	# **不看岗位数** —— 岗位可以后补（见 docs/spec.md §8）。
+	var cap_room: int = (eff_cap - popn) if eff_cap < 100000000 else arrivals
+	var will_come: int = mini(arrivals, mini(cap_room, maxi(0, hcap - popn)))
 	_kv("次日会来", "%d 人" % will_come,
 		Color(0.18, 0.45, 0.20) if will_come > 0 else UIKit.FG_DARK)
-	_buttons([["全收", func(): _set_immigration(1000000000)],
-		["暂停", func(): _set_immigration(0)],
-		["+10", func(): _set_immigration((allow if allow < 100000000 else 0) + 10)]])
+	_buttons([["不限", func(): _set_population_cap(1000000000)],
+		["停", func(): _set_population_cap(popn)],
+		["+10", func(): _set_population_cap((popn + 10))]])
 	_gap(2)
 	if will_come <= 0 and arrivals > 0:
-		_body.add_child(_label("想来 %d 人，但空房或空岗不足，一个也进不来。" % arrivals))
-	elif pending_allow >= 0:
+		var why = "空房不足" if (hcap - popn) <= 0 else ("已到人口上限" if eff_cap < 100000000 else "名额不足")
+		_body.add_child(_label("想来 %d 人，但%s，一个也进不来。" % [arrivals, why]))
+	elif pending_cap >= 0:
 		_body.add_child(_label("已排队，次日 06:00 生效。"))
 	else:
-		_body.add_child(_label("次日 06:00 生效。没人来通常是空房或空岗不足。"))
+		_body.add_child(_label("次日 06:00 生效。没人来通常是空房不足或已到人口上限。"))
 
 	_gap()
 	_title("库存（含已预留）")

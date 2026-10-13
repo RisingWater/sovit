@@ -624,7 +624,7 @@ func showcase_village(seed_value: int) -> void:
 	start_new_game(seed_value, 10.0, "sovit")
 	var s: Dictionary = runner.sim.s
 	s["government"]["money"] = 500000.0
-	s["government"]["immigrationAllowance"] = 100000.0
+	s["government"]["populationCap"] = 100000.0
 	for g in (s["goods"] as Dictionary).keys():
 		s["goods"][g] = 20000.0
 

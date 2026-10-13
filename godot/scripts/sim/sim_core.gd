@@ -40,8 +40,10 @@ static func _action_key(a: Dictionary) -> String:
 			return t + ":" + String(a.get("goodId", ""))
 		"set_tax_bracket":
 			return t + ":" + str(int(a.get("index", 0)))
-		"set_tax", "set_rent", "set_immigration":
+		"set_tax", "set_rent", "set_population_cap":
 			return t
+		"research", "cancel_research":
+			return t + ":" + String(a.get("techId", ""))
 		_:
 			return ""
 
@@ -134,10 +136,14 @@ func new_game(pack_id: String, seed_value: int, resource_mult: float = 1.0) -> v
 			"taxBrackets": _dup_brackets(db.economy["defaultTaxBrackets"]),
 			"rent": float(db.economy["defaultRent"]),
 			"subsidyBudget": 0.0,
-			"immigrationAllowance": 1000000000.0,
+			# 人口上限（玩家可调）：迁入只看住房 + 粮食 + 满意度，规模由它兜住。
+			# 见 docs/spec.md §8。
+			"populationCap": 1000000000.0,
 		},
 		"goods": goods, "housing": housing, "privateHousing": private_housing, "prices": prices,
 		"shops": shops, "residents": residents, "construction": [],
+		# 科技：开局已研究的来自 pack.start.techs（见 docs/technology.md）
+		"research": {"done": _start_techs(pack_id), "queue": []},
 		"ledgerToday": _empty_ledger(0),
 		"history": [{"day": 0, "population": pop, "avgSatisfaction": float(sd["satisfaction"]), "money": money, "hungry": 0, "employed": 0, "ledger": _empty_ledger(0)}],
 		"log": [], "alerts": [], "arrivals": 0,
@@ -148,6 +154,16 @@ func new_game(pack_id: String, seed_value: int, resource_mult: float = 1.0) -> v
 ## 空白台账 / 空白个人账目。
 ## 逐人账目与每日台账分开放，是为了将来做差异化分配（按收入/偏好/距离）
 ## 时不必再动数据结构 —— 现在所有人平均分配，逐人数值 == 阶层数值。
+func _start_techs(pack_id: String) -> Array:
+	## 开局已研究完的科技（pack.start.techs；缺省为空 = 只有无科技锁的建筑可建）。
+	## ⚠️ 必须显式收 pack_id：这个函数在 s 组装到一半时被调用，village 里 _pack() 还取不到 s["pack"]。
+	var out: Array = []
+	var p = db.packs.get(pack_id, null)
+	if p == null:
+		return out
+	for t in (p.get("start", {}) as Dictionary).get("techs", []):
+		out.append(String(t))
+	return out
 func _empty_ledger(day: int) -> Dictionary:
 	return {"day": day, "wages": 0.0, "tax": 0.0, "rent": 0.0, "sales": 0.0,
 		"produced": {}, "consumed": {}, "bought": {}}
@@ -183,7 +199,10 @@ func _run_dawn() -> Array:
 	_apply_actions(s["pending"])
 	s["pending"] = []
 	logs.append_array(_activate_completed())
+	logs.append_array(_activate_research())
 	_assign_labor()
+	# 工具必须在排产之前分配：它决定今天各工坊的产出倍率（shop.toolBoost）
+	logs.append_array(_allocate_tools())
 	_plan_production()
 	return logs
 
@@ -192,6 +211,8 @@ func _run_night() -> Array:
 	var logs := []
 	# 施工结算必须在工资之前：它决定当天有多少失业人口「在工地上出工」（建造工资）。
 	logs.append_array(_settle_construction(day))
+	# 研究独立成队、不占人口：只消耗科研力（研究所）与材料
+	logs.append_array(_settle_research(day))
 	logs.append_array(_pay_wages(day))
 	_assign_tenure()
 	logs.append_array(_collect_rent(day))
@@ -274,8 +295,12 @@ func _apply_actions(actions: Array) -> void:
 				_set_tax_bracket(action)
 			"set_rent":
 				s["government"]["rent"] = SimUtil.r2(clampf(float(action["value"]), 0.0, 99.0))
-			"set_immigration":
-				s["government"]["immigrationAllowance"] = maxf(0.0, floor(float(action["value"])))
+			"set_population_cap":
+				s["government"]["populationCap"] = maxf(0.0, floor(float(action["value"])))
+			"research":
+				_start_research(String(action["techId"]))
+			"cancel_research":
+				_cancel_research(String(action["techId"]))
 			_:
 				pass
 
@@ -397,11 +422,13 @@ func _run_production_step(fraction: float) -> void:
 			s["goods"]["firewood"] = float(s["goods"].get("firewood", 0.0)) - fuel * batches
 			s["reserved"]["firewood"] = maxf(0.0, float(s["reserved"].get("firewood", 0.0)) - fuel * batches)
 			lt["consumed"]["firewood"] = _r4(float(lt["consumed"].get("firewood", 0.0)) + fuel * batches)
+		# 只放大**产出**，投入（上面几段）完全不动 —— 这就是"虚空产量"。
+		var boost = _shop_tool_boost(shop)
 		for g in (recipe["output"] as Dictionary).keys():
 			var q = float(recipe["output"][g])
 			if q > 0.0:
-				s["goods"][g] = float(s["goods"].get(g, 0.0)) + q * batches
-				lt["produced"][g] = _r4(float(lt["produced"].get(g, 0.0)) + q * batches)
+				s["goods"][g] = float(s["goods"].get(g, 0.0)) + q * batches * boost
+				lt["produced"][g] = _r4(float(lt["produced"].get(g, 0.0)) + q * batches * boost)
 
 ## 四位小数：小时累计的物料流量用它，避免逐小时四舍五入累积漂移
 func _r4(v: float) -> float:
@@ -495,7 +522,11 @@ func _assign_labor() -> void:
 		var def = db.buildings.get(shop["defId"], null)
 		var want = 0
 		if bool(shop["active"]) and def != null:
-			want = int(maxf(0.0, minf(float(shop["targetWorkers"]), float(def["maxWorkers"]))))
+			# 工位上限随等级增长（研究所这类产能建筑升级会加 slotsPerLevel 个工位）
+			var slots = float(def["maxWorkers"])
+			if def.has("capacity"):
+				slots += float(def["capacity"]["slotsPerLevel"]) * (float(shop["level"]) - 1.0)
+			want = int(maxf(0.0, minf(float(shop["targetWorkers"]), slots)))
 		info.append({"want": want, "priority": food_chain_shops.has(shop["id"])})
 
 	var assign := []
@@ -1045,6 +1076,8 @@ func _update_population(hungry: int, day: int) -> Array:
 	return logs
 
 func _job_capacity() -> int:
+	## 仅供 UI / 测试参考的「当前开出的岗位数」。
+	## ⚠️ 迁入**不再**看它（见 _apply_admission）：岗位可以后补，卡它会让村子永远长不大。
 	var total = 0
 	for shop in s["shops"]:
 		if not bool(shop["active"]):
@@ -1055,22 +1088,31 @@ func _job_capacity() -> int:
 	return total
 
 func _apply_admission(day: int) -> Array:
+	## admit = min(想来人数, 住房余量, 人口上限 − 人口)
+	## **不看岗位数**：岗位可以后补，卡它会让村子永远长不大。见 docs/spec.md §8。
 	var pop = s["residents"].size()
 	if pop == 0 or int(s["arrivals"]) <= 0:
 		return []
-	var room = int(maxf(0.0, minf(float(_housing_capacity() - pop), float(_job_capacity() - pop))))
-	var allow = int(maxf(0.0, floor(float(s["government"]["immigrationAllowance"]))))
-	var admit = int(minf(float(s["arrivals"]), minf(float(allow), float(room))))
+	var cap = float(s["government"]["populationCap"])
+	var room = int(maxf(0.0, minf(float(_housing_capacity() - pop), cap - float(pop))))
+	var admit = int(minf(float(s["arrivals"]), float(room)))
 	if admit <= 0:
 		return []
 	for i in admit:
 		s["residents"].append(_make_resident("poor"))
-	return [{"day": day, "kind": "population", "text": "%d 人获准迁入" % admit}]
+	return [{"day": day, "kind": "population", "text": "%d 人获准迁入（本回合想来 %d 人）" % [admit, int(s["arrivals"])]}]
 
 func _compute_arrivals() -> void:
+	## 只看两件事：满意度够不够，以及昨天有没有闹饥荒。岗位数不参与。
 	var pop = s["residents"].size()
 	var th = float(db.economy["immigrationSatThreshold"])
 	if pop == 0:
+		s["arrivals"] = 0
+		return
+	# 食物充足：昨日饥饿比例超过阈值就没有人来
+	var hist: Array = s["history"]
+	var hungry = int(hist[hist.size() - 1].get("hungry", 0)) if hist.size() > 0 else 0
+	if float(hungry) > maxf(1.0, float(pop) * float(db.economy["immigrationHungryRate"])):
 		s["arrivals"] = 0
 		return
 	var avg_sat = _avg_sat()
@@ -1201,6 +1243,9 @@ func _try_expand(shop_id: String) -> void:
 func _try_build(building_id: String) -> void:
 	if not _pack()["buildings"].has(building_id):
 		return
+	# 科技没研究出来就不能建（见 docs/technology.md）
+	if not is_building_unlocked(building_id):
+		return
 	var def: Dictionary = db.buildings[building_id]
 	if _used_slots() >= _max_slots():
 		return
@@ -1214,6 +1259,8 @@ func _try_build(building_id: String) -> void:
 func _try_build_housing(good_id: String) -> void:
 	if not _pack()["housing"].has(good_id):
 		return
+	if not is_housing_unlocked(good_id):
+		return
 	var def: Dictionary = db.housing[good_id]
 	if _used_slots() >= _max_slots():
 		return
@@ -1224,9 +1271,175 @@ func _try_build_housing(good_id: String) -> void:
 		"remaining": work, "totalRequired": work, "started": false,
 	})
 
+# ===========================================================================
+# 研究（见 docs/technology.md）
+#
+# 科研力 = 每日产能（速率，不是库存），与建造力同构：
+#   基础 research.baseRate + Σ(研究所在岗工人 × perWorker × (1+levelBonus×(等级−1)) × 熟练度曲线)
+# 科技消耗「科研力 + 原材料」：材料在**开工时**扣（队首开始投入科研力时），
+# 进度按先进先出队列逐日投入，产能不结转。跑完在**次日黎明**解锁建筑。
+# ===========================================================================
+func _is_researched(tid: String) -> bool:
+	return (s["research"]["done"] as Array).has(tid)
+
+func _is_queued_tech(tid: String) -> bool:
+	for p in s["research"]["queue"]:
+		if String(p["id"]) == tid:
+			return true
+	return false
+
+func _research_rate() -> float:
+	var rate = float(db.economy["research"]["baseRate"])
+	for shop in s["shops"]:
+		var def = db.buildings.get(shop["defId"], null)
+		if def == null or not bool(shop["active"]) or not _capacity_kind(def, "research"):
+			continue
+		var cap: Dictionary = def["capacity"]
+		var skill_eff = float(db.tuning["skillEffectBase"]) + float(db.tuning["skillEffectSlope"]) * (float(shop["skill"]) / 100.0)
+		var level_mul = 1.0 + float(cap["levelBonus"]) * (float(shop["level"]) - 1.0)
+		rate += float(_assigned_workers(shop["id"])) * float(cap["perWorker"]) * level_mul * skill_eff
+	return SimUtil.r2(rate)
+
+func research_rate() -> float:
+	## 供 UI 读取的当日科研力速率。
+	return _research_rate()
+
+## 该建筑现在能不能建：没有科技锁，或解锁它的科技已完成。
+func is_building_unlocked(bid: String) -> bool:
+	var tid = db.tech_for_building(bid)
+	if tid == "":
+		return true
+	return _is_researched(tid)
+
+func is_housing_unlocked(hid: String) -> bool:
+	var tid = db.tech_for_housing(hid)
+	if tid == "":
+		return true
+	return _is_researched(tid)
+
+func _start_research(tid: String) -> void:
+	if not db.techs.has(tid) or _is_researched(tid) or _is_queued_tech(tid):
+		return
+	var tech: Dictionary = db.techs[tid]
+	for r in tech["requires"]:
+		if not _is_researched(String(r)):
+			return
+	# 只检查材料够不够，**不扣**（材料在开工时扣，与施工一致）
+	for gid in (tech["cost"]["goods"] as Dictionary).keys():
+		if float(s["goods"].get(gid, 0.0)) < float(tech["cost"]["goods"][gid]):
+			return
+	s["research"]["queue"].append({
+		"id": tid,
+		"remaining": float(tech["research"]),
+		"totalRequired": float(tech["research"]),
+		"started": false,
+	})
+
+func _cancel_research(tid: String) -> void:
+	var q: Array = s["research"]["queue"]
+	for i in range(q.size()):
+		if String(q[i]["id"]) == tid:
+			q.remove_at(i)
+			return
+
+func _settle_research(day: int) -> Array:
+	var logs := []
+	var rate = _research_rate()
+	for p in s["research"]["queue"]:
+		if rate <= 0.0:
+			break
+		var tech = db.techs.get(String(p["id"]), null)
+		if tech == null:
+			break
+		if not bool(p.get("started", false)):
+			var short := false
+			for gid in (tech["cost"]["goods"] as Dictionary).keys():
+				if float(s["goods"].get(gid, 0.0)) < float(tech["cost"]["goods"][gid]):
+					logs.append({"day": day, "kind": "invest",
+						"text": "研究「%s」等待材料（%s 需 %s）" % [tech["nameZh"], gid, tech["cost"]["goods"][gid]]})
+					short = true
+					break
+			if short:
+				break
+			for gid in (tech["cost"]["goods"] as Dictionary).keys():
+				s["goods"][gid] = SimUtil.r2(float(s["goods"].get(gid, 0.0)) - float(tech["cost"]["goods"][gid]))
+			p["started"] = true
+			logs.append({"day": day, "kind": "invest",
+				"text": "开始研究「%s」（需科研力 %s）" % [tech["nameZh"], SimUtil.r2(float(p["totalRequired"]))]})
+		var used = minf(rate, float(p["remaining"]))
+		p["remaining"] = SimUtil.r2(float(p["remaining"]) - used)
+		rate = SimUtil.r2(rate - used)
+	return logs
+
+func _activate_research() -> Array:
+	var logs := []
+	while (s["research"]["queue"] as Array).size() > 0 and float(s["research"]["queue"][0]["remaining"]) <= 0.0:
+		var done_item: Dictionary = s["research"]["queue"].pop_front()
+		s["research"]["done"].append(String(done_item["id"]))
+		var tech = db.techs.get(String(done_item["id"]), null)
+		logs.append({"day": int(s["day"]), "kind": "invest",
+			"text": "研究完成：%s" % (String(tech["nameZh"]) if tech != null else String(done_item["id"]))})
+	return logs
+
+# ===========================================================================
+# 工具（见 docs/technology.md §八）
+#
+# 工坊按**在岗工位**每日消耗工具，换来**产出 ×(1+toolBonus)、投入不变**
+# —— 单位原料成品率提高（"虚空产量"）。
+# 黎明一次性分配、当天不变，结果存进 shop.toolBoost；生产小时只把它乘在**产出**上。
+# ===========================================================================
+func _allocate_tools() -> Array:
+	var logs := []
+	var per = float(db.economy["tools"]["perWorkstation"])
+	var order: Array = db.economy["tools"]["order"]
+	var boosted = 0
+
+	for shop in s["shops"]:
+		shop["toolBoost"] = 1.0
+		var def = db.buildings.get(shop["defId"], null)
+		# 只有产商品的工坊耗工具；产能建筑（建筑工坊/研究所）不产商品，加成无从施加
+		if def == null or not def.has("recipe") or not bool(shop["active"]):
+			continue
+		var workers = _assigned_workers(shop["id"])
+		if workers <= 0:
+			continue
+		var need = SimUtil.r2(per * float(workers))
+		if need <= 0.0:
+			continue
+		# 由低到高排列，这里从**最高级**往下找第一个够用的
+		for i in range(order.size() - 1, -1, -1):
+			var gid = String(order[i])
+			var bonus = db.tool_bonus(gid)
+			if bonus <= 0.0 or float(s["goods"].get(gid, 0.0)) < need:
+				continue
+			s["goods"][gid] = SimUtil.r2(float(s["goods"].get(gid, 0.0)) - need)
+			s["ledgerToday"]["consumed"][gid] = SimUtil.r2(
+				float(s["ledgerToday"]["consumed"].get(gid, 0.0)) + need)
+			shop["toolBoost"] = 1.0 + bonus
+			boosted += 1
+			break
+
+	var total_need = 0.0
+	for shop in s["shops"]:
+		var def2 = db.buildings.get(shop["defId"], null)
+		if def2 != null and def2.has("recipe") and bool(shop["active"]):
+			total_need += float(_assigned_workers(shop["id"])) * per
+	if total_need > 0.0:
+		logs.append({"day": int(s["day"]), "kind": "production",
+			"text": "工具：%d 座工坊已装配（需求 %s/日）" % [boosted, SimUtil.r2(total_need)]})
+	return logs
+
+func _shop_tool_boost(shop: Dictionary) -> float:
+	var b = float(shop.get("toolBoost", 1.0))
+	return b if b > 0.0 else 1.0
+
+func _capacity_kind(def: Dictionary, kind: String) -> bool:	## 该建筑是否是某种产能来源（不产商品、只产每日产能）。见 docs/technology.md §6.2。
+	if not def.has("capacity"):
+		return false
+	return String((def["capacity"] as Dictionary).get("kind", "")) == kind
+
 func _is_construction_works(def: Dictionary) -> bool:
-	## 没有商品配方的建筑 = 产出「每日建造产能」的建筑（建筑工坊）。
-	return not def.has("recipe")
+	return _capacity_kind(def, "build")
 
 func construction_rate() -> float:
 	## 供 UI 读取的当日建造力速率（人·天/日）。
@@ -1234,8 +1447,8 @@ func construction_rate() -> float:
 
 func _construction_rate() -> float:
 	## 当日施工产能（建造力 / 人·天）：
-	##   失业人口 × unemployedRate
-	## + Σ(建筑工坊在岗工人 × workshopBase × (0.6 + 0.4 × 熟练度/100))
+	##   失业人口 × construction.unemployedRate
+	## + Σ(建筑工坊在岗工人 × capacity.perWorker × (1 + levelBonus × (等级−1)) × 熟练度曲线)
 	var cfg: Dictionary = db.economy["construction"]
 	var unemp_rate = float(cfg["unemployedRate"])
 	var rate = 0.0
@@ -1246,8 +1459,10 @@ func _construction_rate() -> float:
 		var def = db.buildings.get(shop["defId"], null)
 		if def == null or not bool(shop["active"]) or not _is_construction_works(def):
 			continue
+		var cap: Dictionary = def["capacity"]
 		var skill_eff = float(db.tuning["skillEffectBase"]) + float(db.tuning["skillEffectSlope"]) * (float(shop["skill"]) / 100.0)
-		rate += float(_assigned_workers(shop["id"])) * float(cfg["workshopBase"]) * skill_eff
+		var level_mul = 1.0 + float(cap["levelBonus"]) * (float(shop["level"]) - 1.0)
+		rate += float(_assigned_workers(shop["id"])) * float(cap["perWorker"]) * level_mul * skill_eff
 	return SimUtil.r2(rate)
 
 func _mark_construction_workers(work: float) -> void:

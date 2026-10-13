@@ -94,8 +94,32 @@ static func _sanitize(s: Dictionary, db: ContentDB) -> void:
 		c.erase("totalDays")
 	var gov = s.get("government", {})
 	gov["money"] = float(gov.get("money", 0.0))
-	if not gov.has("immigrationAllowance"):
-		gov["immigrationAllowance"] = 1000000000.0
+	# 旧存档的「移民放行（每回合上限）」已换成「人口上限」。迁移时把旧上限当人口上限用：
+	# 语义相近（都是"别再进人了"），且默认不限时两者都是 1e9。
+	if gov.has("populationCap"):
+		gov["populationCap"] = float(gov.get("populationCap", 1000000000.0))
+	elif gov.has("immigrationAllowance"):
+		gov["populationCap"] = float(gov["immigrationAllowance"])
+	else:
+		gov["populationCap"] = 1000000000.0
+	gov.erase("immigrationAllowance")
 	if not (gov.get("taxBrackets", null) is Array):
 		gov["taxBrackets"] = []
 	s["government"] = gov
+
+	# 科技（见 docs/technology.md）：旧存档没有这一段
+	if not (s.get("research", null) is Dictionary):
+		s["research"] = {"done": [], "queue": []}
+	else:
+		var r: Dictionary = s["research"]
+		if not (r.get("done", null) is Array):
+			r["done"] = []
+		if not (r.get("queue", null) is Array):
+			r["queue"] = []
+		for p in r["queue"]:
+			p["remaining"] = float(p.get("remaining", 0.0))
+			p["totalRequired"] = float(p.get("totalRequired", p["remaining"]))
+			p["started"] = bool(p.get("started", false))
+			p["id"] = String(p.get("id", ""))
+	for shop2 in s["shops"]:
+		shop2["toolBoost"] = float(shop2.get("toolBoost", 1.0))

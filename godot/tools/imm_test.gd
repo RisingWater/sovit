@@ -2,7 +2,7 @@ extends SceneTree
 
 # 移民按钮的即时反馈。
 #
-# 用户的抱怨是"点了没反应"—— 因为 set_immigration 是"次日 06:00 生效"的，
+# 用户的抱怨是"点了没反应"—— 因为 set_population_cap 是"次日 06:00 生效"的，
 # 排进 pending 后状态里的旧值不变，面板照旧显示旧数字。
 # 所以这里断言的是**显示出来的文本**，不是只查 pending 队列有没有入队。
 
@@ -42,27 +42,27 @@ func _run() -> void:
 	await process_frame
 
 	# 点"全收"：当前允许必须**立刻**变成不限并标注已排队
-	ins._set_immigration(1000000000)
+	ins._set_population_cap(1000000000)
 	await process_frame
-	var t_all := _value_of(ins, "当前允许（已排队）")
+	var t_all := _value_of(ins, "人口上限（已排队）")
 	if t_all != "不限":
-		_fail("点全收后『当前允许（已排队）』应为 不限，实际 %s" % t_all)
+		_fail("点全收后『人口上限（已排队）』应为 不限，实际 %s" % t_all)
 		return
 
 	# 点"暂停"：立刻变成 0
-	ins._set_immigration(0)
+	ins._set_population_cap(0)
 	await process_frame
-	var t_pause := _value_of(ins, "当前允许（已排队）")
+	var t_pause := _value_of(ins, "人口上限（已排队）")
 	if t_pause != "0":
-		_fail("点暂停后『当前允许（已排队）』应为 0，实际 %s" % t_pause)
+		_fail("点暂停后『人口上限（已排队）』应为 0，实际 %s" % t_pause)
 		return
 
 	# 点"+10"：立刻变成 10
-	ins._set_immigration(10)
+	ins._set_population_cap(10)
 	await process_frame
-	var t_add := _value_of(ins, "当前允许（已排队）")
+	var t_add := _value_of(ins, "人口上限（已排队）")
 	if t_add != "10":
-		_fail("点+10后『当前允许（已排队）』应为 10，实际 %s" % t_add)
+		_fail("点+10后『人口上限（已排队）』应为 10，实际 %s" % t_add)
 		return
 
 	# 「次日会来」必须存在 —— 这才是真正会发生的事

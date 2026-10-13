@@ -804,6 +804,12 @@
 		"wood": 6,
 		"stone": 4
 	  },
+	  "capacity": {
+		"kind": "build",
+		"perWorker": 2.5,
+		"levelBonus": 0,
+		"slotsPerLevel": 0
+	  },
 	  "buildWork": 24
 	},
 	{
@@ -831,6 +837,59 @@
 		"baseRate": 1
 	  },
 	  "buildWork": 48
+	},
+	{
+	  "id": "research_institute",
+	  "nameZh": "研究所",
+	  "art": {
+		"arch": "grand",
+		"roof": "blue",
+		"wall": "stone",
+		"w": 5,
+		"chimney": true
+	  },
+	  "tier": 3,
+	  "workers": 6,
+	  "maxWorkers": 6,
+	  "buildCost": {
+		"wood": 12
+	  },
+	  "capacity": {
+		"kind": "research",
+		"perWorker": 3.0,
+		"levelBonus": 0.3,
+		"slotsPerLevel": 3
+	  },
+	  "buildWork": 24
+	},
+	{
+	  "id": "tool_works",
+	  "nameZh": "工具坊",
+	  "art": {
+		"arch": "workshop",
+		"roof": "red",
+		"wall": "plank",
+		"w": 4,
+		"feat": ["rocks"]
+	  },
+	  "tier": 2,
+	  "workers": 3,
+	  "maxWorkers": 6,
+	  "buildCost": {
+		"wood": 6,
+		"stone": 3
+	  },
+	  "recipe": {
+		"inputs": {
+		  "wood": 5,
+		  "stone": 5
+		},
+		"output": {
+		  "stone_tools": 2
+		},
+		"baseRate": 1
+	  },
+	  "buildWork": 24
 	}
   ]
 }

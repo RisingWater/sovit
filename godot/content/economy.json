@@ -26,6 +26,7 @@
     "priceSlope": 0.6,
     "immigrationSatThreshold": 55,
     "immigrationRate": 0.4,
+    "immigrationHungryRate": 0.05,
     "emigrationSatThreshold": 40,
     "hungerDeathRate": 0.2,
     "minPopulation": 4,
@@ -35,9 +36,17 @@
 
     "construction": {
       "unemployedRate": 1.0,
-      "workshopBase": 2.5,
       "wageRate": 0.8,
       "upgradePerLevel": 24
+    },
+
+    "research": {
+      "baseRate": 2.0
+    },
+
+    "tools": {
+      "perWorkstation": 0.05,
+      "order": ["stone_tools"]
     },
 
     "defaultRent": 0.05,
