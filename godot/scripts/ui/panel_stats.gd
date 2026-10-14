@@ -129,15 +129,15 @@ func _any_fullscreen_open() -> bool:
 func _set_map_chrome(on: bool) -> void:
 	if get_parent() == null:
 		return
-	# 小地图：**只藏地图本体**（圆环 + 圆形地图 + 村名红巾），日期框留着 ——
-	# 日期属于顶栏那一行，用户明确要求"保留顶栏显示"。
-	var mm := get_parent().get_node_or_null("Minimap")
-	if mm != null and mm.has_method("set_map_visible"):
-		mm.set_map_visible(on)
-	# 左侧圆钮列：整条藏掉（它在地图那一侧，面板盖着也没法点）
-	var nav := get_parent().get_node_or_null("NavCol")
-	if nav != null:
-		(nav as CanvasItem).visible = on
+	# 小地图挂件**整块**藏掉（含它顶上那个日期框）。
+	#
+	# 用户："日期框不要留，留着很奇怪" —— 上一版只藏了地图本体、把日期留在顶栏那一行，
+	# 结果左上角变成一个孤零零的日期框悬在那儿，比藏着还怪。
+	# 注意：小地图上沿本来就压在顶栏里，所以"面板盖住"不够，必须真 visible = false。
+	for n in ["Minimap", "NavCol"]:
+		var c := get_parent().get_node_or_null(n)
+		if c != null:
+			(c as CanvasItem).visible = on
 
 func _select_tab(i: int) -> void:
 	_tab = i

@@ -102,43 +102,34 @@ func _run() -> void:
 	print("PANEL TEST 科技面板 = %s" % tech.get_global_rect())
 	tech.visible = false
 
-	# ---- 地图那一侧：**藏地图本体**，但顶栏那一行的日期框要留着
-	# 小地图的上沿本来就压在顶栏里（日期框就坐在那一行），只靠"面板盖住"会把它
+	# ---- 地图那一侧：整块藏掉（含日期框）
+	# 小地图上沿本来就压在顶栏里（日期框坐在那一行），只靠"面板盖住"会把它
 	# 切成半个卡在左上角 —— 用户就是这么发现"你没有隐藏地图"的。
-	# 但整块藏掉又会把日期一起藏了，而用户要求"保留顶栏显示" → 只藏地图本体。
+	# 后来只藏地图本体、把日期留在原地，用户又说"日期框不要留，留着很奇怪"，
+	# 所以现在是**整块可见性开关**。
 	var mm = node.get_node_or_null("UI/Root/Minimap")
 	var nav = node.get_node_or_null("UI/Root/NavCol")
 	if mm == null:
 		_fail("找不到 UI/Root/Minimap")
 		return
-	if not mm.has_method("set_map_visible"):
-		_fail("小地图没有 set_map_visible()，全屏面板没法只藏地图本体")
-		return
 	panel.open()
 	for i in 2:
 		await process_frame
-	if bool(mm.get("_map_on")):
-		_fail("全屏面板开着时地图本体还在画（左上角会露出半个小地图）")
-		return
-	if not (mm as CanvasItem).visible:
-		_fail("小地图整块被藏了 —— 顶栏那一行的日期框会跟着消失")
-		return
-	var date_lb = mm.get("_time_label")
-	if date_lb == null or not (date_lb as Label).is_visible_in_tree():
-		_fail("日期框被藏了（用户要求保留顶栏显示）")
+	if (mm as CanvasItem).visible:
+		_fail("全屏面板开着时小地图仍然显示（左上角会露出半个小地图/孤零零的日期框）")
 		return
 	if nav != null and (nav as CanvasItem).visible:
 		_fail("全屏面板开着时左侧圆钮列仍然显示")
 		return
 	panel.visible = false
 	await process_frame
-	if not bool(mm.get("_map_on")) or not (mm as CanvasItem).visible:
-		_fail("关掉面板后地图本体没有还原")
+	if not (mm as CanvasItem).visible:
+		_fail("关掉面板后小地图没有还原")
 		return
 	if nav != null and not (nav as CanvasItem).visible:
 		_fail("关掉面板后左侧圆钮列没有还原")
 		return
-	print("PANEL TEST 地图本体 开着→隐藏 关掉→还原；日期框始终在 ✅")
+	print("PANEL TEST 地图挂件 开着→整块隐藏 关掉→还原 ✅")
 	panel.open()
 	for i in 2:
 		await process_frame
