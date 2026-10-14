@@ -22,8 +22,11 @@ SRC = r'D:\wangxu\game\图标素材\tech_icons'
 # 第二批（用户 2026-10 用 WorkBuddy 生成的**效率科技**图标，15 张，64x64）。
 # 文件名是 `NN_<英文名>_<中文名>.png` —— 比第一批多一段中文名，
 # 且英文名有 4 个跟我们的科技 id 对不上，见 OVERRIDE。
-# 处理方式与第一批完全一致：64->32 最近邻 + dematt() 去毛边。
-# 两个源**合并**导入：同一 id 后者覆盖前者（两批之间没有重叠的 id）。
+#
+# ⚠️ **这一批不做去毛边（`dematt`）**：用户的素材本身就是抠干净的（白底已去、
+# 轮廓自带深色描边），再跑 dematt 会**把图案里的白色/亮色一起抠掉** ——
+# `standardization` 的白色石牌、`sawmill_machinery` 的亮色锯片都中过招
+# （用户反馈："你把白色扣掉了"）。判据见 SOURCES 里的 dematt 开关。
 SRC_V2 = r'C:\Users\wangxu\WorkBuddy\2026-10-14-07-02-44\outputs\tech_icons_v2'
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DST = os.path.join(ROOT, 'godot', 'assets', 'ui', 'tech')
@@ -92,16 +95,17 @@ def main():
         open(os.path.join(ROOT, 'content', 'technologies.json'), encoding='utf-8'))['technologies']]
     idset = set(ids)
 
-    # 两个源合并：同一 id 后出现的覆盖先出现的
+    # 两个源合并：同一 id 后出现的覆盖先出现的。
+    # 第二个元素 = 这一批要不要跑 dematt（见 SRC_V2 上面的说明）。
     picked = {}
-    for src in (SRC, SRC_V2):
+    for src, do_dematt in ((SRC, True), (SRC_V2, False)):
         if not os.path.isdir(src):
             print(f'（跳过不存在的素材目录）{src}')
             continue
         for f in sorted(os.listdir(src)):
             gid = parse_name(f)
             if gid is not None:
-                picked[gid] = os.path.join(src, f)
+                picked[gid] = (os.path.join(src, f), do_dematt)
     if not picked:
         print('两个素材目录都不存在，没什么可导的', file=sys.stderr)
         return 1
@@ -121,7 +125,7 @@ def main():
     os.makedirs(DST, exist_ok=True)
     made = []
     for gid in sorted(picked):
-        f = picked[gid]
+        f, do_dematt = picked[gid]
         im = Image.open(f).convert('RGBA')
         n = uniform_factor(im)
         if n > 1:
@@ -135,16 +139,31 @@ def main():
             out = im.resize((OUT, OUT), Image.NEAREST)
             how = f'{im.size} -> {OUT}（真高分辨率，最近邻）'
         assert out.size == (OUT, OUT)
-        out, removed = dematt(out)
+        if do_dematt:
+            out, removed = dematt(out)
+        else:
+            # 只把全透明像素的 RGB 清零（白底残留），**不动任何不透明像素**
+            out = out.convert('RGBA')
+            px = out.load()
+            for y in range(OUT):
+                for x in range(OUT):
+                    if px[x, y][3] == 0:
+                        px[x, y] = (0, 0, 0, 0)
+            removed = 0
         out.save(os.path.join(DST, gid + '.png'))
-        made.append((gid, os.path.basename(f), how, removed))
+        made.append((gid, os.path.basename(f), how, removed, do_dematt))
 
     print(f'导出 {len(made)}/{len(ids)} 个科技图标 -> {os.path.relpath(DST, ROOT)}')
     total_dematt = 0
-    for gid, f, how, removed in made:
+    n_skipped = 0
+    for gid, f, how, removed, do_dematt in made:
         total_dematt += removed
-        print(f'   {gid:22s} <- {f:34s} {how}' + (f'，去毛边 {removed}px' if removed else ''))
-    print(f'\n去毛边合计 {total_dematt}px')
+        if not do_dematt:
+            n_skipped += 1
+        print(f'   {gid:22s} <- {f:34s} {how}'
+              + (f'，去毛边 {removed}px' if removed else '')
+              + ('' if do_dematt else '（原图已抠干净，不做去毛边）'))
+    print(f'\n去毛边合计 {total_dematt}px；{n_skipped} 张按"原图已抠干净"原样保留')
     return 0
 
 
