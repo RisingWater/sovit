@@ -2025,6 +2025,34 @@ func place_reason(id: String, cell: Vector2i, need_afford := true) -> String:
 		return ""
 	return ""
 
+## 移动模式下这一格能不能放（空串 = 可以）。
+##
+## ⚠️ 与 `place_reason()` 的关键区别：`move_mode` 里存的是**实例 id**
+## （shop 是 sid、住房是 `hut#1` 这种 uid），**不是定义 id** —— 拿它去查
+## `db.buildings/housing` 会查不到、于是永远返回"可以放"，幽灵图就不变红
+## （用户报过："移动的时候，不能放置的地方没有红色"）。
+## 这里复用 `move_shop_to()` / `move_housing_to()` 真正用的 `_move_ok()`。
+func move_reason(cell: Vector2i) -> String:
+	var parts := move_mode.split(":")
+	if parts.size() < 2:
+		return ""
+	var origin := Vector2i(cell.x - 1, cell.y - 1)
+	if parts[0] == "shop":
+		var sid := parts[1]
+		var def_id := String(_shop_def.get(sid, ""))
+		if def_id == "" or not _shop_cell.has(sid):
+			return ""
+		var fp := _footprint(def_id)
+		return "" if _move_ok(def_id, origin, fp, _own_cells(_shop_cell[sid], fp)) else "此处不能放置"
+	if parts[0] == "housing":
+		var inst = _housing_by_uid.get(parts[1], null)
+		if inst == null:
+			return ""
+		var fp2 := Vector2i(int(inst["fw"]), int(inst["fh"]))
+		return "" if _move_ok(String(inst["type"]), origin, fp2,
+			_own_cells(inst["cell"], fp2)) else "此处不能放置"
+	return ""
+
 func _try_place(id: String, cell: Vector2i) -> bool:
 	var origin = Vector2i(cell.x - 1, cell.y - 1)
 	var fp = _footprint(id)
@@ -2087,19 +2115,16 @@ func _update_ghost(cell: Vector2i) -> void:
 	ghost.position = Vector2((cell.x - 1) * TILE, (cell.y - 1) * TILE)
 	# 放不下就染红（用户："如果建房子的时候，建筑放不下去，要变成红色"）。
 	# 判定与真正下单共用 `place_reason()`，所以不会"看着能放、点下去被拒"。
-	var id := build_mode
-	var need_afford := true
-	if id == "" and move_mode != "":
-		var parts := move_mode.split(":")
-		if parts.size() >= 2 and parts[0] == "shop":
-			id = String(_shop_def.get(parts[1], ""))
-		elif parts.size() >= 2 and parts[0] == "housing":
-			id = String(parts[1])
-		need_afford = false          # 移动：材料早就付过，只判地形/占地
-	if id == "":
+	var ok := true
+	if move_mode != "":
+		# 移动：材料早付过，只判地形/占地 —— 且必须用 `_move_ok()`（它带 own，
+		# 自己原来那几格不算占），否则"原地挪一格"会被误判成撞自己。
+		ok = move_reason(cell) == ""
+	elif build_mode != "":
+		ok = place_reason(build_mode, cell) == ""
+	if build_mode == "" and move_mode == "":
 		ghost.modulate = Color(1, 1, 1, 0.5)
 		return
-	var ok: bool = place_reason(id, cell, need_afford) == ""
 	ghost.modulate = Color(1, 1, 1, 0.5) if ok else Color(1.0, 0.32, 0.28, 0.6)
 
 # ---- 道路 / 地板 ----------------------------------------------------------
