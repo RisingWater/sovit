@@ -1,915 +1,915 @@
 {
   "buildings": [
-	{
-	  "id": "town_center",
-	  "nameZh": "城镇中心",
-	  "art": {
-		"arch": "sprite",
-		"foot": [
-		  8,
-		  6
-		],
-		"doors": [
-		  [
-			3,
-			5
-		  ],
-		  [
-			4,
-			5
-		  ]
-		]
-	  },
-	  "tier": 1,
-	  "workers": 0,
-	  "maxWorkers": 0,
-	  "buildCost": {
-		"wood": 40,
-		"stone": 20
-	  },
-	  "buildWork": 60,
-	  "storage": {
-		"storage": 1000,
-		"storagePerLevel": 0
-	  }
-	},
-	{
-	  "id": "warehouse",
-	  "nameZh": "仓库",
-	  "art": {
-		"arch": "warehouse",
-		"roof": "blue",
-		"wall": "plank",
-		"w": 4,
-		"feat": ["logs"]
-	  },
-	  "tier": 2,
-	  "workers": 1,
-	  "maxWorkers": 2,
-	  "buildCost": {
-		"wood": 8,
-		"stone": 6
-	  },
-	  "buildWork": 36,
-	  "storage": {
-		"storage": 300,
-		"storagePerLevel": 150
-	  }
-	},
-	{
-	  "id": "wheat_farm",
-	  "sector": "agri",
-	  "nameZh": "小麦农场",
-	  "art": {
-		"arch": "field",
-		"soil": "row6",
-		"crop": "wheat",
-		"w": 6,
-		"rows": 6
-	  },
-	  "tier": 1,
-	  "workers": 6,
-	  "buildCost": {
-		"wood": 4
-	  },
-	  "recipe": {
-		"inputs": {},
-		"output": {
-		  "wheat": 12
-		},
-		"baseRate": 1
-	  },
-	  "buildWork": 12
-	},
-	{
-	  "id": "vegetable_farm",
-	  "sector": "agri",
-	  "nameZh": "蔬菜农场",
-	  "art": {
-		"arch": "field",
-		"soil": "row5",
-		"crop": "cabbage",
-		"w": 6,
-		"rows": 6
-	  },
-	  "tier": 1,
-	  "workers": 4,
-	  "buildCost": {
-		"wood": 4
-	  },
-	  "recipe": {
-		"inputs": {},
-		"output": {
-		  "vegetable": 12
-		},
-		"baseRate": 1
-	  },
-	  "buildWork": 12
-	},
-	{
-	  "id": "flax_farm",
-	  "sector": "agri",
-	  "nameZh": "亚麻农场",
-	  "art": {
-		"arch": "field",
-		"soil": "row5",
-		"crop": "sprout",
-		"w": 6,
-		"rows": 6
-	  },
-	  "tier": 1,
-	  "workers": 4,
-	  "buildCost": {
-		"wood": 4
-	  },
-	  "recipe": {
-		"inputs": {},
-		"output": {
-		  "flax": 8
-		},
-		"baseRate": 1
-	  },
-	  "buildWork": 12
-	},
-	{
-	  "id": "cotton_farm",
-	  "sector": "agri",
-	  "nameZh": "棉花农场",
-	  "art": {
-		"arch": "field",
-		"soil": "row5",
-		"crop": "bush",
-		"w": 6,
-		"rows": 6
-	  },
-	  "tier": 1,
-	  "workers": 4,
-	  "buildCost": {
-		"wood": 4
-	  },
-	  "recipe": {
-		"inputs": {},
-		"output": {
-		  "cotton": 8
-		},
-		"baseRate": 1
-	  },
-	  "buildWork": 12
-	},
-	{
-	  "id": "sugarcane_farm",
-	  "sector": "agri",
-	  "nameZh": "甘蔗园",
-	  "art": {
-		"arch": "field",
-		"soil": "row6",
-		"crop": "corn",
-		"w": 6,
-		"rows": 6
-	  },
-	  "tier": 1,
-	  "workers": 4,
-	  "buildCost": {
-		"wood": 4
-	  },
-	  "recipe": {
-		"inputs": {},
-		"output": {
-		  "sugarcane": 8
-		},
-		"baseRate": 1
-	  },
-	  "buildWork": 12
-	},
-	{
-	  "id": "dye_farm",
-	  "sector": "agri",
-	  "nameZh": "染料园",
-	  "art": {
-		"arch": "field",
-		"soil": "row5",
-		"crop": "tomato",
-		"w": 6,
-		"rows": 6
-	  },
-	  "tier": 1,
-	  "workers": 3,
-	  "buildCost": {
-		"wood": 4
-	  },
-	  "recipe": {
-		"inputs": {},
-		"output": {
-		  "dye": 5
-		},
-		"baseRate": 1
-	  },
-	  "buildWork": 12
-	},
-	{
-	  "id": "lumberjack",
-	  "sector": "material",
-	  "nameZh": "伐木场",
-	  "art": {
-		"arch": "sprite"
-	  },
-	  "tier": 1,
-	  "workers": 3,
-	  "maxWorkers": 100,
-	  "terrain": "forest",
-	  "buildCost": {
-		"wood": 4
-	  },
-	  "recipe": {
-		"inputs": {},
-		"output": {
-		  "wood": 10
-		},
-		"baseRate": 1
-	  },
-	  "buildWork": 12
-	},
-	{
-	  "id": "quarry",
-	  "sector": "material",
-	  "nameZh": "采石场",
-	  "art": {
-		"arch": "sprite"
-	  },
-	  "tier": 1,
-	  "workers": 3,
-	  "maxWorkers": 100,
-	  "terrain": "stone",
-	  "buildCost": {
-		"wood": 4
-	  },
-	  "recipe": {
-		"inputs": {},
-		"output": {
-		  "stone": 8
-		},
-		"baseRate": 1
-	  },
-	  "buildWork": 12
-	},
-	{
-	  "id": "clay_pit",
-	  "sector": "material",
-	  "nameZh": "粘土坑",
-	  "art": {
-		"arch": "sprite"
-	  },
-	  "tier": 1,
-	  "workers": 3,
-	  "maxWorkers": 100,
-	  "terrain": "clay",
-	  "buildCost": {
-		"wood": 4
-	  },
-	  "recipe": {
-		"inputs": {},
-		"output": {
-		  "clay": 8
-		},
-		"baseRate": 1
-	  },
-	  "buildWork": 12
-	},
-	{
-	  "id": "hunting_camp",
-	  "sector": "agri",
-	  "nameZh": "狩猎营地",
-	  "art": {
-		"arch": "sprite"
-	  },
-	  "tier": 1,
-	  "workers": 3,
-	  "buildCost": {
-		"wood": 4
-	  },
-	  "recipe": {
-		"inputs": {},
-		"output": {
-		  "meat": 6,
-		  "hide": 3
-		},
-		"baseRate": 1
-	  },
-	  "buildWork": 12
-	},
-	{
-	  "id": "fishery",
-	  "sector": "agri",
-	  "nameZh": "渔场",
-	  "art": {
-		"arch": "sprite"
-	  },
-	  "tier": 1,
-	  "workers": 4,
-	  "buildCost": {
-		"wood": 4
-	  },
-	  "recipe": {
-		"inputs": {},
-		"output": {
-		  "fish": 10
-		},
-		"baseRate": 1
-	  },
-	  "buildWork": 12
-	},
-	{
-	  "id": "coarse_mill",
-	  "sector": "agri",
-	  "nameZh": "粗面粉磨坊",
-	  "art": {
-		"arch": "sprite"
-	  },
-	  "tier": 2,
-	  "workers": 2,
-	  "buildCost": {
-		"wood": 6,
-		"stone": 3
-	  },
-	  "recipe": {
-		"inputs": {
-		  "wheat": 12
-		},
-		"output": {
-		  "coarse_flour": 12
-		},
-		"baseRate": 1
-	  },
-	  "buildWork": 12
-	},
-	{
-	  "id": "fine_mill",
-	  "sector": "agri",
-	  "nameZh": "精面粉磨坊",
-	  "art": {
-		"arch": "sprite"
-	  },
-	  "tier": 2,
-	  "workers": 3,
-	  "buildCost": {
-		"wood": 6,
-		"stone": 3
-	  },
-	  "recipe": {
-		"inputs": {
-		  "wheat": 12
-		},
-		"output": {
-		  "fine_flour": 10
-		},
-		"baseRate": 1
-	  },
-	  "buildWork": 24
-	},
-	{
-	  "id": "coarse_bakery",
-	  "sector": "agri",
-	  "nameZh": "粗面包房",
-	  "art": {
-		"arch": "sprite"
-	  },
-	  "tier": 2,
-	  "workers": 2,
-	  "buildCost": {
-		"wood": 6,
-		"stone": 3
-	  },
-	  "recipe": {
-		"inputs": {
-		  "coarse_flour": 12
-		},
-		"output": {
-		  "coarse_bread": 24
-		},
-		"baseRate": 1
-	  },
-	  "buildWork": 12
-	},
-	{
-	  "id": "white_bakery",
-	  "sector": "agri",
-	  "nameZh": "白面包房",
-	  "art": {
-		"arch": "sprite"
-	  },
-	  "tier": 2,
-	  "workers": 3,
-	  "buildCost": {
-		"wood": 6,
-		"stone": 3
-	  },
-	  "recipe": {
-		"inputs": {
-		  "fine_flour": 10
-		},
-		"output": {
-		  "white_bread": 20
-		},
-		"baseRate": 1
-	  },
-	  "buildWork": 24
-	},
-	{
-	  "id": "pastry_shop",
-	  "sector": "agri",
-	  "nameZh": "糕点房",
-	  "art": {
-		"arch": "sprite"
-	  },
-	  "tier": 2,
-	  "workers": 4,
-	  "buildCost": {
-		"wood": 6,
-		"stone": 3
-	  },
-	  "recipe": {
-		"inputs": {
-		  "fine_flour": 8,
-		  "sugar": 4
-		},
-		"output": {
-		  "pastry": 12
-		},
-		"baseRate": 1
-	  },
-	  "buildWork": 36
-	},
-	{
-	  "id": "sugar_works",
-	  "sector": "agri",
-	  "nameZh": "糖坊",
-	  "art": {
-		"arch": "sprite"
-	  },
-	  "tier": 2,
-	  "workers": 2,
-	  "buildCost": {
-		"wood": 6,
-		"stone": 3
-	  },
-	  "recipe": {
-		"inputs": {
-		  "sugarcane": 8
-		},
-		"output": {
-		  "sugar": 6
-		},
-		"baseRate": 1
-	  },
-	  "buildWork": 36
-	},
-	{
-	  "id": "coarse_weaver",
-	  "sector": "goods",
-	  "nameZh": "粗织坊",
-	  "art": {
-		"arch": "sprite"
-	  },
-	  "tier": 2,
-	  "workers": 3,
-	  "buildCost": {
-		"wood": 6,
-		"stone": 3
-	  },
-	  "recipe": {
-		"inputs": {
-		  "flax": 8
-		},
-		"output": {
-		  "coarse_cloth": 8
-		},
-		"baseRate": 1
-	  },
-	  "buildWork": 24
-	},
-	{
-	  "id": "fine_weaver",
-	  "sector": "goods",
-	  "nameZh": "细织坊",
-	  "art": {
-		"arch": "sprite"
-	  },
-	  "tier": 2,
-	  "workers": 4,
-	  "buildCost": {
-		"wood": 6,
-		"stone": 3
-	  },
-	  "recipe": {
-		"inputs": {
-		  "cotton": 8
-		},
-		"output": {
-		  "fine_cloth": 6
-		},
-		"baseRate": 1
-	  },
-	  "buildWork": 24
-	},
-	{
-	  "id": "coarse_clothes_shop",
-	  "sector": "goods",
-	  "nameZh": "粗布衣坊",
-	  "art": {
-		"arch": "sprite"
-	  },
-	  "tier": 2,
-	  "workers": 3,
-	  "buildCost": {
-		"wood": 6,
-		"stone": 3
-	  },
-	  "recipe": {
-		"inputs": {
-		  "coarse_cloth": 8
-		},
-		"output": {
-		  "coarse_clothes": 6
-		},
-		"baseRate": 1
-	  },
-	  "buildWork": 24
-	},
-	{
-	  "id": "common_clothes_shop",
-	  "sector": "goods",
-	  "nameZh": "常服坊",
-	  "art": {
-		"arch": "sprite"
-	  },
-	  "tier": 2,
-	  "workers": 3,
-	  "buildCost": {
-		"wood": 6,
-		"stone": 3
-	  },
-	  "recipe": {
-		"inputs": {
-		  "fine_cloth": 6
-		},
-		"output": {
-		  "common_clothes": 5
-		},
-		"baseRate": 1
-	  },
-	  "buildWork": 24
-	},
-	{
-	  "id": "luxury_clothes_shop",
-	  "sector": "goods",
-	  "nameZh": "华服坊",
-	  "art": {
-		"arch": "sprite"
-	  },
-	  "tier": 2,
-	  "workers": 4,
-	  "buildCost": {
-		"wood": 6,
-		"stone": 3
-	  },
-	  "recipe": {
-		"inputs": {
-		  "fine_cloth": 5,
-		  "dye": 3
-		},
-		"output": {
-		  "luxury_clothes": 4
-		},
-		"baseRate": 1
-	  },
-	  "buildWork": 36
-	},
-	{
-	  "id": "leather_shop",
-	  "sector": "goods",
-	  "nameZh": "皮衣坊",
-	  "art": {
-		"arch": "sprite"
-	  },
-	  "tier": 2,
-	  "workers": 3,
-	  "buildCost": {
-		"wood": 6,
-		"stone": 3
-	  },
-	  "recipe": {
-		"inputs": {
-		  "hide": 3
-		},
-		"output": {
-		  "leather_clothes": 2
-		},
-		"baseRate": 1
-	  },
-	  "buildWork": 36
-	},
-	{
-	  "id": "firewood_works",
-	  "sector": "material",
-	  "nameZh": "木柴坊",
-	  "art": {
-		"arch": "sprite"
-	  },
-	  "tier": 2,
-	  "workers": 2,
-	  "buildCost": {
-		"wood": 6,
-		"stone": 3
-	  },
-	  "recipe": {
-		"inputs": {
-		  "wood": 10
-		},
-		"output": {
-		  "firewood": 12
-		},
-		"baseRate": 1
-	  },
-	  "buildWork": 12
-	},
-	{
-	  "id": "brick_kiln",
-	  "sector": "material",
-	  "nameZh": "砖窑",
-	  "art": {
-		"arch": "sprite"
-	  },
-	  "tier": 2,
-	  "workers": 2,
-	  "buildCost": {
-		"wood": 6,
-		"stone": 3
-	  },
-	  "recipe": {
-		"inputs": {
-		  "clay": 8
-		},
-		"output": {
-		  "brick": 6
-		},
-		"baseRate": 1,
-		"fuel": 4
-	  },
-	  "buildWork": 12
-	},
-	{
-	  "id": "pottery_works",
-	  "sector": "goods",
-	  "nameZh": "陶器坊",
-	  "art": {
-		"arch": "sprite"
-	  },
-	  "tier": 2,
-	  "workers": 3,
-	  "buildCost": {
-		"wood": 6,
-		"stone": 3
-	  },
-	  "recipe": {
-		"inputs": {
-		  "clay": 8
-		},
-		"output": {
-		  "pottery": 6
-		},
-		"baseRate": 1,
-		"fuel": 3
-	  },
-	  "buildWork": 24
-	},
-	{
-	  "id": "porcelain_works",
-	  "sector": "goods",
-	  "nameZh": "瓷窑",
-	  "art": {
-		"arch": "sprite"
-	  },
-	  "tier": 2,
-	  "workers": 3,
-	  "buildCost": {
-		"wood": 6,
-		"stone": 3
-	  },
-	  "recipe": {
-		"inputs": {
-		  "clay": 6
-		},
-		"output": {
-		  "porcelain": 4
-		},
-		"baseRate": 1,
-		"fuel": 6
-	  },
-	  "buildWork": 36
-	},
-	{
-	  "id": "domestic_service",
-	  "sector": "goods",
-	  "nameZh": "家政工坊",
-	  "art": {
-		"arch": "sprite",
-		"foot": [
-		  8,
-		  3
-		]
-	  },
-	  "tier": 2,
-	  "workers": 4,
-	  "buildCost": {
-		"wood": 6,
-		"stone": 3
-	  },
-	  "recipe": {
-		"inputs": {},
-		"output": {
-		  "domestic_service": 4
-		},
-		"baseRate": 1
-	  },
-	  "buildWork": 36
-	},
-	{
-	  "id": "theater",
-	  "sector": "goods",
-	  "nameZh": "剧院",
-	  "art": {
-		"arch": "sprite"
-	  },
-	  "tier": 3,
-	  "workers": 5,
-	  "buildCost": {
-		"wood": 8,
-		"stone": 6,
-		"clay": 4
-	  },
-	  "recipe": {
-		"inputs": {},
-		"output": {
-		  "entertainment": 5
-		},
-		"baseRate": 1
-	  },
-	  "buildWork": 48
-	},
-	{
-	  "id": "smokehouse",
-	  "sector": "agri",
-	  "nameZh": "熏鱼坊",
-	  "art": {
-		"arch": "sprite"
-	  },
-	  "tier": 2,
-	  "workers": 3,
-	  "buildCost": {
-		"wood": 6,
-		"stone": 3
-	  },
-	  "recipe": {
-		"inputs": {
-		  "fish": 10
-		},
-		"output": {
-		  "smoked_fish": 8
-		},
-		"baseRate": 1,
-		"fuel": 4
-	  },
-	  "buildWork": 24
-	},
-	{
-	  "id": "dried_meat_works",
-	  "sector": "agri",
-	  "nameZh": "肉干坊",
-	  "art": {
-		"arch": "sprite"
-	  },
-	  "tier": 2,
-	  "workers": 3,
-	  "buildCost": {
-		"wood": 6,
-		"stone": 3
-	  },
-	  "recipe": {
-		"inputs": {
-		  "meat": 6
-		},
-		"output": {
-		  "dried_meat": 5
-		},
-		"baseRate": 1,
-		"fuel": 4
-	  },
-	  "buildWork": 24
-	},
-	{
-	  "id": "construction_works",
-	  "nameZh": "建筑工坊",
-	  "art": {
-		"arch": "sprite"
-	  },
-	  "tier": 3,
-	  "workers": 3,
-	  "buildCost": {
-		"wood": 6,
-		"stone": 4
-	  },
-	  "capacity": {
-		"kind": "build",
-		"perWorker": 2.5,
-		"levelBonus": 0,
-		"slotsPerLevel": 0
-	  },
-	  "buildWork": 24
-	},
-	{
-	  "id": "housing_works",
-	  "sector": "goods",
-	  "nameZh": "住房坊",
-	  "art": {
-		"arch": "workshop",
-		"roof": "red",
-		"wall": "wood",
-		"w": 4
-	  },
-	  "tier": 3,
-	  "workers": 4,
-	  "buildCost": {
-		"wood": 8,
-		"stone": 6,
-		"clay": 4
-	  },
-	  "recipe": {
-		"inputs": {
-		  "wood": 6,
-		  "brick": 3
-		},
-		"output": {
-		  "hut": 1
-		},
-		"baseRate": 1
-	  },
-	  "buildWork": 48
-	},
-	{
-	  "id": "research_institute",
-	  "nameZh": "研究所",
-	  "art": {
-		"arch": "sprite",
-		"foot": [
-		  8,
-		  3
-		]
-	  },
-	  "tier": 3,
-	  "workers": 6,
-	  "maxWorkers": 6,
-	  "buildCost": {
-		"wood": 12
-	  },
-	  "capacity": {
-		"kind": "research",
-		"perWorker": 3.0,
-		"levelBonus": 0.3,
-		"slotsPerLevel": 3
-	  },
-	  "buildWork": 24
-	},
-	{
-	  "id": "tool_works",
-	  "sector": "goods",
-	  "nameZh": "工具坊",
-	  "art": {
-		"arch": "workshop",
-		"roof": "red",
-		"wall": "plank",
-		"w": 4,
-		"feat": [
+    {
+      "id": "town_center",
+      "nameZh": "城镇中心",
+      "art": {
+        "arch": "sprite",
+        "foot": [
+          8,
+          6
+        ],
+        "doors": [
+          [
+            3,
+            5
+          ],
+          [
+            4,
+            5
+          ]
+        ]
+      },
+      "tier": 1,
+      "workers": 0,
+      "maxWorkers": 0,
+      "buildCost": {
+        "wood": 40,
+        "stone": 20
+      },
+      "buildWork": 60,
+      "storage": {
+        "storage": 1000,
+        "storagePerLevel": 0
+      }
+    },
+    {
+      "id": "warehouse",
+      "nameZh": "仓库",
+      "art": {
+        "arch": "warehouse",
+        "roof": "blue",
+        "wall": "plank",
+        "w": 4,
+        "feat": ["logs"]
+      },
+      "tier": 2,
+      "workers": 1,
+      "maxWorkers": 2,
+      "buildCost": {
+        "wood": 8,
+        "stone": 6
+      },
+      "buildWork": 36,
+      "storage": {
+        "storage": 300,
+        "storagePerLevel": 150
+      }
+    },
+    {
+      "id": "wheat_farm",
+      "sector": "agri",
+      "nameZh": "小麦农场",
+      "art": {
+        "arch": "field",
+        "soil": "row6",
+        "crop": "wheat",
+        "w": 6,
+        "rows": 6
+      },
+      "tier": 1,
+      "workers": 6,
+      "buildCost": {
+        "wood": 4
+      },
+      "recipe": {
+        "inputs": {},
+        "output": {
+          "wheat": 12
+        },
+        "baseRate": 1
+      },
+      "buildWork": 12
+    },
+    {
+      "id": "vegetable_farm",
+      "sector": "agri",
+      "nameZh": "蔬菜农场",
+      "art": {
+        "arch": "field",
+        "soil": "row5",
+        "crop": "cabbage",
+        "w": 6,
+        "rows": 6
+      },
+      "tier": 1,
+      "workers": 4,
+      "buildCost": {
+        "wood": 4
+      },
+      "recipe": {
+        "inputs": {},
+        "output": {
+          "vegetable": 12
+        },
+        "baseRate": 1
+      },
+      "buildWork": 12
+    },
+    {
+      "id": "flax_farm",
+      "sector": "agri",
+      "nameZh": "亚麻农场",
+      "art": {
+        "arch": "field",
+        "soil": "row5",
+        "crop": "sprout",
+        "w": 6,
+        "rows": 6
+      },
+      "tier": 1,
+      "workers": 4,
+      "buildCost": {
+        "wood": 4
+      },
+      "recipe": {
+        "inputs": {},
+        "output": {
+          "flax": 8
+        },
+        "baseRate": 1
+      },
+      "buildWork": 12
+    },
+    {
+      "id": "cotton_farm",
+      "sector": "agri",
+      "nameZh": "棉花农场",
+      "art": {
+        "arch": "field",
+        "soil": "row5",
+        "crop": "bush",
+        "w": 6,
+        "rows": 6
+      },
+      "tier": 1,
+      "workers": 4,
+      "buildCost": {
+        "wood": 4
+      },
+      "recipe": {
+        "inputs": {},
+        "output": {
+          "cotton": 8
+        },
+        "baseRate": 1
+      },
+      "buildWork": 12
+    },
+    {
+      "id": "sugarcane_farm",
+      "sector": "agri",
+      "nameZh": "甘蔗园",
+      "art": {
+        "arch": "field",
+        "soil": "row6",
+        "crop": "corn",
+        "w": 6,
+        "rows": 6
+      },
+      "tier": 1,
+      "workers": 4,
+      "buildCost": {
+        "wood": 4
+      },
+      "recipe": {
+        "inputs": {},
+        "output": {
+          "sugarcane": 8
+        },
+        "baseRate": 1
+      },
+      "buildWork": 12
+    },
+    {
+      "id": "dye_farm",
+      "sector": "agri",
+      "nameZh": "染料园",
+      "art": {
+        "arch": "field",
+        "soil": "row5",
+        "crop": "tomato",
+        "w": 6,
+        "rows": 6
+      },
+      "tier": 1,
+      "workers": 3,
+      "buildCost": {
+        "wood": 4
+      },
+      "recipe": {
+        "inputs": {},
+        "output": {
+          "dye": 5
+        },
+        "baseRate": 1
+      },
+      "buildWork": 12
+    },
+    {
+      "id": "lumberjack",
+      "sector": "material",
+      "nameZh": "伐木场",
+      "art": {
+        "arch": "sprite"
+      },
+      "tier": 1,
+      "workers": 3,
+      "maxWorkers": 100,
+      "terrain": "forest",
+      "buildCost": {
+        "wood": 4
+      },
+      "recipe": {
+        "inputs": {},
+        "output": {
+          "wood": 10
+        },
+        "baseRate": 1
+      },
+      "buildWork": 12
+    },
+    {
+      "id": "quarry",
+      "sector": "material",
+      "nameZh": "采石场",
+      "art": {
+        "arch": "sprite"
+      },
+      "tier": 1,
+      "workers": 3,
+      "maxWorkers": 100,
+      "terrain": "stone",
+      "buildCost": {
+        "wood": 4
+      },
+      "recipe": {
+        "inputs": {},
+        "output": {
+          "stone": 8
+        },
+        "baseRate": 1
+      },
+      "buildWork": 12
+    },
+    {
+      "id": "clay_pit",
+      "sector": "material",
+      "nameZh": "粘土坑",
+      "art": {
+        "arch": "sprite"
+      },
+      "tier": 1,
+      "workers": 3,
+      "maxWorkers": 100,
+      "terrain": "clay",
+      "buildCost": {
+        "wood": 4
+      },
+      "recipe": {
+        "inputs": {},
+        "output": {
+          "clay": 8
+        },
+        "baseRate": 1
+      },
+      "buildWork": 12
+    },
+    {
+      "id": "hunting_camp",
+      "sector": "agri",
+      "nameZh": "狩猎营地",
+      "art": {
+        "arch": "sprite"
+      },
+      "tier": 1,
+      "workers": 3,
+      "buildCost": {
+        "wood": 4
+      },
+      "recipe": {
+        "inputs": {},
+        "output": {
+          "meat": 6,
+          "hide": 3
+        },
+        "baseRate": 1
+      },
+      "buildWork": 12
+    },
+    {
+      "id": "fishery",
+      "sector": "agri",
+      "nameZh": "渔场",
+      "art": {
+        "arch": "sprite"
+      },
+      "tier": 1,
+      "workers": 4,
+      "buildCost": {
+        "wood": 4
+      },
+      "recipe": {
+        "inputs": {},
+        "output": {
+          "fish": 10
+        },
+        "baseRate": 1
+      },
+      "buildWork": 12
+    },
+    {
+      "id": "coarse_mill",
+      "sector": "agri",
+      "nameZh": "粗面粉磨坊",
+      "art": {
+        "arch": "sprite"
+      },
+      "tier": 2,
+      "workers": 2,
+      "buildCost": {
+        "wood": 6,
+        "stone": 3
+      },
+      "recipe": {
+        "inputs": {
+          "wheat": 12
+        },
+        "output": {
+          "coarse_flour": 12
+        },
+        "baseRate": 1
+      },
+      "buildWork": 12
+    },
+    {
+      "id": "fine_mill",
+      "sector": "agri",
+      "nameZh": "精面粉磨坊",
+      "art": {
+        "arch": "sprite"
+      },
+      "tier": 2,
+      "workers": 3,
+      "buildCost": {
+        "wood": 6,
+        "stone": 3
+      },
+      "recipe": {
+        "inputs": {
+          "wheat": 12
+        },
+        "output": {
+          "fine_flour": 10
+        },
+        "baseRate": 1
+      },
+      "buildWork": 24
+    },
+    {
+      "id": "coarse_bakery",
+      "sector": "agri",
+      "nameZh": "粗面包房",
+      "art": {
+        "arch": "sprite"
+      },
+      "tier": 2,
+      "workers": 2,
+      "buildCost": {
+        "wood": 6,
+        "stone": 3
+      },
+      "recipe": {
+        "inputs": {
+          "coarse_flour": 12
+        },
+        "output": {
+          "coarse_bread": 24
+        },
+        "baseRate": 1
+      },
+      "buildWork": 12
+    },
+    {
+      "id": "white_bakery",
+      "sector": "agri",
+      "nameZh": "白面包房",
+      "art": {
+        "arch": "sprite"
+      },
+      "tier": 2,
+      "workers": 3,
+      "buildCost": {
+        "wood": 6,
+        "stone": 3
+      },
+      "recipe": {
+        "inputs": {
+          "fine_flour": 10
+        },
+        "output": {
+          "white_bread": 20
+        },
+        "baseRate": 1
+      },
+      "buildWork": 24
+    },
+    {
+      "id": "pastry_shop",
+      "sector": "agri",
+      "nameZh": "糕点房",
+      "art": {
+        "arch": "sprite"
+      },
+      "tier": 2,
+      "workers": 4,
+      "buildCost": {
+        "wood": 6,
+        "stone": 3
+      },
+      "recipe": {
+        "inputs": {
+          "fine_flour": 8,
+          "sugar": 4
+        },
+        "output": {
+          "pastry": 12
+        },
+        "baseRate": 1
+      },
+      "buildWork": 36
+    },
+    {
+      "id": "sugar_works",
+      "sector": "agri",
+      "nameZh": "糖坊",
+      "art": {
+        "arch": "sprite"
+      },
+      "tier": 2,
+      "workers": 2,
+      "buildCost": {
+        "wood": 6,
+        "stone": 3
+      },
+      "recipe": {
+        "inputs": {
+          "sugarcane": 8
+        },
+        "output": {
+          "sugar": 6
+        },
+        "baseRate": 1
+      },
+      "buildWork": 36
+    },
+    {
+      "id": "coarse_weaver",
+      "sector": "goods",
+      "nameZh": "粗织坊",
+      "art": {
+        "arch": "sprite"
+      },
+      "tier": 2,
+      "workers": 3,
+      "buildCost": {
+        "wood": 6,
+        "stone": 3
+      },
+      "recipe": {
+        "inputs": {
+          "flax": 8
+        },
+        "output": {
+          "coarse_cloth": 8
+        },
+        "baseRate": 1
+      },
+      "buildWork": 24
+    },
+    {
+      "id": "fine_weaver",
+      "sector": "goods",
+      "nameZh": "细织坊",
+      "art": {
+        "arch": "sprite"
+      },
+      "tier": 2,
+      "workers": 4,
+      "buildCost": {
+        "wood": 6,
+        "stone": 3
+      },
+      "recipe": {
+        "inputs": {
+          "cotton": 8
+        },
+        "output": {
+          "fine_cloth": 6
+        },
+        "baseRate": 1
+      },
+      "buildWork": 24
+    },
+    {
+      "id": "coarse_clothes_shop",
+      "sector": "goods",
+      "nameZh": "粗布衣坊",
+      "art": {
+        "arch": "sprite"
+      },
+      "tier": 2,
+      "workers": 3,
+      "buildCost": {
+        "wood": 6,
+        "stone": 3
+      },
+      "recipe": {
+        "inputs": {
+          "coarse_cloth": 8
+        },
+        "output": {
+          "coarse_clothes": 6
+        },
+        "baseRate": 1
+      },
+      "buildWork": 24
+    },
+    {
+      "id": "common_clothes_shop",
+      "sector": "goods",
+      "nameZh": "常服坊",
+      "art": {
+        "arch": "sprite"
+      },
+      "tier": 2,
+      "workers": 3,
+      "buildCost": {
+        "wood": 6,
+        "stone": 3
+      },
+      "recipe": {
+        "inputs": {
+          "fine_cloth": 6
+        },
+        "output": {
+          "common_clothes": 5
+        },
+        "baseRate": 1
+      },
+      "buildWork": 24
+    },
+    {
+      "id": "luxury_clothes_shop",
+      "sector": "goods",
+      "nameZh": "华服坊",
+      "art": {
+        "arch": "sprite"
+      },
+      "tier": 2,
+      "workers": 4,
+      "buildCost": {
+        "wood": 6,
+        "stone": 3
+      },
+      "recipe": {
+        "inputs": {
+          "fine_cloth": 5,
+          "dye": 3
+        },
+        "output": {
+          "luxury_clothes": 4
+        },
+        "baseRate": 1
+      },
+      "buildWork": 36
+    },
+    {
+      "id": "leather_shop",
+      "sector": "goods",
+      "nameZh": "皮衣坊",
+      "art": {
+        "arch": "sprite"
+      },
+      "tier": 2,
+      "workers": 3,
+      "buildCost": {
+        "wood": 6,
+        "stone": 3
+      },
+      "recipe": {
+        "inputs": {
+          "hide": 3
+        },
+        "output": {
+          "leather_clothes": 2
+        },
+        "baseRate": 1
+      },
+      "buildWork": 36
+    },
+    {
+      "id": "firewood_works",
+      "sector": "material",
+      "nameZh": "木柴坊",
+      "art": {
+        "arch": "sprite"
+      },
+      "tier": 2,
+      "workers": 2,
+      "buildCost": {
+        "wood": 6,
+        "stone": 3
+      },
+      "recipe": {
+        "inputs": {
+          "wood": 10
+        },
+        "output": {
+          "firewood": 12
+        },
+        "baseRate": 1
+      },
+      "buildWork": 12
+    },
+    {
+      "id": "brick_kiln",
+      "sector": "material",
+      "nameZh": "砖窑",
+      "art": {
+        "arch": "sprite"
+      },
+      "tier": 2,
+      "workers": 2,
+      "buildCost": {
+        "wood": 6,
+        "stone": 3
+      },
+      "recipe": {
+        "inputs": {
+          "clay": 8
+        },
+        "output": {
+          "brick": 6
+        },
+        "baseRate": 1,
+        "fuel": 4
+      },
+      "buildWork": 12
+    },
+    {
+      "id": "pottery_works",
+      "sector": "goods",
+      "nameZh": "陶器坊",
+      "art": {
+        "arch": "sprite"
+      },
+      "tier": 2,
+      "workers": 3,
+      "buildCost": {
+        "wood": 6,
+        "stone": 3
+      },
+      "recipe": {
+        "inputs": {
+          "clay": 8
+        },
+        "output": {
+          "pottery": 6
+        },
+        "baseRate": 1,
+        "fuel": 3
+      },
+      "buildWork": 24
+    },
+    {
+      "id": "porcelain_works",
+      "sector": "goods",
+      "nameZh": "瓷窑",
+      "art": {
+        "arch": "sprite"
+      },
+      "tier": 2,
+      "workers": 3,
+      "buildCost": {
+        "wood": 6,
+        "stone": 3
+      },
+      "recipe": {
+        "inputs": {
+          "clay": 6
+        },
+        "output": {
+          "porcelain": 4
+        },
+        "baseRate": 1,
+        "fuel": 6
+      },
+      "buildWork": 36
+    },
+    {
+      "id": "domestic_service",
+      "sector": "goods",
+      "nameZh": "家政工坊",
+      "art": {
+        "arch": "sprite",
+        "foot": [
+          8,
+          3
+        ]
+      },
+      "tier": 2,
+      "workers": 4,
+      "buildCost": {
+        "wood": 6,
+        "stone": 3
+      },
+      "recipe": {
+        "inputs": {},
+        "output": {
+          "domestic_service": 4
+        },
+        "baseRate": 1
+      },
+      "buildWork": 36
+    },
+    {
+      "id": "theater",
+      "sector": "goods",
+      "nameZh": "剧院",
+      "art": {
+        "arch": "sprite"
+      },
+      "tier": 3,
+      "workers": 5,
+      "buildCost": {
+        "wood": 8,
+        "stone": 6,
+        "clay": 4
+      },
+      "recipe": {
+        "inputs": {},
+        "output": {
+          "entertainment": 5
+        },
+        "baseRate": 1
+      },
+      "buildWork": 48
+    },
+    {
+      "id": "smokehouse",
+      "sector": "agri",
+      "nameZh": "熏鱼坊",
+      "art": {
+        "arch": "sprite"
+      },
+      "tier": 2,
+      "workers": 3,
+      "buildCost": {
+        "wood": 6,
+        "stone": 3
+      },
+      "recipe": {
+        "inputs": {
+          "fish": 10
+        },
+        "output": {
+          "smoked_fish": 8
+        },
+        "baseRate": 1,
+        "fuel": 4
+      },
+      "buildWork": 24
+    },
+    {
+      "id": "dried_meat_works",
+      "sector": "agri",
+      "nameZh": "肉干坊",
+      "art": {
+        "arch": "sprite"
+      },
+      "tier": 2,
+      "workers": 3,
+      "buildCost": {
+        "wood": 6,
+        "stone": 3
+      },
+      "recipe": {
+        "inputs": {
+          "meat": 6
+        },
+        "output": {
+          "dried_meat": 5
+        },
+        "baseRate": 1,
+        "fuel": 4
+      },
+      "buildWork": 24
+    },
+    {
+      "id": "construction_works",
+      "nameZh": "建筑工坊",
+      "art": {
+        "arch": "sprite"
+      },
+      "tier": 3,
+      "workers": 3,
+      "buildCost": {
+        "wood": 6,
+        "stone": 4
+      },
+      "capacity": {
+        "kind": "build",
+        "perWorker": 2.5,
+        "levelBonus": 0,
+        "slotsPerLevel": 0
+      },
+      "buildWork": 24
+    },
+    {
+      "id": "housing_works",
+      "sector": "goods",
+      "nameZh": "住房坊",
+      "art": {
+        "arch": "workshop",
+        "roof": "red",
+        "wall": "wood",
+        "w": 4
+      },
+      "tier": 3,
+      "workers": 4,
+      "buildCost": {
+        "wood": 8,
+        "stone": 6,
+        "clay": 4
+      },
+      "recipe": {
+        "inputs": {
+          "wood": 6,
+          "brick": 3
+        },
+        "output": {
+          "hut": 1
+        },
+        "baseRate": 1
+      },
+      "buildWork": 48
+    },
+    {
+      "id": "research_institute",
+      "nameZh": "研究所",
+      "art": {
+        "arch": "sprite",
+        "foot": [
+          8,
+          3
+        ]
+      },
+      "tier": 3,
+      "workers": 6,
+      "maxWorkers": 6,
+      "buildCost": {
+        "wood": 12
+      },
+      "capacity": {
+        "kind": "research",
+        "perWorker": 3.0,
+        "levelBonus": 0.3,
+        "slotsPerLevel": 3
+      },
+      "buildWork": 24
+    },
+    {
+      "id": "tool_works",
+      "sector": "goods",
+      "nameZh": "工具坊",
+      "art": {
+        "arch": "workshop",
+        "roof": "red",
+        "wall": "plank",
+        "w": 4,
+        "feat": [
           "rocks"
-		]
-	  },
-	  "tier": 2,
-	  "workers": 3,
-	  "maxWorkers": 6,
-	  "buildCost": {
-		"wood": 6,
-		"stone": 3
-	  },
-	  "recipe": {
-		"inputs": {
-		  "wood": 5,
-		  "stone": 5
-		},
-		"output": {
-		  "stone_tools": 2
-		},
-		"baseRate": 1
-	  },
-	  "buildWork": 24
-	}
+        ]
+      },
+      "tier": 2,
+      "workers": 3,
+      "maxWorkers": 6,
+      "buildCost": {
+        "wood": 6,
+        "stone": 3
+      },
+      "recipe": {
+        "inputs": {
+          "wood": 5,
+          "stone": 5
+        },
+        "output": {
+          "stone_tools": 2
+        },
+        "baseRate": 1
+      },
+      "buildWork": 24
+    }
   ]
 }
