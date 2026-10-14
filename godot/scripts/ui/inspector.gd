@@ -458,10 +458,13 @@ func _expand() -> void:
 func _begin_move_shop() -> void:
 	if world != null:
 		world.begin_move_shop(_id)
+	# 关掉对话框：它就在屏幕中间，不收起来会正好挡住要放的位置（用户反馈）
+	clear()
 
 func _begin_move_housing() -> void:
 	if world != null:
 		world.begin_move_housing(_id)
+	clear()
 
 func _resident_panel() -> void:
 	var r = null

@@ -1002,6 +1002,8 @@ func load_from(path: String) -> bool:
 
 # ---- 移动建筑 -------------------------------------------------------------
 func begin_move_shop(sid: String) -> void:
+	# 进入移动模式 = 取消选中：对话框会挡住要放的位置
+	select_none.emit()
 	if not _shop_cell.has(sid):
 		return
 	move_mode = "shop:" + sid
@@ -1012,6 +1014,8 @@ func begin_move_shop(sid: String) -> void:
 	notice.emit("点击新位置移动建筑（右键取消）")
 
 func begin_move_housing(uid: String) -> void:
+	# 进入移动模式 = 取消选中：对话框会挡住要放的位置
+	select_none.emit()
 	if not _housing_by_uid.has(uid):
 		return
 	var inst = _housing_by_uid[uid]
@@ -1980,6 +1984,8 @@ func set_build(id: String) -> void:
 		ghost.texture = _texture_for(id)
 		ghost.visible = true
 		notice.emit("点击地图放置：%s（右键取消）" % id)
+		# 开始放置就取消选中：否则建筑/居民的对话框杵在屏幕上，正好挡住要放的位置
+		select_none.emit()
 
 func set_brush(mode: String, size: int) -> void:
 	brush_mode = mode
@@ -1988,13 +1994,20 @@ func set_brush(mode: String, size: int) -> void:
 	ghost.visible = false
 	notice.emit("笔刷：%s  %dx%d（右键取消）" % [mode, size, size])
 
-func _try_place(id: String, cell: Vector2i) -> bool:
+## 这一格能不能放下 `id`（空串 = 可以）。
+##
+## **幽灵图的红/白与真正下单共用这一个判定** —— 分成两套就会出现"看着是白的、
+## 点下去却被拒"的错位（用户报过"放不下去要变成红色"）。
+## `need_afford = false` 用于**移动已有建筑**：材料早就付过了，只判地形与占地。
+func place_reason(id: String, cell: Vector2i, need_afford := true) -> String:
+	if runner == null or runner.sim == null or map == null:
+		return ""
 	var origin = Vector2i(cell.x - 1, cell.y - 1)
 	var fp = _footprint(id)
-	var reason = _can_afford(id)
-	if reason != "":
-		notice.emit(reason)
-		return false
+	if need_afford:
+		var reason = _can_afford(id)
+		if reason != "":
+			return reason
 	if runner.db.buildings.has(id):
 		var terr: Array = []
 		var b = runner.db.buildings[id]
@@ -2004,16 +2017,27 @@ func _try_place(id: String, cell: Vector2i) -> bool:
 		if tstr != "":
 			terr = [tstr]
 		if not map.terrain_ok(origin, fp.x, fp.y, terr):
-			notice.emit("此处不能建造（资源/占地不符）")
-			return false
+			return "此处不能建造（资源/占地不符）"
+		return ""
+	if runner.db.housing.has(id):
+		if not map.terrain_ok(origin, fp.x, fp.y, []):
+			return "此处不能建造住房"
+		return ""
+	return ""
+
+func _try_place(id: String, cell: Vector2i) -> bool:
+	var origin = Vector2i(cell.x - 1, cell.y - 1)
+	var fp = _footprint(id)
+	var reason := place_reason(id, cell)
+	if reason != "":
+		notice.emit(reason)
+		return false
+	if runner.db.buildings.has(id):
 		_register_site("shop", id, origin, fp)
 		runner.enqueue([{"type": "build", "buildingId": id}])
 		notice.emit("已下单建造 %s（次日 06:00 生效）" % id)
 		return true
 	elif runner.db.housing.has(id):
-		if not map.terrain_ok(origin, fp.x, fp.y, []):
-			notice.emit("此处不能建造住房")
-			return false
 		_register_site("housing", id, origin, fp)
 		runner.enqueue([{"type": "build_housing", "goodId": id}])
 		notice.emit("已下单建造住房 %s（次日 06:00 生效）" % id)
@@ -2061,6 +2085,22 @@ func _register_site(kind: String, type: String, cell: Vector2i, fp: Vector2i) ->
 
 func _update_ghost(cell: Vector2i) -> void:
 	ghost.position = Vector2((cell.x - 1) * TILE, (cell.y - 1) * TILE)
+	# 放不下就染红（用户："如果建房子的时候，建筑放不下去，要变成红色"）。
+	# 判定与真正下单共用 `place_reason()`，所以不会"看着能放、点下去被拒"。
+	var id := build_mode
+	var need_afford := true
+	if id == "" and move_mode != "":
+		var parts := move_mode.split(":")
+		if parts.size() >= 2 and parts[0] == "shop":
+			id = String(_shop_def.get(parts[1], ""))
+		elif parts.size() >= 2 and parts[0] == "housing":
+			id = String(parts[1])
+		need_afford = false          # 移动：材料早就付过，只判地形/占地
+	if id == "":
+		ghost.modulate = Color(1, 1, 1, 0.5)
+		return
+	var ok: bool = place_reason(id, cell, need_afford) == ""
+	ghost.modulate = Color(1, 1, 1, 0.5) if ok else Color(1.0, 0.32, 0.28, 0.6)
 
 # ---- 道路 / 地板 ----------------------------------------------------------
 func _paint_cell(cell: Vector2i) -> void:
