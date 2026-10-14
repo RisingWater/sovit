@@ -20,7 +20,10 @@ var road := PackedByteArray()
 var floor_tiles := PackedByteArray()
 var floor_charge := 0
 var occupied := {}          # Vector2i -> {"kind": ..., "id": ...}
-var reserved := {}          # Vector2i -> true（门格与门前通行格：不可被其它建筑占用）
+# Vector2i -> true。门格与门前通行格：不可被其它建筑占用。
+# ⚠️ 这就是"看着是空地、放不下去"的最常见原因 —— 门前那一格永远留着给居民进出。
+# 排查时开 ESC 菜单的"建筑占地"（`world_view.set_debug_footprints`），橙框即这些格。
+var reserved := {}
 var town_center := Rect2i()
 var center := Vector2i()
 

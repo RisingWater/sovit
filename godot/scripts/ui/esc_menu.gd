@@ -83,7 +83,7 @@ func _ready() -> void:
 	vb.add_child(b_res)
 
 	var b_dbg := UIKit.button("建筑占地：关", false)
-	b_dbg.tooltip_text = "调试：把每座建筑占的格子画成彩色方框（同一座同色；橙框=已下单待建）"
+	b_dbg.tooltip_text = "调试：画出每座建筑的占格（同一座同色）。橙框＝门洞与门前通行格 —— 它们被永久保留，所以看着是空地、实际不能建"
 	b_dbg.pressed.connect(func(): _toggle_debug_footprint(b_dbg))
 	vb.add_child(b_dbg)
 

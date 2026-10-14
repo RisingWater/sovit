@@ -2229,7 +2229,9 @@ func _draw_footprints() -> void:
 				var r2 := Rect2(Vector2(p.x * TILE, p.y * TILE), Vector2(TILE, TILE))
 				debug_layer.draw_rect(r2, tc)
 				debug_layer.draw_rect(r2, tc.lightened(0.55), false, 1.0)
-	# 已下单待建（reserved）：只描橙框不填色，和"已占"区分开
+	# reserved = **门格与门前通行格**（见 game_map 的声明注释），只描橙框不填色 ——
+	# 它们看着是空地，却**永久不可建**（否则会把门堵死、居民出不来）。
+	# 用户开这个开关就是靠这几格看明白的："懂了，是门洞。"
 	for c2 in map.reserved.keys():
 		debug_layer.draw_rect(Rect2(Vector2(c2.x * TILE, c2.y * TILE), Vector2(TILE, TILE)),
 			Color(1.0, 0.45, 0.15, 0.95), false, 2.0)
