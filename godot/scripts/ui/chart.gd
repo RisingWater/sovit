@@ -11,7 +11,10 @@ extends Control
 
 const PAD_L := 44.0
 const PAD_R := 6.0
-const PAD_T := 16.0
+## 顶部留白要放得下"标题 + 图例"那一行：标题基线在 y=11（字高到 ~14 像素），
+## y 轴**第一个刻度数字**画在 `plot.y + 3.5`。原来 PAD_T=16 → 那个数字落在 y≈19.5，
+## 字的上半截直接压到标题上（实测截图里 "69" 与「人口 / 就业」撞在一起）。
+const PAD_T := 28.0
 const PAD_B := 12.0
 
 var title := ""
