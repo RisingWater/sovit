@@ -627,6 +627,99 @@ function speedIcon(kind: string): Canvas {
 }
 
 // ---------------------------------------------------------------------------
+// 左侧导航圆钮（16x16，自绘）
+//
+// 用户嫌原来的 StyleBoxFlat 几何圆"太精细、没有像素风"，要求：
+//   边框加粗 / 颗粒度加大 / 边框内圈一圈高光 / 正上正下正左正右各一小段
+//   灰色金属 / 整体像"金属把木头拼接箍在一起"。
+//
+// 所以这是一张**手绘像素贴图**：木盘 + 粗深色外框 + 内圈米色高光 +
+// 四向金属卡扣（卡扣横跨边框、并向内咬进木头一点，才像"箍住"）。
+//
+// 半径分层（原生 16px，圆心 7.5,7.5，外缘半径 7.5）：
+//   r > 6.5        外框（约 1px 原生 = 显示 3~4px，够粗）
+//   5.9 < r <= 6.5 内圈高光
+//   r <= 5.9       木盘
+// 木盘半径 5.9 是**算出来的**：显示 48(3x) 时是 17.7px、55(3.4x) 时是 20.3px，
+// 都要放得下 32px 的图标（半径 16），否则图标会把高光那一圈盖住。
+// ---------------------------------------------------------------------------
+const NB_FRAME: RGBA = [46, 30, 20, 255] // 粗外框（近黑棕）
+const NB_HILITE: RGBA = [228, 204, 162, 255] // 边框内圈高光
+const NB_WOOD: RGBA = [148, 98, 56, 255] // 木盘
+const NB_WOOD_D: RGBA = [120, 76, 42, 255] // 木纹暗
+const NB_WOOD_L: RGBA = [170, 118, 70, 255] // 木纹亮
+const NB_METAL: RGBA = [140, 146, 154, 255] // 金属卡扣
+const NB_METAL_L: RGBA = [198, 205, 213, 255] // 金属亮边
+const NB_METAL_D: RGBA = [84, 90, 98, 255] // 金属暗边
+
+/** 三态只靠整体明暗区分：常态 1.0 / 悬停亮一点 / 按下暗一点。 */
+function navShade(c: RGBA, k: number): RGBA {
+  const f = (v: number) => Math.max(0, Math.min(255, Math.round(v * k)))
+  return [f(c[0]), f(c[1]), f(c[2]), 255]
+}
+
+function navButton(kind: string): Canvas {
+  const c = new Canvas(G, G)
+  const k = kind === 'hover' ? 1.14 : kind === 'pressed' ? 0.82 : 1.0
+  const R_OUT = 7.5 // 圆的外缘半径
+  const R_FRAME = 5.9 // 外框内边界（约 1.6px 厚）
+  const R_HILITE = 5.1 // 高光内边界
+  const cx = 7.5
+  const cy = 7.5
+  const rad = (x: number, y: number) => {
+    const dx = x + 0.5 - cx
+    const dy = y + 0.5 - cy
+    return Math.sqrt(dx * dx + dy * dy)
+  }
+
+  for (let y = 0; y < G; y++) {
+    for (let x = 0; x < G; x++) {
+      const r = rad(x, y)
+      if (r > R_OUT) continue // 圆外留透明
+      if (r > R_FRAME) {
+        c.set(x, y, navShade(NB_FRAME, k))
+      } else if (r > R_HILITE) {
+        c.set(x, y, navShade(NB_HILITE, k))
+      } else {
+        // 木纹：每 4 行一个明暗循环，横着看是木头的纹路
+        const m = y % 4
+        c.set(x, y, navShade(m === 0 ? NB_WOOD_D : m === 2 ? NB_WOOD_L : NB_WOOD, k))
+      }
+    }
+  }
+
+  // 四向金属卡扣：横跨外框与高光、并向内咬进木头 1px，像把木盘"箍住"。
+  // ⚠️ 每一格都必须**仍在圆内**（r <= R_OUT）—— 否则卡扣的边角会戳出圆外，
+  // 整个剪影变成"圆 + 四个灰方块"，第一版就是这么画错的。
+  // 外侧 1px 提亮、内侧 1px 压暗，做出金属反光。
+  const clip = (x0: number, y0: number, w: number, h: number, vertical: boolean, brightOuter: boolean) => {
+    for (let y = y0; y < y0 + h; y++) {
+      for (let x = x0; x < x0 + w; x++) {
+        if (rad(x, y) > R_OUT) continue
+        // 沿"从圆外指向圆心"的方向：第一格是外侧，最后一格是内侧
+        const isOuter = vertical
+          ? (brightOuter ? y === y0 : y === y0 + h - 1)
+          : brightOuter
+            ? x === x0
+            : x === x0 + w - 1
+        const isInner = vertical
+          ? (brightOuter ? y === y0 + h - 1 : y === y0)
+          : brightOuter
+            ? x === x0 + w - 1
+            : x === x0
+        const col = isOuter ? NB_METAL_L : isInner ? NB_METAL_D : NB_METAL
+        c.set(x, y, navShade(col, k))
+      }
+    }
+  }
+  clip(6, 1, 4, 2, true, true) // 正上：亮边朝上
+  clip(6, 13, 4, 2, true, false) // 正下：亮边朝下
+  clip(1, 6, 2, 4, false, true) // 正左：亮边朝左
+  clip(13, 6, 2, 4, false, false) // 正右：亮边朝右
+  return c
+}
+
+// ---------------------------------------------------------------------------
 // 商品图标（16x16，全自绘）
 // ---------------------------------------------------------------------------
 const I_DARK: RGBA = [58, 40, 30, 255]
@@ -864,6 +957,10 @@ function main(): void {
   // 速度控制图标 + 笔刷卡片缩略图
   for (const k of ['pause', '1x', '2x', '4x']) {
     writeFileSync(`${ROOT}/ui/speed_${k}.png`, speedIcon(k).toPng())
+  }
+  // 左侧导航圆钮（木盘 + 金属卡扣）
+  for (const k of ['normal', 'hover', 'pressed']) {
+    writeFileSync(`${ROOT}/ui/nav_btn_${k}.png`, navButton(k).toPng())
   }
   writeFileSync(`${ROOT}/thumbs/_road.png`, brushThumb('road').toPng())
   writeFileSync(`${ROOT}/thumbs/_floor.png`, brushThumb('floor').toPng())

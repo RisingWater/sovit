@@ -23,6 +23,7 @@
 | `tiny/deco.png` | 本项目自绘（树 4 种） | — | 同项目授权 |
 | `actors/*.png` | 本项目自绘（居民 4 阶层 × 4 向 × 4 帧） | — | 同项目授权 |
 | `ui/speed_*.png` | 本项目自绘（暂停 / 1x / 2x / 4x） | — | 同项目授权 |
+| `ui/nav_btn_*.png` | 本项目自绘（左侧导航圆钮：木盘 + 粗外框 + 内圈高光 + 四向金属卡扣，16×16，由 `gen-art.ts` 生成） | — | 同项目授权 |
 | `music/shimmer_sill_*.ogg` | [RPG Town Pack](https://talontrueblood.itch.io/) | **Talon Trueblood** | **免费使用 + 需署名** |
 | `sfx/*.ogg` | [UI SFX Set](https://kenney.nl/assets/ui-audio) | Kenney | **CC0 1.0** |
 | `props/src/house_*.png`<br>`props/thumb/*.png` | SUPER RETRO WORLD | Gif | **专有商用授权** |

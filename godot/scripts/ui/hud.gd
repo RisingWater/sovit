@@ -196,8 +196,11 @@ func _build_stat_row(row: HBoxContainer) -> void:
 # 圆形用 StyleBoxFlat 的全圆角画，不额外做美术：
 # corner_radius 取按钮边长的一半就是正圆。
 # ---------------------------------------------------------------------------
-## 圆钮边长：原尺寸 42 的 1.3 倍
-const NAV_BTN := 55
+## 圆钮边长。**必须是贴图原生尺寸 16 的整数倍**：48 = 16x3。
+## 原本是 55（用户定的 1.3 倍），但 55/16 = 3.44 不是整数倍，Nearest 放大后
+## 像素块会一大一小、能看出毛刺。用户明确"像素风优先"，
+## 所以取最接近 55 的整数倍 48（48/42 = 1.14 倍原来那个 42）。
+const NAV_BTN := 48
 const NAV_GAP := 10
 ## 距窗体左边缘的留白
 const NAV_LEFT := 10.0
@@ -257,39 +260,35 @@ func _build_nav() -> void:
 			b.pressed.connect(_open_stats_tab.bind(tab))
 		col.add_child(b)
 
-## 把按钮画成正圆（全圆角 StyleBoxFlat），三种状态各一份。
+## 圆钮外观：**手绘像素贴图**（不是代码画的几何圆）。
+##
+## 用户嫌原来的 StyleBoxFlat 平滑圆"太精细、没有像素风"，所以改成
+## `scripts/gen-art.ts` 生成的 `ui/nav_btn_*.png`：木盘 + 粗深色外框 +
+## 内圈米色高光 + 正上正下正左正右四段灰色金属卡扣。
+##
+## 三张图分别对应常态 / 悬停 / 按下；focus 与 disabled 复用常态并做色调处理
+## （圆钮 `focus_mode = FOCUS_NONE`，实际用不到 focus）。
 func _style_round(b: Button) -> void:
-	# 边长为奇数时 int() 会少 1px（63 -> 31），圆角就差了半个像素。
-	# 用 ceil 保证圆角盖满半边长，看着才是正圆。
-	var r := int(ceil(NAV_BTN * 0.5))
 	for state in ["normal", "hover", "pressed", "focus", "disabled"]:
-		var sb := StyleBoxFlat.new()
-		sb.corner_radius_top_left = r
-		sb.corner_radius_top_right = r
-		sb.corner_radius_bottom_left = r
-		sb.corner_radius_bottom_right = r
-		sb.anti_aliasing = true
-		sb.content_margin_left = 3
-		sb.content_margin_right = 3
-		sb.content_margin_top = 3
-		sb.content_margin_bottom = 3
-		match state:
-			"hover":
-				sb.bg_color = Color(0.94, 0.90, 0.78)
-				sb.border_color = Color(0.55, 0.35, 0.18)
-			"pressed":
-				sb.bg_color = Color(0.78, 0.70, 0.55)
-				sb.border_color = Color(0.42, 0.26, 0.12)
-			"disabled":
-				sb.bg_color = Color(0.72, 0.70, 0.66, 0.7)
-				sb.border_color = Color(0.45, 0.42, 0.38)
-			"focus":
-				sb.bg_color = Color(0.90, 0.86, 0.74)
-				sb.border_color = Color(0.55, 0.35, 0.18)
-			_:
-				sb.bg_color = Color(0.89, 0.84, 0.70)
-				sb.border_color = Color(0.47, 0.29, 0.14)
-		sb.set_border_width_all(2)
+		var src := "normal"
+		if state == "hover" or state == "focus":
+			src = "hover"
+		elif state == "pressed":
+			src = "pressed"
+		var tex: Texture2D = load("res://assets/ui/nav_btn_%s.png" % src)
+		if tex == null:
+			continue
+		var sb := StyleBoxTexture.new()
+		sb.texture = tex
+		# 整张 16x16 直接铺满按钮：图本身就是一个完整的圆，
+		# **不做 9 宫格**（设了 texture_margin 就会把圆拆成九块去拉伸，边角会变形）
+		sb.set_texture_margin_all(0)
+		sb.content_margin_left = 6
+		sb.content_margin_right = 6
+		sb.content_margin_top = 6
+		sb.content_margin_bottom = 6
+		if state == "disabled":
+			sb.modulate_color = Color(0.72, 0.72, 0.72, 0.85)
 		b.add_theme_stylebox_override(state, sb)
 
 func _toggle_music() -> void:
