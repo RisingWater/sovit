@@ -77,7 +77,9 @@ func _run() -> void:
 			world.camera.zoom = Vector2(z, z)
 	var i := 0
 	for id in PLACE_IDS:
-		var cell := c + Vector2i((i % 4) * 12 - 22, (i / 4) * 9 - 10)
+		# 间距要按**新建筑素材**的占地算：v3 整图最宽 145px(10 格)、最高 160px(10 格)，
+		# 原来 12x9 的间距会让剧院这种 10x10 的放不下、也会互相叠。
+		var cell := c + Vector2i((i % 4) * 20 - 30, (i / 4) * 16 - 16)
 		# 开发用：把"需地形"的建筑脚下刷成所需地形，保证截图能摆齐
 		var need := ""
 		if world.runner.db.buildings.has(id):

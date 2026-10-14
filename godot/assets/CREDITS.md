@@ -2,7 +2,7 @@
 
 本项目的美术素材来自以下开源资源。多数为 CC0（公有领域），可商用、无需署名
 （署名是自愿的，这里列出以示尊重）。字体为 OFL-1.1，可自由嵌入与再分发。
-**例外**：商品图标为 **MIT**（需保留版权声明）；`props/` 的房屋为**专有商用授权**
+**例外**：商品图标为 **MIT**（需保留版权声明）。
 （禁止散装再分发，所以本仓库应保持私有 —— 见下文）。
 
 | 目录 / 文件 | 来源 | 作者 | 授权 |
@@ -26,7 +26,7 @@
 | `ui/nav_btn_*.png` | 本项目自绘（左侧导航圆钮：木盘 + 粗外框 + 内圈高光 + 四向金属卡扣，16×16，由 `gen-art.ts` 生成） | — | 同项目授权 |
 | `music/shimmer_sill_*.ogg` | [RPG Town Pack](https://talontrueblood.itch.io/) | **Talon Trueblood** | **免费使用 + 需署名** |
 | `sfx/*.ogg` | [UI SFX Set](https://kenney.nl/assets/ui-audio) | Kenney | **CC0 1.0** |
-| `props/src/house_*.png`<br>`props/thumb/*.png` | SUPER RETRO WORLD | Gif | **专有商用授权** |
+| `building_src/*.png` | 用户提供的 v3 建筑整图（34 张，workbuddy 生成） | workbuddy | 随本项目 |
 
 ## icons/ —— MIT，需保留版权声明
 
@@ -79,54 +79,40 @@ Music: Talon Trueblood
 `AudioStreamPlayer.finished` 不触发，就会退化成单曲无限循环）。
 `tools/music_test.gd` 在门槛里锁住这一点。
 
-## props/ —— 专有素材
+## 建筑整图（v3）
 
-`godot/assets/props/` 里的 12 张房屋来自 **SUPER RETRO WORLD**（Copyright (C) Gif），
-完整授权见 [`godot/Custom_Commercial_License.txt`](../Custom_Commercial_License.txt)。
+34 张成品建筑整图，来源为用户提供的素材包（workbuddy 生成），随本项目授权。
 
-**授权允许**：用在游戏里、修改改编、**随成品分发**（`Distribute finished projects containing the Assets`）。
-**授权禁止**：作为散装文件再分发、上传到公开仓库、以可提取的独立形式公开。
+- 入库副本：`godot/assets/building_src/<id>.png`（**已提交**，干净检出即可跑 `gen:art`）
+- 重新导入：`python scripts/import-building-sprites.py`（读本地素材包，按**中文名**对 id）
+- 生成物：`godot/assets/buildings/<id>.png` + `thumbs/<id>.png`
+- **尺寸规则**（`scripts/gen-art.ts` 的 `STOREYS`）：显示高度 = 层数 × 3 格 + 屋顶 2 格，
+  每座取满足上限的最大整数下采样倍率。详见该文件的注释。
+- 素材包本身不入库（与 Tiny / UI 包一致）：**原始包不入库，实际用到的落到 `godot/assets/`**
 
-### ⚠️ 本仓库应当保持私有
+> 素材里还有 4 座本项目尚未实装的建筑（仓库 / 市场 / 别墅 / 城镇中心），
+> 已一并导入备用，设计稿见 `docs/town.md`。实装时把对应条目加进
+> `content/buildings.json` 并设 `art.arch = "sprite"` 即可，**无需改代码**。
 
-`assets/props/src/*.png` 与素材包原图**逐字节相同**，属于授权所说的
-"standalone files" / "extractable standalone form"。因此：
+### 历史：Super Retro World 已完全移除（2026-10）
 
-- **本仓库需保持私有**。私有仓库不构成"publicly available"，落在授权允许范围内。
-- 若要公开本仓库，请先按下文把 prop 依赖去掉（约 1 分钟）。
-- 发布**打包好的游戏**没有这个问题 —— 授权明说允许 "finished projects containing the Assets"。
+在此之前有 12 座建筑用 **SUPER RETRO WORLD**（Copyright (C) Gif）的整图，那份授权
+**禁止散装再分发、禁止上传公开仓库**，所以当时 `godot/assets/props/` 那 48 个文件
+让整个仓库**必须保持私有**。
 
-### 素材包本身不入库
+改用 v3 建筑整图后：
 
-`godot/Props/`、`godot/Characters/`、`godot/Tilesets/`（原始下载包，共 586 个文件）
-不纳入版本管理，与 Tiny / UI 包的处理方式一致：**原始包不入库，游戏实际用到的落到
-`godot/assets/`**。
-
-本地要重新生成时：把素材包解到 `godot/Props/`（保持 `Props/Houses/Sprites/house_NN.png`
-的相对路径），执行 `npm run gen:art`。缺包时 gen-art 会跳过这 12 座并告警，
-游戏会退回自绘的 `buildings/_prop_fallback.png`，其余建筑不受影响。
-
-### 要完全去掉这个依赖
-
-把 `content/buildings.json` 里 12 处
-
-```json
-"art": { "arch": "prop", "sprite": "house_02" }
-```
-
-改回程序化生成，例如
-
-```json
-"art": { "arch": "workshop", "roof": "blue", "wall": "wood", "w": 5 }
-```
-
-然后 `npm run gen:art`。代码侧无需改动 —— 只是回到"由图集拼装"的方式。
+- `godot/assets/props/`（48 个文件）已删除
+- `godot/Custom_Commercial_License.txt`（SRW 授权原文）已删除
+- `.gitignore` 里 SRW 那段说明已改写
+- **本仓库不再需要保持私有** —— 那条约束随素材一起消失了
 
 ## 生成物说明
 
 以下**不是**手工资产，请勿手改 —— 改 `content/*.json` 或 `scripts/gen-art.ts` 后重跑 `npm run gen:art`：
 
 - `buildings/*.png` —— 由 `content/buildings.json` / `housing.json` 的 `art` 字段生成
+  （`arch: "sprite"` 的是 v3 整图缩放来的，其余由图集程序化拼装）
 - `tiny/extra.png` —— 由 `scripts/gen-art.ts` 生成
 - `actors/*.png` —— 由 `scripts/gen-art.ts` 生成
 

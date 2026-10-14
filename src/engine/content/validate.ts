@@ -154,7 +154,7 @@ function strList(v: unknown, p: string): string[] {
 // 外观规格
 // ---------------------------------------------------------------------------
 
-const ART_ARCHS = ['house', 'extract', 'mill', 'bakery', 'kiln', 'workshop', 'grand', 'warehouse', 'field', 'prop'] as const
+const ART_ARCHS = ['house', 'extract', 'mill', 'bakery', 'kiln', 'workshop', 'grand', 'warehouse', 'field', 'sprite'] as const
 const ART_ROOFS = ['blue', 'red', 'green'] as const
 const ART_WALLS = ['wood', 'stone', 'barn', 'plank'] as const
 const ART_FEATS = ['windmill', 'wheel', 'logs', 'rocks'] as const
@@ -195,12 +195,13 @@ function parseArt(v: unknown, p: string): BuildingArt | undefined {
     if (!art.soil) fail(`${p}：arch=field 必须给 soil`)
     if (!art.crop) fail(`${p}：arch=field 必须给 crop`)
     if (art.roof || art.wall) fail(`${p}：arch=field 不应给 roof / wall`)
-  } else if (arch === 'prop') {
-    if (!art.sprite) fail(`${p}：arch=prop 必须给 sprite`)
-    if (art.w) fail(`${p}：arch=prop 的 w 由 gen-art 按图算出，不要手填`)
-    if (art.rows) fail(`${p}：arch=prop 的 rows 由 gen-art 按图算出，不要手填`)
+  } else if (arch === 'sprite') {
+    // 成品整图：文件名就是建筑 id（godot/assets/building_src/<id>.png），
+    // 所以**不需要** sprite 字段；占地由 gen-art 按图 + 层数规则算出，也不手填。
+    if (art.w) fail(`${p}：arch=sprite 的占地由 gen-art 按图算出，不要手填`)
+    if (art.rows) fail(`${p}：arch=sprite 的占地由 gen-art 按图算出，不要手填`)
     if (art.roof || art.wall || art.soil || art.crop) {
-      fail(`${p}：arch=prop 不应给 roof / wall / soil / crop`)
+      fail(`${p}：arch=sprite 不应给 roof / wall / soil / crop`)
     }
   } else {
     if (!art.roof) fail(`${p}：arch=${arch} 必须给 roof`)

@@ -20,8 +20,8 @@ const ROOT = 'godot/assets'
 const TOWN_PNG = `${ROOT}/tiny/town.png`
 const FARM_PNG = `${ROOT}/tiny/farm.png`
 // Super Retro World 的房屋原图（gitignore，不上库）
-const PROP_SRC = 'godot/Props/Houses/Sprites'
-const PROP_OUT = `${ROOT}/props`
+/** v3 成品建筑整图的入库副本（`scripts/import-building-sprites.py` 产出，已提交）。 */
+const BUILDING_SRC = `${ROOT}/building_src`
 
 type AtlasName = 'town' | 'farm'
 
@@ -207,6 +207,70 @@ const FEATS: Record<string, () => Canvas> = {
 // ---------------------------------------------------------------------------
 // 建筑
 // ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// v3 成品整图（用户提供的 34 张，`building_src/<id>.png`）
+//
+// **尺寸规则：显示高度由「层数」决定。**
+//   显示高度上限 = 层数 × 3 格 + 屋顶 2 格
+//     1 层 -> 5 格(80px)   2 层 -> 8 格(128px)   3 层 -> 11 格(176px)
+//   每座建筑取**满足上限的最大整数下采样倍率**（1 或 2），宽度按原图比例跟随。
+//
+// 为什么用"最大倍率"而不是"最接近某个目标高度"：
+//   素材同宽(128)但高度差一倍多(62~131)。若一律按比例缩到同一目标高度，
+//   矮图（研究所 128x73）会被缩成一条窄带 —— 这正是用户反馈的"研究所偏小"。
+//   改成"能多大就多大、只要不超上限"，矮图就保持原生尺寸，看着不再单薄。
+//
+// 为什么要按层数分档、不能一律 ÷2：
+//   木屋(1层) 和 砖房(2层) 的**原图高度都是 96**。一律 ÷2 会让二层楼和一层楼
+//   显示成一样高 —— 用户明确要求"不能两层的建筑和一层楼的一样高"。
+//   按层数给上限后：1 层被压到 ≤80px、2 层 96px、3 层 160px，层级就分开了。
+//
+// 只做整数倍缩放：下采样前先把宽高裁成倍率的整数倍（最多丢 1px 边缘），
+// 保证是真·整数倍，不会出现半像素、大小不一的像素块。
+// ---------------------------------------------------------------------------
+const STOREYS: Record<string, number> = {
+  // 清单里写明层数的只有这 4 座，其余一律 1 层
+  brick_house: 2, // 「正方形两层」
+  villa: 2, // 「正方形两层」
+  town_center: 3, // 「又宽又高 3 层」
+  theater: 3, // 「又宽又高 3 层」
+}
+const STOREY_TILES = 3 // 每层 3 格
+const ROOF_TILES = 2 // 屋顶 2 格
+
+function storeysOf(id: string): number {
+  return STOREYS[id] ?? 1
+}
+
+/** 该建筑的显示高度上限（像素）。 */
+function maxDisplayH(id: string): number {
+  return (STOREY_TILES * storeysOf(id) + ROOF_TILES) * G
+}
+
+/** 整数倍下采样：先裁到 f 的整数倍，再取每 f×f 块的左上像素（= 最近邻）。 */
+function downscaleExact(src: Canvas, f: number): Canvas {
+  if (f === 1) return src
+  const w = Math.floor(src.w / f) * f
+  const h = Math.floor(src.h / f) * f
+  const out = new Canvas(w / f, h / f)
+  for (let y = 0; y < out.h; y++)
+    for (let x = 0; x < out.w; x++) out.set(x, y, src.get(x * f, y * f))
+  return out
+}
+
+/** 从入库的整图生成建筑贴图（尺寸规则见上）。scale 显式指定时不再自动挑倍率。 */
+function spriteBuilding(id: string, srcPath: string, forceScale?: number): Canvas {
+  const src = Canvas.fromPng(srcPath)
+  const cap = maxDisplayH(id)
+  let f = forceScale ?? 1
+  if (forceScale === undefined) {
+    // 倍率只取 2 的幂，这样"裁到整数倍"最多只丢 1px
+    while (Math.floor(src.h / f) > cap && f < 8) f *= 2
+  }
+  return downscaleExact(src, f)
+}
+
 function renderField(art: Art): Canvas {
   const w = art.w ?? 6
   const rows = art.rows ?? 1
@@ -933,22 +997,17 @@ function main(): void {
 
   let n = 0
   const missing: string[] = []
-  const propMissing: string[] = []
+  const spriteMissing: string[] = []
   for (const b of [...buildings, ...housing]) {
     if (!b.art) { missing.push(b.id); continue }
 
-    if (b.art.arch === 'prop') {
-      // 首选**已入库**的副本（godot/assets/props/src/）——这样干净检出也能跑，
-      // 不依赖本地是否放着原始素材包。副本不存在时才从素材包播种。
-      const dst = `${PROP_OUT}/src/${b.art.sprite}.png`
-      if (!existsSync(dst)) {
-        const seed = `${PROP_SRC}/${b.art.sprite}.png`
-        if (!existsSync(seed)) { propMissing.push(b.id); continue }
-        mkdirSync(`${PROP_OUT}/src`, { recursive: true })
-        writeFileSync(dst, readFileSync(seed))
-      }
-      mkdirSync(`${PROP_OUT}/thumb`, { recursive: true })
-      writeFileSync(`${PROP_OUT}/thumb/${b.id}.png`, thumbOf(Canvas.fromPng(dst)).toPng())
+    if (b.art.arch === 'sprite') {
+      // v3 成品整图：素材副本已入库，干净检出也能跑
+      const srcPath = `${BUILDING_SRC}/${b.id}.png`
+      if (!existsSync(srcPath)) { spriteMissing.push(b.id); continue }
+      const cv = spriteBuilding(b.id, srcPath)
+      writeFileSync(`${ROOT}/buildings/${b.id}.png`, cv.toPng())
+      writeFileSync(`${ROOT}/thumbs/${b.id}.png`, thumbOf(cv).toPng())
       n++
       continue
     }
@@ -958,16 +1017,16 @@ function main(): void {
     writeFileSync(`${ROOT}/thumbs/${b.id}.png`, thumbOf(cv).toPng())
     n++
   }
-  // 中央仓库（地图上的固定结构，不属于任何 pack 的建筑表）
-  const wh = renderBuilding({ arch: 'warehouse', roof: 'blue', wall: 'stone', w: 4 })
-  writeFileSync(`${ROOT}/buildings/_warehouse.png`, wh.toPng())
-  writeFileSync(`${ROOT}/thumbs/_warehouse.png`, thumbOf(wh).toPng())
-  n++
-
-  // prop 建筑在没装 SUPER RETRO WORLD 素材包时的兜底外形（自绘，可入库）
-  const fb = renderBuilding({ arch: 'workshop', roof: 'blue', wall: 'wood', w: 5 })
-  writeFileSync(`${ROOT}/buildings/_prop_fallback.png`, fb.toPng())
-  writeFileSync(`${ROOT}/thumbs/_prop_fallback.png`, thumbOf(fb).toPng())
+  // 地图上的固定仓库结构（4x3 格，见 game_map.gd）。用新素材的 warehouse 整图，
+  // 强制 ÷2 让它装进 64x48 的占地（世界层会把它底边对齐，见 _build_warehouse）。
+  {
+    const whSrc = `${BUILDING_SRC}/warehouse.png`
+    if (existsSync(whSrc)) {
+      const wh = spriteBuilding('warehouse', whSrc, 2)
+      writeFileSync(`${ROOT}/buildings/_warehouse.png`, wh.toPng())
+      writeFileSync(`${ROOT}/thumbs/_warehouse.png`, thumbOf(wh).toPng())
+    }
+  }
 
   for (const cls of CLASS_IDS) {
     writeFileSync(`${ROOT}/actors/${cls}.png`, actorSheet(cls).toPng())
@@ -994,10 +1053,10 @@ function main(): void {
 
   console.log(`art → ${ROOT}/`)
   console.log(`  建筑 ${n} 座${missing.length ? `（缺 art：${missing.join(', ')}）` : ''}`)
-  if (propMissing.length) {
-    console.log(`  !! 缺 Super Retro World 素材，跳过 prop 建筑 ${propMissing.length} 座：`)
-    console.log(`     ${propMissing.join(', ')}`)
-    console.log(`     把该包解到 godot/Props/ 后重跑（授权禁止入库，故未随仓库分发）`)
+  if (spriteMissing.length) {
+    console.log(`  !! 缺成品整图，跳过 ${spriteMissing.length} 座：`)
+    console.log(`     ${spriteMissing.join(', ')}`)
+    console.log(`     跑 scripts/import-building-sprites.py 从素材包重新导入`)
   }
   console.log(`  商品图标 ${goods.length} 个`)
   console.log(`  速度图标 4 个 + 笔刷缩略图 2 个`)

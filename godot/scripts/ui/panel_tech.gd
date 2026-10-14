@@ -635,12 +635,7 @@ func _unlock_icon(id: String) -> Texture2D:
 	var t := GoodIcons.tex(id)
 	if t != null:
 		return t
-	var def: Dictionary = {}
-	if runner.db.buildings.has(id):
-		def = runner.db.buildings[id]
-	elif runner.db.housing.has(id):
-		def = runner.db.housing[id]
-	return UIKit.thumb(id, UIKit.is_prop(def))
+	return UIKit.thumb(id)
 
 
 func _thing_name(id: String) -> String:

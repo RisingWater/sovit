@@ -148,12 +148,7 @@
       "id": "lumberjack",
       "nameZh": "伐木场",
       "art": {
-        "arch": "extract",
-        "roof": "blue",
-        "wall": "wood",
-        "feat": [
-          "logs"
-        ]
+        "arch": "sprite"
       },
       "tier": 1,
       "workers": 3,
@@ -175,12 +170,7 @@
       "id": "quarry",
       "nameZh": "采石场",
       "art": {
-        "arch": "extract",
-        "roof": "blue",
-        "wall": "stone",
-        "feat": [
-          "rocks"
-        ]
+        "arch": "sprite"
       },
       "tier": 1,
       "workers": 3,
@@ -202,13 +192,7 @@
       "id": "clay_pit",
       "nameZh": "粘土坑",
       "art": {
-        "arch": "extract",
-        "roof": "red",
-        "wall": "wood",
-        "w": 3,
-        "feat": [
-          "rocks"
-        ]
+        "arch": "sprite"
       },
       "tier": 1,
       "workers": 3,
@@ -230,12 +214,7 @@
       "id": "hunting_camp",
       "nameZh": "狩猎营地",
       "art": {
-        "arch": "extract",
-        "roof": "red",
-        "wall": "wood",
-        "feat": [
-          "logs"
-        ]
+        "arch": "sprite"
       },
       "tier": 1,
       "workers": 3,
@@ -256,13 +235,7 @@
       "id": "fishery",
       "nameZh": "渔场",
       "art": {
-        "arch": "extract",
-        "roof": "blue",
-        "wall": "plank",
-        "w": 3,
-        "feat": [
-          "wheel"
-        ]
+        "arch": "sprite"
       },
       "tier": 1,
       "workers": 4,
@@ -282,12 +255,7 @@
       "id": "coarse_mill",
       "nameZh": "粗面粉磨坊",
       "art": {
-        "arch": "mill",
-        "roof": "blue",
-        "wall": "wood",
-        "feat": [
-          "wheel"
-        ]
+        "arch": "sprite"
       },
       "tier": 2,
       "workers": 2,
@@ -310,12 +278,7 @@
       "id": "fine_mill",
       "nameZh": "精面粉磨坊",
       "art": {
-        "arch": "mill",
-        "roof": "blue",
-        "wall": "stone",
-        "feat": [
-          "windmill"
-        ]
+        "arch": "sprite"
       },
       "tier": 2,
       "workers": 3,
@@ -338,10 +301,7 @@
       "id": "coarse_bakery",
       "nameZh": "粗面包房",
       "art": {
-        "arch": "bakery",
-        "roof": "red",
-        "wall": "wood",
-        "chimney": true
+        "arch": "sprite"
       },
       "tier": 2,
       "workers": 2,
@@ -364,10 +324,7 @@
       "id": "white_bakery",
       "nameZh": "白面包房",
       "art": {
-        "arch": "bakery",
-        "roof": "red",
-        "wall": "stone",
-        "chimney": true
+        "arch": "sprite"
       },
       "tier": 2,
       "workers": 3,
@@ -390,11 +347,7 @@
       "id": "pastry_shop",
       "nameZh": "糕点房",
       "art": {
-        "arch": "bakery",
-        "roof": "red",
-        "wall": "stone",
-        "w": 4,
-        "chimney": true
+        "arch": "sprite"
       },
       "tier": 2,
       "workers": 4,
@@ -418,10 +371,7 @@
       "id": "sugar_works",
       "nameZh": "糖坊",
       "art": {
-        "arch": "kiln",
-        "roof": "red",
-        "wall": "wood",
-        "chimney": true
+        "arch": "sprite"
       },
       "tier": 2,
       "workers": 2,
@@ -444,8 +394,7 @@
       "id": "coarse_weaver",
       "nameZh": "粗织坊",
       "art": {
-        "arch": "prop",
-        "sprite": "house_02"
+        "arch": "sprite"
       },
       "tier": 2,
       "workers": 3,
@@ -468,8 +417,7 @@
       "id": "fine_weaver",
       "nameZh": "细织坊",
       "art": {
-        "arch": "prop",
-        "sprite": "house_11"
+        "arch": "sprite"
       },
       "tier": 2,
       "workers": 4,
@@ -492,8 +440,7 @@
       "id": "coarse_clothes_shop",
       "nameZh": "粗布衣坊",
       "art": {
-        "arch": "prop",
-        "sprite": "house_09"
+        "arch": "sprite"
       },
       "tier": 2,
       "workers": 3,
@@ -516,8 +463,7 @@
       "id": "common_clothes_shop",
       "nameZh": "常服坊",
       "art": {
-        "arch": "prop",
-        "sprite": "house_03"
+        "arch": "sprite"
       },
       "tier": 2,
       "workers": 3,
@@ -540,8 +486,7 @@
       "id": "luxury_clothes_shop",
       "nameZh": "华服坊",
       "art": {
-        "arch": "prop",
-        "sprite": "house_08"
+        "arch": "sprite"
       },
       "tier": 2,
       "workers": 4,
@@ -565,8 +510,7 @@
       "id": "leather_shop",
       "nameZh": "皮衣坊",
       "art": {
-        "arch": "prop",
-        "sprite": "house_06"
+        "arch": "sprite"
       },
       "tier": 2,
       "workers": 3,
@@ -589,13 +533,7 @@
       "id": "firewood_works",
       "nameZh": "木柴坊",
       "art": {
-        "arch": "kiln",
-        "roof": "blue",
-        "wall": "wood",
-        "chimney": true,
-        "feat": [
-          "logs"
-        ]
+        "arch": "sprite"
       },
       "tier": 2,
       "workers": 2,
@@ -618,10 +556,7 @@
       "id": "brick_kiln",
       "nameZh": "砖窑",
       "art": {
-        "arch": "kiln",
-        "roof": "red",
-        "wall": "stone",
-        "chimney": true
+        "arch": "sprite"
       },
       "tier": 2,
       "workers": 2,
@@ -645,11 +580,7 @@
       "id": "pottery_works",
       "nameZh": "陶器坊",
       "art": {
-        "arch": "kiln",
-        "roof": "red",
-        "wall": "stone",
-        "w": 4,
-        "chimney": true
+        "arch": "sprite"
       },
       "tier": 2,
       "workers": 3,
@@ -673,10 +604,7 @@
       "id": "porcelain_works",
       "nameZh": "瓷窑",
       "art": {
-        "arch": "kiln",
-        "roof": "blue",
-        "wall": "stone",
-        "chimney": true
+        "arch": "sprite"
       },
       "tier": 2,
       "workers": 3,
@@ -700,8 +628,7 @@
       "id": "domestic_service",
       "nameZh": "家政工坊",
       "art": {
-        "arch": "prop",
-        "sprite": "house_05"
+        "arch": "sprite"
       },
       "tier": 2,
       "workers": 4,
@@ -722,8 +649,7 @@
       "id": "theater",
       "nameZh": "剧院",
       "art": {
-        "arch": "prop",
-        "sprite": "house_10"
+        "arch": "sprite"
       },
       "tier": 3,
       "workers": 5,
@@ -745,8 +671,7 @@
       "id": "smokehouse",
       "nameZh": "熏鱼坊",
       "art": {
-        "arch": "prop",
-        "sprite": "house_01"
+        "arch": "sprite"
       },
       "tier": 2,
       "workers": 3,
@@ -770,8 +695,7 @@
       "id": "dried_meat_works",
       "nameZh": "肉干坊",
       "art": {
-        "arch": "prop",
-        "sprite": "house_04"
+        "arch": "sprite"
       },
       "tier": 2,
       "workers": 3,
@@ -795,8 +719,7 @@
       "id": "construction_works",
       "nameZh": "建筑工坊",
       "art": {
-        "arch": "prop",
-        "sprite": "house_07"
+        "arch": "sprite"
       },
       "tier": 3,
       "workers": 3,
@@ -816,8 +739,10 @@
       "id": "housing_works",
       "nameZh": "住房坊",
       "art": {
-        "arch": "prop",
-        "sprite": "house_12"
+        "arch": "workshop",
+        "roof": "red",
+        "wall": "wood",
+        "w": 4
       },
       "tier": 3,
       "workers": 4,
@@ -842,11 +767,7 @@
       "id": "research_institute",
       "nameZh": "研究所",
       "art": {
-        "arch": "grand",
-        "roof": "blue",
-        "wall": "stone",
-        "w": 5,
-        "chimney": true
+        "arch": "sprite"
       },
       "tier": 3,
       "workers": 6,

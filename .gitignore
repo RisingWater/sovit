@@ -20,19 +20,14 @@ godot/builds/
 # 唯一入不了库的情况是里面写了 Android 签名口令；本项目只做桌面导出，没有这个顾虑。
 
 # ---------------------------------------------------------------------------
-# Super Retro World（Copyright (C) Gif）素材包
+# 美术素材包（原始下载包不入库，游戏实际用到的落到 godot/assets/）
 #
-# 该包授权（godot/Custom_Commercial_License.txt）允许"发布含素材的成品"，
-# 但禁止把素材作为散装文件再分发、禁止上传到公开仓库。
+# **2026-10：Super Retro World 已完全移除。** 建筑改用用户提供的 v3 成品整图
+# （`godot/assets/building_src/`，见 `scripts/import-building-sprites.py`），
+# 所以 `godot/assets/props/` 连同 SRW 授权那套约束一起删掉了 ——
+# 本仓库**不再需要保持私有**。
 #
-# 处理方式与 Tiny / UI 包一致：**原始下载包不入库，游戏实际用到的落到
-# godot/assets/props/**。所以这里只忽略素材包本身的目录。
-#
-# ⚠️ godot/assets/props/ 里的 12 张房屋**已入库**，因此本仓库
-#    **应当保持为私有仓库**。若将来要公开，把 content/buildings.json 里
-#    12 处 art 从 { "arch": "prop", "sprite": "house_NN" } 改回程序化生成
-#    （例如 { "arch": "workshop", "roof": "blue", "wall": "wood", "w": 5 }）
-#    并重跑 `npm run gen:art`，代码侧无需改动。
+# 下面这些是历史遗留的原始包目录，若本地还留着可以删。
 # ---------------------------------------------------------------------------
 godot/Props/
 godot/Characters/

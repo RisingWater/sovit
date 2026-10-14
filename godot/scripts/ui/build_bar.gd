@@ -143,13 +143,8 @@ func _ids_of(cat: String) -> Array:
 	return out
 
 func _thumb_for(id: String) -> Texture2D:
-	var a: Dictionary = {}
-	if runner.db.buildings.has(id):
-		a = runner.db.buildings[id].get("art", {})
-	elif runner.db.housing.has(id):
-		a = runner.db.housing[id].get("art", {})
-	# 统一走 UIKit.thumb 的兜底链（prop 缩略图不在版本管理里）
-	return UIKit.thumb(id, String(a.get("arch", "")) == "prop")
+	# 统一走 UIKit.thumb 的兜底链（thumbs/ 没有时退回 buildings/）
+	return UIKit.thumb(id)
 
 func _name_of(id: String) -> String:
 	if runner.db.housing.has(id):

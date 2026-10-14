@@ -97,7 +97,7 @@ export type ArtArch =
   | 'grand'      // 大型公共建筑
   | 'warehouse'  // 中央仓库
   | 'field'      // 农田（土垄 + 作物，无屋顶）
-  | 'prop'       // 直接用手绘整图（godot/assets/props/<sprite>.png）
+  | 'sprite'     // 成品整图（godot/assets/buildings/<id>.png，尺寸由层数决定）
 
 export type ArtRoof = 'blue' | 'red' | 'green'
 export type ArtWall = 'wood' | 'stone' | 'barn' | 'plank'
@@ -110,7 +110,10 @@ export type ArtSoil = 'row5' | 'row6'
 
 export interface BuildingArt {
   arch: ArtArch
-  /** arch='prop'：只用 godot/assets/props/<sprite>.png，不再由图集拼装。 */
+  /**
+   * arch='sprite'：整图直接用 godot/assets/buildings/<id>.png（不再由图集拼装）。
+   * 尺寸规则见 scripts/gen-art.ts 的 STOREYS —— 显示高度由层数决定。
+   */
   sprite?: string
   /** 屋顶款式（field / prop 不用）。 */
   roof?: ArtRoof

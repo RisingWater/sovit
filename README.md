@@ -279,15 +279,18 @@ curl -X POST http://localhost:8787/act \
 | **36 个商品图标** | 像素图标包（**doubao**） | **MIT** |
 | **面板 / 顶栏图标**（财政·科技·人口·就业·金币·建造力…） | **workbuddy** | **MIT** |
 | **科技树图标**（29 个，文件名 = 科技 id） | **workbuddy** | **MIT** |
+| **34 张建筑整图**（v3，含 4 座待实装） | **workbuddy** | 随本项目 |
 | 背景音乐 | RPG Town Pack（Talon Trueblood） | 免费 + **需署名** |
-| 12 张房屋贴图 + 标题 logo | SUPER RETRO WORLD / AI 生成 | ⚠️ **见下** |
+| 标题 logo | AI 生成（带 WORKBUDDY 水印） | 归属需自行确认 |
 
-> ⚠️ **仓库必须保持私有。** `godot/assets/props/` 的 12 张房屋来自 SUPER RETRO WORLD，
-> 其授权**禁止**以可提取的独立形式再分发、**禁止上传到任何仓库**。
-> 标题 logo 为 AI 生成（带 WORKBUDDY 水印），授权归属需自行确认。
 > 音乐需在制作人员名单署名 `Music: Talon Trueblood`。
 > 商品图标为 MIT（作者 doubao），许可证原文见 `godot/assets/icons/LICENSE.txt`，**随仓库保留**。
 > 详见 [`CREDITS.md`](godot/assets/CREDITS.md)。
+>
+> **2026-10：Super Retro World 已完全移除。** 原先那 12 张房屋贴图（专有授权、
+> 禁止散装再分发）让本仓库**必须保持私有**；建筑改用 v3 整图后，
+> `godot/assets/props/` 与 `godot/Custom_Commercial_License.txt` 都已删除，
+> **这条约束消失，仓库可以公开**。
 
 ---
 

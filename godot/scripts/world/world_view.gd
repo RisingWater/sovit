@@ -353,6 +353,9 @@ func _build_warehouse() -> void:
 	spr.texture = load("res://assets/buildings/_warehouse.png")
 	spr.centered = false
 	spr.position = Vector2(map.warehouse.position.x * TILE, map.warehouse.position.y * TILE)
+	# 正面平视整图：底边对齐到 4x3 占地的底边（见 _apply_art_offset 的说明）
+	if spr.texture != null:
+		spr.offset = Vector2(0, 3 * TILE - spr.texture.get_height())
 	building_layer.add_child(spr)
 	_warehouse_pos = Vector2(map.warehouse.get_center().x * TILE, map.warehouse.get_center().y * TILE)
 	_warehouse_door = _door_cell(map.warehouse.position, 4, 3)
@@ -408,8 +411,8 @@ func _footprint(type: String) -> Vector2i:
 	if a.is_empty():
 		return Vector2i(2, 2)
 	var arch := String(a.get("arch", ""))
-	if arch == "prop":
-		# 手绘整图：占地由 PNG 尺寸算出，避免在内容里重复写一遍
+	if arch == "sprite":
+		# 成品整图：占地由 PNG 尺寸算出，避免在内容里重复写一遍
 		var tex := _texture_for(type)
 		if tex != null:
 			return Vector2i(int(ceil(tex.get_width() / float(TILE))),
@@ -422,10 +425,14 @@ func _footprint(type: String) -> Vector2i:
 	var roof_rows := 1 if String(a.get("roof", "")) == "green" else 2
 	return Vector2i(w, roof_rows + 1)
 
-## 手绘整图按"横向居中、底部对齐"摆进占地格；生成的建筑本来就是格对齐的，不用动。
+## 成品整图按"横向居中、底部对齐"摆进占地格；生成的建筑本来就是格对齐的，不用动。
+##
+## **底部对齐**是正面平视图的关键：新素材是完全正面平视（无透视、看不到屋顶坡面），
+## 建筑应该"站"在占地的底边上、向上生长；居中会让它一半陷进地里。
+## 占地高度按 PNG 算出来，而 PNG 通常比占地高（屋顶/塔尖超出去），所以要往上偏移。
 func _apply_art_offset(spr: Sprite2D, type: String, fp: Vector2i) -> void:
 	var a := _art_of(type)
-	if String(a.get("arch", "")) != "prop" or spr.texture == null:
+	if String(a.get("arch", "")) != "sprite" or spr.texture == null:
 		return
 	spr.offset = Vector2(
 		(fp.x * TILE - spr.texture.get_width()) * 0.5,
@@ -434,16 +441,8 @@ func _apply_art_offset(spr: Sprite2D, type: String, fp: Vector2i) -> void:
 func _texture_for(type: String) -> Texture2D:
 	if _tex_cache.has(type):
 		return _tex_cache[type]
-	var a := _art_of(type)
-	var tex: Texture2D
-	if String(a.get("arch", "")) == "prop":
-		# SUPER RETRO WORLD 的房屋整图。来源包授权禁止入库，所以放在 gitignore 的
-		# assets/props/src/ 下；没装素材包时退回自绘的通用工坊外形。
-		tex = load("res://assets/props/src/%s.png" % String(a.get("sprite", "")))
-		if tex == null:
-			tex = load("res://assets/buildings/_prop_fallback.png")
-	else:
-		tex = load("res://assets/buildings/%s.png" % type)
+	# 成品整图与程序化拼装都落在 assets/buildings/<id>.png，取法一致
+	var tex: Texture2D = load("res://assets/buildings/%s.png" % type)
 	_tex_cache[type] = tex
 	return tex
 
