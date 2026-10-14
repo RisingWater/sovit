@@ -149,9 +149,9 @@ func _run() -> void:
 			await process_frame
 			await process_frame
 
-	# 验证右侧检视面板：城镇中心（人口）/ 仓库（资源 + 上限）
+	# 验证浮动对话框：城镇中心（人口）/ 仓库（资源 + 上限）
+	# 走 main 的真实分派路径，保证截到的就是玩家点出来的那个东西
 	if mode == "towncenter" or mode == "warehouse":
-		var ins = node.get_node_or_null("UI/Root/Inspector")
 		var sim = runner.sim
 		var target := ""
 		if mode == "towncenter":
@@ -165,11 +165,11 @@ func _run() -> void:
 				"targetWorkers": 1, "wage": 3.0, "wageCap": 6.0, "level": 1,
 				"active": true, "profit": 0.0, "skill": 50.0, "planned": 0.0,
 			})
-			# 顺便填两个上限，让"数量 / 上限"那两列都看得出效果
+			# 顺便填两个上限，让"数量 / 上限"两列都看得出效果
 			(runner.sim.s["government"] as Dictionary)["storageCaps"] = {"wood": 150, "coarse_bread": 200}
 			target = "warehouse#shot"
-		if ins != null and target != "":
-			ins.show_building(target)
+		if target != "" and node.has_method("_on_select_building"):
+			node._on_select_building(target)
 			await process_frame
 			await process_frame
 

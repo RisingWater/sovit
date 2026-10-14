@@ -16,6 +16,7 @@ var _minimap
 var _esc_menu
 var _new_game
 var _save_dialog
+var _panel_civic
 var _dlg_layer: CanvasLayer
 var _title
 var _title_layer
@@ -108,7 +109,14 @@ func _ready() -> void:
 	root_ui.add_child(_panel_tech)
 	hud.tech_panel = _panel_tech
 
-	world.select_building.connect(_inspector.show_building)
+	# 城镇中心 / 仓库走**浮动对话框**（和点左侧圆钮出来的「统计」面板同一套形式），
+	# 不再用右侧那条常驻面板（用户不喜欢那个形式）。
+	_panel_civic = load("res://scripts/ui/panel_civic.gd").new()
+	_panel_civic.name = "Civic"
+	_panel_civic.setup(runner, world)
+	root_ui.add_child(_panel_civic)
+
+	world.select_building.connect(_on_select_building)
 	world.select_housing.connect(_inspector.show_housing)
 	world.select_resident.connect(_inspector.show_resident)
 	world.select_none.connect(_inspector.clear)
@@ -181,6 +189,25 @@ func _ready() -> void:
 	# 标题页是展示，屏幕上不该有"能操作地图"的错觉。
 	world.set_process_unhandled_input(false)
 	_title.begin_showcase()
+
+## 点地图上的建筑：城镇中心 / 仓库 弹浮动对话框，其余走右侧建筑面板。
+func _on_select_building(id: String) -> void:
+	var def_id := ""
+	for sh in runner.sim.s["shops"]:
+		if String(sh["id"]) == id:
+			def_id = String(sh["defId"])
+			break
+	if def_id == "town_center":
+		# 右侧面板收起，免得两个东西同时讲同一件事
+		_inspector.clear()
+		_panel_civic.open_town_center()
+		return
+	if def_id == "warehouse":
+		_inspector.clear()
+		_panel_civic.open_warehouse(id)
+		return
+	_panel_civic.close_panel()
+	_inspector.show_building(id)
 
 ## 标题页结束：露出游戏 UI（展示用的那局已被新游戏/读档覆盖）
 func _end_title() -> void:

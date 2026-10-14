@@ -38,8 +38,8 @@ func _run() -> void:
 		runner.sim.tick_hour([])
 		await process_frame
 
-	# 人口面板现在挂在**城镇中心**的检视面板里（未选中时整个面板收起来，
-	# 见 inspector.gd 文件头注释），所以这里要先选中村中心那座楼。
+	# 人口面板现在在**城镇中心的浮动对话框**里（右侧常驻面板已按要求去掉，
+	# 见 main._on_select_building 的分派），所以这里走真实的选中路径。
 	var tc_id := ""
 	for sh in runner.sim.s["shops"]:
 		if String(sh["defId"]) == "town_center":
@@ -47,38 +47,42 @@ func _run() -> void:
 	if tc_id == "":
 		_fail("开局没有城镇中心，人口面板无处可看")
 		return
-	ins.show_building(tc_id)
+	node._on_select_building(tc_id)
 	await process_frame
-	if not ins.visible:
-		_fail("选中城镇中心后面板没显示")
+	var panel = node.get_node_or_null("UI/Root/Civic")
+	if panel == null or not panel.visible:
+		_fail("选中城镇中心后没有弹出人口对话框")
+		return
+	if ins.visible:
+		_fail("弹了对话框，右侧常驻面板却不该同时显示")
 		return
 
 	# 点"全收"：当前允许必须**立刻**变成不限并标注已排队
-	ins._set_population_cap(1000000000)
+	panel._set_population_cap(1000000000)
 	await process_frame
-	var t_all := _value_of(ins, "人口上限（已排队）")
+	var t_all := _value_of(panel, "人口上限（已排队）")
 	if t_all != "不限":
 		_fail("点全收后『人口上限（已排队）』应为 不限，实际 %s" % t_all)
 		return
 
 	# 点"暂停"：立刻变成 0
-	ins._set_population_cap(0)
+	panel._set_population_cap(0)
 	await process_frame
-	var t_pause := _value_of(ins, "人口上限（已排队）")
+	var t_pause := _value_of(panel, "人口上限（已排队）")
 	if t_pause != "0":
 		_fail("点暂停后『人口上限（已排队）』应为 0，实际 %s" % t_pause)
 		return
 
 	# 点"+10"：立刻变成 10
-	ins._set_population_cap(10)
+	panel._set_population_cap(10)
 	await process_frame
-	var t_add := _value_of(ins, "人口上限（已排队）")
+	var t_add := _value_of(panel, "人口上限（已排队）")
 	if t_add != "10":
 		_fail("点+10后『人口上限（已排队）』应为 10，实际 %s" % t_add)
 		return
 
 	# 「次日会来」必须存在 —— 这才是真正会发生的事
-	var will := _value_of(ins, "次日会来")
+	var will := _value_of(panel, "次日会来")
 	if will.begins_with("<未找到"):
 		_fail("面板没有『次日会来』这一行")
 		return
