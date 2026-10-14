@@ -36,6 +36,62 @@ git commit -F .git/COMMIT_MSG
 - 临时脚本用完**立刻删**，别留在工作区（会让并行 agent 误判成"来路不明的文件"）
 - `__pycache__/`、`*.pyc` 已在 `.gitignore`；`scripts/` 下的脚本互相 import 会产生它们
 
+### 4. 带中文的 `.ps1` 必须存成 **UTF-8 带 BOM**
+
+Windows PowerShell 5.1（本机没有 `pwsh`）读**无 BOM** 的脚本时按 **ANSI/GBK** 解码。
+中文注释的字节会两两配对，**把紧随其后的换行也吃掉** —— 于是 `param(` 被并进上一行
+注释里，报出来的是这种指错方向的错：
+
+```
+Unexpected token ')' in expression or statement.
+Missing closing '}' in statement block or type definition.
+The assignment expression is not valid.   ← 指着 [int]$TimeoutMs = 90000
+```
+
+**症状极具误导性**：文件本身完全正常（`git diff` 干净、`read` 工具看也对），
+只有 `powershell -File` 跑它会炸；而 `powershell -Command "& script.ps1"` 有时又是好的。
+
+```powershell
+# 加 BOM（改完 .ps1 就补一次 —— write/edit 工具写出来的是无 BOM）
+$p='godot/tools/xxx.ps1'
+$t=[IO.File]::ReadAllText($p,[Text.UTF8Encoding]::new($false))
+[IO.File]::WriteAllText($p,$t,[Text.UTF8Encoding]::new($true))
+```
+
+⚠️ 这条**只针对 `.ps1`**：`git commit -F` 的消息文件、`.json`、`.gd`、`.sh`
+都**不要** BOM（`git` 会把 BOM 当成提交信息的一部分；Godot 也不喜欢）。
+
+### 5. `godot/content/buildings.json` 会莫名变成 tab 缩进 —— 是 Godot 编辑器干的
+
+症状：改完内容跑过 `verify.sh`（第一步是 `godot --headless --import`），
+`git status` 里 `godot/content/buildings.json` 就脏了，`git diff` 是 **900 行纯空白**
+（`git diff -w` 为空、语义完全没变）。
+
+**原因**：Godot **编辑器**曾经把 `res://content/buildings.json` 当成 JSON 资源**开着**，
+记在 `.godot/editor/editor_layout.cfg` 的 `[ScriptEditor] open_scripts` 里。
+之后每次编辑器启动（含 headless 的 `--import`）都会恢复这个标签页 → 载入该 JSON 资源
+→ 退出时**用 Godot 自己的 JSON 序列化器重存**（`JSON.stringify(dict, "\t")`，tab 缩进，
+12700 字节 vs 源文件的 16642）。只有这一个文件会中招，因为只有它被编辑器打开过。
+
+**修法**（`.godot/` 是本地缓存，不进仓库）：
+
+```sh
+# 把 buildings.json 从编辑器"打开着的标签页"里去掉（保留其它 .gd）
+# .godot/editor/editor_layout.cfg → [ScriptEditor] open_scripts=[...] 
+```
+
+改完再跑一次同步 + `--import`，文件应保持源文件的字节数、`git status` 干净。
+⚠️ **在 Godot 编辑器里别再双击打开 `content/*.json`** —— 一开就又记进 `open_scripts`，
+下次门槛又把它改成 tab。要查内容用文本编辑器看根目录那份。
+
+### 6. `godot/content/*.json` 必须与 `sync:content` 的输出逐字节一致
+
+内容数据源是根 `content/*.json`（4 空格缩进），`godot/content/` 是
+`npm run sync:content` 的**逐字节副本**。历史上 `godot/content/buildings.json`
+长期是 tab 缩进（就是上面第 5 条那个原因被误当成"仓库风格"），一度让多个 agent
+不敢跑同步。**现在已对齐**（提交 `8bc7651`），往后：改完根 `content/` 就跑同步，
+副本的 diff 应该只反映真实内容变化；如果又冒出大段空白 diff，回去看第 5 条。
+
 ## 内容与仿真的契约
 
 - 公式/顺序/常量的**唯一契约**是 `docs/spec.md`；改引擎行为必须同步它

@@ -5,6 +5,8 @@ extends Node2D
 
 var runner: SimRunner
 var world
+var _hud
+var _bar
 var _inspector
 var _stats: GameStats
 var _panel_stats
@@ -84,12 +86,14 @@ func _ready() -> void:
 	hud.sfx = _sfx
 	hud.left_inset = 168.0      # 红巾宽 160 + 间隙
 	root_ui.add_child(hud)
+	_hud = hud
 
 	var bar = load("res://scripts/ui/build_bar.gd").new()
 	bar.name = "BuildBar"
 	bar.runner = runner
 	bar.world = world
 	root_ui.add_child(bar)
+	_bar = bar
 
 	_inspector = load("res://scripts/ui/inspector.gd").new()
 	_inspector.name = "Inspector"
@@ -244,6 +248,10 @@ func _unhandled_input(event: InputEvent) -> void:
 			return
 		_esc_menu.toggle()
 	if event.keycode == KEY_F5:
+		# ⚠️ 左侧圆钮加到第 5 个之后，F5 会被圆钮拿走（见 _shortcut_input）。
+		# 到那时快存要换键，这里不会再被调用。
+		if _hud != null and _hud.nav_count() >= 5:
+			return
 		var err := SaveManager.save_to(SaveManager.DEFAULT_PATH, runner.sim)
 		print("save: ", err)
 	elif event.keycode == KEY_F9:
@@ -253,3 +261,77 @@ func _unhandled_input(event: InputEvent) -> void:
 			runner.recent_logs = []
 			runner.hour_ticked.emit()
 			print("load: ok")
+
+# ---- 快捷键 -----------------------------------------------------------------
+#
+# 全部集中在这里，**方法体都只调 UI 自己的函数**（`_hud.toggle_pause()` /
+# `_bar.activate_card()` …），不在这里重抄一遍业务分支 —— 否则"点按钮"和
+# "按快捷键"迟早会走出两种行为。
+#
+# 为什么挂在 `_shortcut_input` 而不是 `_unhandled_input`：
+#   ① 它在 GUI **之后**、`_unhandled_input` **之前**跑，所以输入框在打字时
+#      这些键根本到不了这里（我们不必跟 LineEdit 抢字符）；
+#   ② 顺序上它也在 `world_view._unhandled_input` 之前，先吃掉就不会打架。
+#   另外仍然显式挡一次文本框：F1 这类键 LineEdit 是不吃的，只靠 ① 会漏。
+func _shortcut_input(event: InputEvent) -> void:
+	if not (event is InputEventKey) or not event.pressed or event.echo:
+		return
+	# 极早期（UI 还没建完）时什么都不做，别把键吃掉
+	if _hud == null or _bar == null or world == null:
+		return
+	# 标题页是只读展示，不吃任何游戏快捷键
+	if _title_layer != null and _title_layer.visible:
+		return
+	# 文本框优先（村名 / 存档名里打 "wasd"、按空格都不该有副作用）
+	var fo := get_viewport().gui_get_focus_owner()
+	if fo is LineEdit or fo is TextEdit:
+		return
+	# 模态对话框开着时（ESC 菜单 / 新游戏 / 存读档）不抢键
+	if _modal_open():
+		return
+
+	var k: int = event.keycode
+	# 全屏面板（统计 / 科技）盖住了建造栏 → 建造栏的快捷键（Tab / 数字键）
+	# 让路；时间控制（空格 / +/-）不受影响，顶栏一直是露着的。
+	var bar_hidden := _fullscreen_panel_open()
+	match k:
+		KEY_SPACE:
+			_hud.toggle_pause()
+		KEY_EQUAL, KEY_PLUS, KEY_KP_ADD:
+			_hud.speed_step(1)
+		KEY_MINUS, KEY_UNDERSCORE, KEY_KP_SUBTRACT:
+			_hud.speed_step(-1)
+		KEY_TAB:
+			if bar_hidden:
+				return
+			_bar.cycle_tab(-1 if event.shift_pressed else 1)
+		KEY_H:
+			world.focus_town_center()
+		_:
+			if k >= KEY_1 and k <= KEY_9:
+				# 1..9 = 建造栏当前这一页的第 N 张卡片
+				if bar_hidden:
+					return
+				var msg: String = _bar.activate_card(k - KEY_1)
+				if msg != "":
+					world.notice.emit(msg)
+			elif k >= KEY_F1 and k <= KEY_F8:
+				# F1..F8 = 左侧圆钮。**没有那个按钮就不吃这个键** ——
+				# 现在只有 4 个，F5 必须留给"快存"（别把存档键吞了）。
+				if not _hud.activate_nav(k - KEY_F1):
+					return
+			else:
+				return
+	get_viewport().set_input_as_handled()
+
+## 模态对话框是否开着（这些开着时快捷键让路）。
+func _modal_open() -> bool:
+	for d in [_esc_menu, _new_game, _save_dialog]:
+		if d != null and (d as Control).visible:
+			return true
+	return false
+
+## 全屏面板（统计 / 科技）是否开着 —— 它盖住了建造栏，所以建造栏的快捷键要让路。
+func _fullscreen_panel_open() -> bool:
+	return (_panel_stats != null and _panel_stats.visible) \
+		or (_panel_tech != null and _panel_tech.visible)

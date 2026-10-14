@@ -84,11 +84,16 @@ func _run() -> void:
 	if nav == null:
 		nav = hud.find_child("NavCol", true, false)
 	if nav != null:
-		for c in nav.get_children():
-			if c is Button and String((c as Button).tooltip_text) == "科技":
-				tech_btn = c
+		# ⚠️ 不要拿 tooltip 做**全等**匹配：圆钮的 tooltip 现在带快捷键提示
+		# （"科技（F4）"，`hud.gd::_build_nav`），全等会认不出来。
+		# 认节点名（`Nav_research`）最稳，tooltip 前缀只作兜底。
+		tech_btn = nav.get_node_or_null("Nav_research") as Button
+		if tech_btn == null:
+			for c in nav.get_children():
+				if c is Button and String((c as Button).tooltip_text).begins_with("科技"):
+					tech_btn = c
 	if tech_btn == null:
-		_fail("左侧圆钮列里找不到「科技」按钮")
+		_fail("左侧圆钮列里找不到「科技」按钮（节点名应是 Nav_research）")
 		return
 	if tech_btn.icon == null:
 		_fail("「科技」圆钮没有图标")

@@ -1382,6 +1382,11 @@ func _update_cursor() -> void:
 func _pan_keyboard(delta: float) -> void:
 	if camera == null:
 		return
+	# 有输入框在打字时**不要**平移镜头：村名 / 存档名里都可能有 w、a、s、d，
+	# 一边打字一边镜头乱飘（`_pan_keyboard` 是每帧轮询按键的，
+	# `_unhandled_input` 那套漏到这里就拦不住了，得单独挡一次）。
+	if _text_field_focused():
+		return
 	var dir := Vector2.ZERO
 	if Input.is_key_pressed(KEY_A) or Input.is_key_pressed(KEY_LEFT):
 		dir.x -= 1.0
@@ -1393,6 +1398,27 @@ func _pan_keyboard(delta: float) -> void:
 		dir.y += 1.0
 	if dir != Vector2.ZERO:
 		camera.position += dir.normalized() * 700.0 * delta / camera.zoom.x
+
+## 焦点是不是落在文本框里（LineEdit / TextEdit）。
+##
+## 快捷键那边用它来"打字时不抢键"（`main.gd::_shortcut_input`），
+## 这里用它来"打字时不平移镜头"。两处都是同一套判断，别各写一份。
+func _text_field_focused() -> bool:
+	var vp := get_viewport()
+	if vp == null:
+		return false
+	var fo := vp.gui_get_focus_owner()
+	return fo is LineEdit or fo is TextEdit
+
+## H：镜头回到城镇中心。
+##
+## 只挪位置、**不动缩放** —— 缩放是玩家自己调的手感，按一下 H 就跳回默认缩放
+## 反而像"把我的视角搞乱了"。
+func focus_town_center() -> void:
+	if camera == null or map == null:
+		return
+	var c := map.town_center.get_center()
+	camera.position = Vector2(c.x * TILE, c.y * TILE)
 
 func _update_agents(delta: float) -> void:
 	if runner == null or runner.sim == null or runner.paused:

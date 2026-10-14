@@ -42,6 +42,7 @@ func _ready() -> void:
 	root.add_child(tabrow)
 	for i in TABS.size():
 		var b := UIKit.button(TABS[i], true)
+		b.tooltip_text = "「%s」（Tab / Shift+Tab 循环换分类）" % TABS[i]
 		b.pressed.connect(_select_tab.bind(i))
 		tabrow.add_child(b)
 		_tab_btns.append(b)
@@ -86,6 +87,43 @@ func _select_tab(i: int) -> void:
 		_tab_btns[k].add_theme_stylebox_override("normal",
 			UIKit.box(UIKit.T_BTN_ACTIVE if k == i else UIKit.T_BTN))
 	_rebuild()
+
+## Tab / Shift+Tab：循环换分类（dir = +1 / -1），到末尾绕回开头。
+func cycle_tab(dir: int) -> void:
+	if TABS.is_empty():
+		return
+	_select_tab(posmod(_tab + dir, TABS.size()))
+
+## 数字键 1..9：触发**当前这一页**的第 i 张卡片（0 起）。
+##
+## 返回空串 = 已经触发了（走的是按钮自己的 `pressed` 信号 —— 和鼠标点它是
+## 同一条路，不用在这里重抄一遍"建房 / 切笔刷"的分支）。
+## 返回非空 = 没触发，内容是给玩家看的提示（越界 / 科技没解锁）。
+func activate_card(i: int) -> String:
+	if _items == null:
+		return "建造栏还没准备好"
+	var btns := _items.get_children()
+	if i < 0 or i >= btns.size():
+		return "本页只有 %d 张卡片（按 1..%d）" % [btns.size(), mini(btns.size(), 9)]
+	var b := btns[i] as Button
+	if b == null:
+		return "本页只有 %d 张卡片（按 1..%d）" % [btns.size(), mini(btns.size(), 9)]
+	if bool(b.get_meta("locked", false)):
+		return "「%s」需要科技：%s（未研究）" % [
+			String(b.get_meta("card_name", "")), String(b.get_meta("tech_name", "未知"))]
+	b.pressed.emit()
+	return ""
+
+## 当前这一页有几张卡片（门槛用；也用于判断 1..9 里哪些有效）。
+func card_count() -> int:
+	return 0 if _items == null else _items.get_child_count()
+
+## 给卡片挂上"数字键槽位"与提示。只给前 9 张挂数字提示：
+## 数字键只有 1..9，第 10 张以后按不到，提示写了反而误导。
+func _tag_slot(b: Button, slot: int) -> void:
+	b.set_meta("slot", slot)
+	if slot < 9:
+		b.tooltip_text = "[%d] %s" % [slot + 1, b.tooltip_text]
 
 func _turn_page(d: int) -> void:
 	_page += d
@@ -203,6 +241,7 @@ func _rebuild() -> void:
 			b.tooltip_text = String(br[3])
 			b.pressed.connect(_on_brush.bind(String(br[2])))
 			_items.add_child(b)
+			_tag_slot(b, _items.get_child_count() - 1)
 		return
 
 	var ids := _ids_of(cat)
@@ -220,16 +259,22 @@ func _rebuild() -> void:
 	for i in range(_page * per, mini(ids.size(), (_page + 1) * per)):
 		var id: String = ids[i]
 		var b := UIKit.card(_name_of(id), _thumb_for(id))
+		b.set_meta("card_name", _name_of(id))
 		if _locked(id):
 			# 科技没研究出来：灰显 + 「（锁）」+ 说明缺哪项科技。
 			# 刻意**不接** pressed —— 点了什么也不发生（不去跳科技面板，用户明确不要跳转）。
 			b.modulate = Color(0.55, 0.55, 0.55, 1.0)
-			b.tooltip_text = "需要科技：%s（未研究）\n研究完成后才能建造" % _tech_name(id)
+			var tname := _tech_name(id)
+			b.tooltip_text = "需要科技：%s（未研究）\n研究完成后才能建造" % tname
+			b.set_meta("locked", true)
+			b.set_meta("tech_name", tname)
 			_mark_locked(b)
 		else:
 			b.tooltip_text = "%s\n%s" % [_name_of(id), _cost_text(id)]
 			b.pressed.connect(_on_build.bind(id))
 		_items.add_child(b)
+		# 数字键槽位＝这一页里的显示顺序（0 起）
+		_tag_slot(b, _items.get_child_count() - 1)
 
 	_page_label.text = "%d/%d" % [_page + 1, maxi(1, pages)]
 

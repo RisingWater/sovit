@@ -24,6 +24,13 @@ const DEFAULT_VISIBLE := ["wood", "stone", "brick", "clay", "firewood",
 var _info: Label
 var _notice: Label
 var _speed_btns: Array[Button] = []
+## 左侧圆钮列（顺序 = NAV_ITEMS）。快捷键 F1..F8 按这个顺序取，
+## 所以以后 `NAV_ITEMS` 里加一项，就自动多一个 F 键，不用改快捷键代码。
+var _nav_btns: Array[Button] = []
+
+## 速度档位。`+` / `-` 按它步进；**1x 就是最慢**（用户："减速最快 1x"），
+## 4x 是最快。与顶栏那排按钮一一对应。
+const SPEEDS := [1.0, 2.0, 4.0]
 
 var _res_row: HBoxContainer
 var _chip_labels: Dictionary = {}
@@ -63,10 +70,19 @@ func _ready() -> void:
 	_notice = UIKit.label("", Color(1.0, 0.9, 0.6))
 	row.add_child(_notice)
 
+	# 快捷键提示写进 tooltip：不然只有翻文档才知道空格 / +/- 能用
+	var speed_tips := [
+		"暂停 / 恢复（空格）",
+		"1x 速度（- 减速，最慢就是它）",
+		"2x 速度（+ 加速 / - 减速）",
+		"4x 速度（+ 加速，最快）",
+	]
 	var speeds := [["pause", "暂停", true, 0.0], ["1x", "1x 速度", false, 1.0],
 		["2x", "2x 速度", false, 2.0], ["4x", "4x 速度", false, 4.0]]
-	for cfg in speeds:
+	for i in speeds.size():
+		var cfg: Array = speeds[i]
 		var b := UIKit.icon_button("res://assets/ui/speed_%s.png" % cfg[0], String(cfg[1]))
+		b.tooltip_text = speed_tips[i] if i < speed_tips.size() else String(cfg[1])
 		b.pressed.connect(_on_speed.bind(bool(cfg[2]), float(cfg[3])))
 		row.add_child(b)
 		_speed_btns.append(b)
@@ -239,7 +255,9 @@ func _build_nav() -> void:
 		b.name = "Nav_" + ico_name
 		b.custom_minimum_size = Vector2(NAV_BTN, NAV_BTN)
 		b.focus_mode = Control.FOCUS_NONE
-		b.tooltip_text = label
+		# F 键提示按**按钮顺序**给：第 1 个圆钮是 F1，第 8 个是 F8。
+		# 以后往 NAV_ITEMS 里加一项就自动多一个 F 键（快捷键代码不用改）。
+		b.tooltip_text = "%s（F%d）" % [label, _nav_btns.size() + 1]
 		var ico := UIKit.stat_icon(ico_name)
 		if ico != null:
 			b.icon = ico
@@ -259,6 +277,7 @@ func _build_nav() -> void:
 		else:
 			b.pressed.connect(_open_stats_tab.bind(tab))
 		col.add_child(b)
+		_nav_btns.append(b)
 
 ## 圆钮外观：**手绘像素贴图**（不是代码画的几何圆）。
 ##
@@ -469,6 +488,41 @@ func _on_speed(paused: bool, value: float) -> void:
 	if not paused:
 		idx = 1 if value == 1.0 else (2 if value == 2.0 else 3)
 	_mark_speed(idx)
+
+# ---------------------------------------------------------------------------
+# 快捷键（由 `main.gd::_shortcut_input` 调；都走和点按钮**同一条**代码路径，
+# 所以按钮上的高亮/音效不会和快捷键不一致）
+# ---------------------------------------------------------------------------
+
+## 空格：暂停 / 恢复。恢复时**保持当前速度档**（不是跳回 1x）。
+func toggle_pause() -> void:
+	if runner == null:
+		return
+	_on_speed(not runner.paused, runner.speed)
+
+## `+` / `-`：换速度档。到 4x 再按 `+` 不动，到 1x 再按 `-` 不动
+## （用户："加速最快 4x、减速最慢 1x"）。暂停时按一下会以该档恢复。
+func speed_step(dir: int) -> void:
+	if runner == null:
+		return
+	var idx := SPEEDS.find(runner.speed)
+	if idx < 0:
+		idx = 0
+	idx = clampi(idx + dir, 0, SPEEDS.size() - 1)
+	_on_speed(false, SPEEDS[idx])
+
+## F1..F8：按左侧圆钮列的**第 i 个**（0 起）。返回 false = 没有这个按钮
+## （现在只有 4 个，所以 F5..F8 落空 —— 调用方据此决定要不要吃掉这个键，
+##  F5 现在仍然是"快存"）。
+func activate_nav(i: int) -> bool:
+	if i < 0 or i >= _nav_btns.size():
+		return false
+	_nav_btns[i].pressed.emit()
+	return true
+
+## 左侧圆钮个数（快捷键按 F1..F8 只发前 8 个，越界的直接吃掉不报错）。
+func nav_count() -> int:
+	return _nav_btns.size()
 
 func _refresh() -> void:
 	if runner == null or runner.sim == null:

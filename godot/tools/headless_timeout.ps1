@@ -1,4 +1,13 @@
-# 跑一个 headless Godot 脚本，带**硬超时**，输出完整回传。
+﻿# 跑一个 headless Godot 脚本，带**硬超时**，输出完整回传。
+#
+# ⚠️⚠️ 本文件必须存成 **UTF-8 带 BOM**（EF BB BF），改完务必检查一次！
+#   Windows PowerShell 5.1 读无 BOM 的脚本时按 **ANSI/GBK** 解码。中文注释里的
+#   字节会两两配对，**把后面的换行吃掉** —— 于是 `param(` 被并进上一行注释里，
+#   报出来的是 "param 块不存在 / Unexpected token ')'" 这种完全指错方向的语法错。
+#   （`pwsh` 7 默认 UTF-8，不受影响；本机只有 powershell.exe 5.1，所以必须带 BOM。）
+#   加 BOM 一行命令：
+#     $t=[IO.File]::ReadAllText($p,[Text.UTF8Encoding]::new($false));
+#     [IO.File]::WriteAllText($p,$t,[Text.UTF8Encoding]::new($true))
 #
 # 为什么需要它（踩过的坑）：
 #   GDScript 里一旦有**运行时**错误，`_run()` 会在中途中断、永远走不到 `quit()`，
