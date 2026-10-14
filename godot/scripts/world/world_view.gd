@@ -259,20 +259,34 @@ func _build_tileset() -> void:
 
 	deco_layer = TileMapLayer.new()
 	deco_layer.tile_set = ts
-	deco_layer.z_index = -5
-	add_child(deco_layer)
+	# 树也要参与遮挡：人走在树后面时该被树冠挡住（原来是固定 z=-5 的地面层，
+	# 谁都能从树冠里"穿"出来）。
+	#
+	# **实测结论：TileMapLayer 开了 y_sort_enabled、并作为 y 排序容器的子节点时，
+	# 它的**每一块 tile** 会和兄弟 CanvasItem（建筑 / 小人）按 y 一起排序** ——
+	# 所以不需要"每棵树一个 Sprite2D 节点"（全图几万棵树，那样代价太大）。
+	# 排序键 = 格子 y × 16 + y_sort_origin；装饰图集是 16x32，贴图底边正好落在
+	# 格子底边，所以 y_sort_origin 取一格(16) —— 实测验证过：人在 tree 的地面线
+	# 之上被挡住、之下画在树前面，过渡点正好是格子底边（godot/tools/occlusion_test.gd）。
+	deco_layer.y_sort_enabled = true
+	deco_layer.y_sort_origin = TILE
+	deco_layer.z_index = 0
 
+	# 树图层是地面装饰，不是建筑 —— _reset_buildings() 清容器时要跳过它
+	deco_layer.set_meta("keep", true)
 	# 建筑和小人放在**同一个 y 排序容器**里，按"地面线"（建筑占地底边 / 小人的脚底）
 	# 排序 —— 这是遮挡正确的前提：
 	#   * 建筑贴图可以比占地高（content 的 art.foot，往上伸出去盖住身后那栋）。
 	#     谁盖谁只能由地面线的先后决定。原来那套"后层 z=-1 / 前层 z=+1 两个图层"
 	#     分不出"走在两栋互相重叠的房子**中间**的人"，所以小人从"一层 _draw 画所有人"
 	#     改成一具一个 Sprite2D 节点，好在 y 排序里和建筑互相插队。
-	#   * 道路/地板/装饰是地面，负 z_index，永远在这层下面，不会被压错；
+	#   * 道路/地板是地面，负 z_index，永远在这层下面，不会被压错；
 	#     建筑压住的是"身后的路面"（正确的：它在路面前面），压不住身前的路面。
 	building_layer = Node2D.new()
 	building_layer.y_sort_enabled = true
 	add_child(building_layer)
+	# 树图层也挂进来（它的 z_index 已归零），试图让它和建筑/小人按 y 插队
+	building_layer.add_child(deco_layer)
 
 	# 选中小人的地面圈：属于地面，单独一层，不参与遮挡
 	ring_layer = Node2D.new()
@@ -620,10 +634,11 @@ func _site_list() -> Array:
 	return out
 
 func _reset_buildings() -> void:
-	# ⚠️ 小人和建筑共用 building_layer（y 排序要求同一个父节点），所以这里必须
-	# 跳过带 "agent" meta 的子节点 —— 否则每次读档/重开都会把小人节点一并删掉。
+	# ⚠️ 小人和树图层跟建筑共用 building_layer（y 排序要求同一个父节点），所以这里
+	# 必须跳过带 "keep" meta 的子节点 —— 否则每次读档/重开都会把小人节点和整个
+	# 树图层一并删掉（踩过：树图层被删 → 地面整片不渲染）。
 	for ch in building_layer.get_children():
-		if ch.has_meta("agent"):
+		if ch.has_meta("keep"):
 			continue
 		ch.queue_free()
 	_shop_sprites.clear()
@@ -1114,9 +1129,9 @@ func _refresh_agents() -> void:
 		var home = _resident_home.get(id, _warehouse_pos)
 		var node := Sprite2D.new()
 		node.centered = false
-		# 标记"这不是建筑"：_reset_buildings() 清 building_layer 时要跳过小人，
-		# 因为小人和建筑共用同一个 y 排序容器（见 _ready 里的说明）。
-		node.set_meta("agent", true)
+		# 标记"这不是建筑"：_reset_buildings() 清 building_layer 时要跳过小人
+		# （小人和建筑共用同一个 y 排序容器，见 _ready 里的说明）。
+		node.set_meta("keep", true)
 		building_layer.add_child(node)
 		_agents.append({"id": id, "pos": home, "target": home, "home": home, "node": node})
 

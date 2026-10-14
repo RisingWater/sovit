@@ -60,6 +60,20 @@ func _run() -> void:
 	# ---- 断言 1：容器必须是 y 排序的，否则遮挡无从谈起
 	if not world.building_layer.y_sort_enabled:
 		failed.append("building_layer.y_sort_enabled 不是 true")
+	# 树图层必须也参与同一套 y 排序（人走在树后面要被树冠挡住）。
+	# TileMapLayer 的 tile 会和兄弟 CanvasItem 一起排 —— 这一点实测过，
+	# 所以这里只断言"配置没被挪走"，真正的视觉正确性看 occl_tree.png。
+	var deco = world.deco_layer
+	if deco.get_parent() != world.building_layer:
+		failed.append("deco_layer 不是 building_layer 的子节点，树不参与遮挡")
+	if not deco.y_sort_enabled:
+		failed.append("deco_layer.y_sort_enabled 不是 true")
+	if deco.y_sort_origin != 16:
+		failed.append("deco_layer.y_sort_origin 应为 16（装饰图集 16x32，底边落在格子底边），实际 %d" % deco.y_sort_origin)
+	if deco.z_index != 0:
+		failed.append("deco_layer.z_index 应为 0（否则整层会跳到 y 排序之外），实际 %d" % deco.z_index)
+	if not deco.has_meta("keep"):
+		failed.append("deco_layer 少了 keep meta，_reset_buildings() 会把整层删掉")
 
 	# ---- 断言 2：占地来自 content 的 art.foot，而不是贴图尺寸
 	var fp: Vector2i = world._footprint(TEST_ID)
@@ -175,6 +189,38 @@ func _run() -> void:
 		var err := img.save_png(out_path)
 		print("OCCLUSION shot -> ", out_path, " err=", err)
 
+	# ---- 场景 2：树 + 前后各一人（判定"树有没有和建筑/小人按 y 插队"）
+	# 树在图里是 TileMapLayer，TileMapLayer 到底能不能跟兄弟节点互相插队，
+	# 只能看画面：一棵树、前后各放一个人，高倍放大。
+	if not headless:
+		var tree := _find_tree_cell(world)
+		if tree.x >= 0:
+			var ty := float((tree.y + 1) * 16)
+			var tx := float(tree.x * 16 + 8)
+			for i in mini(4, people.size()):
+				var a: Dictionary = people[PEOPLE - 1 - i]
+				# 同一列、紧贴树的 x，脚底一档一档过树的"地面线"：
+				# 地面线之上的人应当被树冠挡住，之下的人应当画在树前面。
+				var yy := ty + (float(i) - 1.5) * 10.0
+				a["pos"] = Vector2(tx, yy)
+				a["target"] = a["pos"]
+				a["home"] = a["pos"]
+				a["prev_pos"] = a["pos"]
+			for f in 4:
+				await process_frame
+			world.camera.position = Vector2(tx, ty - 10.0)
+			world.camera.zoom = Vector2(6.0, 6.0)
+			for f in 8:
+				await process_frame
+			await RenderingServer.frame_post_draw
+			var img2: Image = root.get_texture().get_image()
+			if img2 != null:
+				var p2 := out_path.get_basename() + "_tree.png"
+				print("OCCLUSION tree shot -> ", p2, " err=", img2.save_png(p2))
+			print("OCCLUSION tree cell = ", tree, " 地面线 y = ", ty)
+		else:
+			print("OCCLUSION 没找到树，跳过场景 2")
+
 	if failed.is_empty():
 		print("OCCLUSION TEST RESULT: PASS")
 		quit(0)
@@ -183,6 +229,21 @@ func _run() -> void:
 			print("  ✗ ", m)
 		print("OCCLUSION TEST RESULT: FAIL")
 		quit(1)
+
+## 找一棵真的长出来的树（deco 图层在这一格有 tile），从地图中心往南找。
+func _find_tree_cell(world) -> Vector2i:
+	var c: Vector2i = world.map.center
+	for ring in range(4, 40):
+		for dy in range(-ring, ring + 1):
+			for dx in range(-ring, ring + 1):
+				if absi(dx) != ring and absi(dy) != ring:
+					continue
+				var cc := c + Vector2i(dx, dy + 6)
+				if not world.map.in_bounds(cc):
+					continue
+				if world.deco_layer.get_cell_source_id(cc) >= 0:
+					return cc
+	return Vector2i(-1, -1)
 
 func _fail(msg: String) -> void:
 	print("  ✗ ", msg)
