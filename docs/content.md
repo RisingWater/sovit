@@ -6,65 +6,66 @@
 
 ---
 
-## 一、商品（共 35 种）
+## 一、商品（共 36 种）
 
-`category`：`raw` 原料 · `food` 食物 · `clothing` 衣物 · `household` 日用 · `fuel` 燃料 · `material` 建材 · `housing` 住房 · `service` 服务 · `entertainment` 娱乐
+`category`：`raw` 原料 · `food` 食物 · `clothing` 衣物 · `household` 日用 · `fuel` 燃料 · `material` 建材 · `housing` 住房 · `tool` 工具 · `service` 服务 · `entertainment` 娱乐
 `baseValue` = 基准价；`可储存` 为否时按 `perishRate` 每日损耗。
 
 ### tier 0 · 自然资源（12）
 
-| 商品 | id | category | 基准价 | 可储存 |
+| 商品 | id | category | 基准价 | 可储存 | 解锁科技 |
+|---|---|---|---|---|---|
+| 小麦 | `wheat` | raw | 1.0 | ✅ | 开局 |
+| 蔬菜 | `vegetable` | food | 1.2 | ❌ 10%/日 | 开局 |
+| 亚麻 | `flax` | raw | 1.2 | ✅ | 纤维作物 |
+| 棉花 | `cotton` | raw | 1.4 | ✅ | 纤维作物 |
+| 木材 | `wood` | raw | 1.5 | ✅ | 开局 |
+| 石块 | `stone` | raw | 1.6 | ✅ | 石作 |
+| 粘土 | `clay` | raw | 1.2 | ✅ | 掘土 |
+| 肉类 | `meat` | food | 3.0 | ❌ 15%/日 | 田猎 |
+| 鱼类 | `fish` | food | 2.5 | ❌ 15%/日 | 渔捞 |
+| 兽皮 | `hide` | raw | 2.0 | ✅ | 田猎 |
+| 甘蔗 | `sugarcane` | raw | 1.5 | ✅ | 糖料与染料 |
+| 染料 | `dye` | raw | 2.5 | ✅ | 糖料与染料 |
+
+### tier 1 · 加工品（9）
+
+| 商品 | id | category | 基准价 | 解锁科技 |
 |---|---|---|---|---|
-| 小麦 | `wheat` | raw | 1.0 | ✅ |
-| 蔬菜 | `vegetable` | food | 1.2 | ❌ 10%/日 |
-| 亚麻 | `flax` | raw | 1.2 | ✅ |
-| 棉花 | `cotton` | raw | 1.4 | ✅ |
-| 木材 | `wood` | raw | 1.5 | ✅ |
-| 石块 | `stone` | raw | 1.6 | ✅ |
-| 粘土 | `clay` | raw | 1.2 | ✅ |
-| 肉类 | `meat` | food | 3.0 | ❌ 15%/日 |
-| 鱼类 | `fish` | food | 2.5 | ❌ 15%/日 |
-| 兽皮 | `hide` | raw | 2.0 | ✅ |
-| 甘蔗 | `sugarcane` | raw | 1.5 | ✅ |
-| 染料 | `dye` | raw | 2.5 | ✅ |
-
-### tier 1 · 加工品（8）
-
-| 商品 | id | category | 基准价 |
-|---|---|---|---|
-| 粗面粉 | `coarse_flour` | food | 1.8 |
-| 精面粉 | `fine_flour` | food | 2.4 |
-| 糖 | `sugar` | food | 2.2 |
-| 粗织物 | `coarse_cloth` | material | 2.4 |
-| 细织物 | `fine_cloth` | material | 3.2 |
-| 木柴 | `firewood` | fuel | 1.6 |
-| 砖 | `brick` | material | 3.0 |
-| 陶器 | `pottery` | household | 3.5 |
+| 粗面粉 | `coarse_flour` | food | 1.8 | 开局 |
+| 精面粉 | `fine_flour` | food | 2.4 | 精磨 |
+| 糖 | `sugar` | food | 2.2 | 制糖 |
+| 粗织物 | `coarse_cloth` | material | 2.4 | 粗织 |
+| 细织物 | `fine_cloth` | material | 3.2 | 细织 |
+| 木柴 | `firewood` | fuel | 1.6 | 薪柴 |
+| 砖 | `brick` | material | 3.0 | 烧砖 |
+| 陶器 | `pottery` | household | 3.5 | 制陶 |
+| 石制工具 | `stone_tools` | tool | 4.0 | 石制工具 |
 
 ### tier 2 · 消费品（12）
 
-| 商品 | id | category | 基准价 |
-|---|---|---|---|
-| 粗面包 | `coarse_bread` | food | 1.3 |
-| 白面包 | `white_bread` | food | 3.0 |
-| 糕点 | `pastry` | food | 5.0 |
-| 粗布衣 | `coarse_clothes` | clothing | 4.0 |
-| 常服 | `common_clothes` | clothing | 6.0 |
-| 华服 | `luxury_clothes` | clothing | 10.0 |
-| 皮衣 | `leather_clothes` | clothing | 7.0 |
-| 熏鱼 | `smoked_fish` | food | 4.0 |
-| 肉干 | `dried_meat` | food | 5.0 |
-| 瓷器 | `porcelain` | household | 9.0 |
-| 家政服务 | `domestic_service` | service | 3.0 |
-| 娱乐 | `entertainment` | entertainment | 4.0 |
+| 商品 | id | category | 基准价 | 解锁科技 |
+|---|---|---|---|---|
+| 粗面包 | `coarse_bread` | food | 1.3 | 开局 |
+| 白面包 | `white_bread` | food | 3.0 | 白面包烘焙 |
+| 糕点 | `pastry` | food | 5.0 | 糕点烘焙 |
+| 粗布衣 | `coarse_clothes` | clothing | 4.0 | 粗布裁衣 |
+| 常服 | `common_clothes` | clothing | 6.0 | 常服裁制 |
+| 华服 | `luxury_clothes` | clothing | 10.0 | 华服裁制 |
+| 皮衣 | `leather_clothes` | clothing | 7.0 | 皮革 |
+| 熏鱼 | `smoked_fish` | food | 4.0 | 腌熏 |
+| 肉干 | `dried_meat` | food | 5.0 | 腌熏 |
+| 瓷器 | `porcelain` | household | 9.0 | 制瓷 |
+| 家政服务 | `domestic_service` | service | 3.0 | 家政 |
+| 娱乐 | `entertainment` | entertainment | 4.0 | 娱乐 |
 
 ### tier 3 · 投资品（3）
 
-| 商品 | id | category | 基准价 | 说明 |
-|---|---|---|---|---|
-| 茅屋 | `hut` | housing | 15.0 | 住房，容量 4 |
-| 木屋 | `wooden_house` | housing | 30.0 | 住房，容量 3 |
-| 砖房 | `brick_house` | housing | 55.0 | 住房，容量 2 |
+| 商品 | id | category | 基准价 | 说明 | 解锁科技 |
+|---|---|---|---|---|---|
+| 茅屋 | `hut` | housing | 15.0 | 住房，容量 4 | 开局 |
+| 木屋 | `wooden_house` | housing | 30.0 | 住房，容量 3 | 木作住房 |
+| 砖房 | `brick_house` | housing | 55.0 | 住房，容量 2 | 砖石住房 |
 
 > **建造力不是商品。** 它曾经是 `build_power`（建筑工坊产出的库存），现已改为
 > **每日施工产能（速率）**，见 `docs/construction.md` 与 `docs/spec.md` §9。
@@ -90,7 +91,7 @@
 
 ---
 
-## 二、产业链（33 座建筑）
+## 二、产业链（35 座建筑）
 
 格式：`建筑（满员工人）：投入 → 产出`。`baseRate = 1 批次/满员·天`；`🔥` = 额外消耗 `firewood`。
 **32 座有配方；建筑工坊没有配方**——它产出的是每日建造产能，不是商品（见 `docs/construction.md`）。
