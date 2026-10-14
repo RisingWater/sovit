@@ -82,6 +82,14 @@ const PANEL_ICON_BTN := 16
 ## 那个目录**不受版本管理**（授权原因），所以没装素材包的机器上这些文件不存在 ——
 ## 直接 `load()` 会刷一屏 "Resource file not found"，而且拿到 null。
 ##
+## 用工拖动条的把手（8x12 像素：木身 + 上下金属箍，与左侧圆钮同一套配色）。
+## 由 scripts/gen-art.ts 的 sliderGrabber() 生成，`npm run gen:art` 可重跑。
+static func slider_grabber() -> Texture2D:
+	var p := "res://assets/ui/slider_grabber.png"
+	if ResourceLoader.exists(p):
+		return load(p)
+	return null
+
 ## 全 UI 走这一个入口：建造栏和科技面板各写一份的话，
 ## 迟早有一处漏掉兜底（科技面板就是这么漏的）。
 static func thumb(id: String, is_prop: bool = false) -> Texture2D:

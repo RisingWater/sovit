@@ -1,4 +1,4 @@
-import type { GameState } from '../types.ts'
+import type { GameState, BuildingDef } from '../types.ts'
 import type { ContentContext } from '../content/index.ts'
 import { ALL_GOODS } from '../content/index.ts'
 import { ECONOMY, TUNING } from '../config.ts'
@@ -57,6 +57,23 @@ export function foodChainShopIds(state: GameState, ctx: ContentContext): Set<str
   return out
 }
 
+/**
+ * 有效工位数 = 基础工位 + 升级带来的工位。
+ *
+ * 「研究所」这类**产能建筑**升级会加 `capacity.slotsPerLevel` 个工位，
+ * 所以工位上限**不是** `def.maxWorkers` 那个常数。
+ *
+ * 这个函数是**唯一口径**：`assignLabor`（实际派人）和 UI 的用工拖动条上限
+ * 都调它。两处各写一遍迟早分叉 —— 事实上在抽出来之前，
+ * `actions.ts` 的 `set_workers` 就是按 `maxWorkers` 截断的，
+ * 于是"把研究所升到 L3、拖满 12 人"会被静默夹回 6 人。
+ */
+export function effectiveSlots(def: BuildingDef, level: number): number {
+  const base = def.maxWorkers ?? def.workers
+  const perLevel = def.capacity?.slotsPerLevel ?? 0
+  return Math.max(0, base + perLevel * (level - 1))
+}
+
 export function assignLabor(state: GameState, ctx: ContentContext): void {
   for (const r of state.residents) {
     r.employed = false
@@ -69,10 +86,7 @@ export function assignLabor(state: GameState, ctx: ContentContext): void {
 
   const info = state.shops.map((shop) => {
     const def = ctx.buildings[shop.defId]
-    // 工位上限随等级增长（研究所这类产能建筑升级会加 slotsPerLevel 个工位）
-    const slots = def
-      ? (def.maxWorkers ?? def.workers) + (def.capacity?.slotsPerLevel ?? 0) * (shop.level - 1)
-      : 0
+    const slots = def ? effectiveSlots(def, shop.level) : 0
     const want = shop.active && def ? Math.max(0, Math.min(shop.targetWorkers, slots)) : 0
     return { want, priority: foodChainShops.has(shop.id) }
   })

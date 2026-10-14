@@ -194,6 +194,43 @@ markConstructionWorkers(work)
 ### 9.4 黎明 `activateCompleted`
 `remaining <= 0` 的按 kind 生效（建店 / 升级 / 建房），其余留队。
 
+### 9.5 有效工位数 `effectiveSlots`
+```
+slots = (def.maxWorkers ?? def.workers) + (def.capacity?.slotsPerLevel ?? 0) × (等级 − 1)
+```
+**这是工位上限的唯一口径**，三处共用：
+- `assignLabor`：实际派人时按它截断 `targetWorkers`
+- `set_workers` 动作：按它截断 `value`
+- 表现层：建筑面板的用工拖动条 `max_value`
+
+> 曾经 `set_workers` 是按 `maxWorkers` 那个**常数**截断的，于是
+> "把研究所升到 L3 再拖满 12 人"会被**静默夹回 6 人** ——
+> 上限看着是 12、拖到 12、次日却只有 6 个工位在开。同一口径必须只有一份实现。
+
+**升级时的用工目标重算**（`activateCompleted` 的 `upgrade` 分支）：
+
+| 升级前 | 升级后 |
+|---|---|
+| `targetWorkers == 旧 slots`（满员） | `targetWorkers = 新 slots`（**继续满员**） |
+| 不满员 | **保持原来的绝对数字**（不按比例缩放） |
+
+不减这一手的话，研究所从 L1 升到 L2 会"自动少 3 个工位"，玩家看着莫名其妙。
+
+### 9.6 拆除 `demolish`
+`{ type: 'demolish', shopId }` → 从 `state.shops` 移除该店。
+
+- **只作用于已建成的**。还在 `state.construction` 队列里的不属于 `state.shops`，
+  要取消得走施工队列那条路（不在这条动作的职责内）。
+- **退「建造资源」**：按 `def.buildCost` 原样退回库存（只退 `goodSet` 里真实存在的项，
+  与 `presentCost` 同一口径）。
+- **不退「建造力」**：那是每日产能 / 已经投进去的人工，没有"退"的概念。
+- **工人自动变回失业**：`assignLabor` 每晚按 `state.shops` 现算，无需额外处理。
+- 建筑不存在 → `ok: false, reason: '建筑不存在'`。
+- **占用地格由表现层释放**：`world_view._sync()` 会对"引擎里已消失"的店
+  调 `_remove_shop_view()` —— 收走精灵、擦掉 `map.occupied`、清掉所有
+  按 shop_id 索引的表。不做这一步就会留下"鬼影"且那块地永远不能再建。
+- 面板点「拆除」要**弹二次确认窗**（不可撤销，得让玩家看清拆的是哪一座）。
+
 ## 10. 研究（科技解锁）
 
 > **科研力 = 每日产能（速率，不是库存）**，与建造力同构。完整设计见 `docs/technology.md`。

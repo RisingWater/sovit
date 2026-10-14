@@ -188,6 +188,30 @@ func _run() -> void:
 				await create_timer(1.5).timeout
 				print("SCREENSHOT tip hover at ", gp, " tip=", chip.tooltip_text.replace("\n", " / "))
 
+	# 建筑检视面板（用工拖动条 + 拆除按钮）
+	#
+	# 特意把等级抬到 3：研究所 maxWorkers=6、slotsPerLevel=3，
+	# L3 时拖动条上限应是 12 —— 一眼就能看出"上限用的是有效工位而不是 maxWorkers"。
+	if mode == "shop" or mode == "shopdlg":
+		var ins2 = node.get_node_or_null("UI/Root/Inspector")
+		if ins2 != null and runner.sim.s["shops"].size() > 0:
+			var pick = null
+			for sh in runner.sim.s["shops"]:
+				var dd = runner.db.buildings.get(String(sh["defId"]), null)
+				if dd != null and dd.has("capacity") and float(dd["capacity"]["slotsPerLevel"]) > 0.0:
+					pick = sh
+					break
+			if pick == null:
+				pick = runner.sim.s["shops"][0]
+			if int(pick["level"]) < 3:
+				pick["level"] = 3
+			ins2.show_building(String(pick["id"]))
+			await process_frame
+			if mode == "shopdlg":
+				ins2._demolish()
+				await process_frame
+			print("SCREENSHOT inspector -> ", pick["defId"], " Lv", pick["level"])
+
 	# 科技面板（科技树）。
 	#
 	# 树是 5 列 x 最多 10 行（画布约 996x1134），默认的 900x740 面板一次看不全，

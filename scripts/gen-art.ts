@@ -658,6 +658,32 @@ function navShade(c: RGBA, k: number): RGBA {
   return [f(c[0]), f(c[1]), f(c[2]), 255]
 }
 
+/**
+ * 用工拖动条的把手（8x12 像素）。
+ *
+ * 默认 HSlider 的把手是圆角渐变，放在这个像素画 UI 里非常出戏。
+ * 这里做成一块**带金属箍的木头**，和左侧导航圆钮同一套配色与画法：
+ * 深色描边 + 木色主体 + 上下两道金属亮/暗边（像手指捏的那圈金属）。
+ */
+function sliderGrabber(): Canvas {
+  const c = new Canvas(8, 12)
+  for (let y = 0; y < 12; y++) {
+    for (let x = 0; x < 8; x++) {
+      const edge = x === 0 || x === 7 || y === 0 || y === 11
+      // 中间两道金属箍：第 4 行亮边、第 7 行暗边
+      const metalL = y === 4
+      const metalD = y === 7
+      if (edge) c.set(x, y, NB_METAL_D)
+      else if (metalL) c.set(x, y, NB_METAL_L)
+      else if (metalD) c.set(x, y, NB_METAL)
+      else c.set(x, y, NB_FILL)
+    }
+  }
+  // 左侧一列提亮，做出一点立体感
+  for (let y = 1; y < 11; y++) c.set(1, y, NB_HILITE)
+  return c
+}
+
 function navButton(kind: string): Canvas {
   const c = new Canvas(G, G)
   const k = kind === 'hover' ? 1.14 : kind === 'pressed' ? 0.82 : 1.0
@@ -961,6 +987,8 @@ function main(): void {
   for (const k of ['normal', 'hover', 'pressed']) {
     writeFileSync(`${ROOT}/ui/nav_btn_${k}.png`, navButton(k).toPng())
   }
+  // 用工拖动条的把手
+  writeFileSync(`${ROOT}/ui/slider_grabber.png`, sliderGrabber().toPng())
   writeFileSync(`${ROOT}/thumbs/_road.png`, brushThumb('road').toPng())
   writeFileSync(`${ROOT}/thumbs/_floor.png`, brushThumb('floor').toPng())
 

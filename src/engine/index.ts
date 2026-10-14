@@ -32,7 +32,7 @@ export { applyActions } from './actions.ts'
 export { observe } from './observe.ts'
 export { housingCapacity, privateCapacity, splitOccupancy } from './systems/housing.ts'
 export { usedSlots, constructionRate } from './systems/investment.ts'
-export { foodChainShopIds, assignedWorkers } from './systems/labor.ts'
+export { foodChainShopIds, assignedWorkers, effectiveSlots } from './systems/labor.ts'
 export {
   activateResearch,
   canResearch,

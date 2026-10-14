@@ -10,6 +10,11 @@ var world: Node
 
 var _kind := ""      # "" | "building" | "resident" | "housing"
 var _id := ""
+## 拆除确认弹窗（懒建，只建一次）
+var _confirm: PopupPanel
+var _confirm_text: Label
+## 当前查看的建筑的 defId，供弹窗写文案（`_id` 是 shop 实例 id，不是 defId）
+var _demolish_def_id := ""
 var _body: VBoxContainer
 
 func _ready() -> void:
@@ -69,7 +74,8 @@ func _title(text: String, big: bool = false) -> void:
 	if big:
 		_body.add_child(UIKit.hsep())
 
-func _kv(key: String, value: String, color: Color = UIKit.FG_DARK) -> void:
+## 画一行「键 —— 值」。返回那个**值标签**，方便调用方（用工拖动条）原地改它。
+func _kv(key: String, value: String, color: Color = UIKit.FG_DARK) -> Label:
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 6)
 	var k := UIKit.label(key, UIKit.FG_HEAD)
@@ -79,6 +85,7 @@ func _kv(key: String, value: String, color: Color = UIKit.FG_DARK) -> void:
 	v.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	row.add_child(v)
 	_body.add_child(row)
+	return v
 
 func _bar_row(key: String, value: float, maxv: float, color: Color, suffix: String = "") -> void:
 	_kv(key, "%.1f%s" % [value, suffix], color)
@@ -156,20 +163,24 @@ func _building_panel() -> void:
 		_global_panel()
 		return
 	var def: Dictionary = runner.db.buildings[String(shop["defId"])]
+	_demolish_def_id = String(shop["defId"])
 	var assigned := 0
 	for r in runner.sim.s["residents"]:
 		if r.get("jobShopId", null) == _id:
 			assigned += 1
-	var maxw = int(def["maxWorkers"])
+	# 上限是**有效工位数**（含升级带来的工位），不是 maxWorkers 那个常数 ——
+	# 研究所这类产能建筑升一级会 +slotsPerLevel 个工位。
+	# 与引擎共用同一个口径（TS effectiveSlots / GDScript effective_slots）。
+	var slots := runner.sim.effective_slots(def, int(shop["level"]))
 	var active := bool(shop["active"])
 
 	_title(String(def["nameZh"]), true)
 	_kv("等级", "Lv%d" % int(shop["level"]))
 	_kv("状态", "生产中" if active else "已停产",
 		Color(0.18, 0.45, 0.20) if active else Color(0.60, 0.20, 0.18))
-	_kv("用工", "%d / %d" % [assigned, int(shop["targetWorkers"])])
+	var worker_hint := _kv("用工", "%d / %d" % [assigned, int(shop["targetWorkers"])])
 	var pb := ProgressBar.new()
-	pb.max_value = maxf(1.0, float(maxw))
+	pb.max_value = maxf(1.0, float(slots))
 	pb.value = float(assigned)
 	pb.show_percentage = false
 	pb.custom_minimum_size = Vector2(0, 6)
@@ -184,26 +195,90 @@ func _building_panel() -> void:
 	_kv("利润", "¥%.1f" % float(shop["profit"]),
 		Color(0.18, 0.45, 0.20) if float(shop["profit"]) >= 0.0 else Color(0.60, 0.20, 0.18))
 	_gap()
-	_title("调整用工")
-	_buttons([["-10", func(): _set_workers(int(shop["targetWorkers"]) - 10, maxw)],
-		["-1", func(): _set_workers(int(shop["targetWorkers"]) - 1, maxw)],
-		["+1", func(): _set_workers(int(shop["targetWorkers"]) + 1, maxw)],
-		["+10", func(): _set_workers(int(shop["targetWorkers"]) + 10, maxw)]])
+	_title("用工（0 = 停产）")
+	_build_worker_slider(slots, int(shop["targetWorkers"]), worker_hint)
 	_gap()
-	_buttons([["停产" if active else "复工", func(): _toggle(not active)],
-		["升级", func(): _expand()],
-		["移动", func(): _begin_move_shop()]])
+	_buttons([["升级", func(): _expand()],
+		["移动", func(): _begin_move_shop()],
+		["拆除", func(): _demolish()]])
 	_gap(2)
 	_body.add_child(_label("所有操作次日 06:00 生效"))
 
-func _set_workers(value: int, maxw: int) -> void:
-	var v = clampi(value, 0, maxw)
-	runner.enqueue([{"type": "set_workers", "shopId": _id, "value": v}])
-	_rebuild()   # 同上：命令次日生效，不重建就看不到变化
+## 用工拖动条。
+##
+## 为什么不用那四个 ±按钮：拖动条一眼能看出"满员是多少、现在开了多少"，
+## 而且拖到 0 就是停产 —— 原来那个「停产/复工」开关就多余了，已删掉。
+##
+## 拖动中**不能** _rebuild()：那会把滑块自己销毁重建，拖到一半就断了。
+## 所以拖动时只更新提示文字 + 入队（引擎按 shopId 合并同名命令，连发也只留最后一条）。
+func _build_worker_slider(slots: int, current: int, hint: Label) -> void:
+	var s := HSlider.new()
+	s.min_value = 0
+	s.max_value = float(maxi(1, slots))
+	s.step = 1
+	s.value = float(clampi(current, 0, slots))
+	s.custom_minimum_size = Vector2(0, 18)
+	s.tooltip_text = "开多少工位。拖到 0 = 停产；最大 = 满员 %d" % slots
+	# 像素风：默认 HSlider 的圆角渐变很出戏，这里全部换成硬边纯色
+	# （把手是一张 8x12 的木/金属像素贴图，与左侧圆钮同一套配色）
+	var track := StyleBoxFlat.new()
+	track.bg_color = Color(0.24, 0.17, 0.12, 0.55)
+	track.content_margin_top = 5
+	track.content_margin_bottom = 5
+	var fill := StyleBoxFlat.new()
+	fill.bg_color = Color(0.35, 0.55, 0.72)
+	fill.content_margin_top = 5
+	fill.content_margin_bottom = 5
+	s.add_theme_stylebox_override("slider", track)
+	s.add_theme_stylebox_override("grabber_area", fill)
+	s.add_theme_stylebox_override("grabber_area_highlight", fill)
+	var grab := UIKit.slider_grabber()
+	if grab != null:
+		s.add_theme_icon_override("grabber", grab)
+		s.add_theme_icon_override("grabber_highlight", grab)
+	s.value_changed.connect(func(v: float):
+		var w := int(round(v))
+		hint.text = "%d / %d" % [w, w]
+		runner.enqueue([{"type": "set_workers", "shopId": _id, "value": w}]))
+	_body.add_child(s)
+	# 下面这行让"拖到 0"这件事一眼可见
+	_body.add_child(_label("0 = 停产　·　最大 = 满员 %d 个工位" % slots))
 
-func _toggle(active: bool) -> void:
-	runner.enqueue([{"type": "toggle", "shopId": _id, "active": active}])
-	_rebuild()
+func _demolish() -> void:
+	# 二次确认**弹窗**（不是按钮文案变一下）：拆除不可撤销，得让玩家看清要拆哪一座。
+	# 用项目既有的弹窗做法（PopupPanel + UIKit 框体），别自己造一套。
+	# 主题：main.gd 已经设了 `get_window().theme`，popup 挂在 window 下能拿到；
+	# 只设 root_ui.theme 的话 popup 是拿不到的（这个坑项目里踩过）。
+	if _confirm == null:
+		_confirm = PopupPanel.new()
+		_confirm.add_theme_stylebox_override("panel",
+			UIKit.pad(UIKit.box(UIKit.T_PANEL_CREAM), 10, 10, 10, 10))
+		var vb := VBoxContainer.new()
+		vb.add_theme_constant_override("separation", 8)
+		_confirm_text = UIKit.label("", UIKit.FG_DARK)
+		_confirm_text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		_confirm_text.custom_minimum_size = Vector2(280, 0)
+		vb.add_child(_confirm_text)
+		var row := HBoxContainer.new()
+		row.add_theme_constant_override("separation", 6)
+		row.add_child(UIKit.spacer())
+		var no := UIKit.button("取消", true)
+		no.pressed.connect(func(): _confirm.hide())
+		row.add_child(no)
+		var yes := UIKit.button("确定拆除", true)
+		yes.pressed.connect(func():
+			_confirm.hide()
+			runner.enqueue([{"type": "demolish", "shopId": _id}])
+			clear())   # 建筑马上就没了，面板回到全局视图
+		row.add_child(yes)
+		vb.add_child(row)
+		_confirm.add_child(vb)
+		add_child(_confirm)
+	var nm := _id
+	if runner.db.buildings.has(_demolish_def_id):
+		nm = String(runner.db.buildings[_demolish_def_id]["nameZh"])
+	_confirm_text.text = "确定拆除「%s」？\n退回建造材料，不退建造力。此操作不可撤销。" % nm
+	_confirm.popup_centered(Vector2i(340, 150))
 
 func _expand() -> void:
 	runner.enqueue([{"type": "expand", "shopId": _id}])

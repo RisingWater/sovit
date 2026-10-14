@@ -301,10 +301,11 @@
 |---|---|
 | `set_wage { shopId, value }` | 设定该店基础工资 |
 | `set_wage_cap { shopId, value }` | 设定该店每人实际工资上限（0=不限） |
-| `set_workers { shopId, value }` | 设定目标用工数 |
+| `set_workers { shopId, value }` | 设定目标用工数。上限 = **有效工位数**（`maxWorkers + capacity.slotsPerLevel × (等级−1)`），0 = 停产。UI 是拖动条 |
 | `set_price { goodId, value }` | 设定商品售价；住房商品即售价 |
 | `expand { shopId }` | 扩产（+1 等级） |
 | `toggle { shopId, active }` | 开 / 关 |
+| `demolish { shopId }` | **拆除**：直接销毁一座**已建成**的建筑。**退建造资源**（按 `buildCost` 退回），**不退建造力**；里面的工人变回失业；释放占用的地格。在建的走取消施工那条路。面板上要过二次确认窗 |
 | `build { buildingId }` | 建店（进入施工队列） |
 | `build_housing { goodId }` | 建造公房（提升人口上限，占土地名额） |
 | `set_rent { value }` | 设定公房人均日租金 |

@@ -977,10 +977,22 @@ func _after_move() -> void:
 
 # ---- 同步仿真里的建筑 -----------------------------------------------------
 func _sync() -> void:
+	# 拆除（demolish）：引擎里没了 → 收走精灵、**释放地格**。
+	#
+	# 这一步不做的话，拆掉的建筑会留下一张"鬼影"精灵，而且 `map.occupied`
+	# 还占着那块地 —— 之后再也建不了东西，且看起来像没拆掉。
+	var alive := {}
+	for shop in runner.sim.s["shops"]:
+		alive[String(shop["id"])] = true
+	for sid in _shop_sprites.keys():
+		if alive.has(sid):
+			continue
+		_remove_shop_view(String(sid))
+
 	# 新店铺（含开局为空）→ 绑定到预留工地或找空地
 	for shop in runner.sim.s["shops"]:
-		var sid = String(shop["id"])
-		if _shop_sprites.has(sid):
+		var nid = String(shop["id"])
+		if _shop_sprites.has(nid):
 			continue
 		var def_id = String(shop["defId"])
 		var cell = _take_site_for(def_id)
@@ -988,7 +1000,25 @@ func _sync() -> void:
 			cell = _find_free_area(def_id, map.center, 0)
 		if cell.x < 0:
 			continue
-		_create_shop_view(sid, def_id, cell)
+		_create_shop_view(nid, def_id, cell)
+
+## 收掉一座建筑的视图：精灵 + 地格占用 + 所有按 shop_id 索引的表。
+func _remove_shop_view(sid: String) -> void:
+	var spr = _shop_sprites.get(sid, null)
+	if spr != null and is_instance_valid(spr):
+		spr.queue_free()
+	var origin: Vector2i = _shop_cell.get(sid, Vector2i(-1, -1))
+	if origin.x >= 0:
+		var def_id := String(_shop_def.get(sid, ""))
+		var fp := _footprint(def_id)
+		var door: Vector2i = _shop_door.get(sid, Vector2i(-1, -1))
+		var interior := _interior_cell(origin, fp.x, fp.y)
+		# _free_building_cells 会把 map.occupied 上这几格一起擦掉
+		_free_building_cells(origin, fp, door, interior)
+		_walk_inside.erase(_shop_goal.get(sid, Vector2i(-1, -1)))
+	for d in [_shop_sprites, _shop_cell, _shop_def, _shop_label,
+			_shop_anchor, _shop_door, _shop_goal]:
+		d.erase(sid)
 
 	# 新住房实例
 	var housing: Dictionary = runner.sim.s["housing"]

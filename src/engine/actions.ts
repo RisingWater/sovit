@@ -2,6 +2,7 @@ import type { Action, AppliedAction, GameState, TaxBracket } from './types.ts'
 import type { ContentContext } from './content/index.ts'
 import { clamp, round2 } from './util.ts'
 import { tryBuild, tryBuildHousing, tryExpand } from './systems/investment.ts'
+import { effectiveSlots } from './systems/labor.ts'
 import {
   cancelResearch,
   isBuildingUnlocked,
@@ -74,7 +75,9 @@ export function applyActions(
           applied.push({ type: action.type, ok: false, reason: '建筑不存在' })
           break
         }
-        shop.targetWorkers = Math.round(clamp(action.value, 0, def.maxWorkers ?? def.workers))
+        // 上限用**有效工位数**，不是 maxWorkers —— 研究所升级会 +slotsPerLevel 个工位，
+        // 按 maxWorkers 截断会把"拖满"静默夹回去。
+        shop.targetWorkers = Math.round(clamp(action.value, 0, effectiveSlots(def, shop.level)))
         applied.push({ type: action.type, ok: true })
         break
       }
@@ -188,6 +191,36 @@ export function applyActions(
       }
 
       case 'subsidy':
+      case 'demolish': {
+        const idx = state.shops.findIndex((s) => s.id === action.shopId)
+        if (idx < 0) {
+          applied.push({ type: action.type, ok: false, reason: '建筑不存在' })
+          break
+        }
+        const shop = state.shops[idx]!
+        const def = ctx.buildings[shop.defId]
+        // **退建造资源**：按 buildCost 原样退回国库库存。
+        // 不退「建造力」—— 那是每日产能/已经投进去的人工，没有"退"的概念。
+        // 只退到 ctx.goodSet 里真实存在的商品（与 presentCost 同一口径）。
+        const refunded: string[] = []
+        if (def) {
+          for (const [gid, qty] of Object.entries(def.buildCost ?? {})) {
+            const n = Number(qty)
+            if (!n || !ctx.goodSet.has(gid)) continue
+            state.goods[gid] = round2((state.goods[gid] ?? 0) + n)
+            refunded.push(`${gid}×${n}`)
+          }
+        }
+        // 只从 shops 里摘掉：工人变回失业是 assignLabor 现算的自然结果（它每晚扫 shops）。
+        state.shops.splice(idx, 1)
+        applied.push({
+          type: action.type,
+          ok: true,
+          ...(refunded.length ? { reason: `退回 ${refunded.join('、')}` } : {}),
+        })
+        break
+      }
+
       case 'sell_shop':
       case 'retake_shop': {
         applied.push({ type: action.type, ok: false, reason: 'not_implemented（预留接口）' })

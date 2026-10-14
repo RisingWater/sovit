@@ -5,6 +5,7 @@ import { DEFAULTS, ECONOMY, TUNING } from '../config.ts'
 import { round2 } from '../util.ts'
 import { markConstructionWorkers } from './labor.ts'
 import { assignedWorkers } from './labor.ts'
+import { effectiveSlots } from './labor.ts'
 
 // ---------------------------------------------------------------------------
 // 投资：扩产 / 建店 / 建房 / 施工队列
@@ -327,8 +328,16 @@ export function activateCompleted(state: GameState, ctx: ContentContext, day: nu
     } else if (c.kind === 'upgrade' && c.shopId) {
       const shop = state.shops.find((s) => s.id === c.shopId)
       if (shop) {
-        shop.level += 1
         const def = ctx.buildings[shop.defId]
+        // 升级会改变**有效工位数**（capacity.slotsPerLevel），用工目标要跟着走：
+        //   改之前是满员 → 改完仍然满员
+        //   改之前不是满员 → **保留原来的绝对数字**（不按比例缩放）
+        // 不减这一手的话，研究所从 L1 升到 L2 会"自动少 3 个工位"，
+        // 玩家看着莫名其妙。
+        const before = def ? effectiveSlots(def, shop.level) : 0
+        const wasFull = shop.targetWorkers >= before
+        shop.level += 1
+        if (def && wasFull) shop.targetWorkers = effectiveSlots(def, shop.level)
         logs.push({ day, kind: 'invest', text: `${def?.nameZh ?? shop.defId} 升级至 Lv${shop.level}` })
       }
     } else if (c.kind === 'housing' && c.housingId) {

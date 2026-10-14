@@ -499,6 +499,18 @@ export type Action =
   | { type: 'set_price'; goodId: GoodID; value: number }
   | { type: 'expand'; shopId: string }
   | { type: 'toggle'; shopId: string; active: boolean }
+  /**
+   * 拆除：直接销毁一座**已建成**的建筑（玩家在建筑面板点「拆除」）。
+   *
+   * 语义（见 docs/spec.md §9.6）：
+   * - 从 `state.shops` 移除；**不退钱、不退料**（"直接销毁"就是玩家的决定）
+   * - 里面的工人自动变回失业 —— `assignLabor` 每晚按 `state.shops` 现算，
+   *   不需要额外处理
+   * - **只作用于已建成的**。还在 `state.construction` 队列里的走 `cancel_construction`，
+   *   不走这条
+   * - 占用的地格由表现层（world_view）在收到拆除结果后释放
+   */
+  | { type: 'demolish'; shopId: string }
   | { type: 'build'; buildingId: BuildingID }
   | { type: 'build_housing'; goodId: GoodID }
   | { type: 'sell_shop'; shopId: string }

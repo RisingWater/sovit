@@ -103,6 +103,7 @@ step "bartab" "$GODOT_BIN" --headless --path . -s res://tools/bartab_test.gd
 step "buildlock" "$GODOT_BIN" --headless --path . -s res://tools/buildlock_test.gd
 step "panel" "$GODOT_BIN" --headless --path . -s res://tools/panel_test.gd
 step "chiptip" "$GODOT_BIN" --headless --path . -s res://tools/chiptip_test.gd
+step "workerdemolish" "$GODOT_BIN" --headless --path . -s res://tools/worker_demolish_test.gd
 step "tech" "$GODOT_BIN" --headless --path . -s res://tools/tech_test.gd
 step "imm" "$GODOT_BIN" --headless --path . -s res://tools/imm_test.gd
 step "minimap" "$GODOT_BIN" --headless --path . -s res://tools/minimap_test.gd

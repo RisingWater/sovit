@@ -34,7 +34,7 @@ func enqueue(actions: Array) -> void:
 static func _action_key(a: Dictionary) -> String:
 	var t = String(a.get("type", ""))
 	match t:
-		"set_wage", "set_wage_cap", "set_workers", "toggle", "expand":
+		"set_wage", "set_wage_cap", "set_workers", "toggle", "expand", "demolish":
 			return t + ":" + String(a.get("shopId", ""))
 		"set_price":
 			return t + ":" + String(a.get("goodId", ""))
@@ -276,7 +276,25 @@ func _apply_actions(actions: Array) -> void:
 				var shop = _find_shop(String(action["shopId"]))
 				if shop != null:
 					var d: Dictionary = db.buildings[shop["defId"]]
-					shop["targetWorkers"] = int(round(clampf(float(action["value"]), 0.0, float(d["maxWorkers"]))))
+					# 上限用**有效工位数**，不是 maxWorkers（研究所升级会 +slotsPerLevel）
+					shop["targetWorkers"] = int(round(clampf(float(action["value"]), 0.0,
+						float(effective_slots(d, int(shop["level"]))))))
+			"demolish":
+				# 拆除：退**建造资源**（按 buildCost 原样退回），不退建造力
+				# （那是每日产能/已投入的人工）。工人变回失业是 _assign_labor 现算的
+				# 自然结果。只作用于**已建成**的（在建的走取消施工那条路）。
+				for i in range((s["shops"] as Array).size() - 1, -1, -1):
+					if String(s["shops"][i]["id"]) != String(action["shopId"]):
+						continue
+					var dd = db.buildings.get(String(s["shops"][i]["defId"]), null)
+					if dd != null:
+						for gid in (dd.get("buildCost", {}) as Dictionary).keys():
+							var q = float(dd["buildCost"][gid])
+							if q <= 0.0 or not db.goods.has(String(gid)):
+								continue
+							s["goods"][gid] = SimUtil.r2(float(s["goods"].get(gid, 0.0)) + q)
+					s["shops"].remove_at(i)
+					break
 			"set_price":
 				s["prices"][String(action["goodId"])] = SimUtil.r2(maxf(0.01, float(action["value"])))
 			"toggle":
@@ -508,6 +526,20 @@ func _food_chain_shop_ids() -> Dictionary:
 				break
 	return out
 
+## 有效工位数 = 基础工位 + 升级带来的工位（见 TS 侧 effectiveSlots）。
+##
+## 「研究所」这类**产能建筑**升级会加 `capacity.slotsPerLevel` 个工位，
+## 所以工位上限**不是** `maxWorkers` 那个常数。
+##
+## 这是**唯一口径**：_assign_labor（实际派人）与 UI 的用工拖动条上限都调它。
+## 两处各写一遍迟早分叉 —— 抽出来之前 set_workers 就是按 maxWorkers 截断的，
+## 于是"把研究所升到 L3、拖满 12 人"会被静默夹回 6 人。
+func effective_slots(def: Dictionary, level: int) -> int:
+	var n = float(def.get("maxWorkers", def.get("workers", 0)))
+	if def.has("capacity"):
+		n += float(def["capacity"]["slotsPerLevel"]) * (float(level) - 1.0)
+	return int(maxf(0.0, n))
+
 func _assign_labor() -> void:
 	for r in s["residents"]:
 		r["employed"] = false
@@ -522,11 +554,7 @@ func _assign_labor() -> void:
 		var def = db.buildings.get(shop["defId"], null)
 		var want = 0
 		if bool(shop["active"]) and def != null:
-			# 工位上限随等级增长（研究所这类产能建筑升级会加 slotsPerLevel 个工位）
-			var slots = float(def["maxWorkers"])
-			if def.has("capacity"):
-				slots += float(def["capacity"]["slotsPerLevel"]) * (float(shop["level"]) - 1.0)
-			want = int(maxf(0.0, minf(float(shop["targetWorkers"]), slots)))
+			want = int(maxf(0.0, minf(float(shop["targetWorkers"]), float(effective_slots(def, int(shop["level"]))))))
 		info.append({"want": want, "priority": food_chain_shops.has(shop["id"])})
 
 	var assign := []
@@ -1542,7 +1570,15 @@ func _activate_completed() -> Array:
 		elif kind == "upgrade":
 			var shop = _find_shop(String(c["shopId"]))
 			if shop != null:
+				var udef = db.buildings.get(String(shop["defId"]), null)
+				# 升级会改**有效工位数**（capacity.slotsPerLevel），用工目标要跟着走：
+				#   改之前满员 → 改完仍满员
+				#   改之前不满员 → **保留原来的绝对数字**（不按比例缩放）
+				var before = effective_slots(udef, int(shop["level"])) if udef != null else 0
+				var was_full = int(shop["targetWorkers"]) >= before
 				shop["level"] = int(shop["level"]) + 1
+				if udef != null and was_full:
+					shop["targetWorkers"] = effective_slots(udef, int(shop["level"]))
 				logs.append({"day": int(s["day"]), "kind": "invest", "text": "升级至 Lv%d" % int(shop["level"])})
 		elif kind == "housing":
 			var hid = String(c["housingId"])
