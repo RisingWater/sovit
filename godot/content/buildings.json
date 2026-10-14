@@ -723,11 +723,7 @@
 	  "id": "construction_works",
 	  "nameZh": "建筑工坊",
 	  "art": {
-		"arch": "sprite",
-		"foot": [
-		  8,
-		  3
-		]
+		"arch": "sprite"
 	  },
 	  "tier": 3,
 	  "workers": 3,
@@ -803,7 +799,9 @@
 		"roof": "red",
 		"wall": "plank",
 		"w": 4,
-		"feat": ["rocks"]
+		"feat": [
+          "rocks"
+		]
 	  },
 	  "tier": 2,
 	  "workers": 3,

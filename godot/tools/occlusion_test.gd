@@ -13,7 +13,7 @@ extends SceneTree
 #   <godot> --path . -s res://tools/occlusion_test.gd -- [out.png] [zoom]
 
 const SEED := 20261014
-const TEST_ID := "construction_works" # 128x84，占地 8x3 -> 贴图比占地高 36px
+const TEST_ID := "research_institute" # 128x73，占地 8x3 -> 贴图比占地高 25px
 const PEOPLE := 6
 
 func _init() -> void:
@@ -111,7 +111,7 @@ func _run() -> void:
 	var shops: Array = runner.sim.s["shops"]
 	shops.append({
 		"id": TEST_ID + "#1", "defId": TEST_ID, "owner": "state",
-		"targetWorkers": 3, "wage": 3.0, "wageCap": 6.0, "level": 1,
+		"targetWorkers": 6, "wage": 3.0, "wageCap": 6.0, "level": 1,
 		"active": true, "profit": 0.0, "skill": 50.0, "planned": 0.0, "toolBoost": 1.0,
 	})
 	runner.sim.s["pending"] = []
