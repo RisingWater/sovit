@@ -1688,8 +1688,10 @@ func site_tip_at(cell: Vector2i) -> String:
 
 	var list := _construction_entries(type)
 	if list.is_empty():
-		# 命令次日 06:00 才生效，刚放下时队列里还没有它 —— 这句比"0 / 60"诚实
-		return "%s · 已下单，次日 06:00 开工" % name_zh
+		# 刚放下时队列里还没有它：命令在黎明生效、施工要等入夜结算。
+		# 时刻从内容里读（别写死 06:00/18:00 —— 它们是 economy.json 的 time 块）。
+		return "%s · 已下单（%02d:00 生效 → %02d:00 结算开工）" % [
+			name_zh, int(db_time("dawnHour", 6)), int(db_time("settleHour", 18))]
 	# 优先报正在施工的那处；都在排队就报排最前的
 	var best: Dictionary = list[0]
 	for c in list:
@@ -1700,12 +1702,84 @@ func site_tip_at(cell: Vector2i) -> String:
 	var left := float(best.get("remaining", 0.0))
 	var done := maxf(0.0, need - left)
 	var pct := 0 if need <= 0.0 else int(roundf(done / need * 100.0))
-	var head := "建造中" if bool(best.get("started", false)) else "排队中（等前面的工程）"
+	var head := "建造中" if bool(best.get("started", false)) else _why_waiting(best)
 	var text := "%s · %s\n建造力 %d / %d（%d%%）" % [
 		name_zh, head, int(roundf(done)), int(roundf(need)), pct]
+	# ⚠️ 光说"等前面的工程"会骗人：**队首自己没开工时也是这句话**。
+	# 玩家在"命令次日 06:00 才生效"的窗口里、或游戏暂停着，会以为后面一堆工程
+	# 在抢产能，于是得出"12 个建造力一个都用不上"的结论。这里把队首的具体原因写出来。
+	if not bool(best.get("started", false)):
+		var ahead := _blocked_ahead(best)
+		if ahead != "":
+			text += "\n%s" % ahead
 	if list.size() > 1:
 		text += "\n同类工地共 %d 处" % list.size()
 	return text
+
+## 读 `content/economy.json` 的 time 块（时刻别在代码里写死）。
+func db_time(key: String, fallback: int) -> int:
+	var tt: Dictionary = runner.db.economy.get("time", {})
+	return int(tt.get(key, fallback))
+
+## 这一条还没开工，到底在等什么 —— 给玩家能动手的答案，而不是"等前面的工程"。
+func _why_waiting(c: Dictionary) -> String:
+	var pos: int = (runner.sim.s["construction"] as Array).find(c)
+	if pos > 0:
+		return "排队中（前面还有 %d 处工程）" % pos
+	# 排在队首：要么在攒材料，要么就是还没到下一个 06:00
+	var sim = runner.sim
+	var spec: Dictionary = sim._cost_of(c)
+	if spec.is_empty():
+		return "等待开工（工程定义缺失）"
+	if not sim._can_afford(spec):
+		return "等待材料（缺 %s）" % _shortage_zh(spec)
+	return "等待开工（%02d:00 结算时扣材料）" % int(db_time("settleHour", 18))
+
+## 前面有没有"卡住"的工程：队首在等材料时，**后面的全都动不了**，
+## 但玩家看到的只是一句"等前面的工程"。把那个罪魁祸首与缺口直接写出来。
+func _blocked_ahead(c: Dictionary) -> String:
+	var sim = runner.sim
+	for other in (sim.s["construction"] as Array):
+		if other == c:
+			return ""
+		if bool(other.get("started", false)):
+			continue
+		var spec: Dictionary = sim._cost_of(other)
+		if not spec.is_empty() and not sim._can_afford(spec):
+			return "前面「%s」在等材料（缺 %s），它开工前建造力用不上" % [
+				_sim_label(other), _shortage_zh(spec)]
+		return ""
+	return ""
+
+func _sim_label(c: Dictionary) -> String:
+	var kind := String(c["kind"])
+	if kind == "shop":
+		var bid := String(c.get("buildingId", ""))
+		return String(runner.db.buildings[bid]["nameZh"]) if runner.db.buildings.has(bid) else bid
+	if kind == "housing":
+		var hid := String(c.get("housingId", ""))
+		return String(runner.db.housing[hid]["nameZh"]) if runner.db.housing.has(hid) else hid
+	if kind == "upgrade":
+		var up := String(c.get("buildingId", ""))
+		var base := String(runner.db.buildings[up]["nameZh"]) if runner.db.buildings.has(up) else up
+		return base + " 升级"
+	return String(c.get("id", ""))
+
+## 缺哪些材料 —— 说中文名（`_shortage_reason()` 报的是商品 id，玩家看不懂）。
+func _shortage_zh(spec: Dictionary) -> String:
+	var out := []
+	for m in (spec["mats"] as Array):
+		var gid := String(m[0])
+		var need := float(m[1])
+		var have := float(runner.sim.s["goods"].get(gid, 0.0))
+		if have < need:
+			var nm := gid
+			if runner.db.goods.has(gid):
+				nm = String(runner.db.goods[gid]["nameZh"])
+			out.append("%s %.0f（现有 %.0f）" % [nm, need, have])
+	if float(spec.get("money", 0.0)) > float(runner.sim.s["government"]["money"]):
+		out.append("资金 %.0f" % float(spec["money"]))
+	return "、".join(out) if not out.is_empty() else "材料"
 
 ## sim 建造队列里与这个工地类型匹配的条目（shop 按 buildingId，住房按 housingId）。
 func _construction_entries(type: String) -> Array:
