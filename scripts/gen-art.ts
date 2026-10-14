@@ -645,9 +645,9 @@ function speedIcon(kind: string): Canvas {
 // ---------------------------------------------------------------------------
 const NB_FRAME: RGBA = [46, 30, 20, 255] // 粗外框（近黑棕）
 const NB_HILITE: RGBA = [228, 204, 162, 255] // 边框内圈高光
-const NB_WOOD: RGBA = [148, 98, 56, 255] // 木盘
-const NB_WOOD_D: RGBA = [120, 76, 42, 255] // 木纹暗
-const NB_WOOD_L: RGBA = [170, 118, 70, 255] // 木纹亮
+// 内部填充：**单色平涂，不做木纹**（用户要求"内部不要做成木纹的"）。
+// ⚠️ 别改成米色系：那样会和内圈高光 NB_HILITE 几乎同色，高光那一圈就看不见了。
+const NB_FILL: RGBA = [148, 98, 56, 255]
 const NB_METAL: RGBA = [140, 146, 154, 255] // 金属卡扣
 const NB_METAL_L: RGBA = [198, 205, 213, 255] // 金属亮边
 const NB_METAL_D: RGBA = [84, 90, 98, 255] // 金属暗边
@@ -681,9 +681,8 @@ function navButton(kind: string): Canvas {
       } else if (r > R_HILITE) {
         c.set(x, y, navShade(NB_HILITE, k))
       } else {
-        // 木纹：每 4 行一个明暗循环，横着看是木头的纹路
-        const m = y % 4
-        c.set(x, y, navShade(m === 0 ? NB_WOOD_D : m === 2 ? NB_WOOD_L : NB_WOOD, k))
+        // 单色平涂（不做木纹）
+        c.set(x, y, navShade(NB_FILL, k))
       }
     }
   }
