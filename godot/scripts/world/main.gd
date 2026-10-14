@@ -1,7 +1,7 @@
 extends Node2D
 
 # 入口：创建 SimRunner（仿真）+ WorldView（地图/建筑/小人）+ UI。
-# F5 存档 / F9 读档。
+# 快捷键集中在 `_shortcut_input`（F7 快存 / F8 快读也在那里），ESC 走 `_unhandled_input`。
 
 var runner: SimRunner
 var world
@@ -247,20 +247,6 @@ func _unhandled_input(event: InputEvent) -> void:
 			_panel_tech.visible = false
 			return
 		_esc_menu.toggle()
-	if event.keycode == KEY_F5:
-		# ⚠️ 左侧圆钮加到第 5 个之后，F5 会被圆钮拿走（见 _shortcut_input）。
-		# 到那时快存要换键，这里不会再被调用。
-		if _hud != null and _hud.nav_count() >= 5:
-			return
-		var err := SaveManager.save_to(SaveManager.DEFAULT_PATH, runner.sim)
-		print("save: ", err)
-	elif event.keycode == KEY_F9:
-		var loaded = SaveManager.load_into(SaveManager.DEFAULT_PATH, runner.db)
-		if loaded != null:
-			runner.sim = loaded
-			runner.recent_logs = []
-			runner.hour_ticked.emit()
-			print("load: ok")
 
 # ---- 快捷键 -----------------------------------------------------------------
 #
@@ -307,6 +293,12 @@ func _shortcut_input(event: InputEvent) -> void:
 			_bar.cycle_tab(-1 if event.shift_pressed else 1)
 		KEY_H:
 			world.focus_town_center()
+		KEY_F7:
+			# 快存 / 快读走 HUD 自己的函数（和顶栏那两个按钮同一条路），
+			# 目标路径也在 HUD 上（门槛会把它指到测试存档位）。
+			_hud.quick_save()
+		KEY_F8:
+			_hud.quick_load()
 		_:
 			if k >= KEY_1 and k <= KEY_9:
 				# 1..9 = 建造栏当前这一页的第 N 张卡片
@@ -315,9 +307,9 @@ func _shortcut_input(event: InputEvent) -> void:
 				var msg: String = _bar.activate_card(k - KEY_1)
 				if msg != "":
 					world.notice.emit(msg)
-			elif k >= KEY_F1 and k <= KEY_F8:
-				# F1..F8 = 左侧圆钮。**没有那个按钮就不吃这个键** ——
-				# 现在只有 4 个，F5 必须留给"快存"（别把存档键吞了）。
+			elif k >= KEY_F1 and k <= KEY_F1 + int(_hud.NAV_MAX_KEY) - 1:
+				# F1..F6 = 左侧圆钮。**F7 / F8 是快存 / 快读**（用户定的），
+				# 不在这个区间里；没有那个按钮就原样放行这个键。
 				if not _hud.activate_nav(k - KEY_F1):
 					return
 			else:

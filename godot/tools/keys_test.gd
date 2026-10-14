@@ -5,13 +5,14 @@ extends SceneTree
 # 锁这几条（都是用户点名的）：
 #   · 空格 = 暂停 / 恢复（恢复时保持当前速度档）
 #   · `+` / `-` = 加速 / 减速，**最快 4x、最慢 1x**，到顶到底就不动
-#   · F1..F8 = 左侧圆钮列（现在 4 个 → F1..F4；F5..F8 落空，**不吃键**，
-#     所以 F5 仍然是"快存"）
+#   · F1..F6 = 左侧圆钮列（现在 4 个）
+#   · F7 / F8 = **快存 / 快读**（用户："F7快存F8快读"）—— 圆钮拿不到这两个键
 #   · 1..9 = 建造栏当前页的第 N 张卡片（锁着的卡给出"需要科技"提示、不落位）
 #   · Tab / Shift+Tab = 循环换建造栏分类
 #   · H = 镜头回到城镇中心
 #   · 文本框在打字时（LineEdit 有焦点）以上全部让路
 #   · 模态对话框（ESC 菜单 / 新游戏 / 存读档）开着时也让路
+#   · 全屏面板（统计 / 科技）开着时，建造栏那几条让路
 #
 # ⚠️ 事件必须走**真实的引擎分发链**（`root.push_input` → GUI → `_shortcut_input`
 # → `_unhandled_input`）。直接调 `main._shortcut_input(ev)` 是假的：
@@ -133,11 +134,16 @@ func _run() -> void:
 	hud._on_speed(false, 1.0)
 	await process_frame
 
-	# ---- 3. F1..F8 左侧圆钮 --------------------------------------------------
+	# ---- 3. F1..F6 左侧圆钮（F7 / F8 留给快存快读）--------------------------
 	var nav_n: int = hud.nav_count()
 	if nav_n < 1:
 		_fail("左侧一个圆钮都没有（检查 0 个）")
 		return
+	if nav_n > hud.NAV_MAX_KEY:
+		_fail("圆钮 %d 个超过快捷键上限 %d —— F7/F8 是快存快读，圆钮拿不到更多 F 键了"
+			% [nav_n, hud.NAV_MAX_KEY])
+		return
+	# tooltip 里的键位提示：前 6 个写 F1..F6
 	for i in nav_n:
 		var tip := String((hud._nav_btns[i] as Button).tooltip_text)
 		if not tip.contains("F%d" % (i + 1)):
@@ -159,11 +165,16 @@ func _run() -> void:
 	await process_frame
 	_ok("F1..F%d 对上左侧圆钮（tooltip 里也写了键位）" % nav_n)
 
-	# F5..F8 没有对应按钮时**不能吃掉这个键** —— F5 还是"快存"
-	if nav_n < 8 and hud.activate_nav(nav_n):
+	# 没有对应按钮的 F 键不能吃掉键（放行给别的用途 / 什么也不发生）
+	if nav_n < hud.NAV_MAX_KEY and hud.activate_nav(nav_n):
 		_fail("第 %d 个圆钮不存在，activate_nav 却返回了 true" % (nav_n + 1))
 		return
-	_ok("F%d..F8 落空时不吃键（F5 仍然是快存）" % (nav_n + 1))
+	# ⚠️ 这里只断言"第 7 个圆钮没有快捷键"，**不真按 F7** —— F7 是快存，
+	# 会写 user:// 的默认存档位。F7/F8 的真按键验证放在最后（那时存档位已被
+	# 指向测试文件，见文件末尾那一节）。
+	if nav_n >= 1 and nav_n < hud.NAV_MAX_KEY:
+		_ok("F%d..F%d 落空时不吃键（也不占 F7/F8 —— 那两个是快存快读）"
+			% [nav_n + 1, hud.NAV_MAX_KEY])
 
 	# ---- 4. 1..9 建造栏卡片 --------------------------------------------------
 	bar._select_tab(0)                 # 住宅
@@ -355,6 +366,48 @@ func _run() -> void:
 	esc.close()
 	await process_frame
 	_ok("ESC 菜单开着时快捷键让路")
+
+	# ---- 9. F7 快存 / F8 快读 ------------------------------------------------
+	#
+	# ⚠️ 这一段会**真的写存档**，所以先把存档位指到测试文件上：
+	#    `hud.quick_path` 就是 HUD 快存 / 快读用的那一个（顶栏两个按钮也走它），
+	#    默认值是 `SaveManager.DEFAULT_PATH` = 玩家自己的快存位 —— 绝不能覆盖。
+	# 放在最后一段也是这个原因：读到一份存档会把世界状态换掉。
+	var test_path := "user://zz-keys-test.json"
+	var abs_path := ProjectSettings.globalize_path(test_path)
+	if FileAccess.file_exists(test_path):
+		DirAccess.remove_absolute(abs_path)
+	hud.quick_path = test_path
+	runner.sim.s["day"] = 424242          # 读回来之后这个数必须消失
+	await process_frame
+	hud.set_notice("")
+	await _key(KEY_F7)
+	if not FileAccess.file_exists(test_path):
+		hud.quick_path = SaveManager.DEFAULT_PATH
+		_fail("按 F7 没有生成存档文件（%s）—— 快存没接上？" % test_path)
+		return
+	if not hud._notice.text.contains("已保存"):
+		hud.quick_path = SaveManager.DEFAULT_PATH
+		_fail("按 F7 之后顶栏提示是「%s」，不像保存成功" % hud._notice.text)
+		return
+	# 快读：把当天的天数改脏，再按 F8，应当被存档里的值覆盖回去
+	runner.sim.s["day"] = 999999
+	await process_frame
+	hud.set_notice("")
+	await _key(KEY_F8)
+	if int(runner.sim.s["day"]) == 999999:
+		hud.quick_path = SaveManager.DEFAULT_PATH
+		_fail("按 F8 没把存档读回来（day 还是 999999）—— 快读没接上？")
+		return
+	if not hud._notice.text.contains("已读取"):
+		hud.quick_path = SaveManager.DEFAULT_PATH
+		_fail("按 F8 之后顶栏提示是「%s」，不像读取成功" % hud._notice.text)
+		return
+	# 测试存档用完就删，并把存档位还回去
+	hud.quick_path = SaveManager.DEFAULT_PATH
+	if FileAccess.file_exists(test_path):
+		DirAccess.remove_absolute(abs_path)
+	_ok("F7 = 快存、F8 = 快读（真读真写；门槛用的是测试存档位，没碰玩家自己的快存）")
 
 	# ---- 收尾 ---------------------------------------------------------------
 	if _checks == 0:

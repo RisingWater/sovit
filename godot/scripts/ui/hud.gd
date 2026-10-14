@@ -21,6 +21,13 @@ const CFG_PATH := "user://hud.cfg"
 const DEFAULT_VISIBLE := ["wood", "stone", "brick", "clay", "firewood",
 	"coarse_bread", "vegetable"]
 
+## 快存 / 快读的存档位。
+##
+## **故意留成变量而不是直接用 `SaveManager.DEFAULT_PATH`**：门槛 `keys_test.gd`
+## 要真按 F7 / F8（不然测不到这条绑定），而那两个键会真的读写存档 ——
+## 指向测试文件才不会把玩家自己的快存覆盖掉。
+var quick_path: String = SaveManager.DEFAULT_PATH
+
 var _info: Label
 var _notice: Label
 var _speed_btns: Array[Button] = []
@@ -31,6 +38,10 @@ var _nav_btns: Array[Button] = []
 ## 速度档位。`+` / `-` 按它步进；**1x 就是最慢**（用户："减速最快 1x"），
 ## 4x 是最快。与顶栏那排按钮一一对应。
 const SPEEDS := [1.0, 2.0, 4.0]
+
+## 圆钮最多占几个 F 键。**F7 / F8 留给快存 / 快读**（用户："F7快存F8快读"），
+## 所以圆钮只认 F1..F6；第 7、8 个圆钮没有快捷键（tooltip 里也不写）。
+const NAV_MAX_KEY := 6
 
 var _res_row: HBoxContainer
 var _chip_labels: Dictionary = {}
@@ -90,12 +101,12 @@ func _ready() -> void:
 
 	# 只保留"快存 / 快读"（直接写默认存档位），其余进 ESC 菜单
 	var qs := UIKit.button("快存", true)
-	qs.tooltip_text = "快速保存到默认存档位（F5）"
-	qs.pressed.connect(_on_save)
+	qs.tooltip_text = "快速保存到默认存档位（F7）"
+	qs.pressed.connect(quick_save)
 	row.add_child(qs)
 	var ql := UIKit.button("快读", true)
-	ql.tooltip_text = "从默认存档位快速读取（F9）"
-	ql.pressed.connect(_on_load)
+	ql.tooltip_text = "从默认存档位快速读取（F8）"
+	ql.pressed.connect(quick_load)
 	row.add_child(ql)
 	# 「统计 / 科技」按钮已移到左侧小地图下方的圆形按钮列（见 _build_nav）
 	var menu := UIKit.button("菜单", true)
@@ -255,9 +266,11 @@ func _build_nav() -> void:
 		b.name = "Nav_" + ico_name
 		b.custom_minimum_size = Vector2(NAV_BTN, NAV_BTN)
 		b.focus_mode = Control.FOCUS_NONE
-		# F 键提示按**按钮顺序**给：第 1 个圆钮是 F1，第 8 个是 F8。
-		# 以后往 NAV_ITEMS 里加一项就自动多一个 F 键（快捷键代码不用改）。
-		b.tooltip_text = "%s（F%d）" % [label, _nav_btns.size() + 1]
+		# F 键提示按**按钮顺序**给：第 1 个圆钮是 F1，第 6 个是 F6。
+		# ⚠️ 只到 F6：**F7 / F8 留给快存 / 快读**（用户定的），所以圆钮就算加到
+		# 第 7、8 个也不给 F 键 —— 提示里不写，用户按不出来才不会以为坏了。
+		var nav_i := _nav_btns.size() + 1
+		b.tooltip_text = "%s（F%d）" % [label, nav_i] if nav_i <= NAV_MAX_KEY else label
 		var ico := UIKit.stat_icon(ico_name)
 		if ico != null:
 			b.icon = ico
@@ -460,16 +473,16 @@ func _mark_speed(idx: int) -> void:
 		_speed_btns[i].add_theme_stylebox_override("normal",
 			UIKit.box(UIKit.T_BTN_ACTIVE if i == idx else UIKit.T_BTN))
 
-func _on_save() -> void:
+func quick_save() -> void:
 	if world == null:
 		return
-	var err = world.save_to(SaveManager.DEFAULT_PATH)
+	var err = world.save_to(quick_path)
 	set_notice("已保存" if err == OK else "保存失败")
 
-func _on_load() -> void:
+func quick_load() -> void:
 	if world == null:
 		return
-	if world.load_from(SaveManager.DEFAULT_PATH):
+	if world.load_from(quick_path):
 		set_notice("已读取存档")
 	else:
 		set_notice("没有可用存档")
@@ -511,9 +524,10 @@ func speed_step(dir: int) -> void:
 	idx = clampi(idx + dir, 0, SPEEDS.size() - 1)
 	_on_speed(false, SPEEDS[idx])
 
-## F1..F8：按左侧圆钮列的**第 i 个**（0 起）。返回 false = 没有这个按钮
-## （现在只有 4 个，所以 F5..F8 落空 —— 调用方据此决定要不要吃掉这个键，
-##  F5 现在仍然是"快存"）。
+## F1..F6：按左侧圆钮列的**第 i 个**（0 起）。返回 false = 没有这个按钮
+## （现在只有 4 个，F5/F6 落空 —— 调用方据此决定要不要吃掉这个键）。
+## ⚠️ **F7 / F8 不在这里**：那是快存 / 快读（`quick_save` / `quick_load`），
+## 上限就是 `NAV_MAX_KEY`。
 func activate_nav(i: int) -> bool:
 	if i < 0 or i >= _nav_btns.size():
 		return false
