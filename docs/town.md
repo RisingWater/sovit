@@ -1363,4 +1363,66 @@ godot --path godot -s res://tools/screenshot.gd -- D:/tmp/doors.png doors
 镜头怼到城镇中心。一张图里能同时看到**两格门洞**（橙框 = `reserved`）、
 每座建筑的门格、以及门前**自动铺的那一格路**。
 
+### 13.8 以后要改某一座的门洞，改哪儿、怎么改
+
+**只改一个文件**，看它是不是住房：
+
+| 建筑 | 改这个文件 |
+|---|---|
+| 普通建筑（面包房、研究所…） | `content/buildings.json` |
+| 住房（茅屋 / 木屋 / 砖房） | `content/housing.json` |
+
+**⚠️ 不要动 `godot/content/*.json`** —— 那是 `sync:content` 生成的副本，
+改了会被下次同步覆盖，而且门槛读的是根目录那份。
+
+#### 怎么写
+
+在该建筑的 `art` 里加（或改）`doors`：
+
+```jsonc
+"art": {
+  "arch": "sprite",
+  "foot": [4, 3],          // 有 doors 就必须能算出占地：arch=sprite 要写 foot
+  "doors": [[1, 2]]        // [[dx, dy], ...]，相对**占地左上角**；第一项是主门
+}
+```
+
+- `dx` = **从左数第几格 − 1**（0 起）；`dy` = **从上往下第几格 − 1**。
+- **`dy` 永远填 `占地高 − 1`**（最后一行）。门格必须在占地底边，否则居民从外面
+  A\* 走不到门口（见 §13.1）。
+- 所以实际操作上你只要告诉我**门在从左数第几格**就行，`dy` 是算出来的。
+- 门画了两格就写两项，前面那项当主门：`"doors": [[3,5],[4,5]]`。
+- 已经声明过的：`town_center` `[[3,5],[4,5]]`、`research_institute` `[[3,2]]`、
+  `hut` `[[1,2]]`（+ 显式 `foot [4,3]`）。
+
+#### 怎么知道门在第几格
+
+1. 游戏里按 **ESC →「建筑占地」** 打开调试开关：每座建筑会画出彩色占地格，
+   数一下门对上的是从左第几格；
+2. 或者直接说"哪座建筑 + 门在从左第几格"，配一张开了开关的截图最省事；
+3. 手工看图的话：贴图**每 16px = 1 格**，贴图**底边对齐占地底边**、横向居中
+   （`_place_sprite()`），从占地左边缘数过去就是 `dx`。
+
+#### 改完必须同步 + 过门槛
+
+```sh
+# 1) 同步到 Godot 工程（必须，否则游戏里看不到改动）
+node --experimental-strip-types scripts/sync-content.ts
+
+# 2) 内容校验 + 全部门槛
+node --experimental-strip-types scripts/check-content.ts
+bash godot/verify.sh          # 最后一行要是 ALL CHECKS PASSED
+
+# 3) 想眼看一遍：截图模式（见 §13.7）
+```
+
+⚠️ 这台机器**不要跑裸 `pnpm test`**：它会把 `node_modules` 里的 typescript
+从 5.9.3 换成 5.7.2（`tsconfig` 的 `erasableSyntaxOnly` 需要 ≥5.8 → TS5023），
+还会生成 `pnpm-lock.yaml`。用上面的 `node --experimental-strip-types` 直接跑。
+
+⚠️ `godot/tools/door_test.gd` 里有两条硬断言：**城镇中心必须正好两格门洞**、
+**每座建筑的门洞都得落在自己占地内**。把城镇中心改成 1 格会让门槛变红 ——
+那是故意的，改需求就要连门槛一起改。
+
+
 
