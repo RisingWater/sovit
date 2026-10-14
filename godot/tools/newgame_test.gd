@@ -86,10 +86,10 @@ func _run() -> void:
 
 	# 5. 新游戏之后仓库精灵必须还在
 	#    （曾经 start_new_game 换了新 GameMap 却没重建仓库精灵，仓库就消失了）
-	if world.warehouse_sprite == null or not is_instance_valid(world.warehouse_sprite):
+	if world.town_center_sprite == null or not is_instance_valid(world.town_center_sprite):
 		_fail("新游戏后仓库精灵没了")
 		return
-	if not world.warehouse_sprite.visible:
+	if not world.town_center_sprite.visible:
 		_fail("新游戏后仓库精灵不可见")
 		return
 

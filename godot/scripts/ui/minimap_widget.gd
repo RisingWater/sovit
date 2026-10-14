@@ -40,7 +40,7 @@ const TERRAIN_COLORS := [
 ]
 const ROAD_COLOR := Color(0.59, 0.50, 0.38)
 const BUILDING_COLOR := Color(0.72, 0.42, 0.36)
-const WAREHOUSE_COLOR := Color(0.80, 0.74, 0.62)
+const TOWN_CENTER_COLOR := Color(0.80, 0.74, 0.62)
 
 var runner: SimRunner
 var world: Node
@@ -254,8 +254,8 @@ func _draw() -> void:
 			var wc := Vector2i(wx, wy)
 			if m.occupied.has(wc):
 				draw_rect(rect, BUILDING_COLOR)
-			elif m.warehouse.has_point(wc):
-				draw_rect(rect, WAREHOUSE_COLOR)
+			elif m.town_center.has_point(wc):
+				draw_rect(rect, TOWN_CENTER_COLOR)
 			elif m.road[m.idx(wx, wy)] != 0:
 				draw_rect(rect, ROAD_COLOR)
 

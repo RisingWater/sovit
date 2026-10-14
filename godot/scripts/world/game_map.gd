@@ -21,7 +21,7 @@ var floor_tiles := PackedByteArray()
 var floor_charge := 0
 var occupied := {}          # Vector2i -> {"kind": ..., "id": ...}
 var reserved := {}          # Vector2i -> true（门格与门前通行格：不可被其它建筑占用）
-var warehouse := Rect2i()
+var town_center := Rect2i()
 var center := Vector2i()
 
 func _init() -> void:
@@ -31,8 +31,8 @@ func _init() -> void:
 	floor_tiles.resize(n)
 	center = Vector2i(W / 2, H / 2)
 	# 中央固定建筑（现在叫"仓库"，将来是城镇中心）：占地 8x3，贴图原生 128 宽、
-	# 比占地高，往上伸出去 —— 见 world_view._build_warehouse。
-	warehouse = Rect2i(W / 2 - 4, H / 2 - 1, 8, 3)
+	# 比占地高，往上伸出去 —— 见 world_view._build_town_center。
+	town_center = Rect2i(W / 2 - 4, H / 2 - 1, 8, 3)
 
 func idx(x: int, y: int) -> int:
 	return y * W + x
@@ -95,8 +95,8 @@ func generate(seed_value: int) -> void:
 	_blob(rng, center.x - 32, center.y + 26, 7, CLAY)
 
 	# 仓库区清成草地
-	for y in range(warehouse.position.y - 2, warehouse.end.y + 2):
-		for x in range(warehouse.position.x - 2, warehouse.end.x + 2):
+	for y in range(town_center.position.y - 2, town_center.end.y + 2):
+		for x in range(town_center.position.x - 2, town_center.end.x + 2):
 			if in_bounds(Vector2i(x, y)):
 				terrain[idx(x, y)] = GRASS
 
@@ -110,7 +110,7 @@ func _blob(rng: RandomNumberGenerator, cx: int, cy: int, r: int, t: int) -> void
 				terrain[idx(x, y)] = t
 
 func cell_free(c: Vector2i) -> bool:
-	return in_bounds(c) and not occupied.has(c) and not warehouse.has_point(c) and not reserved.has(c)
+	return in_bounds(c) and not occupied.has(c) and not town_center.has_point(c) and not reserved.has(c)
 
 func terrain_ok(origin: Vector2i, fw: int, fh: int, terrains: Array) -> bool:
 	for dy in fh:

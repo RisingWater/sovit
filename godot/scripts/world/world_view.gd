@@ -71,16 +71,15 @@ var _shop_door := {}            # shop_id -> Vector2i（门格，可通行）
 var _shop_goal := {}            # shop_id -> Vector2i（屋内落脚格）
 var _doors := {}                # Vector2i -> true（门格）
 var _walk_inside := {}          # Vector2i -> true（门格 + 屋内格：可通行）
-var _warehouse_anchor := Vector2i.ZERO
-var _warehouse_door := Vector2i.ZERO
-var _warehouse_goal := Vector2i.ZERO
+var _town_center_door := Vector2i.ZERO
+var _town_center_goal := Vector2i.ZERO
 var _astar: AStarGrid2D
 var _nav_dirty := true
 var _nav_timer := 0.0
 var _picking := false
 var _paint := false
-var _warehouse_pos := Vector2.ZERO
-var warehouse_sprite: Sprite2D = null
+var _town_center_pos := Vector2.ZERO
+var town_center_sprite: Sprite2D = null
 var selected_resident := ""
 var _font: SystemFont
 
@@ -95,7 +94,7 @@ func _ready() -> void:
 	_font.font_names = PackedStringArray(["Microsoft YaHei", "Noto Sans CJK SC", "SimHei", "sans-serif"])
 	_setup_cursors()
 	_build_tileset()
-	_build_warehouse()
+	_build_town_center()
 	_camera_setup()
 	_sync()
 	_build_astar()
@@ -351,7 +350,7 @@ func _render_base_terrain() -> void:
 
 ## 这一格是否已被占用（建筑 / 仓库 / 道路 / 地板）—— 占用了就不该长树
 func _cell_has_cover(c: Vector2i) -> bool:
-	if map.occupied.has(c) or map.warehouse.has_point(c):
+	if map.occupied.has(c) or map.town_center.has_point(c):
 		return true
 	return map.road[map.idx(c.x, c.y)] != 0 or map.floor_tiles[map.idx(c.x, c.y)] != 0
 
@@ -368,10 +367,10 @@ func _restore_deco(cell: Vector2i, w: int, h: int) -> void:
 			if hv % 3 == 0:
 				deco_layer.set_cell(c, 2, Vector2i(hv % DECO_VARIANTS, 0))
 
-func _build_warehouse() -> void:
-	var fp := map.warehouse.size
+func _build_town_center() -> void:
+	var fp := map.town_center.size
 	var spr := Sprite2D.new()
-	warehouse_sprite = spr
+	town_center_sprite = spr
 	spr.texture = load("res://assets/buildings/_warehouse.png")
 	spr.centered = false
 	# 和普通建筑同一条规则：横向居中、底边对齐，节点位置 = 地面线（供 y 排序）。
@@ -379,22 +378,20 @@ func _build_warehouse() -> void:
 	var tex := spr.texture
 	if tex != null:
 		spr.position = Vector2(
-			map.warehouse.position.x * TILE + fp.x * TILE * 0.5,
-			map.warehouse.position.y * TILE + fp.y * TILE)
+			map.town_center.position.x * TILE + fp.x * TILE * 0.5,
+			map.town_center.position.y * TILE + fp.y * TILE)
 		spr.offset = Vector2(-tex.get_width() * 0.5, -tex.get_height())
 	else:
-		spr.position = Vector2(map.warehouse.position.x * TILE, map.warehouse.position.y * TILE)
+		spr.position = Vector2(map.town_center.position.x * TILE, map.town_center.position.y * TILE)
 	building_layer.add_child(spr)
-	_warehouse_pos = Vector2(map.warehouse.get_center().x * TILE, map.warehouse.get_center().y * TILE)
-	_warehouse_door = _door_cell(map.warehouse.position, fp.x, fp.y)
-	_doors[_warehouse_door] = true
-	_warehouse_goal = _interior_cell(map.warehouse.position, fp.x, fp.y)
-	_walk_inside[_warehouse_door] = true
-	_walk_inside[_warehouse_goal] = true
-	map.reserved[_warehouse_door] = true
-	map.reserved[_warehouse_door + Vector2i(0, 1)] = true
-	_warehouse_anchor = _warehouse_door
-	_add_label("仓库", map.warehouse.position, fp.x, fp.y)
+	_town_center_pos = Vector2(map.town_center.get_center().x * TILE, map.town_center.get_center().y * TILE)
+	_town_center_door = _door_cell(map.town_center.position, fp.x, fp.y)
+	_doors[_town_center_door] = true
+	_town_center_goal = _interior_cell(map.town_center.position, fp.x, fp.y)
+	_walk_inside[_town_center_door] = true
+	_walk_inside[_town_center_goal] = true
+	map.reserved[_town_center_door] = true
+	map.reserved[_town_center_door + Vector2i(0, 1)] = true
 
 func _camera_setup() -> void:
 	camera = Camera2D.new()
@@ -412,7 +409,7 @@ func _camera_setup() -> void:
 
 func _find_free_area(type: String, near: Vector2i, gap: int) -> Vector2i:
 	var fp = _footprint(type)
-	var base = map.warehouse.position + Vector2i(-14, 8)
+	var base = map.town_center.position + Vector2i(-14, 8)
 	for ring in range(0, 90):
 		for dy in range(-ring, ring + 1):
 			for dx in range(-ring, ring + 1):
@@ -567,6 +564,34 @@ func _rerender_terrain() -> void:
 		var fc := Vector2i(c[0], c[1])
 		deco_layer.erase_cell(fc)
 		floor_layer.set_cell(fc, 1, _extra_cell(52))
+	_rebuild_labels()
+
+## 重画地形后**必须**把所有标签补回来。
+##
+## `_rerender_terrain()` 的第一行是 `_clear_labels()`，它会把 `_label_items` 全清空。
+## 以前只有"后建的"商店/住房能重新拿到标签，而城镇中心是在 `start_new_game()` 里
+## 建的、`_lay_showcase_ground()` 里的 `_rerender_terrain()` 排在它后面 ——
+## 于是**标题页展示的那个村庄里，城镇中心（当时还叫仓库）没有名字**。
+## 根因是语句顺序，修法是把它纳入"重画地形后统一重建"的清单：
+## 这样任何调用顺序都不会再丢标签。
+func _rebuild_labels() -> void:
+	if map.town_center.size.x > 0:
+		_add_label("城镇中心", map.town_center.position,
+			map.town_center.size.x, map.town_center.size.y)
+	for sid in _shop_sprites.keys():
+		var def_id := String(_shop_def.get(sid, ""))
+		if not runner.db.buildings.has(def_id):
+			continue
+		var fp := _footprint(def_id)
+		_shop_label[sid] = _add_label(
+			String(runner.db.buildings[def_id]["nameZh"]), _shop_cell[sid], fp.x, fp.y)
+	for inst in _housing_instances:
+		var htype := String(inst["type"])
+		if not runner.db.housing.has(htype):
+			continue
+		inst["label"] = _add_label(
+			String(runner.db.housing[htype]["nameZh"]), inst["cell"],
+			int(inst["fw"]), int(inst["fh"]))
 
 ## 重算某格及其邻格的道路贴图（相邻关系变了）
 func _refresh_road(c: Vector2i) -> void:
@@ -813,7 +838,7 @@ func start_new_game(seed_value: int, resource_mult: float, village_name: String)
 	# 必须重建仓库精灵：上面刚换了一张全新的 GameMap，而 _reset_buildings()
 	# 已经把 building_layer 清空了。load_from 里有这一步，这里漏了就会
 	# 新游戏之后仓库不见了。
-	_build_warehouse()
+	_build_town_center()
 	_prev_res = -1          # 强制 _sync() 重建居民与建筑精灵
 	_prev_housing_n = -1
 
@@ -862,7 +887,7 @@ func load_from(path: String) -> bool:
 			floor_layer.set_cell(Vector2i(c[0], c[1]), 1, _extra_cell(52))
 		map.floor_charge = int(data.get("floorCharge", 0))
 
-	_build_warehouse()
+	_build_town_center()
 
 	if data.has("shops"):
 		for s2 in data.get("sites", []):
@@ -927,7 +952,7 @@ func _move_ok(type: String, origin: Vector2i, fp: Vector2i, own: Dictionary) -> 
 				return false
 			if own.has(c):
 				continue
-			if map.warehouse.has_point(c) or map.occupied.has(c) or map.reserved.has(c):
+			if map.town_center.has_point(c) or map.occupied.has(c) or map.reserved.has(c):
 				return false
 			if not terrains.is_empty() and not terrains.has(GameMap.terrain_name(map.terrain_at(c))):
 				return false
@@ -1114,7 +1139,7 @@ func _refresh_agents() -> void:
 	for a in _agents:
 		var id := String(a["id"])
 		if alive.has(id):
-			a["home"] = _resident_home.get(id, _warehouse_pos)
+			a["home"] = _resident_home.get(id, _town_center_pos)
 			kept.append(a)
 		elif is_instance_valid(a.get("node", null)):
 			# 人没了，把节点一起收掉（否则会留一个不动的"鬼影"站在街上）
@@ -1126,7 +1151,7 @@ func _refresh_agents() -> void:
 	for id in alive.keys():
 		if have.has(id):
 			continue
-		var home = _resident_home.get(id, _warehouse_pos)
+		var home = _resident_home.get(id, _town_center_pos)
 		var node := Sprite2D.new()
 		node.centered = false
 		# 标记"这不是建筑"：_reset_buildings() 清 building_layer 时要跳过小人
@@ -1187,7 +1212,7 @@ func _agent_inside_building(a: Dictionary) -> bool:
 	var c := Vector2i(int(floor(pos.x / float(TILE))), int(floor(pos.y / float(TILE))))
 	if not map.in_bounds(c):
 		return false
-	return map.occupied.has(c) or map.warehouse.has_point(c)
+	return map.occupied.has(c) or map.town_center.has_point(c)
 
 func _actor_texture(cls: String) -> Texture2D:
 	if _actor_tex.has(cls):
@@ -1329,7 +1354,7 @@ func _agent_goal_cell(a: Dictionary, r, hour: int) -> Vector2i:
 		var sid = r.get("jobShopId", null)
 		if sid != null and _shop_goal.has(sid):
 			if (hour % 3) == 0:
-				return _warehouse_goal
+				return _town_center_goal
 			return _shop_goal[sid]
 	return _cell_of(a["home"])
 
@@ -1338,7 +1363,7 @@ func _blocked(c: Vector2i) -> bool:
 		return true
 	if _walk_inside.has(c):
 		return false
-	if map.warehouse.has_point(c):
+	if map.town_center.has_point(c):
 		return true
 	return map.occupied.has(c)
 
@@ -1425,7 +1450,7 @@ func _assign_homes() -> void:
 		marked[t] = done + 1
 	if _housing_instances.is_empty():
 		for r in runner.sim.s["residents"]:
-			_resident_home[String(r["id"])] = _cell_center(_warehouse_goal)
+			_resident_home[String(r["id"])] = _cell_center(_town_center_goal)
 		return
 	var cursor := 0
 	for r in runner.sim.s["residents"]:
@@ -1441,7 +1466,7 @@ func _assign_homes() -> void:
 				placed = true
 				break
 		if not placed:
-			_resident_home[rid] = _cell_center(_warehouse_goal)
+			_resident_home[rid] = _cell_center(_town_center_goal)
 
 # ---- 交互 -----------------------------------------------------------------
 ## 鼠标是否落在某个可见 UI 面板的矩形内。

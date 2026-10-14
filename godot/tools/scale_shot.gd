@@ -46,7 +46,9 @@ func _run() -> void:
 	if args.size() > 1 and args[1].is_valid_float():
 		zoom = float(args[1])
 	var only: Array = []
-	if args.size() > 2 and args[2] != "":
+	# 传 "all"（或空）表示摆全部建筑。不能用空字符串占位：PowerShell 的
+	# Start-Process -ArgumentList 遇到空元素直接报参数校验失败。
+	if args.size() > 2 and args[2] != "" and args[2] != "all":
 		only = args[2].split(",", false)
 	# 可选：每行几座 / 网格间距（格）。间距小于贴图高度就能看到"前排压后排"的遮挡。
 	var cols_arg := 0
@@ -57,6 +59,8 @@ func _run() -> void:
 	if args.size() > 4 and args[4].is_valid_int():
 		gap_x = int(args[4])
 		gap_y = gap_x
+	# 第 6 个参数给 "roads" = 井字形街区模式（铺街 + 建筑各占一个地块、门朝街）
+	var want_roads := args.size() > 5 and args[5] == "roads"
 
 	var ps: PackedScene = load("res://scenes/main.tscn")
 	if ps == null:
@@ -121,19 +125,65 @@ func _run() -> void:
 	var placed := 0
 	var failed := []
 	var cells := []
-	# 地图正中央压着固定的"仓库"（GameMap.warehouse，4x3），落在那儿的会建造失败；
-	# 所以失败就横向/纵向挪几格重试，而不是直接算失败。
+	# 井字形街区：先铺横竖两条街把地切成方块地块，再把建筑放进地块里、**底边贴着
+	# 下面那条街**（门就朝着街）。这样看到的是"真村子"的排布，而不是一堆建筑悬在草地上。
+	var grid_rect := Rect2i()
+	if want_roads:
+		var slot := 12          # 地块边长（最大占地是剧院的 10x10）
+		var street := 2         # 街宽
+		var pitch := slot + street
+		var rows_n := int(ceil(float(sized.size()) / float(cols)))
+		var gw := cols * pitch + street
+		var gh := rows_n * pitch + street
+		var g0 := c - Vector2i(gw / 2, gh / 2)
+		grid_rect = Rect2i(g0, Vector2i(gw, gh))
+		# 先把整块网格的地形清成草地、抹掉装饰：不清的话每个地块都是一片森林，
+		# 建筑埋在林子里根本看不清（地块内部本来就不该长树）。
+		for y in gh:
+			for x in gw:
+				var cc := g0 + Vector2i(x, y)
+				if world.map.in_bounds(cc):
+					world.map.terrain[world.map.idx(cc.x, cc.y)] = GameMap.GRASS
+					world.deco_layer.erase_cell(cc)
+		for i in range(rows_n + 1):          # 横向街道
+			var y0 := g0.y + i * pitch
+			for t in street:
+				for x in gw:
+					_paint_road(world, Vector2i(g0.x + x, y0 + t))
+		for j in range(cols + 1):            # 纵向街道
+			var x0 := g0.x + j * pitch
+			for t in street:
+				for y in gh:
+					_paint_road(world, Vector2i(x0 + t, g0.y + y))
+		world._rerender_terrain()
+		_log("grid %dx%d at %s" % [gw, gh, str(g0)])
+	# 地图正中央压着固定的城镇中心，落在那儿的会建造失败；所以失败就挪几格重试。
 	const NUDGES := [Vector2i(0, 0), Vector2i(0, -7), Vector2i(0, 7),
 		Vector2i(-7, 0), Vector2i(7, 0), Vector2i(0, -14), Vector2i(0, 14)]
 	for i in sized.size():
 		var e: Dictionary = sized[i]
-		var base: Vector2i = c + Vector2i(
-			(i % cols) * gap_x - (cols * gap_x) / 2,
-			int(i / cols) * gap_y - (int(ceil(float(sized.size()) / cols)) * gap_y) / 2)
+		var base: Vector2i
+		if want_roads:
+			# 放进地块：横向居中、纵向贴底（底边 = 地块底边，门朝下面那条街）
+			var slot := 12
+			var street := 2
+			var pitch := slot + street
+			var fp: Vector2i = world._footprint(e["id"])
+			var so := grid_rect.position + Vector2i(
+				(i % cols) * pitch + street + (slot - fp.x) / 2,
+				(int(i / cols)) * pitch + street + slot - fp.y)
+			base = so + Vector2i(1, 1)   # _try_place 收的是"中心格"，内部会 -(1,1)
+		else:
+			base = c + Vector2i(
+				(i % cols) * gap_x - (cols * gap_x) / 2,
+				int(i / cols) * gap_y - (int(ceil(float(sized.size()) / cols)) * gap_y) / 2)
 		var cell: Vector2i = base
 		var ok := false
 		var why := ""
-		for nudge in NUDGES:
+		var tries: Array = [Vector2i(0, 0)] if want_roads else NUDGES
+		if want_roads:
+			tries = [Vector2i(0, 0), Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, -1), Vector2i(0, 1)]
+		for nudge in tries:
 			cell = base + nudge
 			_paint_terrain(world, runner.db, e["id"], cell)
 			if world._try_place(e["id"], cell):
@@ -146,6 +196,9 @@ func _run() -> void:
 		else:
 			failed.append("%s@%s %s" % [e["id"], cell, why])
 		i += 1
+	# 需地形的建筑刚给脚下刷过地形，重画一次让它显出来（顺手重建标签）
+	if want_roads:
+		world._rerender_terrain()
 	_log("place done %d/%d failed=%s" % [placed, sized.size(), str(failed)])
 
 	# 结算：把工地直接变成已完工。_sync() 会把 site 绑成正式建筑精灵，
@@ -175,17 +228,23 @@ func _run() -> void:
 		await process_frame
 	_log("frames done, sprites=%d" % world._shop_sprites.size())
 
-	# 镜头对准摆放区域中心
+	# 镜头对准摆放区域中心；zoom 传 0 表示自动裁到刚好装下整个街区
 	var ui = node.get_node_or_null("UI")
 	if ui != null:
 		ui.visible = false
+	if want_roads and zoom <= 0.0 and grid_rect.size.x > 0:
+		var vp: Vector2 = root.get_visible_rect().size
+		zoom = minf(vp.x / float(grid_rect.size.x * 16), vp.y / float(grid_rect.size.y * 16)) * 0.96
+		_log("auto zoom %.3f for %s" % [zoom, str(grid_rect.size)])
 	if world.camera != null:
-		var sum := Vector2.ZERO
-		for cell in cells:
-			sum += Vector2(cell)
-		if not cells.is_empty():
-			var mid: Vector2 = sum / float(cells.size())
-			world.camera.position = mid * float(world.TILE)
+		if want_roads and grid_rect.size.x > 0:
+			world.camera.position = Vector2(grid_rect.get_center()) * float(world.TILE)
+		else:
+			var sum := Vector2.ZERO
+			for cell in cells:
+				sum += Vector2(cell)
+			if not cells.is_empty():
+				world.camera.position = (sum / float(cells.size())) * float(world.TILE)
 		world.camera.zoom = Vector2(zoom, zoom)
 	_log("camera ok")
 
@@ -202,7 +261,24 @@ func _run() -> void:
 	var err := img.save_png(out_path)
 	print("SCALE ", placed, "/", sized.size(), " failed=", failed)
 	print("SCALE -> ", out_path, " err=", err, " size=", img.get_width(), "x", img.get_height())
+
+	# 街区模式再多出一张**不带文字标签**的：一张用来认建筑，一张用来看纯粹的
+	# 尺寸/遮挡/贴图（标签是屏幕空间 12px 字，在缩小的全景图里会糊住建筑）。
+	if want_roads and world.label_layer != null:
+		world.label_layer.visible = false
+		for f in 4:
+			await process_frame
+		await RenderingServer.frame_post_draw
+		var img2: Image = root.get_texture().get_image()
+		if img2 != null:
+			var p2 := out_path.get_basename() + "_clean.png"
+			print("SCALE clean -> ", p2, " err=", img2.save_png(p2))
 	quit(0 if err == OK else 1)
+
+## 铺一格街。（真正的贴图由 _rerender_terrain() 里的 _road_index 自动选）
+func _paint_road(world, c: Vector2i) -> void:
+	if world.map.in_bounds(c):
+		world.map.road[world.map.idx(c.x, c.y)] = 1
 
 ## 需地形的建筑（伐木场/采石场/粘土坑）脚下刷成所需地形，否则根本下不了单。
 ## 只改 map.terrain 数组 —— `terrain_ok` 读的就是它；不重绘地形图，
