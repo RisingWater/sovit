@@ -32,7 +32,13 @@ const OUT_PATH := "user://debug_all_tech.json"
 const PACK := "v0.3"
 const SEED := 20261014
 const POPULATION := 60
-const GOODS := 20000.0
+# ⚠️ 每种物资给多少，受**仓储上限**约束（docs/town.md §三）：超过的部分当晚就被丢掉。
+# 所以不能像以前那样一味给 20000 —— 总量必须 ≤ storage_capacity()。
+# 下面 GOODS × 商品种类 要留在 STORAGE_LEVEL 撑出来的容量之内（本文件末尾会自检）。
+const GOODS := 500.0
+## 额外塞一座**高级仓库**撑容量：仓库容量 = 300 + 150 × (等级 − 1)。
+## 200 级 = 30,150，足够装 33 种 × 500 = 16,500，也让"挨个摆建筑"的材料够用。
+const STORAGE_LEVEL := 200
 # 15 座茅屋 × capacity 4 = 60，正好住满人口；人口 = 失业人口 = 建造力（v0.3 开局没有店铺）
 const HOUSING := {"hut": 15.0, "wooden_house": 0.0, "brick_house": 0.0}
 const MONEY := 1000000.0
@@ -103,6 +109,17 @@ func _run() -> void:
 		})
 	sim.s["residents"] = residents
 	sim.s["arrivals"] = 0
+	# 4b) 塞一座**高级仓库**撑仓储容量（见 STORAGE_LEVEL 的说明），并派 1 个人看仓库
+	#     —— 仓储建筑"没在岗工人就不算容量"（docs/town.md §3.2）。
+	(sim.s["shops"] as Array).append({
+		"id": "warehouse#dbg", "defId": "warehouse", "owner": "state",
+		"targetWorkers": 1, "wage": float(db.economy["refWage"]),
+		"wageCap": float(db.economy["defaultWageCap"]),
+		"level": STORAGE_LEVEL, "active": true, "profit": 0.0,
+		"skill": 50.0, "planned": 0.0, "toolBoost": 1.0,
+	})
+	(sim.s["residents"][0] as Dictionary)["employed"] = true
+	(sim.s["residents"][0] as Dictionary)["jobShopId"] = "warehouse#dbg"
 	# 首日快照跟着改，否则统计面板的人口/钱财和曲线对不上
 	var hist: Array = sim.s["history"]
 	if hist.size() > 0:
@@ -144,6 +161,13 @@ func _run() -> void:
 	print("人口 %d  住房容量 %d  国库 %.0f  存款 %.0f/人" % [
 		(sim.s["residents"] as Array).size(), sim._housing_capacity(), MONEY, SAVINGS])
 	print("建造力 %.1f 人·天/日（buildWork 最高 48）" % sim.construction_rate())
+	var cap: float = sim.storage_capacity()
+	var used: float = sim.stored_total()
+	print("仓储 %.0f / %.0f（等级 %d 的调试仓库撑的）%s" % [
+		used, cap, STORAGE_LEVEL, "" if used <= cap else "  ✗ 超了！读档当晚会被丢"])
+	if used > cap:
+		quit(1)
+		return
 	print("可建造清单 %d 项，试摆失败 %d 项：%s" % [
 		ids.size(), failed.size(), "无" if failed.is_empty() else str(failed)])
 	print("仍被科技锁住：%s" % ("无" if locked.is_empty() else str(locked)))
