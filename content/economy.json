@@ -41,7 +41,7 @@
     },
 
     "research": {
-      "baseRate": 2.0
+      "baseRate": 0
     },
 
     "tools": {

@@ -74,6 +74,10 @@ func _load() -> void:
 		# 产能参数（建筑工坊 / 研究所）：不产商品、只产每日产能。见 docs/technology.md §6.2
 		if it.has("capacity"):
 			bdef["capacity"] = it["capacity"]
+		# 仓储容量（城镇中心 / 仓库）：{storage, storagePerLevel}。见 docs/town.md §3。
+		# 只挑固定键组装 bdef，所以漏了这一句就会静默丢掉 —— 容量会变成 0，货被丢光。
+		if it.has("storage"):
+			bdef["storage"] = it["storage"]
 		# terrain 只在存在时写入，避免 has("terrain") 永远为真
 		if it.has("terrain"):
 			bdef["terrain"] = String(it["terrain"])

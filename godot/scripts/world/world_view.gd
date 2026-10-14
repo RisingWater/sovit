@@ -371,10 +371,11 @@ func _build_town_center() -> void:
 	var fp := map.town_center.size
 	var spr := Sprite2D.new()
 	town_center_sprite = spr
-	spr.texture = load("res://assets/buildings/_warehouse.png")
+	spr.texture = load("res://assets/buildings/town_center.png")
 	spr.centered = false
 	# 和普通建筑同一条规则：横向居中、底边对齐，节点位置 = 地面线（供 y 排序）。
-	# 仓库原生 128x62，占地 8x3 -> 贴图比占地高 14px，往上伸出去。
+	# 城镇中心是 3 层楼（121x160），占地由 content 声明成 8x6 —— 贴图比占地高
+	# 64px，往上伸出去盖住身后的建筑（这是"占地格数和实际高度可以不同"的直接后果）。
 	var tex := spr.texture
 	if tex != null:
 		spr.position = Vector2(
@@ -691,6 +692,16 @@ func showcase_village(seed_value: int) -> void:
 	s["government"]["populationCap"] = 100000.0
 	for g in (s["goods"] as Dictionary).keys():
 		s["goods"][g] = 20000.0
+	# ⚠️ **展示村庄豁免仓储上限**（`sim_core.apply_storage_cap` 认这个标记）。
+	#
+	# 为什么必须豁免：这份状态是"看起来很热闹的村子"，每种物资 20000 ——
+	# 加起来 66 万，而真实上限只有 1000。不豁免的话标题页第一天就把货全丢了
+	# （日志实测：丢 66 万单位），接着木材 = 0（截图工具连建筑都摆不下）、
+	# 居民成批饿死 —— 标题页上会看到一个正在死掉的村子。
+	# 它只在客户端、只在标题页存在：真开局走 `start_new_game()` 重建 state，
+	# 这个标记不会留下来，所以正式游戏完全不受影响。
+	# TS 侧刻意**没有**这个字段（引擎不产生也不消费它），golden 轨迹不受影响。
+	s["showcase"] = true
 
 	# 先铺路和地板 —— 没有路面的村庄看着非常奇怪（空地上一堆房子）。
 	# 顺序很关键：路先铺，后面摆建筑时再避开路面。
@@ -1057,6 +1068,12 @@ func _sync() -> void:
 		if _shop_sprites.has(nid):
 			continue
 		var def_id = String(shop["defId"])
+		# 城镇中心是**地图上固定那一座**（`game_map.town_center` + `_build_town_center()`）。
+		# 开局 `state.shops` 里那条 `town_center` 说的就是它（引擎要靠它算仓储容量），
+		# 但它的精灵/门/预留格已经由 `_build_town_center()` 摆好了 —— 这里再走一遍
+		# 通用路径就会在地图上多出**第二座**城镇中心。
+		if def_id == "town_center":
+			continue
 		var cell = _take_site_for(def_id)
 		if cell.x < 0:
 			cell = _find_free_area(def_id, map.center, 0)

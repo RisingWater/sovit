@@ -30,9 +30,12 @@ func _init() -> void:
 	road.resize(n)
 	floor_tiles.resize(n)
 	center = Vector2i(W / 2, H / 2)
-	# 中央固定建筑（现在叫"仓库"，将来是城镇中心）：占地 8x3，贴图原生 128 宽、
-	# 比占地高，往上伸出去 —— 见 world_view._build_town_center。
-	town_center = Rect2i(W / 2 - 4, H / 2 - 1, 8, 3)
+	# 地图正中央的**城镇中心**：占地 8x6（用户拍板）。
+	# 贴图是那栋 3 层楼（121x160），比占地高 64px，往上伸出去盖住身后的建筑
+	# —— 见 world_view._build_town_center 与 content 里的 `town_center.art.foot`。
+	# ⚠️ 这两个数字（这里的矩形、content 的 foot）必须一致：不一致的话
+	# 引擎占的地和玩家看到的地会错开。
+	town_center = Rect2i(W / 2 - 4, H / 2 - 3, 8, 6)
 
 func idx(x: int, y: int) -> int:
 	return y * W + x

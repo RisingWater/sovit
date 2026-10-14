@@ -40,7 +40,7 @@ static func _action_key(a: Dictionary) -> String:
 			return t + ":" + String(a.get("goodId", ""))
 		"set_tax_bracket":
 			return t + ":" + str(int(a.get("index", 0)))
-		"set_tax", "set_rent", "set_population_cap":
+		"set_tax", "set_rent", "set_population_cap", "set_storage_caps":
 			return t
 		"research", "cancel_research":
 			return t + ":" + String(a.get("techId", ""))
@@ -139,6 +139,9 @@ func new_game(pack_id: String, seed_value: int, resource_mult: float = 1.0) -> v
 			# 人口上限（玩家可调）：迁入只看住房 + 粮食 + 满意度，规模由它兜住。
 			# 见 docs/spec.md §8。
 			"populationCap": 1000000000.0,
+			# 每种物资的软上限（玩家在「设置资源」里逐项设置）；缺项 = 该项不限。
+			# 见 docs/town.md §3.6。
+			"storageCaps": {},
 		},
 		"goods": goods, "housing": housing, "privateHousing": private_housing, "prices": prices,
 		"shops": shops, "residents": residents, "construction": [],
@@ -224,6 +227,9 @@ func _run_night() -> Array:
 	logs.append_array(_update_population(cons["hungry"], day))
 	logs.append_array(_apply_admission(day))
 	_apply_spoilage()
+	# 仓储超限丢弃：紧接损耗之后（见 docs/town.md §3.3）——
+	# 先损耗、后判上限，损耗腾出来的空间能救下本来会被丢掉的货
+	logs.append_array(apply_storage_cap(day))
 	_grow_skills()
 	_compute_arrivals()
 	s["reserved"] = {}
@@ -232,6 +238,14 @@ func _run_night() -> Array:
 	if s["history"].size() > 400:
 		s["history"] = s["history"].slice(s["history"].size() - 400)
 	s["alerts"] = _build_alerts(cons["hungry"])
+	# 日志也要落进 state（TS 侧 `state.log = [...state.log, ...logs]` 并截断 500）。
+	# ⚠️ 这是历史遗留的 parity 缺口：GDScript 以前只把日志**返回**给调用方，
+	# 从不写进存档 —— 于是"仓储超限丢弃 X 单位 Y"这类日志在 Godot 侧的
+	# `sim.s["log"]` 里看不到（UI 读的是 runner.recent_logs，所以之前没暴露）。
+	var all_logs: Array = (s["log"] as Array)
+	all_logs.append_array(logs)
+	if all_logs.size() > 500:
+		s["log"] = all_logs.slice(all_logs.size() - 500)
 	return logs
 
 # ===========================================================================
@@ -315,6 +329,8 @@ func _apply_actions(actions: Array) -> void:
 				s["government"]["rent"] = SimUtil.r2(clampf(float(action["value"]), 0.0, 99.0))
 			"set_population_cap":
 				s["government"]["populationCap"] = maxf(0.0, floor(float(action["value"])))
+			"set_storage_caps":
+				_set_storage_caps(action)
 			"research":
 				_start_research(String(action["techId"]))
 			"cancel_research":
@@ -333,6 +349,33 @@ func _set_tax_bracket(action: Dictionary) -> void:
 	if action.has("rate"):
 		bs[i]["rate"] = clampf(float(action["rate"]), 0.0, 0.95)
 	_sanitize_brackets(bs)
+
+## 每种物资的软上限（玩家逐项设置，见 docs/town.md §3.6）。
+##
+## **整体替换**：传什么就是什么，缺项 = 该项不限。只收本 pack 里真实存在的商品，
+## 数值取非负整数；0 视为「不限」（与 TS 侧 src/engine/actions.ts 同口径）。
+func _set_storage_caps(action: Dictionary) -> void:
+	var next := {}
+	var gset = _good_set()
+	var caps: Dictionary = action.get("caps", {})
+	for gid in caps.keys():
+		var key := String(gid)
+		if not gset.has(key):
+			continue
+		var n = int(maxf(0.0, floor(_to_number(caps[gid]))))
+		if n > 0:
+			next[key] = n
+	s["government"]["storageCaps"] = next
+
+## 宽松的数字转换（对齐 JS 的 Number()）：非数字 / null 一律当 0。
+func _to_number(v: Variant) -> float:
+	match typeof(v):
+		TYPE_INT, TYPE_FLOAT:
+			return float(v)
+		TYPE_STRING:
+			return float(v) if String(v).is_valid_float() else 0.0
+		_:
+			return 0.0
 
 func _sanitize_brackets(bs: Array) -> void:
 	for i in bs.size():
@@ -464,6 +507,114 @@ func _apply_spoilage() -> void:
 		if cur <= 0.0:
 			continue
 		s["goods"][gid] = SimUtil.r2(cur * (1.0 - minf(1.0, pr)))
+
+# ===========================================================================
+# 仓储（设计见 docs/town.md §三）
+#
+# 两层口径：
+#   1. **全局总量上限** = 所有仓储建筑的容量之和（城镇中心 + 每座仓库）。
+#      超了就在日终结算时把货丢掉 —— 先丢便宜的（baseValue 升序）。
+#   2. **每种物资的软上限**（玩家逐项设置，缺项 = 不限）。先按它修剪，再按全局
+#      上限修剪：某一种货囤满自己的额度后就不再挤占全局空间。
+#
+# 两步都在 `_apply_spoilage` **之后**：先损耗、后判上限 —— 损耗腾出来的空间
+# 可以救下本来会被丢掉的货。
+# ===========================================================================
+
+## 一座建筑在某个等级下的仓储容量。
+func _shop_storage(def: Dictionary, level: int) -> float:
+	if not def.has("storage"):
+		return 0.0
+	var st: Dictionary = def["storage"]
+	return float(st.get("storage", 0.0)) + float(st.get("storagePerLevel", 0.0)) * maxf(0.0, float(level - 1))
+
+## 全局仓储容量。
+##
+## **需要工人的仓储建筑，没人在岗就不算容量** —— 用户要求「每个仓库目前需要有
+## 一个工人」；城镇中心 `workers = 0`，直接计入。
+func storage_capacity() -> float:
+	var cap := 0.0
+	for shop in s["shops"]:
+		var def = db.buildings.get(String(shop["defId"]), null)
+		if def == null or not def.has("storage"):
+			continue
+		if int(def.get("workers", 0)) > 0 and _assigned_workers(String(shop["id"])) < 1:
+			continue
+		cap += _shop_storage(def, int(shop["level"]))
+	return SimUtil.r2(cap)
+
+## 当前库存总量（该 pack 的全部商品之和，含易腐品）。
+func stored_total() -> float:
+	var n := 0.0
+	for gid in _pack()["goods"]:
+		n += float(s["goods"].get(gid, 0.0))
+	return SimUtil.r2(n)
+
+## 丢弃顺序：`baseValue` 升序（先丢便宜的），并列按 goodId 字典序。
+func _discard_order() -> Array:
+	var rows := []
+	for gid in _pack()["goods"]:
+		var g = db.goods.get(gid, null)
+		rows.append([(float(g["baseValue"]) if g != null else 0.0), String(gid)])
+	rows.sort_custom(func(a, b): return a[0] < b[0] if a[0] != b[0] else a[1] < b[1])
+	var out := []
+	for r in rows:
+		out.append(r[1])
+	return out
+
+func _good_name(gid: String) -> String:
+	var g = db.goods.get(gid, null)
+	return String(g["nameZh"]) if g != null else gid
+
+## 日终丢弃。返回日志（调用方并进当日 logs）。见 docs/town.md §3.3。
+##
+## ⚠️ 在建工程的材料在 `_settle_construction` 阶段就已经从 `goods` 扣走了，
+## 而它在夜晚顺序里排在前面 —— 所以不会出现「把工地材料丢了导致工地卡死」。
+func apply_storage_cap(day: int) -> Array:
+	var logs := []
+	# 展示村庄豁免（见 world_view.showcase_village）：那份状态每种物资 20000、
+	# 合计 66 万，按真实上限 1000 会在标题页第一天全丢掉，接着木材清零、居民饿死。
+	# 这个标记只由客户端在标题页设置，正式开局的 state 里没有它。
+	if bool(s.get("showcase", false)):
+		return logs
+
+	# ① 逐项软上限
+	var caps: Dictionary = s["government"].get("storageCaps", {})
+	for gid in _pack()["goods"]:
+		var key := String(gid)
+		if not caps.has(key):
+			continue
+		var lim = float(caps[key])
+		var cur = float(s["goods"].get(key, 0.0))
+		if cur <= lim:
+			continue
+		var lost = SimUtil.r2(cur - lim)
+		s["goods"][key] = SimUtil.r2(lim)
+		logs.append({"day": day, "kind": "storage",
+			"text": "%s 超过单项上限 %s，丢弃 %s 单位" % [_good_name(key), _num_str(lim), _num_str(lost)]})
+
+	# ② 全局总量上限
+	var cap = storage_capacity()
+	var over = SimUtil.r2(stored_total() - cap)
+	if cap > 0.0 and over > 0.0:
+		for gid in _discard_order():
+			if over <= 0.0:
+				break
+			var cur = float(s["goods"].get(gid, 0.0))
+			if cur <= 0.0:
+				continue
+			var take = SimUtil.r2(minf(cur, over))
+			s["goods"][gid] = SimUtil.r2(cur - take)
+			over = SimUtil.r2(over - take)
+			logs.append({"day": day, "kind": "storage",
+				"text": "仓储超限，丢弃 %s 单位 %s" % [_num_str(take), _good_name(gid)]})
+	return logs
+
+## 数字转文本：对齐 JS 模板字符串里数字的呈现（整数不带 ".0"）。
+func _num_str(v: float) -> String:
+	if is_finite(v) and v == floor(v) and absf(v) < 1000000000000000.0:
+		return str(int(v))
+	return str(v)
 
 func _good_value(gid: String, qty: float) -> float:
 	var g = db.goods.get(gid, null)
@@ -1623,7 +1774,27 @@ func _make_snapshot(hungry: int) -> Dictionary:
 	}
 
 func _build_alerts(hungry: int) -> Array:
+	# ⚠️ 顺序必须与 TS `tick.ts::buildAlerts` **逐条一致**（hunger → storage_full →
+	# low_satisfaction）：alerts 会进黄金轨迹摘要，顺序不同就是对拍不一致。
 	var alerts := []
 	if hungry > 0:
 		alerts.append({"type": "hunger", "count": hungry, "text": "%d 人处于饥饿" % hungry})
+	# 仓储满了必须报警：否则货凭空消失，玩家会以为是 bug（docs/town.md §3.3）
+	var cap = storage_capacity()
+	var used = stored_total()
+	if cap > 0.0 and used >= cap:
+		alerts.append({"type": "storage_full", "count": int(round(used)),
+			"text": "仓储已满（%d / %d）" % [int(round(used)), int(round(cap))]})
+	# 满意度偏低。⚠️ 这条 TS 侧一直有、GDScript 侧一直漏了（历史遗留的 parity 缺口），
+	# 2026-10 一并补上。口径照 `tick.ts::avgSatisfaction`：全体居民满意度的算术平均，
+	# 没人时为 0。
+	var avg_sat := 0.0
+	if not (s["residents"] as Array).is_empty():
+		var acc := 0.0
+		for r in s["residents"]:
+			acc += float(r["satisfaction"])
+		avg_sat = acc / float((s["residents"] as Array).size())
+	if avg_sat < 45.0:
+		alerts.append({"type": "low_satisfaction", "count": int(round(avg_sat)),
+			"text": "平均满意度偏低"})
 	return alerts

@@ -4,13 +4,21 @@ extends SceneTree
 #
 # 面板从"列表"改成"树"之后，这里锁的本质没变，但换了形式：
 #   1. 圆钮入口还在（左侧小地图下方那一列）
-#   2. **29 项科技一个不缺**：每一项都要能在树里找到自己的卡片，卡片名字 = nameZh、且有图标
+#   2. **28 项科技一个不缺**：每一项都要能在树里找到自己的卡片，卡片名字 = nameZh、且有图标
 #   3. **点卡片真的会把研究命令送进 pending**（走真实的按下/抬起路径，不是直接调激活函数）
 #   4. 新增：**树的正确性** —— 任何前置的 x 都必须严格小于后继的 x，
 #      且每条前置关系都要有连线。不测这条的话，布局算法改坏了没人知道。
 #
 # 拖动也测：按住 → 移动超过阈值 → 画布必须真的动了，而且**不能**顺手下一个研究单
 # （拖动被当成点击是这个交互最容易出的 bug）。
+
+## 科技总数。
+##
+## 29 → 28：`research_institute` 那条科技已删除（研究所改成开局可建建筑，
+## 见 `docs/town.md` §6 与 `docs/technology.md`）。
+## **刻意写死**而不是取 `db.tech_ids.size()`：这样"某项科技莫名消失/多出来"
+## 才会被这条门抓住 —— 用 size 就等于把断言变成恒真式。
+const EXPECTED_TECHS := 28
 
 func _init() -> void:
 	call_deferred("_run")
@@ -52,6 +60,16 @@ func _run() -> void:
 		node._end_title()
 		await process_frame
 
+	# ⚠️ 必须再开一局**真游戏**：`_end_title()` 只是露出 UI，它保留的是标题页的
+	# "展示村庄"状态（`showcase_village()` 把每种物资都设成 20000）。
+	# 仓储上限上来之后，那份状态第一天就被丢光了（日志里能看到丢了 66 万单位），
+	# 于是木材 = 0，第 6 步下的研究命令会因"材料不足"被引擎拒掉 —— 表现为
+	# "次日研究队列仍为空"。用真开局（v0.3：木材 300）就没有这个前提问题。
+	var world = node.get("world")
+	if world != null:
+		world.start_new_game(20261014, 1.0, "科技测试")
+		await process_frame
+
 	var db = node.runner.db
 	var sim = node.runner.sim
 
@@ -75,7 +93,7 @@ func _run() -> void:
 		_fail("「科技」圆钮没有图标")
 		return
 
-	# ---- 2. 面板打开，29 项科技都在树里
+	# ---- 2. 面板打开，全部科技都在树里
 	var panel = node.get_node_or_null("UI/Root/Tech")
 	if panel == null:
 		_fail("找不到 UI/Root/Tech")
@@ -83,13 +101,13 @@ func _run() -> void:
 	panel.open()
 	for i in 3:
 		await process_frame
-	if db.tech_ids.size() != 29:
-		_fail("科技数应为 29，实际 %d" % db.tech_ids.size())
+	if db.tech_ids.size() != EXPECTED_TECHS:
+		_fail("科技数应为 %d，实际 %d" % [EXPECTED_TECHS, db.tech_ids.size()])
 		return
 
 	var cards: Dictionary = panel.get("_cards")
-	if cards.size() != 29:
-		_fail("树里只建出 %d 张卡片（应 29）" % cards.size())
+	if cards.size() != EXPECTED_TECHS:
+		_fail("树里只建出 %d 张卡片（应 %d）" % [cards.size(), EXPECTED_TECHS])
 		return
 	for tid in db.tech_ids:
 		var t := String(tid)
@@ -182,7 +200,7 @@ func _run() -> void:
 	await process_frame
 	var q: Array = sim.s["research"]["queue"]
 	if q.is_empty():
-		_fail("次日研究队列仍为空（命令没有被引擎接受）")
+		_fail("次日研究队列仍为空（命令没有被引擎接受）；木材=%s" % str(sim.s["goods"].get("wood", -1)))
 		return
 
 	print("TECH TEST 科技=%d 卡片=%d 连线=%d(前置边 %d) 拖动 %s->%s 队列=%s" % [

@@ -1,6 +1,52 @@
 {
   "buildings": [
 	{
+	  "id": "town_center",
+	  "nameZh": "城镇中心",
+	  "art": {
+		"arch": "sprite",
+		"foot": [
+		  8,
+		  6
+		]
+	  },
+	  "tier": 1,
+	  "workers": 0,
+	  "maxWorkers": 0,
+	  "buildCost": {
+		"wood": 40,
+		"stone": 20
+	  },
+	  "buildWork": 60,
+	  "storage": {
+		"storage": 1000,
+		"storagePerLevel": 0
+	  }
+	},
+	{
+	  "id": "warehouse",
+	  "nameZh": "仓库",
+	  "art": {
+		"arch": "warehouse",
+		"roof": "blue",
+		"wall": "plank",
+		"w": 4,
+		"feat": ["logs"]
+	  },
+	  "tier": 2,
+	  "workers": 1,
+	  "maxWorkers": 2,
+	  "buildCost": {
+		"wood": 8,
+		"stone": 6
+	  },
+	  "buildWork": 36,
+	  "storage": {
+		"storage": 300,
+		"storagePerLevel": 150
+	  }
+	},
+	{
 	  "id": "wheat_farm",
 	  "nameZh": "小麦农场",
 	  "art": {

@@ -17,6 +17,7 @@ import type {
   PackStart,
   RecipeDef,
   RecipeID,
+  StorageDef,
   TechDef,
   TechID,
 } from '../types.ts'
@@ -280,8 +281,9 @@ function parseBuildings(
     const id = asStr(o.id, `${p}.id`)
     if (buildings[id]) fail(`${p}.id 重复：${id}`)
 
-    const workers = asPos(o.workers, `${p}.workers`)
-    const maxWorkers = o.maxWorkers === undefined ? undefined : asPos(o.maxWorkers, `${p}.maxWorkers`)
+    // workers 允许为 0：城镇中心这种"被动"建筑不需要工人（只提供仓储/信息）。
+    const workers = asNonNeg(o.workers, `${p}.workers`)
+    const maxWorkers = o.maxWorkers === undefined ? undefined : asNonNeg(o.maxWorkers, `${p}.maxWorkers`)
     if (maxWorkers !== undefined && maxWorkers < workers) {
       fail(`${p}.maxWorkers（${maxWorkers}）不能小于 workers（${workers}）`)
     }
@@ -329,8 +331,17 @@ function parseBuildings(
         slotsPerLevel: asNonNeg(c.slotsPerLevel, `${p}.capacity.slotsPerLevel`),
       }
     }
-    if (recipeId === undefined && capacity === undefined) {
-      fail(`${p} 既没有 recipe 也没有 capacity：建筑总得产出点什么`)
+    // 仓储建筑（城镇中心 / 仓库）：既不产商品也不产产能，只提供仓储容量。
+    let storage: StorageDef | undefined
+    if (o.storage !== undefined) {
+      const s = asObj(o.storage, `${p}.storage`)
+      storage = {
+        storage: asPos(s.storage, `${p}.storage.storage`),
+        storagePerLevel: asNonNeg(s.storagePerLevel ?? 0, `${p}.storage.storagePerLevel`),
+      }
+    }
+    if (recipeId === undefined && capacity === undefined && storage === undefined) {
+      fail(`${p} 既没有 recipe、也没有 capacity / storage：建筑总得产出点什么`)
     }
 
     buildings[id] = {
@@ -341,6 +352,7 @@ function parseBuildings(
       ...(maxWorkers !== undefined ? { maxWorkers } : {}),
       ...(recipeId !== undefined ? { recipe: recipeId } : {}),
       ...(capacity !== undefined ? { capacity } : {}),
+      ...(storage !== undefined ? { storage } : {}),
       buildWork,
       ...(Object.keys(buildCost).length > 0 ? { buildCost } : {}),
       ...(art !== undefined ? { art } : {}),

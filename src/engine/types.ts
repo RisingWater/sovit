@@ -158,6 +158,19 @@ export interface CapacityDef {
   slotsPerLevel: number
 }
 
+/**
+ * 仓储容量（见 `docs/town.md` §3）。
+ *
+ * 口径是**全局总量**：所有商品的数量之和，不是每种商品各自一个上限。
+ * 超过就按 `baseValue` 升序丢（先丢便宜的），并写日志 + 报警。
+ */
+export interface StorageDef {
+  /** 这座建筑提供的容量（1 级）。 */
+  storage: number
+  /** 每升 1 级额外增加的容量。 */
+  storagePerLevel: number
+}
+
 export interface BuildingDef {
   id: BuildingID
   nameZh: string
@@ -172,6 +185,11 @@ export interface BuildingDef {
   buildWork: number
   /** 产能参数（只有不产商品的建筑有）；缺省表示它靠 recipe 产商品。 */
   capacity?: CapacityDef
+  /**
+   * 仓储容量（缺省 0）。城镇中心与仓库靠它提供仓储，**既没有 recipe 也没有
+   * capacity** —— 校验器为此放宽了"建筑总得产出点什么"那条规则。见 docs/town.md §3。
+   */
+  storage?: StorageDef
   /** 建造成本（实物原料）；全为包外商品时回退为金钱成本。 */
   buildCost?: Partial<Record<GoodID, number>>
   /** 外观规格（缺省时 gen-art 用兜底样式）。 */
@@ -414,6 +432,15 @@ export interface Government {  money: number
    * 用来防止"一口气涌进来一堆人、粮食跟不上饿死"。1e9 = 不限。
    */
   populationCap: number
+  /**
+   * **每种物资的软上限**（玩家在「设置资源」里逐项设置）。缺项 = 该项不限。
+   *
+   * 为什么要它：全局仓储上限是"总量"口径，一种货囤多了就会把空间占满，
+   * 于是别的物资生产出来**收不下、当晚被丢掉**。给单个货设一个软上限
+   * （超过就在日终结算时把超出部分丢掉），就能把它挡在别人前面。
+   * 见 `docs/town.md` §3.6。
+   */
+  storageCaps: Partial<Record<GoodID, number>>
 }
 
 export interface TaxBracket {
@@ -444,6 +471,7 @@ export interface LogEntry {
     | 'hunger'
     | 'invest'
     | 'alert'
+    | 'storage'
     | 'info'
   text: string
 }
@@ -454,6 +482,7 @@ export type AlertType =
   | 'shortage'
   | 'unemployment'
   | 'low_satisfaction'
+  | 'storage_full'
 
 export interface Alert {
   type: AlertType
@@ -532,6 +561,8 @@ export type Action =
   | { type: 'set_tax_bracket'; index: number; upTo?: number | null; rate?: number }
   | { type: 'set_rent'; value: number }
   | { type: 'set_population_cap'; value: number }
+  /** 整体替换「每种物资的软上限」表（缺项 = 不限）。见 docs/town.md §3.6。 */
+  | { type: 'set_storage_caps'; caps: Partial<Record<GoodID, number>> }
   | { type: 'subsidy'; shopId?: string; amount: number }
   | { type: 'research'; techId: TechID }
   | { type: 'cancel_research'; techId: TechID }

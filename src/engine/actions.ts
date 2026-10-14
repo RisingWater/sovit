@@ -1,4 +1,4 @@
-import type { Action, AppliedAction, GameState, TaxBracket } from './types.ts'
+import type { Action, AppliedAction, GameState, GoodID, TaxBracket } from './types.ts'
 import type { ContentContext } from './content/index.ts'
 import { clamp, round2 } from './util.ts'
 import { tryBuild, tryBuildHousing, tryExpand } from './systems/investment.ts'
@@ -186,6 +186,21 @@ export function applyActions(
       case 'set_population_cap': {
         // 人口上限：迁入到该数就停（防止一口气涌进来一堆人、粮食跟不上饿死）
         state.government.populationCap = Math.max(0, Math.floor(action.value))
+        applied.push({ type: action.type, ok: true })
+        break
+      }
+
+      case 'set_storage_caps': {
+        // 每种物资的软上限（玩家逐项设置，见 docs/town.md §3.6）。
+        // 整体替换：传什么就是什么，缺项 = 该项不限。只收本 pack 里真实存在的商品，
+        // 数值取非负整数（0 = 一点都不许存）。
+        const next: Partial<Record<GoodID, number>> = {}
+        for (const [gid, v] of Object.entries(action.caps ?? {})) {
+          if (!ctx.goodSet.has(gid)) continue
+          const n = Math.max(0, Math.floor(Number(v) || 0))
+          if (n > 0) next[gid as GoodID] = n
+        }
+        state.government.storageCaps = next
         applied.push({ type: action.type, ok: true })
         break
       }

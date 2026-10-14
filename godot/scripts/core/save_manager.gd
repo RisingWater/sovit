@@ -105,6 +105,9 @@ static func _sanitize(s: Dictionary, db: ContentDB) -> void:
 	gov.erase("immigrationAllowance")
 	if not (gov.get("taxBrackets", null) is Array):
 		gov["taxBrackets"] = []
+	# 每种物资的软上限（见 docs/town.md §3.6）：老存档没有这个字段。
+	if not (gov.get("storageCaps", null) is Dictionary):
+		gov["storageCaps"] = {}
 	s["government"] = gov
 
 	# 科技（见 docs/technology.md）：旧存档没有这一段

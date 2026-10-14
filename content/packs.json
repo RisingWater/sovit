@@ -4,30 +4,30 @@
       "id": "v0.3",
       "nameZh": "v0.3 分层社会",
       "goods": ["wheat", "coarse_flour", "coarse_bread", "vegetable", "fine_flour", "white_bread", "sugarcane", "sugar", "pastry", "flax", "cotton", "dye", "coarse_cloth", "fine_cloth", "coarse_clothes", "common_clothes", "luxury_clothes", "leather_clothes", "hide", "meat", "fish", "smoked_fish", "dried_meat", "pottery", "porcelain", "domestic_service", "entertainment", "wood", "stone", "clay", "firewood", "brick", "stone_tools"],
-      "buildings": ["wheat_farm", "coarse_mill", "coarse_bakery", "vegetable_farm", "fine_mill", "white_bakery", "sugarcane_farm", "sugar_works", "pastry_shop", "flax_farm", "cotton_farm", "dye_farm", "coarse_weaver", "fine_weaver", "coarse_clothes_shop", "common_clothes_shop", "luxury_clothes_shop", "leather_shop", "hunting_camp", "fishery", "smokehouse", "dried_meat_works", "pottery_works", "porcelain_works", "domestic_service", "theater", "lumberjack", "quarry", "clay_pit", "firewood_works", "brick_kiln", "construction_works", "research_institute", "tool_works"],
+      "buildings": ["town_center", "warehouse", "wheat_farm", "coarse_mill", "coarse_bakery", "vegetable_farm", "fine_mill", "white_bakery", "sugarcane_farm", "sugar_works", "pastry_shop", "flax_farm", "cotton_farm", "dye_farm", "coarse_weaver", "fine_weaver", "coarse_clothes_shop", "common_clothes_shop", "luxury_clothes_shop", "leather_shop", "hunting_camp", "fishery", "smokehouse", "dried_meat_works", "pottery_works", "porcelain_works", "domestic_service", "theater", "lumberjack", "quarry", "clay_pit", "firewood_works", "brick_kiln", "construction_works", "research_institute", "tool_works"],
       "classes": ["poor", "middle", "rich", "boss"],
       "housing": ["hut", "wooden_house", "brick_house"],
       "start": {
         "population": 12,
         "money": 2000,
         "techs": [],
-        "shops": {},
+        "shops": { "town_center": 1 },
         "housing": { "hut": 5 },
-        "goods": { "coarse_bread": 200, "vegetable": 100, "wood": 300, "stone": 150, "clay": 150, "firewood": 80, "brick": 80 }
+        "goods": { "coarse_bread": 200, "vegetable": 100, "wood": 300, "stone": 150, "clay": 150, "firewood": 40, "brick": 40 }
       }
     },
     {
       "id": "v1.0",
       "nameZh": "v1.0 完整经济",
       "goods": ["wheat", "vegetable", "flax", "cotton", "wood", "stone", "clay", "meat", "fish", "hide", "sugarcane", "dye", "coarse_flour", "fine_flour", "sugar", "coarse_cloth", "fine_cloth", "firewood", "brick", "pottery", "coarse_bread", "white_bread", "pastry", "coarse_clothes", "common_clothes", "luxury_clothes", "leather_clothes", "smoked_fish", "dried_meat", "porcelain", "domestic_service", "entertainment", "stone_tools", "hut", "wooden_house", "brick_house"],
-      "buildings": ["wheat_farm", "vegetable_farm", "flax_farm", "cotton_farm", "sugarcane_farm", "dye_farm", "lumberjack", "quarry", "clay_pit", "hunting_camp", "fishery", "coarse_mill", "fine_mill", "coarse_bakery", "white_bakery", "pastry_shop", "sugar_works", "coarse_weaver", "fine_weaver", "coarse_clothes_shop", "common_clothes_shop", "luxury_clothes_shop", "leather_shop", "firewood_works", "brick_kiln", "pottery_works", "porcelain_works", "domestic_service", "theater", "smokehouse", "dried_meat_works", "construction_works", "housing_works", "research_institute", "tool_works"],
+      "buildings": ["town_center", "warehouse", "wheat_farm", "vegetable_farm", "flax_farm", "cotton_farm", "sugarcane_farm", "dye_farm", "lumberjack", "quarry", "clay_pit", "hunting_camp", "fishery", "coarse_mill", "fine_mill", "coarse_bakery", "white_bakery", "pastry_shop", "sugar_works", "coarse_weaver", "fine_weaver", "coarse_clothes_shop", "common_clothes_shop", "luxury_clothes_shop", "leather_shop", "firewood_works", "brick_kiln", "pottery_works", "porcelain_works", "domestic_service", "theater", "smokehouse", "dried_meat_works", "construction_works", "housing_works", "research_institute", "tool_works"],
       "classes": ["poor", "middle", "rich", "boss"],
       "housing": ["hut", "wooden_house", "brick_house"],
       "start": {
         "population": 16,
         "money": 1000,
         "techs": ["stonework", "digging", "construction"],
-        "shops": { "wheat_farm": 1, "coarse_mill": 1, "coarse_bakery": 1, "vegetable_farm": 1, "lumberjack": 1, "quarry": 1, "clay_pit": 1, "construction_works": 1 },
+        "shops": { "town_center": 1, "wheat_farm": 1, "coarse_mill": 1, "coarse_bakery": 1, "vegetable_farm": 1, "lumberjack": 1, "quarry": 1, "clay_pit": 1, "construction_works": 1 },
         "housing": { "hut": 6 },
         "goods": { "wheat": 20, "coarse_flour": 10, "coarse_bread": 20, "vegetable": 10, "wood": 30, "stone": 15, "clay": 15 }
       }

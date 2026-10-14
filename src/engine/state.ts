@@ -101,6 +101,7 @@ export function createInitialState(options: CreateOptions = {}): GameState {
       rent: ECONOMY.defaultRent,
       subsidyBudget: 0,
       populationCap: 1e9,
+      storageCaps: {},
     },
     goods,
     housing,

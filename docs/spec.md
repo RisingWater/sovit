@@ -63,6 +63,44 @@ goods[g] += output[g]  * batches
 
 `goods[g] *= (1 − perishRate)`（非耐储商品）。
 
+### 2.4 仓储上限 `applyStorageCap`（夜晚，**紧接 §2.3 之后**）
+
+设计见 `docs/town.md` §三。**两层口径**，都在这一步、每天一次：
+
+**① 每种物资的软上限**（玩家在「设置资源」里逐项设置）
+```
+cap_g = government.storageCaps[g]        # 缺项 = 不限
+若 goods[g] > cap_g  →  goods[g] = cap_g，丢弃 (原值 − cap_g)，写一条 log
+```
+用途：某一种货囤满自己的额度后就不再挤占全局空间，别的物资才收得下。
+
+**② 全局总量上限**
+```
+容量 = Σ 仓储建筑的容量          # 见下
+总量 = Σ goods[g]  (本 pack 全部商品)
+若 容量 > 0 且 总量 > 容量  →  按**丢弃顺序**丢到等于容量为止，每种写一条 log
+```
+- 一座建筑的容量 = `storage.storage + storage.storagePerLevel × (等级 − 1)`
+- **`workers > 0` 的仓储建筑，`assignedWorkers < 1` 时不计容量**（仓库要有人看着）；
+  `workers == 0` 的（城镇中心）直接计入
+- 容量 = 0 时**不丢弃**（没有仓储建筑 = 不受上限约束）
+
+**丢弃顺序（确定性）**：`baseValue` 升序；并列按 `goodId` 字典序。即"先扔烂菜，最后才扔丝绸"。
+
+| 常量 | 值 | 来源 |
+|---|---|---|
+| 城镇中心容量 | 1000 | `content/buildings.json` 的 `town_center.storage.storage` |
+| 仓库容量（1 级） | 300 | 同上 `warehouse` |
+| 仓库每级增量 | 150 | `warehouse.storage.storagePerLevel` |
+
+**顺序上的两条硬约束**（都在 `tick.ts` 的夜晚序列里，见 §9.3 / §2.3）：
+1. 在 `settleConstruction` **之后** —— 工地开工扣材料发生在更早，不会被超限丢弃抢走材料
+2. 在 `applySpoilage` **之后** —— 先损耗、后判上限，损耗腾出的空间能救下本来会被丢的货
+
+**报警**：库存总量 ≥ 容量时 `alerts` 里加 `{type:'storage_full'}`（否则货凭空消失，像是 bug）。
+
+**命令 `set_storage_caps { caps }`**：整体替换 `government.storageCaps`；只收本 pack 里存在的商品，值取非负整数，`0` 视为不限（不入表）。
+
 ## 3. 用工 `assignLabor`（黎明）
 
 1. 重置所有居民 `employed=false, jobShopId=undefined, constructionPay=undefined`。

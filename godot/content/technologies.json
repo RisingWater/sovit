@@ -11,15 +11,6 @@
 
   "technologies": [
     {
-      "id": "research_institute",
-      "nameZh": "研究所",
-      "era": 1,
-      "research": 12,
-      "cost": { "goods": { "wood": 10 } },
-      "requires": [],
-      "unlocks": { "buildings": ["research_institute"], "housing": [] }
-    },
-    {
       "id": "stonework",
       "nameZh": "石作",
       "era": 1,

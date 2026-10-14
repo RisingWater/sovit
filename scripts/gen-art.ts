@@ -1068,17 +1068,12 @@ function main(): void {
     writeFileSync(`${ROOT}/thumbs/${b.id}.png`, thumbOf(cv).toPng())
     n++
   }
-  // 地图上的固定仓库结构。用户要求它和研究所/建筑工坊/家政工坊**一样大**，
-  // 所以也按原生 128x62 显示；占地由 game_map 的 warehouse Rect 声明成 8x3，
-  // 贴图比占地高 14px，往上伸出去（见 world_view._build_warehouse）。
-  {
-    const whSrc = `${BUILDING_SRC}/warehouse.png`
-    if (existsSync(whSrc)) {
-      const wh = spriteBuilding('warehouse', whSrc, 1)
-      writeFileSync(`${ROOT}/buildings/_warehouse.png`, wh.toPng())
-      writeFileSync(`${ROOT}/thumbs/_warehouse.png`, thumbOf(wh).toPng())
-    }
-  }
+  // 地图正中央那座固定建筑现在就是**城镇中心**（`content` 里的 `town_center`，
+  // 见 docs/town.md §二），所以它走上面普通的 sprite 分支：贴图 =
+  // `buildings/town_center.png`，由 `building_src/town_center.png`（3 层楼，121x160）
+  // 生成，占地 8x3 由 content 声明。
+  // 原来这里额外生成的 `_warehouse.png` 已删掉 —— 那座 128x62 的"大石头房子"
+  // 现在没有归属：可建的仓库改用程序化小屋（`arch:"warehouse"`，占地 4x3）。
 
   for (const cls of CLASS_IDS) {
     writeFileSync(`${ROOT}/actors/${cls}.png`, actorSheet(cls).toPng())

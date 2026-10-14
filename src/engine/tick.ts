@@ -8,6 +8,7 @@ import { emptyLedger } from './state.ts'
 import { applyActions } from './actions.ts'
 import { assignLabor, growSkills } from './systems/labor.ts'
 import { planProduction, runProductionStep, applySpoilage } from './systems/production.ts'
+import { applyStorageCap, storageCapacity, storedTotal } from './systems/storage.ts'
 import { payWages } from './systems/finance.ts'
 import { collectRent, assignTenure, runPrivateHousingMarket } from './systems/housing.ts'
 import { runConsumption } from './systems/consumption.ts'
@@ -47,10 +48,20 @@ function makeSnapshot(state: GameState, hungry: number): DaySnapshot {
   }
 }
 
-function buildAlerts(state: GameState, hungry: number): Alert[] {
+function buildAlerts(state: GameState, ctx: ContentContext, hungry: number): Alert[] {
   const alerts: Alert[] = []
   if (hungry > 0) {
     alerts.push({ type: 'hunger', count: hungry, text: `${hungry} 人处于饥饿` })
+  }
+  // 仓储满了必须报警：否则货凭空消失，玩家会以为是 bug（docs/town.md §3.3）
+  const cap = storageCapacity(state, ctx)
+  const used = storedTotal(state, ctx)
+  if (cap > 0 && used >= cap) {
+    alerts.push({
+      type: 'storage_full',
+      count: Math.round(used),
+      text: `仓储已满（${Math.round(used)} / ${Math.round(cap)}）`,
+    })
   }
   const avgSat = avgSatisfaction(state)
   if (avgSat < 45) {
@@ -102,13 +113,16 @@ export function runNight(state: GameState, ctx: ContentContext, rng: ReturnType<
   logs.push(...updatePopulation(state, ctx, rng, consumption.hungry, day))
   logs.push(...applyAdmission(state, ctx, rng, day))
   applySpoilage(state, ctx)
+  // 仓储超限丢弃：紧接损耗之后（见 docs/town.md §3.3）——
+  // 先损耗、后判上限，损耗腾出来的空间能救下本来会被丢掉的货
+  logs.push(...applyStorageCap(state, ctx, day))
   growSkills(state)
   computeArrivals(state)
   state.reserved = {}
 
   state.history.push(makeSnapshot(state, consumption.hungry))
   if (state.history.length > 400) state.history = state.history.slice(-400)
-  state.alerts = buildAlerts(state, consumption.hungry)
+  state.alerts = buildAlerts(state, ctx, consumption.hungry)
   state.log = [...state.log, ...logs]
   if (state.log.length > 500) state.log = state.log.slice(-500)
 

@@ -51,6 +51,9 @@
 | `buildCost` | 可选，建店消耗的实物材料（缺省用 money 兜底）。**开工时才扣** |
 | `buildWork` | **必填**，施工所需建造力（人·天）。工期 = 该值 ÷ 每日产能，见 `docs/construction.md` |
 | `recipe` | **可选**。产商品的建筑必填；只提供"每日建造产能"的建筑（建筑工坊）**不写 `recipe`** |
+| `capacity` | **可选**。只产"每日产能"的建筑写它：`{kind:"build"\|"research", perWorker, levelBonus, slotsPerLevel}`（建筑工坊 / 研究所） |
+| `storage` | **可选**。仓储建筑的容量：`{storage, storagePerLevel}`（城镇中心 / 仓库）。写了它就可以**既不写 `recipe` 也不写 `capacity`** —— 两者必有其一，校验器会拦 |
+| `art.foot` | **可选**（`arch:"sprite"` 专用）。占地 `[宽,高]`（格）；缺省按贴图尺寸算。贴图**可以比占地高**，往上伸出去和身后的建筑按地面线互相遮挡，见 `docs/town.md` §3 与 `world_view._place_sprite()` |
 | `recipe.inputs` | 每批次投入（`{}` = 一级产业，不耗料） |
 | `recipe.output` | 每批次产出（不能为空） |
 | `recipe.baseRate` | 满员每日批次数 |

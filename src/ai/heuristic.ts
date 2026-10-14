@@ -34,7 +34,7 @@ const CREW_RESERVE_RATIO = 0.2
  * 研究优先级 = docs/technology.md 依赖图的拓扑序。
  * 每天只在队列为空时补一项；买不起 / 前置未满足就顺延到下一项。
  */
-const RESEARCH_ORDER: string[] = [  'research_institute',
+const RESEARCH_ORDER: string[] = [
   'stonework',
   'digging',
   'firewood',
@@ -316,13 +316,17 @@ function decideGrowth(state: GameState, ctx: ContentContext): Action[] {
     state.construction.length +
     picks.filter((p) => p.type === 'build' || p.type === 'build_housing' || p.type === 'expand').length
 
-  // 开局"引擎优先"：研究所还没研究出来时把队列压到 1 项，这样它一解锁就能
+  // 开局"引擎优先"：研究所还没**建成**时把队列压到 1 项，这样它一投产就能
   // 立刻排到队首（否则被 30+ 建造力的杂项埋在队尾，白白多磨十几天）。
   // 不能连生产建筑一起禁掉——失业人口的**唯一收入**就是上工地（见 docs/technology.md §五），
   // 队列一空全村零收入，直接饿死。
-  const bootstrapping =
-    !state.research.done.includes('research_institute') &&
-    (state.goods['coarse_bread'] ?? 0) > pop * 8
+  //
+  // ⚠️ 判据是"村里有没有研究所这座**建筑**"，不是"研究过研究所这项**科技**"：
+  //    研究所现在是开局可建建筑、那条科技已经删掉（docs/town.md §6），
+  //    而 `research.baseRate = 0` —— 没研究所就一点科研力都没有，
+  //    所以这个判据同时管着"能不能研究"和"该不该先建它"。
+  const hasInstitute = state.shops.some((s) => s.defId === 'research_institute')
+  const bootstrapping = !hasInstitute && (state.goods['coarse_bread'] ?? 0) > pop * 8
   const queueLimit = bootstrapping ? 1 : MAX_CONSTRUCTION_QUEUE
   const queueFull = (): boolean => queuedTotal() >= queueLimit
 
@@ -400,8 +404,7 @@ function decideGrowth(state: GameState, ctx: ContentContext): Action[] {
 
   // 0. 科技：研究队列空着就按优先级表补一项。
   //
-  // 顺序 = docs/technology.md 依赖图的拓扑序。**研究所必须第一项**：
-  // 在它之前全村只有 2.0 科研力/天（12 科研力要熬 6 天），而它一投产就跳到 ~16/天。
+  // 顺序 = docs/technology.md 依赖图的拓扑序。
   // 之后 营造（建筑工坊）是最关键的一步：不研究它，村子满员就业后建造力归零、彻底停工。
   if (state.research.queue.length === 0) {
     for (const tid of RESEARCH_ORDER) {
