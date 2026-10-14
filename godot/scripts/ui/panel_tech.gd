@@ -133,6 +133,7 @@ func _ready() -> void:
 	_view.add_child(_canvas)
 
 	visible = false
+	visibility_changed.connect(_on_visibility_changed)
 	# ⚠️ 这里**不**建树：29 张卡片 + 37 条连线不算便宜，而面板默认是隐藏的。
 	# 建树推迟到第一次 open()（_refresh 里的 _built 判断），
 	# 这样"从没打开过科技面板"的玩家和那些只实例化 main.tscn 的头less 测试都不用付这份钱。
@@ -164,6 +165,39 @@ func open() -> void:
 	if _canvas != null:
 		_canvas.position = _pan
 	_refresh()
+
+
+# ---------------------------------------------------------------------------
+# 打开时**隐藏地图那一侧**的常驻件（小地图 + 左侧圆钮）
+#
+# 用户："你没有隐藏地图，所以全屏的 panel 出来的时候左上角很奇怪"。
+# 小地图本来就压在顶栏下沿（上沿 y≈40），面板从 y=58 铺下来会把它**切成半个**
+# 卡在左上角。真隐藏掉才干净。与 `panel_stats.gd` 同一套做法（共用可见性开关）。
+# ---------------------------------------------------------------------------
+func _on_visibility_changed() -> void:
+	_set_map_chrome(not _any_fullscreen_open())
+
+func _any_fullscreen_open() -> bool:
+	if visible:
+		return true
+	for n in ["Stats", "Tech"]:
+		var s := get_parent().get_node_or_null(n) if get_parent() != null else null
+		if s != null and (s as CanvasItem).visible:
+			return true
+	return false
+
+func _set_map_chrome(on: bool) -> void:
+	if get_parent() == null:
+		return
+	# 小地图：**只藏地图本体**（圆环 + 圆形地图 + 村名红巾），日期框留着 ——
+	# 日期属于顶栏那一行，用户明确要求"保留顶栏显示"。
+	var mm := get_parent().get_node_or_null("Minimap")
+	if mm != null and mm.has_method("set_map_visible"):
+		mm.set_map_visible(on)
+	# 左侧圆钮列：整条藏掉（它在地图那一侧，面板盖着也没法点）
+	var nav := get_parent().get_node_or_null("NavCol")
+	if nav != null:
+		(nav as CanvasItem).visible = on
 
 
 # ===========================================================================

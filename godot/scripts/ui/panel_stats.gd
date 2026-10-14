@@ -86,6 +86,7 @@ func _ready() -> void:
 	scroll.add_child(_body)
 
 	visible = false
+	visibility_changed.connect(_on_visibility_changed)
 	_select_tab(0)
 
 func open() -> void:
@@ -100,6 +101,43 @@ func open_tab(i: int) -> void:
 	move_to_front()
 	visible = true
 	_select_tab(clampi(i, 0, TABS.size() - 1))
+
+# ---------------------------------------------------------------------------
+# 打开时**隐藏地图那一侧**的常驻件（小地图 + 左侧圆钮）
+#
+# 用户："你没有隐藏地图，所以全屏的 panel 出来的时候左上角很奇怪"。
+# 光靠面板盖住不够：小地图本来就压在顶栏下沿（它的上沿在 y≈40），面板从 y=58
+# 铺下来，于是小地图被**切成半个**卡在左上角 —— 上面一截露在顶栏里，
+# 下面一截被面板挡住。真隐藏掉才干净。
+#
+# 用 `visibility_changed` 而不是在每个 open()/close 里手写：任何地方改 visible
+# （包括 main 里 Esc 关面板、按钮回调）都会走到这里。
+# ---------------------------------------------------------------------------
+func _on_visibility_changed() -> void:
+	_set_map_chrome(not _any_fullscreen_open())
+
+## 还有没有别的全屏面板开着（两个面板共用一个可见性开关）
+func _any_fullscreen_open() -> bool:
+	if visible:
+		return true
+	for n in ["Stats", "Tech"]:
+		var s := get_parent().get_node_or_null(n) if get_parent() != null else null
+		if s != null and (s as CanvasItem).visible:
+			return true
+	return false
+
+func _set_map_chrome(on: bool) -> void:
+	if get_parent() == null:
+		return
+	# 小地图：**只藏地图本体**（圆环 + 圆形地图 + 村名红巾），日期框留着 ——
+	# 日期属于顶栏那一行，用户明确要求"保留顶栏显示"。
+	var mm := get_parent().get_node_or_null("Minimap")
+	if mm != null and mm.has_method("set_map_visible"):
+		mm.set_map_visible(on)
+	# 左侧圆钮列：整条藏掉（它在地图那一侧，面板盖着也没法点）
+	var nav := get_parent().get_node_or_null("NavCol")
+	if nav != null:
+		(nav as CanvasItem).visible = on
 
 func _select_tab(i: int) -> void:
 	_tab = i

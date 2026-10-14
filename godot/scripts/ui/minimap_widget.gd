@@ -53,6 +53,22 @@ var _last_view := -1.0
 ## 圆环四块贴图。必须在 _ready() 里加载好 —— 在 _draw() 里现 load() 会拿到
 ## 尚未完成的占位纹理，画出来是一整块白的。
 var _ring_tex: Array = []
+## 地图本体（圆环 + 圆形地图 + 村名红巾）要不要画。
+##
+## 全屏面板（统计 / 科技）打开时置 false：那些面板从顶栏下沿铺满整个屏幕，
+## 而**小地图的上沿本来就压在顶栏里**（日期框就坐在顶栏那一行），
+## 于是只靠"面板盖住"会把它切成半个卡在左上角 —— 用户反馈"左上角很奇怪"。
+## ⚠️ 只藏地图本体，**日期框要留着**：它属于顶栏那一行，用户明确要求"保留顶栏显示"。
+var _map_on := true
+var _rib: Control = null       # 村名红巾（属于地图本体，跟着一起藏）
+
+
+## 只显示/隐藏"地图本体"，日期框不受影响。返回是否支持（给老调用方兜底用）。
+func set_map_visible(on: bool) -> void:
+	_map_on = on
+	if _rib != null:
+		_rib.visible = on
+	queue_redraw()
 
 func setup(r: SimRunner, w: Node) -> void:
 	runner = r
@@ -94,6 +110,7 @@ func _ready() -> void:
 
 	# --- 村名红巾
 	var rib := HBoxContainer.new()
+	_rib = rib
 	rib.position = Vector2((RING_D - RIB_W) * 0.5, RING_D - RIB_H + 6)
 	rib.add_theme_constant_override("separation", 0)
 	rib.mouse_filter = Control.MOUSE_FILTER_STOP
@@ -220,6 +237,8 @@ func _open_rename() -> void:
 # 圆形小地图
 # ---------------------------------------------------------------------------
 func _draw() -> void:
+	if not _map_on:
+		return
 	var m = world.map if world != null else null
 	if m == null:
 		return
