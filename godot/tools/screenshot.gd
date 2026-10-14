@@ -17,8 +17,7 @@ const PLACE_IDS: Array[String] = [
 	"domestic_service", "construction_works", "smokehouse", "theater",
 ]
 
-func _init() -> void:
-	call_deferred("_run")
+func _init() -> void:	call_deferred("_run")
 
 func _run() -> void:
 	var args := OS.get_cmdline_user_args()
@@ -299,29 +298,28 @@ func _run() -> void:
 
 	# 科技面板（科技树）。
 	#
-	# 树是 5 列 x 最多 10 行（画布约 996x1134），默认的 900x740 面板一次看不全，
-	# 所以这里**把面板撑到接近全屏**并横向居中 —— 一张图里就能同时看到
-	# "最左最初始、最右最高级"和它们之间的连线。
-	# 第 4 个参数是画布的 y 平移量（负数往下看），例如 `tech 0` / `tech -520`
+	# ⚠️ 面板现在**本身就是全屏**的（顶栏以下全铺满），所以这里**不再**手工设
+	#    position/size —— 原来那几行会把面板挪到 (20,16)、尺寸 1520x856，
+	#    结果截图里底部建造栏从面板下沿露出来，看着像"没盖住"。
+	# 只保留"把画布向下平移一段"这条（让一张图里看得到树的上下两端）。
+	# 第 3 个参数是画布的 y 平移量（传正数 = 向下看多少像素），例如 `tech 0` / `tech 520`
 	if mode == "tech" or mode == "techtip":
 		var tp = node.get_node_or_null("UI/Root/Tech")
 		if tp != null:
-			tp.custom_minimum_size = Vector2(1520, 856)
-			tp.size = Vector2(1520, 856)
-			tp.position = Vector2(20, 16)
 			tp.open()
 			for _k in 3:
 				await process_frame
 			var vs: Vector2 = tp._view.size
 			var cs: Vector2 = tp._canvas_size
-			# 参数下标：0=输出路径 1=模式 2=向下滚多少像素 3=(仅 techtip) 科技 id
 			var py := 0.0
 			if args.size() > 2:
 				# 传正数 = 向下滚多少像素。
 				# ⚠️ 不能直接传 "-520"：Godot 会把以 `-` 开头的参数当成引擎开关吃掉
 				#    （踩过：截图看起来"平移没生效"）。
 				py = -absf(float(String(args[2])))
-			tp._pan = Vector2(maxf(0.0, (vs.x - cs.x) * 0.5), py)
+			# 横向居中；纵向夹在可平移范围内（全屏视口很大时整棵树装得下 → 停在 0）
+			tp._pan = Vector2(maxf(0.0, (vs.x - cs.x) * 0.5),
+				clampf(py, minf(0.0, vs.y - cs.y), 0.0))
 			tp._canvas.position = tp._pan
 			for _k2 in 2:
 				await process_frame
