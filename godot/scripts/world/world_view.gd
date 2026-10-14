@@ -393,6 +393,23 @@ func _build_town_center() -> void:
 	_walk_inside[_town_center_goal] = true
 	map.reserved[_town_center_door] = true
 	map.reserved[_town_center_door + Vector2i(0, 1)] = true
+	# ⚠️ **把占地登记成一条 shop 占格**，否则这座楼是"点不动"的。
+	#
+	# 点击选中走的是 `_on_left_click()` → `map.occupied_at(cell)` → `select_building`。
+	# 城镇中心没有走 `_create_shop_view()`（它不需要再摆一个精灵，视觉就是这座固定建筑，
+	# `_sync()` 里还专门跳过它的 shop 实例），所以**没人替它登记占格** ——
+	# 结果是点它命中不到任何东西、什么都不弹（用户反馈："城镇中心的窗我弹不出去"）。
+	# id 用 state.shops 里那条 town_center 的实例 id，这样点击 → select_building →
+	# main 的分派就能认出它并弹出对话框。
+	map.occupy(map.town_center.position, fp.x, fp.y, "shop", _town_center_shop_id())
+
+## `state.shops` 里那条 town_center 的实例 id（没有就退回一个约定值）。
+func _town_center_shop_id() -> String:
+	if runner != null and runner.sim != null:
+		for sh in runner.sim.s["shops"]:
+			if String(sh["defId"]) == "town_center":
+				return String(sh["id"])
+	return "town_center#1"
 
 func _camera_setup() -> void:
 	camera = Camera2D.new()

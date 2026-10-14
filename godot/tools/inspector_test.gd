@@ -73,6 +73,22 @@ func _run() -> void:
 		return
 
 	# ---- 2a. 城镇中心 → 浮动对话框（人口），右侧面板收起
+	#
+	# ⚠️ 这里走**真实的点击路径**：城镇中心是地图上那座固定建筑（没有普通 shop 精灵），
+	# 点击靠 `map.occupied_at()` 命中，占格必须由 `_build_town_center()` 自己登记 ——
+	# 漏登记的话它"点不动"，什么窗都弹不出来（用户反馈过）。
+	var world = node.get_node_or_null("World")
+	if world == null:
+		_fail("找不到 World")
+		return
+	world._on_left_click(world.map.town_center.get_center())
+	await process_frame
+	if not civic.visible:
+		_fail("点地图上的城镇中心没有弹出对话框（占格没登记？）")
+		return
+	if ins.visible:
+		_fail("城镇中心弹了对话框，右侧面板不该同时显示")
+		return
 	node._on_select_building(tc_id)
 	await process_frame
 	if not civic.visible:
