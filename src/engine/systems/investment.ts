@@ -18,7 +18,9 @@ import { techBonuses } from './tech_bonus.ts'
 //   建造与升级共用一条**先进先出**队列，串行投入；当天没用完的产能作废（不结转）。
 //
 // **白天**在工作小时里按小时投入（`applyConstructionHours`，与生产同一节奏）：
-//   每小时投入 产能 / 工作小时数，一眼能在工地上看见进度在爬；一天的总额仍是 产能。
+//   每小时的量 = **黎明钉住的当日建造力**（`constructionRateToday`）÷ 工作小时数，
+//   一眼能在工地上看见进度在爬；一天的总额仍是 产能（不结转）。
+// **黎明**只做一件事（`planConstructionDay`）：把这个预算钉死，全天不再现算。
 // **夜晚**只做收尾（`settleConstruction`）：诊断队首为什么没动 + 把当日累计投入
 //   折成工地出工的建造工资。
 //
@@ -255,11 +257,33 @@ export function constructionRate(state: GameState, ctx: ContentContext): number 
 }
 
 /**
- * 工作小时：把当日产能的这一份（`constructionRate × fraction`）投入队首工程。
+ * 黎明：钉死**当日建造力预算**。
+ *
+ * 为什么要有它（与 `planResearchDay` 是同一道闸，不是为了好看）：
+ * 施工的账是按"这一天投了多少"（`constructionWorkToday`）记的，如果每个工作小时
+ * 都现算一次 `constructionRate()`，"一天总量 = 当日建造力"这件事就押在
+ * "同一天里 `constructionRate()` 不变"这个**隐含前提**上 —— 而它取决于失业人口
+ * 与建筑工坊的在岗人数（黎明 `assignLabor` 之外，任何中途的人事变动都会当场
+ * 改变现算值，当天的总量就不再是"今天有多少建造力"）。
+ * 钉死之后，"当天的总量恰好等于黎明那一刻的建造力"是一条**硬闸**，没有隐含前提。
+ *
+ * 口径：**一天的预算 = 这一天黎明那一刻的 `constructionRate`**，全天不变
+ * （与"产能不结转、当天没用完即作废"同一精神）。
+ */
+export function planConstructionDay(state: GameState, ctx: ContentContext): void {
+  state.constructionWorkToday = 0
+  state.constructionRateToday = constructionRate(state, ctx)
+}
+
+/**
+ * 工作小时：把**固定的一份**建造力（`constructionRateToday × fraction`）投入队首工程。
  *
  * 与 `runProductionStep` **同一节奏、同一条件**（`workStart <= h < workEnd`，
- * fraction = 1/工作小时数），所以"一天 = constructionRate 人·天"这个总量不变，
+ * fraction = 1/工作小时数），所以"一天 = 当日建造力（黎明钉住的值）"这个总量不变，
  * 只是摊平到 12 个工作小时里 —— 工地上白天能看见进度在爬。
+ *
+ * **每小时投入量是个常数**（`constructionRateToday / 工作小时数`），起手就不现算
+ * `constructionRate()`：当天中途的人事变动（在岗人数 / 失业人口）不会动摇今天的量。
  *
  * 队列语义与从前逐字一致（先进先出、串行）：
  * - 队首未开工 → 先扣材料（**开工时刻 = 这一天第一个工作小时**）；
@@ -276,9 +300,12 @@ export function applyConstructionHours(
   fraction: number,
 ): LogEntry[] {
   const logs: LogEntry[] = []
-  // rate 是「这一个小时里的产能」。**不取整**（取整会让 12 小时加起来不等于日产能），
-  // 只有落进状态的两处（remaining / 当日累计）用 r4。
-  let rate = constructionRate(state, ctx) * fraction
+  // rate 是「这一个小时里的产能」：**黎明钉住的当日预算** × 这一份，不取整
+  // （取整会让 12 小时加起来不等于日产能），只有落进状态的两处
+  // （remaining / 当日累计）用 r4。
+  // ⚠️ 用 `??` 而不是裸读：旧存档（或手搓的状态）没有这个键时，
+  // 裸读会让 rate 变成 NaN，进而绕过"一天总量不变"这道闸。
+  let rate = (state.constructionRateToday ?? 0) * fraction
   let work = 0
 
   for (const c of state.construction) {

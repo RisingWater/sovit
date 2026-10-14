@@ -49,8 +49,10 @@ static func load_into(path: String, db: ContentDB) -> SimCore:
 static func _sanitize(s: Dictionary, db: ContentDB) -> void:
 	s["day"] = int(s.get("day", 0))
 	s["hour"] = int(s.get("hour", 0))
-	# 施工当日累计（白天按小时投入的累加器，见 docs/spec.md §9.3）。
-	# 旧存档没有这个键 -> 用 .get 兜 0，不然 tick 里第一次 += 会炸。
+	# 施工当日预算 + 已投累计（见 docs/spec.md §9.3）。旧存档没有这两个键：
+	# 预算兜 0（黎明 `_plan_construction_day` 会立刻重算，白天不再每小时现算），
+	# 累计兜 0（不然 tick 里第一次 += 会炸）。
+	s["constructionRateToday"] = float(s.get("constructionRateToday", 0.0))
 	s["constructionWorkToday"] = float(s.get("constructionWorkToday", 0.0))
 	# 科研当日预算 + 已投累计（见 docs/spec.md §10.3）。旧存档没有这两个键：
 	# 预算兜 0（黎明 `_plan_research_day` 会立刻重算），累计兜 0。

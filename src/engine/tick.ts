@@ -14,7 +14,7 @@ import { collectRent, assignTenure, runPrivateHousingMarket } from './systems/ho
 import { runConsumption } from './systems/consumption.ts'
 import { updateSatisfaction } from './systems/satisfaction.ts'
 import { updatePopulation, applyAdmission, computeArrivals } from './systems/population.ts'
-import { applyConstructionHours, settleConstruction, activateCompleted } from './systems/investment.ts'
+import { applyConstructionHours, planConstructionDay, settleConstruction, activateCompleted } from './systems/investment.ts'
 import { applyResearchHours, planResearchDay, settleResearch, activateResearch } from './systems/research.ts'
 import { allocateTools } from './systems/tools.ts'
 
@@ -86,8 +86,11 @@ export function runDawn(state: GameState, ctx: ContentContext): { logs: LogEntry
   // 工具必须在排产之前分配：它决定今天各工坊的产出倍率（shop.toolBoost）
   logs.push(...allocateTools(state, ctx, state.day))
   planProduction(state, ctx)
-  // 当日科研力预算：必须在**用工之后**（科研力取决于研究所的在岗人数），
-  // 且必须在第一个工作小时之前 —— 全天按这个数投入（见 planResearchDay）
+  // 当日建造力预算：必须在**用工之后**（建造力取决于失业人口与建筑工坊的在岗人数），
+  // 且必须在第一个工作小时之前 —— 全天按这个数投入，不每小时现算（见 planConstructionDay）
+  planConstructionDay(state, ctx)
+  // 当日科研力预算：同样在**用工之后**、第一个工作小时之前 —— 全天按这个数投入
+  // （见 planResearchDay）。顺序固定为**先施工、后科研**，与白天、夜晚两处一致。
   planResearchDay(state, ctx)
   return { logs, applied }
 }

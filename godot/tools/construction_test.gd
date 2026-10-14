@@ -8,11 +8,14 @@ extends SceneTree
 # 现在施工与生产同一节奏（workStart ≤ h < workEnd，逐小时投 产能/工作小时数），
 # **一天的总量不变**，但白天必须能看见中间值。
 #
-# 验三件事：
+# 验三件事（外加 A/B/C 三个边界与 D 一条"钉住预算"）：
 #   1. 只推进 6 个工作小时 → 进度 ∈ (0, 当日产能)      —— 中间值存在
 #   2. 推完当天                → 进度继续增加，且 ≈ 当日产能（总量不变，r4 累积）
 #   3. 日志节奏：开工每天最多一条（只在 started 翻转时写）；
 #      「等待材料」诊断每天最多一条（留在入夜那一步，不逐小时刷屏）
+#   D. **黎明钉住当日预算**：当天中途改一个影响 `_construction_rate()` 的量
+#      （加一座在岗 3 人的建筑工坊）→ 当天每小时的量**不变**、总量**精确**等于
+#      黎明钉住的值；次日黎明按新编制重新钉（每小时的量可以变）。
 #
 # 为什么不用表现层（工地提示）来验：那验的是 `site_tip_at` 的文案
 # （见 sitetip_test.gd）。这里验的是**仿真节奏**本身，所以直接喂 SimCore。
@@ -258,6 +261,122 @@ func _run() -> void:
 		return
 	print("CONSTRUCTION TEST C 不结转：队列清空后推满一天，当日投入量 %s → %s（不变）✅" % [
 		str(work_before), str(cs.s.get("constructionWorkToday", -1.0))])
+
+	# =====================================================================
+	# D：**黎明钉住当日预算** —— 当天的量不随中途的人事变动走
+	# =====================================================================
+	#
+	# 施工的"当天总量"必须抵着**黎明钉住**的预算走（`_plan_construction_day` →
+	# `constructionRateToday`），白天只用它，**不每小时现算** `_construction_rate()`。
+	# 这条门槛专防"退回每小时现算"（与 research_test.gd 的 D 段同一条）：
+	# 当天中途给村里加一座**建筑工坊**并在岗 3 人 —— 现算值当场从 12 涨到 15 ——
+	# 然后把这天剩下的小时推完：
+	#   ① 每个工作小时的投入量**不变**（仍 = 钉住的预算 / 工作小时数）
+	#   ② 当天总量**精确**等于钉住的预算（偏差 0）
+	# 若实现退回"每小时现算"，①会立刻红（下午的每格量变成 15/12 而上午是 12/12），
+	# ②也会红。次日黎明预算按**当时的编制**重新钉（建筑工坊的在岗人数进了产能），
+	# 所以第二天的每小时量可以变 —— 这条也一并断言。
+	#
+	# ⚠️ 为什么用"加一座在岗的建筑工坊"而不是"把失业居民标成 employed"：
+	# `_assign_labor` 每天黎明把 employed 全部清零重排，那种改法活不到第二天，
+	# 就验不了"次日重新钉"这半条。建筑工坊是**编制**（在 shops 里），活得过去。
+	var need_d := 40.0	# 远大于当日产能（12）：队首一整天都跑不完，好逐格量
+	var built_d := _make_pair(need_d, need_d)
+	if built_d.is_empty():
+		_fail("D 场景搭不起来（排不进两条工程）")
+		return
+	var ds = built_d["sim"]
+	var budget_d := float(ds.s.get("constructionRateToday", -1.0))
+	if budget_d <= 0.0:
+		_fail("D 场景：黎明没钉住当日建造力预算（constructionRateToday = %s）" % str(budget_d))
+		return
+	var per_hour_d := budget_d / float(_work_hours())
+	if absf(ds.construction_rate() - budget_d) > 1e-9:
+		_fail("D 场景起手：现算值 %.6f ≠ 钉住的预算 %.6f（黎明那一刻没对齐？）" % [
+			ds.construction_rate(), budget_d])
+		return
+	var qd: Array = ds.s["construction"]
+	# 06、07 两格已经投过（`_make_pair` 的返回时机），先把它们记进当天总量
+	var total_d := float(ds.s.get("constructionWorkToday", 0.0))
+	# —— 当天中途改一个**会影响现算值**的量 ——
+	(ds.s["shops"] as Array).append({
+		"id": "construction_works#d", "defId": "construction_works", "owner": "state",
+		"targetWorkers": 3, "wage": 3.0, "wageCap": 6.0, "level": 1,
+		"active": true, "profit": 0.0, "skill": 50.0, "planned": 0.0,
+	})
+	var staffed := 0
+	for r in (ds.s["residents"] as Array):
+		if staffed >= 3:
+			break
+		if not bool(r["employed"]):
+			r["employed"] = true
+			r["jobShopId"] = "construction_works#d"
+			staffed += 1
+	if staffed < 3:
+		_fail("D 场景：没有 3 个失业居民可以派进新建的建筑工坊（只派了 %d 个）" % staffed)
+		return
+	var live_d: float = ds.construction_rate()
+	if live_d <= budget_d + 1e-9:
+		_fail("D 场景：加了一座在岗 3 人的建筑工坊，现算值却没涨（%.4f → %.4f）—— 证不了任何事" % [
+			budget_d, live_d])
+		return
+	if absf(float(ds.s.get("constructionRateToday", -1.0)) - budget_d) > 1e-9:
+		_fail("D 场景：中途动了人事，钉住的预算被改写了（%.4f → %.4f）—— 它只该在黎明改" % [
+			budget_d, float(ds.s.get("constructionRateToday", -1.0))])
+		return
+	# 把这天剩下的小时推完（推到 18:00 —— 起点 18 那一格才入夜，别把那一步吃进来）
+	var hours_d := 0
+	var worst_d := 0.0
+	while int(ds.s["hour"]) != int(db.time["workEnd"]):
+		var r0 := float(qd[0]["remaining"])
+		ds.tick_hour([])
+		var delta := r0 - float(qd[0]["remaining"])
+		if delta > 0.0:
+			hours_d += 1
+			worst_d = maxf(worst_d, absf(delta - per_hour_d))
+			total_d += delta
+	if hours_d != _work_hours() - 2:
+		_fail("D 场景：这天只剩 %d 个满格可推（期望 %d）—— 场景没搭对" % [
+			hours_d, _work_hours() - 2])
+		return
+	# ① 每个工作小时的投入量都不变（仍 = 钉住的预算 / 工作小时数）
+	if worst_d > 1e-9:
+		_fail("D ①：中途动了人事之后，某一格的投入量与「钉住的预算 / 工作小时数」差了 %.6f —— 退回每小时现算了？" % worst_d)
+		return
+	# ② 当天总量 = 钉住值（偏差 0）
+	var drift_d := absf(total_d - budget_d)
+	if drift_d > 1e-9:
+		_fail("D ②：当天总量 %.6f ≠ 钉住的预算 %.6f（偏差 %.6f）—— 当天的量被中途的改动带跑了" % [
+			total_d, budget_d, drift_d])
+		return
+	print("CONSTRUCTION TEST D 钉住预算：中途在岗 +3 人（现算 %.4f → %.4f），当天每格仍投 %.6f = 预算 %.1f / %d；当天总量 %.4f（偏差 %.6f）✅" % [
+		budget_d, live_d, per_hour_d, budget_d, _work_hours(), total_d, drift_d])
+
+	# 次日黎明：预算按**当时的编制**重新钉 → 第二天的每小时量可以变
+	#
+	# ⚠️ 停在 06:00 的那一格**起点**时黎明还没跑（`tick_hour` 是"先结算起点那一刻、
+	# 再把 hour +1"），所以预算要**推过这一格之后再读** —— 那一格里黎明重钉、
+	# 紧接着投出第二天第一个工作小时。
+	while int(ds.s["hour"]) != int(db.time["workStart"]):
+		ds.tick_hour([])
+	var before_d2 := float(qd[0]["remaining"])
+	ds.tick_hour([])	# 起点 06:00：黎明（重钉）+ 第二天第一个工作小时
+	var budget_d2 := float(ds.s.get("constructionRateToday", -1.0))
+	var live_d2: float = ds.construction_rate()
+	if absf(budget_d2 - live_d2) > 1e-9:
+		_fail("D：第二天黎明的预算 %.6f ≠ 那一刻现算的建造力 %.6f —— 黎明没有重新钉" % [
+			budget_d2, live_d2])
+		return
+	if absf(budget_d2 - budget_d) <= 1e-6:
+		_fail("D：第二天黎明的预算还是 %.4f（与第一天一模一样）—— 没按新的编制重钉？" % budget_d2)
+		return
+	var per_hour_d2 := before_d2 - float(qd[0]["remaining"])
+	if absf(per_hour_d2 - budget_d2 / float(_work_hours())) > 1e-3:
+		_fail("D：第二天第一个工作小时投了 %.6f ≠ 新预算 %.4f / %d = %.6f —— 每小时的量没跟着新预算走？" % [
+			per_hour_d2, budget_d2, _work_hours(), budget_d2 / float(_work_hours())])
+		return
+	print("CONSTRUCTION TEST D 次日重钉：黎明预算 %.4f → %.4f，每小时的量 %.6f → %.6f（可以变）✅" % [
+		budget_d, budget_d2, per_hour_d, per_hour_d2])
 
 	print("CONSTRUCTION TEST RESULT: PASS")
 	quit(0)

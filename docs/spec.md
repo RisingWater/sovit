@@ -236,7 +236,8 @@ satisfaction = clamp(satisfaction + (target−satisfaction)*satisfactionSmoothin
 > **建造力 = 每日施工产能（速率，不是库存）**。完整设计见 `docs/construction.md`。
 >
 > **节奏**：施工与生产**同一节奏** —— 产能摊在白天的工作小时里逐小时投入（§9.3），
-> 工地上白天能看见进度在爬；**一天的总量仍是 `constructionRate`**（不结转）。
+> 工地上白天能看见进度在爬；**一天的总量 = 黎明钉住的当日建造力**（不结转）。
+> 黎明的 `planConstructionDay` 只做一件事：把这个预算钉死（§9.3），白天不再现算。
 > 夜晚只做收尾（§9.4）：诊断队首为什么没动 + 把当日投入折成建造工资。
 
 ### 9.1 每日产能 `constructionRate`
@@ -256,15 +257,26 @@ rate = (Σ(失业居民) × construction.unemployedRate
 - 升级工时 = `construction.upgradePerLevel × 当前等级`。
 - `usedSlots = shops + 在建(非 upgrade) + housing`。
 
-### 9.3 白天 `applyConstructionHours(fraction)`（**与 §2.2 同一条件**）
+### 9.3 黎明 `planConstructionDay` + 白天 `applyConstructionHours(fraction)`（**与 §2.2 同一条件**）
 
-在 `state.hour` 满足 `workStart <= h < workEnd` 时**每小时调用一次**（排在
+**黎明**（`runDawn`，排在 `assignLabor` **之后**、第一个工作小时**之前**）：
+```
+state.constructionRateToday = constructionRate(state)   # 当天预算：全天不变
+state.constructionWorkToday = 0
+```
+> 为什么要钉死"当天的预算"：这是"一天总量恰好等于当日建造力"的**硬闸** ——
+> 白天每个工作小时投入的量都抵着它，不必依赖"同一天里 `constructionRate()` 恰好不变"
+> （它取决于失业人口与建筑工坊的在岗人数；`shop.skill` 只在黎明 `assignLabor` 与
+> 入夜 `growSkills` 两处变，但任何一处将来改动都不该动摇当天的总量）。
+> 科研（§10.3）钉的是同一道闸，两边完全同构。
+
+**白天**在 `state.hour` 满足 `workStart <= h < workEnd` 时**每小时调用一次**（排在
 `runProductionStep` **之后** —— 当小时刚产出的木石粘土，当小时就能用于工地开工扣料）。
 `fraction = 1/(workEnd−workStart)`（默认 1/12）。
 
 先进先出，串行投入：
 ```
-rate   = constructionRate × fraction          # 这一个小时的产能；**不取整**
+rate   = constructionRateToday × fraction     # 这一个小时的量：**常数**，不取整
 work   = 0
 for c in construction:                        # 队首 → 队尾
     if rate <= 0 → break
@@ -279,8 +291,10 @@ for c in construction:                        # 队首 → 队尾
     rate -= used ; work += used
 state.constructionWorkToday = round4(state.constructionWorkToday + work)
 ```
+- **每小时的量是个常数**（`constructionRateToday / 工作小时数`），**不是**每小时现算一次
+  `constructionRate()`：当天中途的人事变动（在岗人数 / 失业人口）不会动摇今天的量。
 - **开工时刻 = 这一天第一个工作小时**（材料在这一刻扣，不是夜晚）。
-- 一天的投入总量 = `constructionRate`（每小时 1/工作小时数），**不结转**。
+- 一天的投入总量 = `constructionRateToday`（每小时 1/工作小时数），**不结转**。
 - 日志节奏：小时里**不写**「等待材料」（否则一天刷 12 条）—— 那条诊断在夜晚（§9.4），
   每天最多一条；「开工」只在 `started` 翻转的那一小时写一次。
 - `rate` 本身**不取整**（取整会让工作小时之和不再恰好等于日产能）；
@@ -385,8 +399,8 @@ state.researchWorkToday = 0
 > 为什么要钉死"当天的预算"：这是"一天总量恰好等于当日科研力"的**硬闸** ——
 > 逐小时投入的量与当日已投累计都抵着它，不必依赖"同一天里 `researchRate()` 恰好不变"
 > （`shop.skill` 只在黎明 `assignLabor` 与入夜 `growSkills` 两处变，所以实际一天内不变，
-> 但多一条隐含依赖就多一个将来会被改坏的地方）。施工那边（`constructionWorkToday`）
-> 本来就是同一套口径，两边统一。
+> 但多一条隐含依赖就多一个将来会被改坏的地方）。施工那边（§9.3 的
+> `planConstructionDay`）钉的是同一道预算，两边完全同构。
 
 **白天**在 `state.hour` 满足 `workStart <= h < workEnd` 时**每小时调用一次**，
 排在 `runProductionStep`、`applyConstructionHours` **之后**（先生产、再施工、后科研）。

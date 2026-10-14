@@ -113,6 +113,8 @@ export function createInitialState(options: CreateOptions = {}): GameState {
     // 开局已研究的科技来自 pack.start.techs（缺省空 = 只有无科技锁的建筑可建）
     research: { done: [...(start.techs ?? [])], queue: [] },
     ledgerToday: emptyLedger(0),
+    // 当日建造力预算：由黎明 planConstructionDay 钉死（开局为 0，黎明那一小时算出来）
+    constructionRateToday: 0,
     constructionWorkToday: 0,
     // 当日科研力预算：由黎明 planResearchDay 钉死（开局为 0，黎明那一小时算出来）
     researchRateToday: 0,

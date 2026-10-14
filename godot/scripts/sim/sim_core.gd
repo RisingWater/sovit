@@ -148,8 +148,10 @@ func new_game(pack_id: String, seed_value: int, resource_mult: float = 1.0) -> v
 		# 科技：开局已研究的来自 pack.start.techs（见 docs/technology.md）
 		"research": {"done": _start_techs(pack_id), "queue": []},
 		"ledgerToday": _empty_ledger(0),
-		# 当日已投入施工的建造力（人·天）累加器：工作小时里逐小时累加，
-		# 入夜折成「工地出工」的建造工资后清零。见 docs/spec.md §9.3 / §9.4。
+		# 当日建造力预算（人·天）：黎明 _plan_construction_day 钉死，全天不变；
+		# 以及当日已投入施工的建造力累加器（工作小时里逐小时累加，
+		# 入夜折成「工地出工」的建造工资后清零）。见 docs/spec.md §9.3 / §9.4。
+		"constructionRateToday": 0.0,
 		"constructionWorkToday": 0.0,
 		# 当日科研力预算（人·天）：黎明 _plan_research_day 钉死，全天不变；
 		# 以及当日已投入的科研力累加器。见 docs/spec.md §10.3。
@@ -222,8 +224,11 @@ func _run_dawn() -> Array:
 	# 工具必须在排产之前分配：它决定今天各工坊的产出倍率（shop.toolBoost）
 	logs.append_array(_allocate_tools())
 	_plan_production()
-	# 当日科研力预算：必须在**用工之后**（科研力取决于研究所的在岗人数），
-	# 且必须在第一个工作小时之前 —— 全天按这个数投入（见 _plan_research_day）
+	# 当日建造力预算：必须在**用工之后**（建造力取决于失业人口与建筑工坊的在岗人数），
+	# 且必须在第一个工作小时之前 —— 全天按这个数投入，不每小时现算（见 _plan_construction_day）
+	_plan_construction_day()
+	# 当日科研力预算：同样在**用工之后**、第一个工作小时之前 —— 全天按这个数投入
+	# （见 _plan_research_day）。顺序固定为**先施工、后科研**，与白天、夜晚两处一致。
 	_plan_research_day()
 	return logs
 
@@ -1558,7 +1563,7 @@ func _plan_research_day() -> void:
 	## 没有这个数就只能靠"每小时都现算一次 `_research_rate()`"，而那要依赖
 	## "同一天里 `shop["skill"]` 不变"（它只在黎明 `_assign_labor` 与入夜
 	## `_grow_skills` 两处变）。多一条依赖就多一个将来会被改坏的地方，
-	## 何况施工那边（`constructionWorkToday`）本来就是这么算的，两边口径统一。
+	## 何况施工那边（`_plan_construction_day`）钉的是同一道预算，两边完全同构。
 	##
 	## 口径：**一天的预算 = 这一天黎明那一刻的 `_research_rate()`**，全天不变
 	## （与"产能不结转、当天没用完即作废"同一精神）。
@@ -1791,12 +1796,31 @@ func _mark_construction_workers(work: float) -> void:
 		idle[i]["employed"] = true
 		idle[i]["constructionPay"] = per
 
+func _plan_construction_day() -> void:
+	## 黎明：钉死**当日建造力预算**。
+	##
+	## 为什么要有它（与 _plan_research_day 是同一道闸，不是为了好看）：
+	## 施工的账是按"这一天投了多少"（constructionWorkToday）记的，如果每个工作小时
+	## 都现算一次 _construction_rate()，"一天总量 = 当日建造力"这件事就押在
+	## "同一天里 _construction_rate() 不变"这个**隐含前提**上 —— 而它取决于失业人口
+	## 与建筑工坊的在岗人数（黎明 _assign_labor 之外，任何中途的人事变动都会当场
+	## 改变现算值，当天的总量就不再是"今天有多少建造力"）。
+	## 钉死之后，"当天的总量恰好等于黎明那一刻的建造力"是一条**硬闸**，没有隐含前提。
+	##
+	## 口径：**一天的预算 = 这一天黎明那一刻的 _construction_rate()**，全天不变
+	## （与"产能不结转、当天没用完即作废"同一精神）。
+	s["constructionWorkToday"] = 0.0
+	s["constructionRateToday"] = _construction_rate()
+
 func _apply_construction_hours(fraction: float) -> Array:
-	## 工作小时：把当日产能的这一份（`_construction_rate() × fraction`）投入队首工程。
+	## 工作小时：把**固定的一份**建造力（constructionRateToday × fraction）投入队首工程。
 	##
 	## 与 `_run_production_step` **同一节奏、同一条件**（workStart <= h < workEnd，
-	## fraction = 1/工作小时数），所以"一天 = constructionRate 人·天"这个总量不变，
+	## fraction = 1/工作小时数），所以"一天 = 当日建造力（黎明钉住的值）"这个总量不变，
 	## 只是摊平到工作小时里 —— 工地上白天能看见进度在爬。
+	##
+	## **每小时投入量是个常数**（constructionRateToday / 工作小时数），起手就不现算
+	## _construction_rate()：当天中途的人事变动（在岗人数 / 失业人口）不会动摇今天的量。
 	##
 	## 队列语义与从前逐字一致（先进先出、串行）：
 	##   队首未开工 → 先扣材料（**开工时刻 = 这一天第一个工作小时**）；
@@ -1805,9 +1829,13 @@ func _apply_construction_hours(fraction: float) -> Array:
 	## `remaining` 用 r4 累积：12 次 r2 会漂移（一天就不再恰好等于 constructionRate）。
 	## 「等待材料」的诊断留给夜晚（_settle_construction，每天最多一条），这里不刷屏。
 	var logs := []
-	# rate 是「这一个小时里的产能」。**不取整**（取整会让工作小时加起来不等于日产能），
-	# 只有落进状态的两处（remaining / 当日累计）用 r4。
-	var rate = _construction_rate() * fraction
+	# rate 是「这一个小时里的产能」：**黎明钉住的当日预算** × 这一份，不取整
+	# （取整会让工作小时加起来不等于日产能），只有落进状态的两处
+	# （remaining / 当日累计）用 r4。
+	# ⚠️ 用 .get(..., 0.0) 而不是裸读：旧存档（或手搓的状态）没有这个键时，
+	# 裸读会直接抛 "Invalid access to property or key"（不是静默兜 0），
+	# 白天就再也投不出建造力。
+	var rate = float(s.get("constructionRateToday", 0.0)) * fraction
 	var work = 0.0
 	for c in s["construction"]:
 		if rate <= 0.0:

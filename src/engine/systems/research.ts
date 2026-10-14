@@ -145,7 +145,7 @@ export function cancelResearch(state: GameState, techId: TechID): ResearchCheck 
  * 没有这个数就只能靠"每小时都现算一次 `researchRate`"，而那要依赖
  * "同一天里 `shop.skill` 不变"（它只在黎明 `assignLabor` 与入夜 `growSkills`
  * 两处变）。多一条依赖就多一个将来会被改坏的地方，何况施工那边
- * （`constructionWorkToday`）本来就是这么算的，两边口径统一。
+ * （`planConstructionDay`）钉的是同一道预算，两边完全同构。
  *
  * 顺带的好处：TS 与 GDScript 的熟练度成长时点并不完全一样（TS 在入夜、
  * GDScript 也在入夜，但两边的其它小时级改动各有可能），钉死之后两边天然对齐。

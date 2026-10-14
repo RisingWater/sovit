@@ -18,6 +18,9 @@ extends SceneTree
 #   C. **不结转**：队列清空后剩下的工作小时不再产生任何投入；「完成」日志只 1 条
 #   3. 队首当天跑完 → 剩下的产能溢给下一条，当天投完，不结转
 #   4. 日志节奏：一个科技一天最多一条「研究完成」
+#   D. **黎明钉住当日预算**（防回退）：当天中途改一个影响 `_research_rate()` 的量
+#      （加一座在岗 3 人的研究所）→ 当天每小时的量**不变**、总量**精确**等于黎明
+#      钉住的值；次日黎明按新编制重新钉（每小时的量可以变）
 #
 # 为什么直接喂 `SimCore`（不实例化 main.tscn）：`SimRunner` 自带 `tickSec`
 # （内容里 2.5s）的自动推进，会跟本测试手动 `tick_hour` **抢时间** ——
@@ -465,6 +468,122 @@ func _run() -> void:
 		return
 	print("RESEARCH TEST 日志节奏：%d 天里「研究完成」分布 %s（每个科技每天 ≤ 1）" % [
 		days, str(by_tech_day)])
+
+	# =====================================================================
+	# D：**黎明钉住当日预算**（防回退：科研已经钉了，这条守住它）
+	# =====================================================================
+	#
+	# 与 construction_test.gd 的 D 段同一套：当天中途改一个会影响**现算值**
+	# `_research_rate()` 的量（给村里再加一座研究所、在岗 3 人），然后把这天
+	# 剩下的小时推完 ——
+	#   ① 之后每个工作小时的投入量**不变**（= 黎明钉住的预算 / 工作小时数），
+	#      若实现退回"每小时现算"，下午每格就会跳到新速率/12
+	#   ② 当天总量**精确**等于钉住的预算（偏差 0；最后一格由预算兜底截断）
+	# 次日黎明按**当时的编制**重新钉 → 第二天的每小时量可以变。
+	var sim_d = _place_institute()
+	if sim_d == null:
+		_fail("SimCore 造不出来")
+		return
+	_prime_tech(sim_d, "stonework", 100.0)	# 远大于当日科研力：队首一整天都跑不完
+	_boot_dawn(sim_d, [{"type": "research", "techId": "stonework"}])
+	var budget_d := _budget(sim_d)
+	if budget_d <= 0.0:
+		_fail("D 场景：黎明钉住的当日科研力为 0（研究所没起作用？）")
+		return
+	var per_hour_d := _hour_rate(sim_d)	# 引擎口径的"每小时的量"（r4）
+	var wh_d := int(_db.time["workEnd"]) - int(_db.time["workStart"])
+	var q_d: Array = sim_d.s["research"]["queue"]
+	if q_d.size() != 1:
+		_fail("D 场景：队列里应有刚下单的那一项，实际 %d" % q_d.size())
+		return
+	# —— 当天中途改一个**会影响现算值**的量：再加一座研究所在岗 3 人 ——
+	#（为什么用"加研究所"而不是"给现有研究所多派几个人"：`_assign_labor` 每天黎明
+	#  按 targetWorkers 重排，多派的人活不到第二天，就验不了"次日重新钉"这半条。）
+	(sim_d.s["shops"] as Array).append({
+		"id": "research_institute#d", "defId": "research_institute", "owner": "state",
+		"targetWorkers": 3, "wage": 3.0, "wageCap": 6.0, "level": 1,
+		"active": true, "profit": 0.0, "skill": 50.0, "planned": 0.0,
+	})
+	var staffed_d := 0
+	for r in (sim_d.s["residents"] as Array):
+		if staffed_d >= 3:
+			break
+		if not bool(r["employed"]):
+			r["employed"] = true
+			r["jobShopId"] = "research_institute#d"
+			staffed_d += 1
+	if staffed_d < 3:
+		_fail("D 场景：没有 3 个失业居民可以派进新研究所（只派了 %d 个）" % staffed_d)
+		return
+	var live_d: float = sim_d.research_rate()
+	if live_d <= budget_d + 1e-9:
+		_fail("D 场景：加了一座在岗 3 人的研究所，现算值却没涨（%.4f → %.4f）—— 证不了任何事" % [
+			budget_d, live_d])
+		return
+	if absf(_budget(sim_d) - budget_d) > 1e-9:
+		_fail("D 场景：中途动了人事，钉住的预算被改写了（%.4f → %.4f）—— 它只该在黎明改" % [
+			budget_d, _budget(sim_d)])
+		return
+	# 把这天剩下的小时推完（推到 18:00 —— 起点 18 那一格才入夜）
+	var hours_d := 0
+	var work_end := int(_db.time["workEnd"])
+	while int(sim_d.s["hour"]) != work_end:
+		var cur := int(sim_d.s["hour"])
+		var w0 := float(sim_d.s.get("researchWorkToday", 0.0))
+		sim_d.tick_hour([])
+		var delta := float(sim_d.s.get("researchWorkToday", 0.0)) - w0
+		if delta <= 0.0:
+			continue
+		hours_d += 1
+		# 绝不超过"每小时的量"：超过了就是退回每小时现算了
+		if delta > per_hour_d + 1e-9:
+			_fail("D ①：中途动了人事之后，%02d:00 那一格投了 %.6f > 每小时的量 %.6f —— 退回每小时现算了？" % [
+				cur, delta, per_hour_d])
+			return
+		# 当天最后一个工作小时由预算兜底截断（§10.3：总投入恰好等于预算），其余每格必须一样
+		if cur != work_end - 1 and absf(delta - per_hour_d) > 1e-4:
+			_fail("D ①：%02d:00 那一格投了 %.6f ≠ 钉住的预算/工作小时数 %.6f（r4 误差内）—— 当天的量被中途的改动带跑了" % [
+				cur, delta, per_hour_d])
+			return
+	if hours_d != wh_d - 1:
+		_fail("D 场景：这天只剩 %d 个满格可推（期望 %d）—— 场景没搭对" % [
+			hours_d, wh_d - 1])
+		return
+	# ② 当天总量 = 钉住值（偏差 0）
+	var total_d := float(sim_d.s.get("researchWorkToday", 0.0))
+	var drift_d := absf(total_d - budget_d)
+	if drift_d > 1e-9:
+		_fail("D ②：当天总量 %.6f ≠ 钉住的预算 %.6f（偏差 %.6f）—— 当天的量被中途的改动带跑了" % [
+			total_d, budget_d, drift_d])
+		return
+	print("RESEARCH TEST D 钉住预算：中途在岗 +3 人（现算 %.4f → %.4f），当天每格仍投 %.6f = 预算 %.1f / %d；当天总量 %.4f（偏差 %.6f）✅" % [
+		budget_d, live_d, per_hour_d, budget_d, wh_d, total_d, drift_d])
+
+	# 次日黎明：预算按**当时的编制**重新钉 → 第二天的每小时量可以变
+	#
+	# ⚠️ 停在 06:00 那一格的**起点**时黎明还没跑（`tick_hour` 是"先结算起点那一刻、
+	# 再把 hour +1"），所以预算要**推过这一格之后再读** —— 那一格里黎明重钉
+	# （`researchWorkToday` 归零）并紧接着投出第二天第一个工作小时。
+	while int(sim_d.s["hour"]) != int(_db.time["workStart"]):
+		sim_d.tick_hour([])
+	sim_d.tick_hour([])	# 起点 06:00：黎明（重钉）+ 第二天第一个工作小时
+	var budget_d2 := _budget(sim_d)
+	var live_d2: float = sim_d.research_rate()
+	if absf(budget_d2 - live_d2) > 1e-9:
+		_fail("D：第二天黎明的预算 %.6f ≠ 那一刻现算的科研力 %.6f —— 黎明没有重新钉" % [
+			budget_d2, live_d2])
+		return
+	if absf(budget_d2 - budget_d) <= 1e-6:
+		_fail("D：第二天黎明的预算还是 %.4f（与第一天一模一样）—— 没按新的编制重钉？" % budget_d2)
+		return
+	# 黎明把 `researchWorkToday` 归零过了，所以它现在就是第二天第一个工作小时的投入量
+	var per_hour_d2 := float(sim_d.s.get("researchWorkToday", 0.0))
+	if absf(per_hour_d2 - _hour_rate(sim_d)) > 1e-4:
+		_fail("D：第二天第一个工作小时投了 %.6f ≠ 新预算 %.4f / %d = %.6f —— 每小时的量没跟着新预算走？" % [
+			per_hour_d2, budget_d2, wh_d, _hour_rate(sim_d)])
+		return
+	print("RESEARCH TEST D 次日重钉：黎明预算 %.4f → %.4f，每小时的量 %.6f → %.6f（可以变）✅" % [
+		budget_d, budget_d2, per_hour_d, per_hour_d2])
 
 	print("RESEARCH TEST RESULT: PASS")
 	quit(0)

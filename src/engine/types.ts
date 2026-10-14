@@ -560,6 +560,16 @@ export interface GameState {
   /** 当日台账累加器：黎明清零，夜间结算时挂到当天快照上。 */
   ledgerToday: DayLedger
   /**
+   * 当日建造力预算（人·天）：黎明 `planConstructionDay` 钉死，全天不变。
+   *
+   * 与 `researchRateToday` 同形制：它是"一天总量恰好等于当日建造力"的硬闸 ——
+   * 白天每个工作小时投入的量（`constructionRateToday × fraction`）都抵着它，
+   * 不必依赖"同一天里 `constructionRate()` 恰好不变"（它取决于失业人口与
+   * 建筑工坊的在岗人数，任何中途的人事变动都会当场改变现算值）。
+   * 见 `docs/spec.md` §9.3。
+   */
+  constructionRateToday: number
+  /**
    * 当日已投入施工的建造力（人·天）累加器。
    *
    * 施工在**工作小时里按小时累积**（`applyConstructionHours`），到夜晚才把它
@@ -572,7 +582,7 @@ export interface GameState {
    *
    * 它是"一天总量恰好等于当日科研力"的硬闸：逐小时投入的量与当日已投累计
    * （`researchWorkToday`）都抵着它，不必依赖"同一天里 `researchRate()` 恰好不变"。
-   * 与施工的 `constructionWorkToday` 同一套口径。见 `docs/spec.md` §10.3。
+   * 与施工的 `constructionRateToday` 同一套口径。见 `docs/spec.md` §10.3。
    */
   researchRateToday: number
   /** 当日已投入科研的科研力（人·天）累加器：抵住上面的预算，黎明清零。 */
