@@ -305,7 +305,7 @@ curl -X POST http://localhost:8787/act \
 | **36 个商品图标** | 像素图标包（**doubao**） | **MIT** |
 | **面板 / 顶栏图标**（财政·科技·人口·就业·金币·建造力…） | **workbuddy** | **MIT** |
 | **科技树图标**（29 个，文件名 = 科技 id） | **workbuddy** | **MIT** |
-| **34 张建筑整图**（v3，含 4 座待实装） | **workbuddy** | 随本项目 |
+| **34 张建筑整图**（v3 一批 + v5 重绘的 6 座营地） | **workbuddy** | 随本项目 |
 | 背景音乐 | RPG Town Pack（Talon Trueblood） | 免费 + **需署名** |
 | 标题 logo | AI 生成（带 WORKBUDDY 水印） | 归属需自行确认 |
 

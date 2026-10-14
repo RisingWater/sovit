@@ -402,8 +402,16 @@ firewood 80 / brick 80 / vegetable 100`），**略超 1000 的上限 60 单位**
 | `storage` | **300**（**需 ≥1 在岗工人**才计入，见 §三） |
 | `storagePerLevel` | **150** |
 | 解锁科技 | **无**（开局可建） |
-| 占地 | 4×3 |
-| `art` | `{arch:"warehouse", roof:"blue", wall:"plank", w:4, feat:["logs"]}`（§八） |
+| 占地 | 8×3（**已实装**；本文原设计稿写的是 4×3） |
+| `art` | `{arch:"sprite"}`（**已实装**）→ 贴图 `building_src/warehouse.png`（v3 的 `26_warehouse_仓库_128x62`），128×62 推出占地 8×3 |
+
+> **已实装（2026-10 更新）**：`warehouse` 当初是按**程序化规格**落地的
+> （`{arch:"warehouse", roof:"blue", wall:"plank", w:4, feat:["logs"]}`，占地 4×3），
+> 而 v3 素材里那张 128×62 的仓库整图（很宽很矮 · 蜜色木 + 深红瓦顶 · 大型双开门、
+> 门外木箱酒桶）当时被判定"没有归属"搁置了 —— 于是建造栏卡片上一直是程序化占位图。
+> 现在改成 `{arch:"sprite"}`，贴图走那张整图，占地 8×3（`floor(62/16)`，与
+> `domestic_service` / `research_institute` 这些"宽矮单层"同一档）。
+> **教训**：素材已经在 `building_src/` 里，就别再给同一座建筑写程序化规格。
 
 **为什么无科技锁**：用户要的是"放不下了 → 建仓库"。如果仓库本身还要研究，
 开局的仓储压力就从"选择"变成"卡死"。代价（材料 + 1 工人 + 地皮）已经够做取舍了。
@@ -411,10 +419,8 @@ firewood 80 / brick 80 / vegetable 100`），**略超 1000 的上限 60 单位**
 **升级**：复用现有 `expand` 动作（`upgradePerLevel = 24` 建造力 × 当前等级，
 见 `docs/construction.md`）。
 
-**贴图可以直接复用**：`scripts/gen-art.ts:962` 已经在生成 `_warehouse.png`
-（`renderBuilding({arch:'warehouse', roof:'blue', wall:'stone', w:4})`）——
-它**正好留给这座新的可建仓库**（若想和城镇中心区分，把 `wall` 换成 `plank` 即可）。
-城镇中心另画一张（§八）。
+**贴图**：直接用 v3 整图（见上表），`gen-art.ts` 不再为它生成程序化的
+`_warehouse.png`（那条分支已删）。城镇中心是另一张 121×160 的整图（§八）。
 
 **世界层几乎不需要新代码**：
 
@@ -998,6 +1004,13 @@ for side in [出售侧(市场卖给你), 收购侧(市场从你买)]:      # 固
 
 ## 八、建筑美术清单（给 workbuddy）
 
+> **这份清单已经交付并实装**（2026-10）：三座都拿到了 v3 成品整图，
+> 现在 content 里一律写 `{arch:"sprite"}`，下面的 `roof`/`wall`/`w`/`feat` 建议
+> **只是当初给画师的描述**，不是 content 里该写的东西。
+> 交接情况：`town_center` → `building_src/town_center.png`（121×160，占地 8×6）；
+> `warehouse` → `building_src/warehouse.png`（128×62，占地 8×3）；
+> `market` → **还没实装**（`building_src/market.png` 已在库里备用，见 §五）。
+
 > `scripts/gen-art.ts` 里 `arch` **主要是标签**（`validate.ts:157` 的 `ART_ARCHS`
 > 只做校验；`gen-art.ts` 只对 `field` / `prop` 特判，见 `gen-art.ts:243` / `940`）。
 > **真正决定外形的是 `roof` / `wall` / `w` / `chimney` / `feat`。**
@@ -1012,9 +1025,9 @@ for side in [出售侧(市场卖给你), 收购侧(市场从你买)]:      # 固
 | `market` | 市场 | 4×3 | `{arch:"grand", roof:"red", wall:"wood", w:4, feat:["wheel"]}` | 木结构敞棚市场，红瓦顶，正面三个摊位，门口停一辆手推车 |
 | `warehouse` | 仓库 | 4×3 | `{arch:"warehouse", roof:"blue", wall:"plank", w:4, feat:["logs"]}` | 木板墙大仓库，双开大门，门口堆着板条箱与木桶 |
 
-**需要新画的只有前两座**：`warehouse` 的贴图已经存在
-（`scripts/gen-art.ts:962` 已经在生成 `_warehouse.png`），只是要把它从"地图级精灵"
-改成"内容建筑"（§4.1）——贴图可以复用，或按上表改成 `plank` 墙做个区分。
+**三座里只剩 `market` 没实装**（`warehouse` 已按上表拿到整图并接上，2026-10）。
+`market` 的整图（`building_src/market.png`，128×63）已经在库里备用，
+实装见 §五。
 
 > ⚠️ 若希望"旗杆 / 板条箱 / 秤"这类新装饰，需要在 `gen-art.ts` 里**新增 feat 实现**
 > 并同步 `validate.ts:160` 的 `ART_FEATS` —— 这是代码改动，进 §十一 的待办。

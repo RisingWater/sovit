@@ -37,11 +37,7 @@
       "id": "warehouse",
       "nameZh": "仓库",
       "art": {
-        "arch": "warehouse",
-        "roof": "blue",
-        "wall": "plank",
-        "w": 4,
-        "feat": ["logs"]
+        "arch": "sprite"
       },
       "tier": 2,
       "workers": 1,

@@ -1072,8 +1072,14 @@ function main(): void {
   // 见 docs/town.md §二），所以它走上面普通的 sprite 分支：贴图 =
   // `buildings/town_center.png`，由 `building_src/town_center.png`（3 层楼，121x160）
   // 生成，占地 8x3 由 content 声明。
-  // 原来这里额外生成的 `_warehouse.png` 已删掉 —— 那座 128x62 的"大石头房子"
-  // 现在没有归属：可建的仓库改用程序化小屋（`arch:"warehouse"`，占地 4x3）。
+  //
+  // 可建的 `warehouse` 也走 sprite 分支（2026-10 改）：`building_src/warehouse.png`
+  // 就是 v3 素材里的 `26_warehouse_仓库_128x62`（很宽很矮 · 蜜色木 + 深红瓦顶 ·
+  // 大型双开门，门外木箱酒桶）—— 128x62 → 占地 8x3（floor(62/16)）。
+  // ⚠️ 它以前被写成程序化 `arch:"warehouse"`（占地 4x3 的小屋），v3 那张整图因此
+  // "没有归属"搁置了很久，建造栏卡片上一直是程序化占位图（用户："这个缩略图不对，
+  // 我记得我有一个仓库的建筑图片"）。**素材在 building_src 里就别再写程序化规格**。
+  // 历史上这里额外生成的 `_warehouse.png` 已删掉，不用再找它。
 
   for (const cls of CLASS_IDS) {
     writeFileSync(`${ROOT}/actors/${cls}.png`, actorSheet(cls).toPng())

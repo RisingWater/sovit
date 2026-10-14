@@ -90,9 +90,16 @@ Music: Talon Trueblood
   每座取满足上限的最大整数下采样倍率。详见该文件的注释。
 - 素材包本身不入库（与 Tiny / UI 包一致）：**原始包不入库，实际用到的落到 `godot/assets/`**
 
-> 素材里还有 4 座本项目尚未实装的建筑（仓库 / 市场 / 别墅 / 城镇中心），
-> 已一并导入备用，设计稿见 `docs/town.md`。实装时把对应条目加进
-> `content/buildings.json` 并设 `art.arch = "sprite"` 即可，**无需改代码**。
+> 素材里有 4 座当年本项目尚未实装的建筑（仓库 / 市场 / 别墅 / 城镇中心），已一并导入备用。
+> 现在的交接情况：**城镇中心、仓库已实装**（`content/buildings.json` 里写 `art.arch = "sprite"`）；
+> **市场 / 别墅还没实装**（`building_src/market.png`、`villa.png` 在库里备用，
+> 设计稿见 `docs/town.md`）。实装时把对应条目加进 `content/buildings.json` 并设
+> `art.arch = "sprite"` 即可（占地由贴图尺寸推出，或显式写 `art.foot`），**无需改代码**。
+>
+> ⚠️ 反过来的坑也踩过：素材明明在 `building_src/` 里，却给同一座建筑写了**程序化规格**
+> （`warehouse` 曾经是 `{arch:"warehouse", roof:"blue", ..., w:4}`）—— 于是建造栏卡片和
+> 地图上一直是程序化占位图，那张整图白白搁置（用户报的"仓库缩略图不对"就是这个）。
+> 加建筑前先看一眼 `building_src/` 里有没有它的图。
 
 ### 历史：Super Retro World 已完全移除（2026-10）
 

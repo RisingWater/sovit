@@ -164,6 +164,52 @@ func _run() -> void:
 			Vector2i(tc.size.x, tc.size.y)), " 门前=", world._door_front_cells("town_center",
 			tc.position, Vector2i(tc.size.x, tc.size.y)))
 
+	# 仓库换成成品整图（用户："这个缩略图不对，我记得我有一个仓库的建筑图片"）：
+	# 开一局新的 → 在城镇中心下面摆两座仓库 → 镜头怼过去。
+	# 配合第 3 个参数（建造栏 Tab）用：「工业」是 4，一张图里同时看到卡面与世界里的样子。
+	if mode == "wh":
+		world.start_new_game(20261014, 20.0, "仓库")
+		if runner.sim != null and runner.db != null:
+			var all4: Array = []
+			for t in runner.db.tech_ids:
+				all4.append(String(t))
+			runner.sim.s["research"]["done"] = all4
+			runner.sim.s["government"]["populationCap"] = 999.0
+		await process_frame
+		var tc2: Rect2i = world.map.town_center
+		var wh_fp: Vector2i = world._footprint("warehouse")
+		var wh_cells: Array = []
+		for k in 2:
+			var origin4 := Vector2i(tc2.position.x - 14 + k * (wh_fp.x + 2), tc2.end.y + 3)
+			if world._try_place("warehouse", origin4 + Vector2i.ONE):
+				wh_cells.append(origin4)
+			else:
+				print("SCREENSHOT wh: 放不下 warehouse @ ", origin4,
+					" 钱=", world._can_afford("warehouse"),
+					" 原因=", world.place_reason("warehouse", origin4 + Vector2i.ONE))
+		# 让工地立刻变"建成"：走真实入口（往 sim 里加 shop 记录，`_sync` 会把
+		# 对应的工地收成成品视图）—— 和 door_test 用的是同一条路，
+		# 不用在这儿等 6 天建造力。
+		var idx := 0
+		for origin5 in wh_cells:
+			idx += 1
+			(runner.sim.s["shops"] as Array).append({
+				"id": "warehouse#%d" % idx, "defId": "warehouse", "owner": "state",
+				"targetWorkers": 2, "wage": float(runner.db.economy["refWage"]),
+				"wageCap": float(runner.db.economy["defaultWageCap"]),
+				"level": int(runner.db.defaults["newShop"]["level"]),
+				"active": true, "profit": 0.0,
+				"skill": float(runner.db.defaults["newShop"]["skill"]),
+				"planned": 0.0,
+			})
+		await process_frame
+		await process_frame
+		world.camera.zoom = Vector2(3.0, 3.0)
+		world.camera.position = Vector2((tc2.position.x + wh_fp.x) * world.TILE,
+			(tc2.end.y + 4) * world.TILE)
+		print("SCREENSHOT wh: warehouse foot=", wh_fp, " 贴图=",
+			world._texture_for("warehouse").get_size(), " 建成 ", idx, " 座")
+
 	# 验证资源设置弹窗
 	if mode == "picker":
 		var hud = node.get_node_or_null("UI/Root/HUD")
