@@ -38,8 +38,20 @@ func _run() -> void:
 		runner.sim.tick_hour([])
 		await process_frame
 
-	ins.clear()
+	# 人口面板现在挂在**城镇中心**的检视面板里（未选中时整个面板收起来，
+	# 见 inspector.gd 文件头注释），所以这里要先选中村中心那座楼。
+	var tc_id := ""
+	for sh in runner.sim.s["shops"]:
+		if String(sh["defId"]) == "town_center":
+			tc_id = String(sh["id"])
+	if tc_id == "":
+		_fail("开局没有城镇中心，人口面板无处可看")
+		return
+	ins.show_building(tc_id)
 	await process_frame
+	if not ins.visible:
+		_fail("选中城镇中心后面板没显示")
+		return
 
 	# 点"全收"：当前允许必须**立刻**变成不限并标注已排队
 	ins._set_population_cap(1000000000)

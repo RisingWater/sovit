@@ -149,6 +149,30 @@ func _run() -> void:
 			await process_frame
 			await process_frame
 
+	# 验证右侧检视面板：城镇中心（人口）/ 仓库（资源 + 上限）
+	if mode == "towncenter" or mode == "warehouse":
+		var ins = node.get_node_or_null("UI/Root/Inspector")
+		var sim = runner.sim
+		var target := ""
+		if mode == "towncenter":
+			for sh in sim.s["shops"]:
+				if String(sh["defId"]) == "town_center":
+					target = String(sh["id"])
+		else:
+			# 新开局没有仓库 → 现场塞一座（只为截图，不写存档）
+			(sim.s["shops"] as Array).append({
+				"id": "warehouse#shot", "defId": "warehouse", "owner": "state",
+				"targetWorkers": 1, "wage": 3.0, "wageCap": 6.0, "level": 1,
+				"active": true, "profit": 0.0, "skill": 50.0, "planned": 0.0,
+			})
+			# 顺便填两个上限，让"数量 / 上限"那两列都看得出效果
+			(runner.sim.s["government"] as Dictionary)["storageCaps"] = {"wood": 150, "coarse_bread": 200}
+			target = "warehouse#shot"
+		if ins != null and target != "":
+			ins.show_building(target)
+			await process_frame
+			await process_frame
+
 	# 昼夜：模式 h<N> 表示推进到第 N 小时再截图（验证光影）
 	if mode.begins_with("h") and mode.substr(1).is_valid_int():
 		var target := int(mode.substr(1)) % 24

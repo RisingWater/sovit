@@ -1,6 +1,13 @@
 extends PanelContainer
 
-# 右侧详情面板：选中建筑 → 运营；选中居民 → 个人；选中住房 → 产权；未选 → 全局。
+# 右侧详情面板：选中建筑 → 运营；选中居民 → 个人；选中住房 → 产权。
+#
+# **没选中任何东西时整个面板收起来**（用户要求）：
+# 原来这里画的是"全局面板"（日期/人口/国库/库存/日志），但那些全局数字
+# 顶栏已经全有了（人口/满意度/钱/建造力/科研/移民），再占一屏纯属重复。
+# 其中两块各自搬到"那座楼"的检视面板里，点谁看谁：
+#   - 城镇中心 → 人口（移民 / 上限 / 空房）＋公告（最近日志）
+#   - 仓库     → 资源（每种货的数量 ＋ **上限就在这儿设**）
 #
 # 排版规则（游戏化，不再堆 key: value 文本）：
 #   区块标题 = 深色窄条；数据 = 左标签右数值；比例 = 进度条；商品 = 图标 + 名称 + 数量
@@ -16,6 +23,8 @@ var _confirm_text: Label
 ## 当前查看的建筑的 defId，供弹窗写文案（`_id` 是 shop 实例 id，不是 defId）
 var _demolish_def_id := ""
 var _body: VBoxContainer
+## 仓储面板里每种货的上限输入框（每次重建时重置）。见 `_cap_row()`。
+var _cap_inputs: Dictionary = {}
 
 ## 拖动用工滑块期间置真。见 `_rebuild()` 里的说明。
 var _dragging_slider := false
@@ -160,12 +169,47 @@ func _rebuild() -> void:
 	# `_clear()` 销毁重建，拖动当场断掉。
 	if _dragging_slider:
 		return
+	# 同理：仓储面板里正在填上限时也不重建，否则输入框被销毁、打字打到一半就断。
+	if _cap_input_focused():
+		return
 	_clear()
+	_cap_inputs.clear()
 	match _kind:
 		"building": _building_panel()
 		"resident": _resident_panel()
 		"housing": _housing_panel()
-		_: _global_panel()
+		_:
+			# 没选中任何东西 → 面板整个收起来（见文件头注释：
+			# 全局数字顶栏已经全有，不该再占一屏）。
+			visible = false
+			return
+	visible = true
+
+## 有没有上限输入框正在被编辑（`_rebuild()` 据此让路）。
+func _cap_input_focused() -> bool:
+	for c in _body.find_children("*", "LineEdit", true, false):
+		if (c as LineEdit).has_focus():
+			return true
+	return false
+
+## 面板该显示的上限表：优先取 pending 里的那条 `set_storage_caps`。
+##
+## 命令是"次日 06:00 生效"的，不这样处理的话玩家填完数字、下一个小时面板重建，
+## 数字就被打回旧值 —— 看起来像"改了没生效"（和用工拖动条、人口上限同一个坑）。
+## `set_storage_caps` 是**整表替换**，所以 pending 的那条就是权威值。
+func _effective_caps() -> Dictionary:
+	var caps: Dictionary = (runner.sim.s["government"] as Dictionary).get("storageCaps", {})
+	for a in (runner.sim.s["pending"] as Array):
+		if String(a.get("type", "")) == "set_storage_caps":
+			return (a.get("caps", {}) as Dictionary)
+	return caps
+
+## pending 里有没有排着上限修改（显示"（已排队）"用）。
+func _caps_pending() -> bool:
+	for a in (runner.sim.s["pending"] as Array):
+		if String(a.get("type", "")) == "set_storage_caps":
+			return true
+	return false
 
 ## 本店在 pending 队列里排着的 `set_workers`；-1 = 没排队。
 ##
@@ -207,10 +251,20 @@ func _building_panel() -> void:
 			break
 	if shop == null:
 		_kind = ""
-		_global_panel()
+		visible = false
 		return
-	var def: Dictionary = runner.db.buildings[String(shop["defId"])]
-	_demolish_def_id = String(shop["defId"])
+	var def_id := String(shop["defId"])
+	# 两座"公共建筑"各有自己的面板，而不是通用的建筑运营面板：
+	#   城镇中心 = 人口（村子的事都在这儿定：移民 / 上限 / 空房）＋公告
+	#   仓库     = 资源（每种货的数量 ＋ 上限就在这里设）
+	if def_id == "town_center":
+		_population_panel(shop)
+		return
+	if def_id == "warehouse":
+		_storage_panel(shop)
+		return
+	var def: Dictionary = runner.db.buildings[def_id]
+	_demolish_def_id = def_id
 	var assigned := 0
 	for r in runner.sim.s["residents"]:
 		if r.get("jobShopId", null) == _id:
@@ -369,7 +423,7 @@ func _resident_panel() -> void:
 			break
 	if r == null:
 		_kind = ""
-		_global_panel()
+		visible = false
 		return
 	var cls := String(r["classId"])
 	var hour = int(runner.sim.s["hour"])
@@ -426,7 +480,7 @@ func _housing_panel() -> void:
 	var inst = world.housing_instance(_id) if world != null else null
 	if inst == null:
 		_kind = ""
-		_global_panel()
+		visible = false
 		return
 	var def: Dictionary = runner.db.housing[inst["type"]]
 	var occ: Array = inst["occupants"]
@@ -450,28 +504,21 @@ func _set_population_cap(value: int) -> void:
 	# 一点变化都没有，看起来就像按钮没反应。
 	_rebuild()
 
-func _global_panel() -> void:
+## 城镇中心面板：**人口 + 公告**。
+##
+## 为什么人口放在这儿：移民、人口上限、空房本来就是"村子级决策"，
+## 玩家点村中心那栋楼时想看的就是它们。这几项原来和日期/国库/库存一起塞在
+## "未选中"的默认面板里 —— 那个面板已按要求去掉（全局数字顶栏都有），
+## 于是它们搬到这儿，判定逻辑一行没动。
+func _population_panel(_shop: Dictionary) -> void:
 	var s: Dictionary = runner.sim.s
 	var residents: Array = s["residents"]
-	var employed := 0
-	var sat := 0.0
-	for r in residents:
-		if bool(r["employed"]):
-			employed += 1
-		sat += float(r["satisfaction"])
-	sat = sat / float(residents.size()) if not residents.is_empty() else 0.0
 
-	_title("全局", true)
-	_kv("日期", "第 %d 天 %02d:00" % [int(s["day"]), int(s["hour"])])
-	_kv("人口", "%d 人" % residents.size())
-	_kv("就业", "%d 人" % employed)
-	_bar_row("平均满意", sat, 100.0,
-		Color(0.24, 0.55, 0.28) if sat >= 60.0 else Color(0.72, 0.45, 0.18))
-	_kv("国库", "¥%.0f" % float(s["government"]["money"]),
-		Color(0.18, 0.45, 0.20) if float(s["government"]["money"]) >= 0.0 else Color(0.60, 0.20, 0.18))
+	_title("城镇中心 · 人口", true)
+	# 仓储容量也是这座楼给的，顺手报一句（明细在仓库面板里）
+	_kv("仓储容量", "%d / %d" % [
+		int(round(runner.sim.stored_total())), int(round(runner.sim.storage_capacity()))])
 
-	_gap()
-	_title("人口")
 	var arrivals = int(s["arrivals"])
 	var cap = int(float(s["government"]["populationCap"]))
 	# 命令是"次日 06:00 生效"的，所以点完按钮后状态里还是旧值 ——
@@ -511,27 +558,125 @@ func _global_panel() -> void:
 		_body.add_child(_label("次日 06:00 生效。没人来通常是空房不足或已到人口上限。"))
 
 	_gap()
-	_title("库存（含已预留）")
-	var goods: Dictionary = s["goods"]
-	var keys := goods.keys()
-	keys.sort_custom(func(a, b): return float(goods[a]) > float(goods[b]))
-	var shown := 0
-	for gid in keys:
-		if float(goods[gid]) < 0.01:
-			continue
-		var reserved = float((s.get("reserved", {}) as Dictionary).get(gid, 0.0))
-		var txt = "%.1f" % float(goods[gid])
-		if reserved > 0.01:
-			txt += "  (锁 %.0f)" % reserved
-		_icon_row(String(gid), txt)
-		shown += 1
-		if shown >= 14:
-			break
-
-	_gap()
-	_title("最近日志")
+	# 公告 = 最近日志。原来挂在"全局面板"里，那个面板去掉之后得有个新家，
+	# 村中心是它最自然的位置（村子这一级的事都记在这儿）。
+	_title("公告")
 	var logs: Array = runner.recent_logs
-	var start = maxi(0, logs.size() - 10)
+	if logs.is_empty():
+		_body.add_child(_label("（暂无）"))
+	var start = maxi(0, logs.size() - 8)
 	for i in range(start, logs.size()):
 		var e: Dictionary = logs[i]
 		_body.add_child(_label("[D%d] %s" % [int(e.get("day", 0)), String(e.get("text", ""))]))
+
+
+## 仓库面板：**等级 / 用工 / 本座容量 + 全村仓储余量 + 每种资源（数量 / 上限）**。
+##
+## 上限就在这里设（用户要求："数量和上限都在这里设置"）—— 原来它在 ESC 菜单的
+## 「设置资源…」里，和"顶栏显示哪些资源"混在一起，两件事都不清楚。
+##
+## ⚠️ 仓库**要有在岗工人才算容量**（docs/town.md §3.2），所以这里明确写出来，
+## 否则玩家会奇怪"我建了仓库，容量怎么没涨"。
+func _storage_panel(shop: Dictionary) -> void:
+	_demolish_def_id = "warehouse"
+	var sim = runner.sim
+	var s: Dictionary = sim.s
+	var def: Dictionary = runner.db.buildings["warehouse"]
+	var level := int(shop["level"])
+	var st: Dictionary = def.get("storage", {})
+	var own: float = float(st.get("storage", 0.0)) + float(st.get("storagePerLevel", 0.0)) * float(level - 1)
+	var assigned := sim._assigned_workers(_id)
+	var target := int(shop["targetWorkers"])
+	var exp_queued := _pending_expand()
+
+	_title("仓库 · 仓储", true)
+	_kv("等级", "Lv%d（升级已排队）" % level if exp_queued else "Lv%d" % level,
+		Color(0.72, 0.35, 0.15) if exp_queued else UIKit.FG_DARK)
+	_kv("用工", "%d / %d" % [assigned, target],
+		Color(0.72, 0.35, 0.15) if assigned < 1 else UIKit.FG_DARK)
+	_kv("本座容量", "%d" % int(round(own)),
+		UIKit.FG_DARK if assigned >= 1 else Color(0.60, 0.20, 0.18))
+	if assigned < 1:
+		_body.add_child(_label("没有工人在岗 → 这座仓库的容量不计入（docs/town.md §3.2）。"))
+	_gap()
+	_buttons([["升级" if not exp_queued else "升级（已排队）", func(): _expand(), exp_queued],
+		["移动", func(): _begin_move_shop()],
+		["拆除", func(): _demolish()]])
+
+	# 全村余量：所有仓储建筑加起来的容量（城镇中心 1000 + 每座在岗仓库）
+	_gap()
+	var pending_caps := _caps_pending()
+	_title("全村仓储" + ("（已排队）" if pending_caps else ""))
+	var used := sim.stored_total()
+	var total := sim.storage_capacity()
+	_bar_row("已用", used, maxf(1.0, total),
+		Color(0.72, 0.45, 0.18) if used >= total * 0.9 else Color(0.24, 0.55, 0.28),
+		" / %d" % int(round(total)))
+	if used >= total:
+		_body.add_child(_label("已经满了：当晚超出上限的部分会被丢掉。"))
+	_gap()
+
+	# 资源列表：数量 ＋ 上限输入框。顺序用 pack 里商品的**固定顺序**，
+	# 不按数量排 —— 数量每小时都在变，按它排行会跳来跳去，数字根本没法填。
+	_title("资源（数量 / 上限）")
+	var caps: Dictionary = _effective_caps()
+	var goods: Dictionary = s["goods"]
+	for gid in (runner.db.packs[String(s["pack"])]["goods"] as Array):
+		_cap_row(String(gid), int(caps.get(String(gid), 0)), float(goods.get(String(gid), 0.0)))
+	_gap(2)
+	_body.add_child(_label("上限留空 = 不限。超过上限的部分当天夜里按价值从低到高丢掉，"
+		+ "价值并列时按商品 id 排（docs/spec.md §2.4）。"))
+
+
+## 一行「资源：图标 + 名称 + 数量 + 上限输入框」。
+func _cap_row(gid: String, cap: int, amount: float) -> void:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 4)
+	var ic: Texture2D = GoodIcons.tex(gid)
+	if ic != null:
+		var tr := TextureRect.new()
+		tr.texture = ic
+		tr.custom_minimum_size = Vector2(18, 18)
+		tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		tr.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		row.add_child(tr)
+	var nm := UIKit.label(String(runner.db.goods[gid]["nameZh"]))
+	nm.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	nm.clip_text = true
+	row.add_child(nm)
+	# 超了上限就标红 —— 玩家一眼看出"这批货今晚会被丢"
+	var over := cap > 0 and amount > float(cap)
+	var amt := UIKit.label("%.0f" % amount, Color(0.72, 0.25, 0.15) if over else UIKit.FG_DARK)
+	amt.custom_minimum_size = Vector2(44, 0)
+	amt.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	row.add_child(amt)
+	var le := UIKit.input("不限", 6)
+	le.custom_minimum_size = Vector2(56, 0)
+	le.text = "" if cap <= 0 else str(cap)
+	le.tooltip_text = "「%s」最多存多少（留空 = 不限）" % String(runner.db.goods[gid]["nameZh"])
+	le.text_changed.connect(_on_cap_text.bind(gid))
+	row.add_child(le)
+	_body.add_child(row)
+	_cap_inputs[gid] = le
+
+## 上限输入框改了 → 把**整张表**作为一条命令送进队列（次日 06:00 生效）。
+## 输入框只收数字，留空 = 不限。
+##
+## ⚠️ 过滤完**必须接着推一次**：Godot 4.7 里 `LineEdit.text = x` 不会发
+## `text_changed`（实测），所以"抹掉非数字"这一步不会自己再触发一次本函数。
+func _on_cap_text(text: String, gid: String) -> void:
+	var le: LineEdit = _cap_inputs.get(gid, null)
+	if le == null:
+		return
+	var digits := ""
+	for ch in text:
+		if ch >= "0" and ch <= "9":
+			digits += ch
+	if digits != text:
+		le.text = digits
+	var caps := {}
+	for g in _cap_inputs.keys():
+		var v := int((_cap_inputs[g] as LineEdit).text)
+		if v > 0:
+			caps[g] = v
+	runner.enqueue([{"type": "set_storage_caps", "caps": caps}])

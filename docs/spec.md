@@ -67,7 +67,7 @@ goods[g] += output[g]  * batches
 
 设计见 `docs/town.md` §三。**两层口径**，都在这一步、每天一次：
 
-**① 每种物资的软上限**（玩家在「设置资源」里逐项设置）
+**① 每种物资的软上限**（玩家在**选中仓库后的检视面板**里逐项设置，见 §2.4 末的命令）
 ```
 cap_g = government.storageCaps[g]        # 缺项 = 不限
 若 goods[g] > cap_g  →  goods[g] = cap_g，丢弃 (原值 − cap_g)，写一条 log
