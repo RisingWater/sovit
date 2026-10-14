@@ -82,6 +82,11 @@ func _ready() -> void:
 	b_res.pressed.connect(_open_resources)
 	vb.add_child(b_res)
 
+	var b_dbg := UIKit.button("建筑占地：关", false)
+	b_dbg.tooltip_text = "调试：把每座建筑占的格子画成彩色方框（同一座同色；橙框=已下单待建）"
+	b_dbg.pressed.connect(func(): _toggle_debug_footprint(b_dbg))
+	vb.add_child(b_dbg)
+
 	vb.add_child(UIKit.hsep())
 	var b_quit := UIKit.button("退出游戏", false)
 	b_quit.pressed.connect(_quit)
@@ -151,6 +156,14 @@ func _toggle_music() -> void:
 		if hud.has_method("_refresh_music_btn"):
 			hud._refresh_music_btn()
 	_refresh_labels()
+
+## 调试开关：建筑占地方框。"这块地到底占没占"肉眼可查。
+func _toggle_debug_footprint(btn: Button) -> void:
+	if world == null or not world.has_method("set_debug_footprints"):
+		return
+	var on := not bool(world.debug_footprints)
+	world.set_debug_footprints(on)
+	btn.text = "建筑占地：%s" % ("开" if on else "关")
 
 func _open_resources() -> void:
 	if hud != null and hud.has_method("_open_picker"):

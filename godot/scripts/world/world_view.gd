@@ -49,6 +49,9 @@ var tip_layer: CanvasLayer
 ## 研究所的进度条也画在这一层上（见 `_draw_site_bars`）—— 工地占的是 `map.occupied`
 ## 的 `"site"` 格，研究所是已建成的商店，两者永远不会落在同一格上，所以不必再开一层。
 var site_layer: Node2D
+## 调试：把每座建筑占的格子画成彩色方框（ESC 菜单里开），默认关。
+var debug_footprints := false
+var debug_layer: Node2D
 ## 这一帧有没有研究所要画进度条（`_sync` 里更新，`_process` 据此决定要不要重画）。
 var _has_research_bar := false
 var _tip: PanelContainer
@@ -328,6 +331,13 @@ func _build_tileset() -> void:
 	site_layer.z_index = 6
 	add_child(site_layer)
 	site_layer.draw.connect(_draw_site_bars)
+
+	# 调试层：建筑占地方框，压在所有东西之上，默认隐藏
+	debug_layer = Node2D.new()
+	debug_layer.z_index = 40
+	debug_layer.visible = false
+	add_child(debug_layer)
+	debug_layer.draw.connect(_draw_footprints)
 
 	_render_base_terrain()
 
@@ -1367,6 +1377,8 @@ func _process(delta: float) -> void:
 	ring_layer.queue_redraw()
 	if not _sites.is_empty():
 		site_layer.queue_redraw()
+	if debug_footprints:
+		debug_layer.queue_redraw()
 	elif _has_research_bar:
 		site_layer.queue_redraw()
 
@@ -2178,3 +2190,46 @@ func _paint_cell(cell: Vector2i) -> void:
 				map.floor_tiles[map.idx(c.x, c.y)] = 1
 				deco_layer.erase_cell(c)
 				floor_layer.set_cell(c, 1, _extra_cell(52))
+
+
+# ---- 调试：建筑占地方框（ESC 菜单里的开关）---------------------------------
+## 打开后把每座建筑占的格子画成方框：**同一座建筑同色、不同建筑不同色**。
+## 用途：让"这块地到底占没占"肉眼可查 —— 来回争论截图不如把它画出来。
+func set_debug_footprints(on: bool) -> void:
+	debug_footprints = on
+	if debug_layer != null:
+		debug_layer.visible = on
+		if on:
+			debug_layer.queue_redraw()
+
+## 由字符串算一个**稳定**的颜色。不能用 randf()：这一层每帧重画，
+## 随机色会一直跳，就看不出"这几格属于同一座建筑"了。
+func _debug_color(key: String) -> Color:
+	var h := 0
+	for i in key.length():
+		h = (h * 131 + key.unicode_at(i)) % 1000003
+	return Color.from_hsv(float(h % 360) / 360.0, 0.8, 0.95, 0.35)
+
+func _draw_footprints() -> void:
+	if not debug_footprints or map == null:
+		return
+	# 已建成建筑：占用表里 kind:id 相同的格子同色
+	for c in map.occupied.keys():
+		var occ: Dictionary = map.occupied[c]
+		var col := _debug_color("%s:%s" % [String(occ.get("kind", "")), String(occ.get("id", ""))])
+		var r := Rect2(Vector2(c.x * TILE, c.y * TILE), Vector2(TILE, TILE))
+		debug_layer.draw_rect(r, col)
+		debug_layer.draw_rect(r, col.lightened(0.55), false, 1.0)
+	# 城镇中心：固定建筑，占格单独一张表
+	if map.town_center.size.x > 0:
+		var tc := _debug_color("fixed:town_center")
+		for dy in map.town_center.size.y:
+			for dx in map.town_center.size.x:
+				var p: Vector2i = map.town_center.position + Vector2i(dx, dy)
+				var r2 := Rect2(Vector2(p.x * TILE, p.y * TILE), Vector2(TILE, TILE))
+				debug_layer.draw_rect(r2, tc)
+				debug_layer.draw_rect(r2, tc.lightened(0.55), false, 1.0)
+	# 已下单待建（reserved）：只描橙框不填色，和"已占"区分开
+	for c2 in map.reserved.keys():
+		debug_layer.draw_rect(Rect2(Vector2(c2.x * TILE, c2.y * TILE), Vector2(TILE, TILE)),
+			Color(1.0, 0.45, 0.15, 0.95), false, 2.0)
