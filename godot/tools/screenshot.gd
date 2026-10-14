@@ -168,10 +168,10 @@ func _run() -> void:
 
 	# 验证浮动对话框：城镇中心（人口）/ 仓库（资源 + 上限）/ 普通建筑（运营）
 	# 走 main 的真实分派路径，保证截到的就是玩家点出来的那个东西
-	if mode == "towncenter" or mode == "warehouse" or mode == "building":
+	if mode.begins_with("towncenter") or mode == "warehouse" or mode == "building":
 		var sim = runner.sim
 		var target := ""
-		if mode == "towncenter":
+		if mode.begins_with("towncenter"):
 			for sh in sim.s["shops"]:
 				if String(sh["defId"]) == "town_center":
 					target = String(sh["id"])
@@ -194,6 +194,13 @@ func _run() -> void:
 			target = "lumberjack#shot"
 		if target != "" and node.has_method("_on_select_building"):
 			node._on_select_building(target)
+			await process_frame
+			# `towncenter2` / `towncenter3` = 打开后切到第 2 / 3 个页签（资源 / 公告）
+			if mode.begins_with("towncenter") and mode.length() > 10:
+				var dlg = node.get_node_or_null("UI/Root/Civic")
+				var tab := int(mode.substr(10, 1)) - 1
+				if dlg != null and tab > 0:
+					dlg._select_tab(tab)
 			await process_frame
 			await process_frame
 

@@ -98,10 +98,37 @@ func _run() -> void:
 		_fail("城镇中心弹了对话框，右侧面板不该同时显示")
 		return
 	var keys: Array = _labels(civic)
-	for need in ["城镇中心", "人口上限", "当前人口", "空房", "本回合想来", "次日会来", "公告"]:
+	for need in ["城镇中心", "人口上限", "当前人口", "空房", "本回合想来", "次日会来"]:
 		if not keys.has(need):
-			_fail("城镇中心对话框缺少「%s」，实际：%s" % [need, keys])
+			_fail("城镇中心对话框（人口页）缺少「%s」，实际：%s" % [need, keys])
 			return
+	# 三个页签：人口 / 资源 / 公告
+	for need in ["人口", "资源", "公告"]:
+		if not _has_button(civic, need):
+			_fail("城镇中心对话框缺少页签「%s」" % need)
+			return
+	# 「资源」页必须能看库存 + 设上限 —— 开局可能还没有仓库（用户明确要求）
+	civic._select_tab(1)
+	await process_frame
+	if not _labels(civic).has("资源（数量 / 上限）"):
+		_fail("城镇中心的「资源」页没有资源列表")
+		return
+	var goods_n0: int = (runner.db.packs[String(s["pack"])]["goods"] as Array).size()
+	if civic.find_children("*", "LineEdit", true, false).size() != goods_n0:
+		_fail("城镇中心的「资源」页上限输入框应有 %d 个，实际 %d" % [
+			goods_n0, civic.find_children("*", "LineEdit", true, false).size()])
+		return
+	if not _labels(civic).has("全村仓储"):
+		_fail("城镇中心的「资源」页没有仓储余量")
+		return
+	# 「公告」页
+	civic._select_tab(2)
+	await process_frame
+	if not _labels(civic).has("公告"):
+		_fail("城镇中心的「公告」页没有公告区")
+		return
+	civic._select_tab(0)
+	await process_frame
 	# 对话框形式：必须有拖动把手与关闭按钮（和「统计」面板一致）
 	var has_drag := false
 	for c in civic.find_children("*", "Control", true, false):

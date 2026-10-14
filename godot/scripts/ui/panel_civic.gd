@@ -24,6 +24,12 @@ const POP_W := 620.0
 const POP_H := 430.0
 const KEEP_VISIBLE := 80.0
 
+## 城镇中心的三页页签
+const TABS := ["人口", "资源", "公告"]
+## 每页各自的框高：人口矮（内容少）、资源高（33 种货三列）、公告中等。
+## 一页一个高度，免得"为了装下最长的那页，短的那页底下空一大片"。
+const TAB_H := [430.0, 660.0, 520.0]
+
 enum Mode { NONE, TOWN_CENTER, WAREHOUSE }
 
 var _mode := Mode.NONE
@@ -38,6 +44,10 @@ var _confirm := ""
 
 var _dragging := false
 var _drag_off := Vector2.ZERO
+## 页签控件（只有城镇中心模式显示）
+var _tab_row: HBoxContainer
+var _tab_btns: Array = []
+var _tab := 0
 
 func setup(r: SimRunner, w: Node) -> void:
 	runner = r
@@ -79,6 +89,19 @@ func _ready() -> void:
 	var close := UIKit.button("关闭", true)
 	close.pressed.connect(close_panel)
 	head.add_child(close)
+
+	# 页签（只有城镇中心用）：人口 / 资源 / 公告。
+	# 为什么要有「资源」这一页：**开局不一定有仓库**，而库存余量与每种货的上限
+	# 得让玩家看得到、设得了（用户："因为初始不一定有仓库，要让人看到库存和设置库存上限"）。
+	_tab_row = HBoxContainer.new()
+	_tab_row.add_theme_constant_override("separation", 4)
+	root.add_child(_tab_row)
+	for i in TABS.size():
+		var b := UIKit.button(TABS[i], true)
+		b.pressed.connect(_select_tab.bind(i))
+		_tab_row.add_child(b)
+		_tab_btns.append(b)
+
 	root.add_child(UIKit.hsep())
 
 	_sub = UIKit.label("", UIKit.FG_DIM)
@@ -103,7 +126,9 @@ func _ready() -> void:
 func open_town_center() -> void:
 	_mode = Mode.TOWN_CENTER
 	_title_lb.text = "城镇中心"
-	_sub.text = "人口与公告 —— 全局数字（日期/就业/满意度/国库）在顶栏"
+	_sub.text = "人口 / 资源 / 公告 —— 全局数字（日期/就业/满意度/国库）在顶栏"
+	_tab = 0                      # 每次打开回到「人口」
+	_tab_row.visible = true
 	_show()
 
 ## `shop_id`：仓库的 shop 实例 id（只能同时看一座的容量构成）
@@ -112,19 +137,38 @@ func open_warehouse(shop_id: String) -> void:
 	_id = shop_id
 	_title_lb.text = "仓库 · 仓储"
 	_sub.text = "上限留空 = 不限；命令次日 06:00 生效"
+	_tab_row.visible = false      # 仓库没有页签（它的内容本来就只有一屏）
 	_show()
 
 func _show() -> void:
 	_confirm = ""
 	visible = true
+	_mark_tabs()
 	_refresh()
-	# 高度按内容分档：人口那一页内容少，用矮一点的框（不然底下空一大片）
-	var want := Vector2(POP_W, POP_H) if _mode == Mode.TOWN_CENTER else Vector2(PANEL_W, PANEL_H)
+	_apply_size()
+	move_to_front()
+
+## 切页签：重画内容 + 换框高（每页内容多少差很多，一页一个高度）
+func _select_tab(i: int) -> void:
+	_tab = clampi(i, 0, TABS.size() - 1)
+	UIKit.play_switch()
+	_mark_tabs()
+	_refresh()
+	_apply_size()
+
+func _mark_tabs() -> void:
+	for k in _tab_btns.size():
+		(_tab_btns[k] as Button).add_theme_stylebox_override("normal",
+			UIKit.box(UIKit.T_BTN_ACTIVE if k == _tab else UIKit.T_BTN))
+
+func _apply_size() -> void:
+	var want := Vector2(PANEL_W, PANEL_H)
+	if _mode == Mode.TOWN_CENTER:
+		want = Vector2(PANEL_W, float(TAB_H[clampi(_tab, 0, TAB_H.size() - 1)]))
 	custom_minimum_size = want
 	reset_size()
 	var vp := get_viewport_rect().size
 	position = _clamp_pos(((vp - size) * 0.5).round())
-	move_to_front()
 
 func close_panel() -> void:
 	visible = false
@@ -174,7 +218,11 @@ func _refresh() -> void:
 		c.queue_free()
 	_cap_inputs.clear()
 	match _mode:
-		Mode.TOWN_CENTER: _build_population()
+		Mode.TOWN_CENTER:
+			match _tab:
+				0: _build_population()
+				1: _build_resources()
+				_: _build_notice()
 		Mode.WAREHOUSE: _build_storage()
 		_: pass
 
@@ -280,28 +328,64 @@ func _build_population() -> void:
 		_note("次日 06:00 生效。没人来通常是空房不足或已到人口上限；"
 			+ "空房靠多盖住房，上限就是上面那三个按钮。")
 
-	# 仓储容量也报一句（明细在仓库对话框里）
-	_gap()
-	_title("仓储容量")
-	_bar("已用", runner.sim.stored_total(), maxf(1.0, runner.sim.storage_capacity()),
-		Color(0.72, 0.45, 0.18) if runner.sim.stored_total() >= runner.sim.storage_capacity() * 0.9
-		else Color(0.24, 0.55, 0.28),
-		" / %d" % int(round(runner.sim.storage_capacity())))
-	_note("容量来自城镇中心与仓库；点任意一座仓库可以看到每种资源还剩多少额度。")
-
-	_gap()
-	_title("公告")
-	var logs: Array = runner.recent_logs
-	if logs.is_empty():
-		_note("（暂无）")
-	for i in range(maxi(0, logs.size() - 12), logs.size()):
-		var e: Dictionary = logs[i]
-		_note("[D%d] %s" % [int(e.get("day", 0)), String(e.get("text", ""))])
+	# 仓储容量与库存明细不再挤在这一页 —— 它们是「资源」页的事
+	# （开局不一定有仓库，所以那一页必须能独立看到库存与上限）。
 
 func _set_population_cap(value: int) -> void:
 	runner.enqueue([{"type": "set_population_cap", "value": value}])
 	# 立刻重建：命令次日才生效，不重建的话点完屏幕上一点变化都没有
 	_refresh()
+
+## 城镇中心的「资源」页：全村仓储余量 + 每种货（数量 / 上限）。
+##
+## 这一页存在的理由：**开局不一定有仓库**，但玩家必须能看库存、能设上限
+## （用户原话："因为初始不一定有仓库，要让人看到库存和设置库存上限"）。
+func _build_resources() -> void:
+	_build_capacity()
+	_gap()
+	_build_goods()
+
+## 城镇中心的「公告」页：最近日志。
+func _build_notice() -> void:
+	_title("公告")
+	var logs: Array = runner.recent_logs
+	if logs.is_empty():
+		_note("（暂无）")
+	for i in range(maxi(0, logs.size() - 24), logs.size()):
+		var e: Dictionary = logs[i]
+		_note("[D%d] %s" % [int(e.get("day", 0)), String(e.get("text", ""))])
+
+## 全村仓储余量（进度条）。城镇中心的「资源」页与仓库面板共用。
+func _build_capacity() -> void:
+	var sim = runner.sim
+	var pending_caps := _caps_pending()
+	_title("全村仓储" + ("（上限已排队）" if pending_caps else ""))
+	var used := sim.stored_total()
+	var total := sim.storage_capacity()
+	_bar("已用", used, maxf(1.0, total),
+		Color(0.72, 0.45, 0.18) if used >= total * 0.9 else Color(0.24, 0.55, 0.28),
+		" / %d" % int(round(total)))
+	if used >= total:
+		_note("已经满了：当晚超出上限的部分会被丢掉。再建/升级仓库可以扩容。")
+
+## 每种资源一行：数量 + 上限输入框（城镇中心的「资源」页与仓库面板共用）。
+func _build_goods() -> void:
+	var s: Dictionary = runner.sim.s
+	# 顺序用 pack 里商品的**固定顺序**，不按数量排 —— 数量每小时都在变，
+	# 按它排行会跳来跳去，数字根本没法填。
+	_title("资源（数量 / 上限）")
+	var caps: Dictionary = _effective_caps()
+	var goods: Dictionary = s["goods"]
+	var grid := GridContainer.new()
+	grid.columns = 3
+	grid.add_theme_constant_override("h_separation", 10)
+	grid.add_theme_constant_override("v_separation", 2)
+	_body.add_child(grid)
+	for gid in (runner.db.packs[String(s["pack"])]["goods"] as Array):
+		_cap_cell(grid, String(gid), int(caps.get(String(gid), 0)), float(goods.get(String(gid), 0.0)))
+	_gap(2)
+	_note("数量 = 当前库存；上限留空 = 不限。超过上限的部分当天夜里按价值从低到高丢掉，"
+		+ "价值并列时按商品 id 排（docs/spec.md §2.4）。数量标红＝这一项已经超了自己的上限。")
 
 # ---------------------------------------------------------------------------
 # 仓库：容量 + 每种资源（数量 / 上限）
@@ -339,29 +423,10 @@ func _build_storage() -> void:
 		["拆除", func(): _demolish()]])
 
 	_gap()
-	_title("全村仓储" + ("（上限已排队）" if _caps_pending() else ""))
-	var used := sim.stored_total()
-	var total := sim.storage_capacity()
-	_bar("已用", used, maxf(1.0, total),
-		Color(0.72, 0.45, 0.18) if used >= total * 0.9 else Color(0.24, 0.55, 0.28),
-		" / %d" % int(round(total)))
-	if used >= total:
-		_note("已经满了：当晚超出上限的部分会被丢掉。再建/升级仓库可以扩容。")
-
+	# 容量与资源列表是**共用件**（城镇中心的「资源」页也要用同一份）
+	_build_capacity()
 	_gap()
-	# 资源列表：数量 ＋ 上限。顺序用 pack 的固定顺序（数量每小时都变，按它排行会跳）
-	var caps: Dictionary = _effective_caps()
-	var goods: Dictionary = s["goods"]
-	var grid := GridContainer.new()
-	grid.columns = 3
-	grid.add_theme_constant_override("h_separation", 10)
-	grid.add_theme_constant_override("v_separation", 2)
-	_body.add_child(grid)
-	for gid in (runner.db.packs[String(s["pack"])]["goods"] as Array):
-		_cap_cell(grid, String(gid), int(caps.get(String(gid), 0)), float(goods.get(String(gid), 0.0)))
-	_gap(2)
-	_note("数量 = 当前库存；上限留空 = 不限。超过上限的部分当天夜里按价值从低到高丢掉，"
-		+ "价值并列时按商品 id 排（docs/spec.md §2.4）。数量标红＝这一项已经超了自己的上限。")
+	_build_goods()
 
 func _cap_cell(grid: GridContainer, gid: String, cap: int, amount: float) -> void:
 	var row := HBoxContainer.new()
