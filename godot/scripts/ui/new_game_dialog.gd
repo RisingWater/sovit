@@ -19,9 +19,10 @@ var runner: SimRunner
 var world: Node
 
 var _name_edit: LineEdit
-var _diff_box: OptionButton
+var _diff_btns: Array = []
+var _diff_idx := 1
 var _panel: PanelContainer
-var _custom := 1.0          # 由外部（标题页）指定的倍率；-1 表示用下拉框
+var _custom := 1.0          # 由外部（标题页）指定的倍率；-1 表示用难度按钮
 
 func setup(r: SimRunner, w: Node) -> void:
 	runner = r
@@ -53,21 +54,26 @@ func _ready() -> void:
 	vb.add_child(UIKit.hsep())
 
 	vb.add_child(UIKit.label("村庄名称（最多 %d 字）" % NAME_MAX, UIKit.FG_HEAD))
-	_name_edit = LineEdit.new()
+	_name_edit = UIKit.input("sovit", NAME_MAX)
 	_name_edit.text = "sovit"
-	_name_edit.max_length = NAME_MAX
 	_name_edit.custom_minimum_size = Vector2(280, 0)
 	vb.add_child(_name_edit)
 
+	# 难度：**三个并排的像素按钮**，不用 OptionButton。
+	# OptionButton 的箭头是主题 icon（默认素材），弹出来的 PopupMenu 又是另一套
+	# Godot 默认皮肤 —— 那就是用户说的"一半游戏风、一半默认风"。
+	# 三档并排既躲开了这两样，也比下拉框少一次点击。
 	vb.add_child(UIKit.label("难度（初始资源倍率）", UIKit.FG_HEAD))
-	_diff_box = OptionButton.new()
-	_diff_box.add_theme_font_override("font", UIKit.pixel_font())
-	_diff_box.add_theme_font_size_override("font_size", UIKit.FS)
-	for d in DIFFICULTIES:
-		_diff_box.add_item(String(d[0]))
-	_diff_box.selected = 1
-	_diff_box.custom_minimum_size = Vector2(280, 0)
-	vb.add_child(_diff_box)
+	var drow := HBoxContainer.new()
+	drow.add_theme_constant_override("separation", 4)
+	vb.add_child(drow)
+	for i in DIFFICULTIES.size():
+		var b := UIKit.button(String(DIFFICULTIES[i][0]), true)
+		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		b.pressed.connect(_pick_diff.bind(i))
+		drow.add_child(b)
+		_diff_btns.append(b)
+	_mark_diff()
 
 	vb.add_child(UIKit.hsep())
 	var row := HBoxContainer.new()
@@ -95,11 +101,22 @@ func close() -> void:
 	if world != null:
 		world.set_process_unhandled_input(true)
 
+## 三档难度按钮的选中态：选中的那格换成"按下"底纹。
+func _pick_diff(i: int) -> void:
+	_diff_idx = i
+	_custom = -1.0        # 玩家手动选了难度 → 不再用外部指定的倍率
+	_mark_diff()
+
+func _mark_diff() -> void:
+	for i in _diff_btns.size():
+		(_diff_btns[i] as Button).add_theme_stylebox_override("normal",
+			UIKit.box(UIKit.T_BTN_ACTIVE if i == _diff_idx else UIKit.T_BTN))
+
 ## 当前选中的资源倍率
 func resource_mult() -> float:
 	if _custom > 0.0:
 		return _custom
-	return float(DIFFICULTIES[_diff_box.selected][1])
+	return float(DIFFICULTIES[_diff_idx][1])
 
 ## 外部（标题页）可以直接指定倍率，绕开下拉框
 func set_resource_mult(v: float) -> void:

@@ -130,6 +130,25 @@ func _run() -> void:
 			hud._open_picker()
 			await process_frame
 
+	# 验证存档 / 读档对话框（自绘，不是 Godot 的 FileDialog）
+	if mode == "savedlg" or mode == "loaddlg":
+		var dlg = node.get_node_or_null("DialogLayer/SaveDialog")
+		if dlg != null:
+			if mode == "savedlg":
+				dlg.open_save(runner, world)
+			else:
+				dlg.open_load(runner, world)
+			await process_frame
+			await process_frame
+
+	# 验证新游戏对话框（难度是三格像素按钮，不是 OptionButton）
+	if mode == "newgame":
+		var ng = node.get_node_or_null("UI/Root/NewGame")
+		if ng != null:
+			ng.open()
+			await process_frame
+			await process_frame
+
 	# 昼夜：模式 h<N> 表示推进到第 N 小时再截图（验证光影）
 	if mode.begins_with("h") and mode.substr(1).is_valid_int():
 		var target := int(mode.substr(1)) % 24

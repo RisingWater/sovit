@@ -15,6 +15,8 @@ var _sfx
 var _minimap
 var _esc_menu
 var _new_game
+var _save_dialog
+var _dlg_layer: CanvasLayer
 var _title
 var _title_layer
 var root_ui: Control
@@ -132,6 +134,29 @@ func _ready() -> void:
 	root_ui.add_child(_new_game)
 	_esc_menu.new_game_dialog = _new_game
 
+	# 存档 / 读档对话框（自绘，见 save_dialog.gd 顶部注释）。
+	# ESC 菜单和标题页的「读取进度」都走它 —— 以前那三处各自 new 一个 FileDialog，
+	# 于是弹出来是"一半像素游戏风、一半 Godot 默认灰 UI"。
+	#
+	# ⚠️ 挂在自己的 CanvasLayer（layer 30）上，**不能**放进 root_ui：
+	# 标题页期间 `root_ui.visible = false`，放里面的话从标题页点「读取进度」
+	# 根本看不到对话框（取消之后还会被留在游戏里，因为露 UI 是标题页那套流程干的）。
+	_dlg_layer = CanvasLayer.new()
+	_dlg_layer.name = "DialogLayer"
+	_dlg_layer.layer = 30
+	add_child(_dlg_layer)
+	_save_dialog = load("res://scripts/ui/save_dialog.gd").new()
+	_save_dialog.name = "SaveDialog"
+	# 不显式给主题的话它用的是 Godot 默认主题（理由同下面的标题页）
+	_save_dialog.theme = theme
+	_save_dialog.setup(runner, world)
+	_dlg_layer.add_child(_save_dialog)
+	_esc_menu.save_dialog = _save_dialog
+	# 读档成功：如果当时还在标题页，就读档结果直接进游戏
+	_save_dialog.loaded.connect(func(_p):
+		if _title_layer != null and _title_layer.visible:
+			_end_title())
+
 	# 标题页：独立 CanvasLayer，压在整个游戏 UI 之上。
 	# 展示期间把 root_ui 整个藏掉 —— 玩家看不到 HUD、点不到建造栏、也够不着 ESC 菜单，
 	# 从玩家角度这局就是只读展示。开始游戏时再重新开局覆盖它。
@@ -146,6 +171,7 @@ func _ready() -> void:
 	# （扁平灰按钮），和游戏内那套像素框完全不是一回事。
 	_title.theme = theme
 	_title.setup(runner, world, _new_game)
+	_title.save_dialog = _save_dialog
 	_title_layer.add_child(_title)
 	_title.start_requested.connect(_end_title)
 	root_ui.visible = false

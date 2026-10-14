@@ -2,10 +2,12 @@ extends SceneTree
 
 # ESC 菜单门槛。
 #
-# 查三件事：
+# 查四件事：
 #   1. ESC 能开关菜单（顶层入口）
 #   2. 顶栏只剩 快存/快读/统计/菜单，被移走的那些按钮不能再出现
-#   3. 保存 / 读取 走的是 FileDialog（文件系统对话框），不是直接写默认位
+#   3. 保存 / 读取 开的是**自绘的存档对话框**（`save_dialog.gd`），
+#      **不是** Godot 的 FileDialog —— 后者自带默认皮肤，就是"一半游戏风
+#      一半默认风"的来源。顺便断言整个场景树里再也没有 FileDialog。
 
 func _init() -> void:
 	call_deferred("_run")
@@ -125,23 +127,45 @@ func _run() -> void:
 			_fail("统计面板应该只在左侧圆钮列，菜单里不该有：%s" % items)
 			return
 
-	# 4. 保存 / 读取 必须开 FileDialog
+	# 4. 保存 / 读取 必须开**自绘的存档对话框**，不能是 Godot 的 FileDialog。
+	#    FileDialog 自带一整套默认皮肤（标题栏、路径栏、列表、滚动条、下拉框），
+	#    项目主题覆盖不到 —— 用户反馈的就是"一半游戏风、一半默认风"。
+	var dlg = node.get_node_or_null("DialogLayer/SaveDialog")
+	if dlg == null:
+		_fail("找不到 DialogLayer/SaveDialog（main 没注入存档对话框）")
+		return
 	menu._save_dialog()
 	await process_frame
-	var save_dlg: FileDialog = _find_dialog(menu, FileDialog.FILE_MODE_SAVE_FILE)
-	if save_dlg == null:
-		_fail("点「保存…」没有打开保存用的 FileDialog")
+	if not dlg.visible:
+		_fail("点「保存…」没有打开存档对话框")
 		return
-	save_dlg.hide()
-	save_dlg.queue_free()
+	if int(dlg._mode) != int(dlg.Mode.SAVE):
+		_fail("「保存…」打开的不是保存模式")
+		return
+	if not (dlg._name_box as Control).visible:
+		_fail("保存模式没有显示存档名输入框")
+		return
+	dlg.close()
 	menu._load_dialog()
 	await process_frame
-	var load_dlg: FileDialog = _find_dialog(menu, FileDialog.FILE_MODE_OPEN_FILE)
-	if load_dlg == null:
-		_fail("点「读取…」没有打开读取用的 FileDialog")
+	if not dlg.visible:
+		_fail("点「读取…」没有打开存档对话框")
 		return
-	load_dlg.hide()
-	load_dlg.queue_free()
+	if int(dlg._mode) != int(dlg.Mode.LOAD):
+		_fail("「读取…」打开的不是读取模式")
+		return
+	if (dlg._name_box as Control).visible:
+		_fail("读取模式不该显示存档名输入框")
+		return
+	dlg.close()
+
+	# 4b. 整棵树里不许再有 FileDialog / 窗口式对话框（它们就是默认皮肤的来源）
+	var strays: Array = []
+	for w in node.find_children("*", "FileDialog", true, false):
+		strays.append(w.name)
+	if strays.size() > 0:
+		_fail("场景里还挂着 FileDialog：%s" % str(strays))
+		return
 
 	print("ESC TEST 菜单=%s 顶栏=%s" % [items, tops])
 	print("ESC TEST RESULT: PASS")
@@ -152,9 +176,3 @@ func _esc() -> InputEventKey:
 	e.keycode = KEY_ESCAPE
 	e.pressed = true
 	return e
-
-func _find_dialog(root: Node, mode: int):
-	for w in root.find_children("*", "FileDialog", true, false):
-		if (w as FileDialog).file_mode == mode and (w as FileDialog).visible:
-			return w
-	return null

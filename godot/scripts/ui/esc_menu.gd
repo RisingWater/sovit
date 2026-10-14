@@ -2,7 +2,9 @@ extends Control
 
 # ESC 菜单：保存 / 读取 / 音效开关 / 音乐开关 / 设置资源 / 退出。
 #
-# 保存与读取用 **FileDialog**（真正的文件系统对话框，可以自己选路径）；
+# 保存与读取都走**自绘的存档对话框**（`save_dialog.gd`，由 main 注入）。
+# 早先这里各自 `new` 一个 Godot `FileDialog` —— 它自带一整套默认皮肤，
+# 弹出来是"一半像素游戏风、一半默认灰 UI"（用户反馈）。
 # 顶栏保留下来的「快存 / 快读」才是直接写默认存档位的那对。
 #
 # 菜单打开时会把世界层的 unhandled_input 关掉 —— 否则 ESC 会同时被
@@ -12,6 +14,7 @@ var runner: SimRunner
 var world: Node
 var hud: Node
 var new_game_dialog: Node = null
+var save_dialog: Node = null
 
 var _panel: PanelContainer
 var _music_btn: Button
@@ -116,45 +119,23 @@ func toggle() -> void:
 		open()
 
 # ---------------------------------------------------------------------------
-# 文件对话框
+# 存档 / 读档
+#
+# 注意这里**不是** Godot 的 FileDialog，而是同款的像素自绘对话框
+# （`save_dialog.gd`）。保存走 `world.save_to()`（富存档：地图/道路/地板/
+# 建筑摆位都在），而不是 `SaveManager.save_to()`（只有仿真状态）。
 # ---------------------------------------------------------------------------
 func _save_dialog() -> void:
-	var d := FileDialog.new()
-	d.file_mode = FileDialog.FILE_MODE_SAVE_FILE
-	d.access = FileDialog.ACCESS_USERDATA
-	d.add_filter("*.json", "存档")
-	d.current_file = "sovit-save.json"
-	d.title = "保存到…"
-	d.size = Vector2i(760, 520)
-	add_child(d)
-	d.file_selected.connect(func(path: String):
-		var err := SaveManager.save_to(path, runner.sim)
-		if err == OK:
-			_toast("已保存：%s" % path.get_file())
-		else:
-			_toast("保存失败（错误码 %d）" % err)
-		d.queue_free())
-	d.canceled.connect(func(): d.queue_free())
-	d.popup_centered()
+	if save_dialog == null:
+		return
+	close()
+	save_dialog.open_save(runner, world)
 
 func _load_dialog() -> void:
-	var d := FileDialog.new()
-	d.file_mode = FileDialog.FILE_MODE_OPEN_FILE
-	d.access = FileDialog.ACCESS_USERDATA
-	d.add_filter("*.json", "存档")
-	d.title = "读取存档…"
-	d.size = Vector2i(760, 520)
-	add_child(d)
-	d.file_selected.connect(func(path: String):
-		close()
-		# 走 world.load_from，它会把地图和仿真一起换掉并重绘
-		if world != null and world.load_from(path):
-			_toast("已读取：%s" % path.get_file())
-		else:
-			_toast("读取失败：%s" % path.get_file())
-		d.queue_free())
-	d.canceled.connect(func(): d.queue_free())
-	d.popup_centered()
+	if save_dialog == null:
+		return
+	close()
+	save_dialog.open_load(runner, world)
 
 # ---------------------------------------------------------------------------
 func _toggle_sfx() -> void:

@@ -198,9 +198,9 @@ func _open_rename() -> void:
 	vb.custom_minimum_size = Vector2(300, 0)
 	pop.add_child(vb)
 	vb.add_child(UIKit.label("村庄名称", UIKit.FG_HEAD))
-	var edit := LineEdit.new()
+	# 自绘输入框（凹陷石板底 + 像素字），和主题里 LineEdit 那条保持一致
+	var edit := UIKit.input("sovit", 16)
 	edit.text = village_name()
-	edit.max_length = 16
 	edit.custom_minimum_size = Vector2(280, 0)
 	vb.add_child(edit)
 	var row := HBoxContainer.new()

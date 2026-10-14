@@ -33,8 +33,8 @@ var _chip_nodes: Dictionary = {}
 var _visible: Array = []
 var _picker: PopupPanel
 var _checks: Dictionary = {}
-## 每种物资的「软上限」输入框（见 docs/town.md §3.6）；0 = 不限。
-var _cap_spins: Dictionary = {}
+## 每种物资的「软上限」输入框（见 docs/town.md §3.6）；留空 = 不限。
+var _cap_inputs: Dictionary = {}
 ## 「设置资源」面板顶部那行仓储余量（已用 / 上限）。
 var _storage_label: Label
 
@@ -389,7 +389,7 @@ func _build_picker() -> void:
 		# 每格 = [勾选（顶栏显示）] + [单项上限输入框]。
 		# 上限是**每种物资的软上限**：超过就在日终结算时把超出的部分丢掉，
 		# 目的是"别让某一种货把仓储占满、害得别的物资收不下"（见 docs/town.md §3.6）。
-		# 0 = 不限（默认）。
+		# **留空 = 不限**（默认）。填了才进 `government.storageCaps`。
 		var cell := VBoxContainer.new()
 		cell.add_theme_constant_override("separation", 1)
 		var cb := CheckBox.new()
@@ -407,26 +407,18 @@ func _build_picker() -> void:
 		var row2 := HBoxContainer.new()
 		row2.add_theme_constant_override("separation", 3)
 		row2.add_child(UIKit.label("上限", UIKit.FG_DARK))
-		var sb := SpinBox.new()
-		sb.min_value = 0
-		sb.max_value = 99999
-		sb.step = 10
-		sb.value = 0
-		sb.custom_minimum_size = Vector2(84, 0)
-		# 字体要和面板一致（项目里其它输入框也是默认样式，这里只统一字号/字体）
-		sb.add_theme_font_override("font", UIKit.pixel_font())
-		sb.add_theme_font_size_override("font_size", UIKit.FS)
-		var le := sb.get_line_edit()
-		if le != null:
-			le.add_theme_font_override("font", UIKit.pixel_font())
-			le.add_theme_font_size_override("font_size", UIKit.FS)
-		sb.tooltip_text = "「%s」最多存多少（0 = 不限）。超过的部分当晚丢掉。" % String(runner.db.goods[gid]["nameZh"])
-		sb.value_changed.connect(_on_cap_changed.bind(String(gid)))
-		row2.add_child(sb)
+		# ⚠️ 自绘输入框，不用 SpinBox：SpinBox 的上下箭头是主题 icon（Godot 默认素材），
+		# 摆进像素面板就是两个灰箭头 —— 正是"一半游戏风一半默认风"的来源之一。
+		# 留空 = 不限；只收数字（下面 _on_cap_text 过滤）。
+		var le := UIKit.input("不限", 6)
+		le.custom_minimum_size = Vector2(74, 0)
+		le.tooltip_text = "「%s」最多存多少（留空 = 不限）。超过的部分当晚丢掉。" % String(runner.db.goods[gid]["nameZh"])
+		le.text_changed.connect(_on_cap_text.bind(String(gid)))
+		row2.add_child(le)
 		cell.add_child(row2)
 		grid.add_child(cell)
 		_checks[String(gid)] = cb
-		_cap_spins[String(gid)] = sb
+		_cap_inputs[String(gid)] = le
 
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 4)
@@ -452,18 +444,31 @@ func _open_picker() -> void:
 	var caps: Dictionary = {}
 	if runner != null and runner.sim != null:
 		caps = (runner.sim.s["government"] as Dictionary).get("storageCaps", {})
-	for gid in _cap_spins.keys():
-		(_cap_spins[gid] as SpinBox).set_value_no_signal(float(caps.get(gid, 0)))
+	for gid in _cap_inputs.keys():
+		var cv := int(caps.get(gid, 0))
+		(_cap_inputs[gid] as LineEdit).text = ("" if cv <= 0 else str(cv))
 	_refresh_storage_label()
 	_picker.popup_centered(Vector2i(760, 620))
 
 ## 单项上限改了 → 把整张表作为一条命令送进队列（次日 06:00 生效，和其它命令一致）。
-func _on_cap_changed(value: float, gid: String) -> void:
+## 输入框只收数字，留空 = 不限。
+func _on_cap_text(text: String, gid: String) -> void:
+	var digits := ""
+	for ch in text:
+		if ch >= "0" and ch <= "9":
+			digits += ch
+	if digits != text:
+		# 过滤掉非数字后写回；第二次进来 digits == text，不会递归
+		(_cap_inputs[gid] as LineEdit).text = digits
+		return
+	_push_caps()
+
+func _push_caps() -> void:
 	if runner == null:
 		return
 	var caps := {}
-	for g in _cap_spins.keys():
-		var v := int((_cap_spins[g] as SpinBox).value)
+	for g in _cap_inputs.keys():
+		var v := int((_cap_inputs[g] as LineEdit).text)
 		if v > 0:
 			caps[g] = v
 	runner.enqueue([{"type": "set_storage_caps", "caps": caps}])
@@ -473,15 +478,12 @@ func _refresh_storage_label() -> void:
 	if _storage_label == null or runner == null or runner.sim == null:
 		return
 	var sim = runner.sim
-	var used_parts := []
-	for gid in (sim.s["goods"] as Dictionary).keys():
-		used_parts.append(float(sim.s["goods"][gid]))
 	var used := 0.0
-	for v in used_parts:
-		used += v
+	for gid in (sim.s["goods"] as Dictionary).keys():
+		used += float(sim.s["goods"][gid])
 	var texts := []
-	for g in _cap_spins.keys():
-		var v := int((_cap_spins[g] as SpinBox).value)
+	for g in _cap_inputs.keys():
+		var v := int((_cap_inputs[g] as LineEdit).text)
 		if v > 0:
 			texts.append("%s≤%d" % [String(runner.db.goods[g]["nameZh"]), v])
 	_storage_label.text = "仓储 %d / %d%s" % [

@@ -21,6 +21,8 @@ const LOGO_W := 900.0
 var runner: SimRunner
 var world: Node
 var new_game_dialog: Node
+## 存档 / 读档对话框（自绘，main 注入；见 save_dialog.gd）
+var save_dialog: Node = null
 
 signal start_requested
 
@@ -155,16 +157,7 @@ func _on_start() -> void:
 		start_requested.emit()
 
 func _on_load() -> void:
-	var d := FileDialog.new()
-	d.file_mode = FileDialog.FILE_MODE_OPEN_FILE
-	d.access = FileDialog.ACCESS_USERDATA
-	d.add_filter("*.json", "存档")
-	d.title = "读取进度…"
-	d.size = Vector2i(760, 520)
-	add_child(d)
-	d.file_selected.connect(func(path: String):
-		if world != null and world.load_from(path):
-			start_requested.emit()
-		d.queue_free())
-	d.canceled.connect(func(): d.queue_free())
-	d.popup_centered()
+	# 走自绘的存档对话框（main 注入）。它挂在独立的 DialogLayer 上，
+	# 所以标题页期间也看得见；读档成功后它会 loaded 信号 → main 收起标题页。
+	if save_dialog != null:
+		save_dialog.open_load(runner, world)

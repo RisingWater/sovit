@@ -186,6 +186,15 @@ static func hud_box(corner: int = CORNER) -> StyleBoxTexture:
 	return box(T_PANEL_DARK, corner, HUD_TINT)
 
 
+## 「凹陷」底：列表 / 输入框 / 只读槽位用它。和 HUD 底同一块石板压暗，
+## 于是米黄按钮摆在上面就是清楚的"亮件压暗底"关系。
+static func inset_box(corner: int = CORNER, bright: float = 1.0) -> StyleBoxTexture:
+	var tint := HUD_TINT
+	if bright != 1.0:
+		tint = Color(HUD_TINT.r * bright, HUD_TINT.g * bright, HUD_TINT.b * bright)
+	return box(T_PANEL_DARK, corner, tint)
+
+
 static func pad(sb: StyleBoxTexture, l: int, t: int, r: int, b: int) -> StyleBoxTexture:
 	sb.content_margin_left = l
 	sb.content_margin_top = t
@@ -222,6 +231,27 @@ static func make_theme() -> Theme:
 	th.set_color("font_color", "Label", FG_DARK)
 	th.set_font_size("font_size", "Label", FS)
 
+	# 输入框 / 多行输入：**凹陷石板底 + 亮色字**。
+	#
+	# 之前完全没设，于是 LineEdit 是 Godot 默认的白色方块 + 系统字体 ——
+	# 用户在存档对话框里看到的就是"一半像素游戏风、一半默认灰 UI"
+	# （同类问题还有 FileDialog 的列表、路径栏、下拉框、滚动条）。
+	# 这里补齐输入框这一类；列表由 `inset_box()` 交给各对话框自绘。
+	var le_normal := pad(inset_box(), 7, 3, 7, 3)
+	var le_focus := pad(inset_box(CORNER, 1.25), 7, 3, 7, 3)
+	th.set_stylebox("normal", "LineEdit", le_normal)
+	th.set_stylebox("focus", "LineEdit", le_focus)
+	th.set_stylebox("read_only", "LineEdit", pad(inset_box(CORNER, 0.8), 7, 3, 7, 3))
+	th.set_color("font_color", "LineEdit", FG_LIGHT)
+	th.set_color("font_placeholder_color", "LineEdit", Color(0.72, 0.76, 0.80, 0.75))
+	th.set_color("font_selected_color", "LineEdit", FG_DARK)
+	th.set_color("caret_color", "LineEdit", FG_LABEL)
+	th.set_color("selection_color", "LineEdit", Color(0.98, 0.80, 0.42, 0.55))
+	th.set_color("clear_button_color", "LineEdit", FG_LABEL)
+	th.set_color("clear_button_color_pressed", "LineEdit", FG_HEAD)
+	th.set_font_size("font_size", "LineEdit", FS)
+	th.set_constant("minimum_character_width", "LineEdit", 3)
+
 	th.set_stylebox("panel", "Panel", box(T_PANEL_DARK))
 
 	# 提示框：用与其它面板同款的像素米黄纸框（不是纯色块），风格统一。
@@ -255,6 +285,32 @@ static func button(text: String, small: bool = false) -> Button:
 	var h := BTN_H_SM if small else BTN_H
 	b.custom_minimum_size = Vector2(0, h)
 	_wire_sfx(b)
+	return b
+
+
+## 输入框：凹陷石板底 + 亮色像素字。
+## 显式挂字体/底纹，不依赖主题传递 —— 子窗口、弹出层拿不到 root theme 时也一样。
+static func input(placeholder: String = "", max_len: int = 0) -> LineEdit:
+	var e := LineEdit.new()
+	e.placeholder_text = placeholder
+	if max_len > 0:
+		e.max_length = max_len
+	e.custom_minimum_size = Vector2(0, BTN_H_SM)
+	e.add_theme_font_override("font", pixel_font())
+	e.add_theme_font_size_override("font_size", FS)
+	e.add_theme_stylebox_override("normal", pad(inset_box(), 7, 3, 7, 3))
+	e.add_theme_stylebox_override("focus", pad(inset_box(CORNER, 1.25), 7, 3, 7, 3))
+	e.add_theme_color_override("font_color", FG_LIGHT)
+	e.add_theme_color_override("caret_color", FG_LABEL)
+	return e
+
+
+## 列表行：米黄按钮 + 左对齐文字 + 稍高的行距。
+## 选中态由调用方把底纹换成 `T_BTN_ACTIVE`（见 save_dialog）。
+static func row_button(text: String) -> Button:
+	var b := button(text)
+	b.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	b.custom_minimum_size = Vector2(0, BTN_H_SM + 6)
 	return b
 
 
