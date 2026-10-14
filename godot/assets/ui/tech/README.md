@@ -6,9 +6,9 @@
 | | |
 |---|---|
 | **数量** | 44 个（43 项科技齐全 + `research_institute` 一张暂时没对上科技） |
-| **作者** | workbuddy（前 29 张）；后 15 张由本仓库脚本生成 |
-| **授权** | **MIT**（前 29 张，允许再分发） |
-| 来源 | ① 用户提供的 `tech_icons/` 素材包，由 `scripts/import-tech-icons.py` 导入 ② `scripts/gen-tech-icons.ts` 程序化生成 |
+| **作者** | workbuddy（29 张第一批 + **15 张第二批 `tech_icons_v2`**） |
+| **授权** | **MIT**（允许再分发） |
+| 来源 | 用户提供的素材包，由 `scripts/import-tech-icons.py` 导入（**两个源合并**） |
 
 许可证原文见 [`LICENSE.txt`](LICENSE.txt)。MIT 要求保留版权声明，该文件必须随图标一起留在仓库里。
 
@@ -16,22 +16,23 @@
 
 | 批次 | 数量 | 生成方式 | 重跑命令 |
 |---|---|---|---|
-| 素材包导入 | 29 | 手绘素材，最近邻 64→32 + `dematt()` 去毛边 | `python scripts/import-tech-icons.py` |
-| 新增科技 | 15 | **纯程序化绘制**，见下 | `node --experimental-strip-types scripts/gen-tech-icons.ts` |
+| 第一批 `tech_icons/` | 29 | 手绘素材，最近邻 64→32 + `dematt()` 去毛边 | `python scripts/import-tech-icons.py` |
+| 第二批 `tech_icons_v2/` | 15 | 同上（**这 15 张就是效率科技的图标**） | 同上（脚本会把两个源合并导入） |
 
-后 15 张（`crop_rotation` / `irrigation` / `improved_seeds` / `workshop_division` /
-`standardization` / `assembly_line` / `kiln_upgrade` / `sawmill_machinery` /
-`brick_press` / `scriptorium` / `academy` / `printing_press` / `crane` /
-`scaffolding` / `prefab_parts`）由 `scripts/gen-tech-icons.ts` 生成：
+- 两个源里同一 id 后出现的覆盖先出现的；两批之间**没有重叠 id**。
+- 第二批的素材目录在仓库外（`C:\Users\wangxu\WorkBuddy\...\outputs\tech_icons_v2`），
+  文件名是 `NN_<英文名>_<中文名>.png` —— 比第一批多一段中文名，英文名另有 4 个对不上
+  我们的科技 id，映射表都在导入脚本的 `OVERRIDE` 里：
+  `improved_kiln → kiln_upgrade`、`woodworking_machinery → sawmill_machinery`、
+  `brick_machine → brick_press`、`lifting_frame → crane`。
+- 素材里可能有**已退役科技**的图标（`research_institute` 那条科技已删）：
+  导入脚本只警告 + 跳过，不当致命错误；致命的是"某项科技没有图标"。
 
-- 复用 `scripts/lib/pixel.ts` 的 `Canvas`（与 `gen-art.ts` 同一套无依赖 PNG 编解码）
-- **硬边**：只用矩形 / 多边形 / 圆弧 / 单点按整数像素直写，没有抗锯齿、渐变、
-  模糊阴影，也不写任何半透明像素（脚本里有 alpha 只允许 0/255 的自检）
-- 调色板全部取自上面那 29 张手绘图标（统计代表色后去重），每张最后统一补一圈
-  1px 深色描边，所以两批图标混在一起是一套
-- 脚本会校验图案没顶到画布边缘（否则描边会被裁掉）
+> ⚠️ `scripts/gen-tech-icons.ts` 是**程序化兜底版**（第二批图标最早的一版）。
+> 现在仓库里的这 15 张是用户的 v2 素材导入的 —— **跑那个脚本会把它们覆盖掉**，
+> 除非你明确要退回兜底版，否则别跑。
 
-改了脚本要连 PNG 一起提交，并重跑 `--headless --path godot --import`。
+改了素材或脚本要连 PNG 一起提交，并重跑 `--headless --path godot --import`。
 
 ## 命名
 
