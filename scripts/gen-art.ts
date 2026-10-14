@@ -213,8 +213,7 @@ const FEATS: Record<string, () => Canvas> = {
 //
 // **尺寸规则：显示高度由「层数」决定。**
 //   显示高度上限 = 层数 × 3 格 + 屋顶 2 格
-//     1 层 -> 见下面的 CAP_1F（现在是 92px，不是公式的 80px）
-//     2 层 -> 8 格(128px)   3 层 -> 11 格(176px)
+//     1 层 -> 5 格(80px)   2 层 -> 8 格(128px)   3 层 -> 11 格(176px)
 //   每座建筑取**满足上限的最大整数下采样倍率**（1 或 2），宽度按原图比例跟随。
 //
 // 为什么用"最大倍率"而不是"最接近某个目标高度"：
@@ -225,20 +224,9 @@ const FEATS: Record<string, () => Canvas> = {
 // 为什么要按层数分档、不能一律 ÷2：
 //   木屋(1层) 和 砖房(2层) 的**原图高度都是 96**。一律 ÷2 会让二层楼和一层楼
 //   显示成一样高 —— 用户明确要求"不能两层的建筑和一层楼的一样高"。
-//   按层数给上限后：1 层被压到 ≤CAP_1F、2 层 96px、3 层 160px，层级就分开了。
+//   按层数给上限后：1 层被压到 ≤80px、2 层 96px、3 层 160px，层级就分开了。
 //
-// ⚠️ 1 层上限是 92px，**不是公式算出来的 80px**。
-//   公式（层数×3格 + 屋顶2格）给 1 层 5 格 = 80px。但 2026-10-14 的 v5 重绘批次
-//   （狩猎营地/渔场/熏鱼坊/肉干坊/伐木场/木柴坊）是**按 128 宽原生**交付的，
-//   高度 78~92px 且像素块明显更粗 —— 这批素材的设计意图就是"不要再 ÷2"：
-//     * ÷2 会把它缩成 64×39~46，既**更小**（用户反馈过"偏小"），又把刚变粗的
-//       像素块重新减半，等于把这次重绘的意义全部抹掉；
-//     * ×1 才和研究所(128×73)/粘土坑(128×67) 同级，且保持粗颗粒。
-//   所以 1 层上限取 **92 = 严格低于 2 层显示高度(砖房 96) 的最大安全值**：
-//   再高一点，源高 96 的茅屋/木屋就会 ×1 变成 96px，和两层砖房一样高
-//   —— 那正是用户明确禁止的"两层的建筑和一层楼的一样高"。
-//   代价：源高 84~87 的砖窑/建筑工坊/陶瓷坊也跟着升到 128 宽（它们还没被重绘，
-//   像素块比 v5 批次细）。这是"按批重绘"过渡期的必然现象，下批素材到位后会统一。
+// 例外见下面的 FORCE_HALF（同批素材必须同倍率）。
 //
 // 只做整数倍缩放：下采样前先把宽高裁成倍率的整数倍（最多丢 1px 边缘），
 // 保证是真·整数倍，不会出现半像素、大小不一的像素块。
@@ -252,7 +240,24 @@ const STOREYS: Record<string, number> = {
 }
 const STOREY_TILES = 3 // 每层 3 格
 const ROOF_TILES = 2 // 屋顶 2 格
-const CAP_1F = 92 // 1 层上限（见上面的长注释：必须严格低于 2 层显示高度 96）
+
+// 强制 ÷2 的 1 层小建筑（营地/工棚/作坊这类的附属小房）。
+//
+// 为什么必须显式列出来、不能只靠上面的高度上限自动挑：
+//   v5 这批素材是 128 宽、78~92px。1 层上限 80px —— 其中**两座只有 78**（伐木场、
+//   木柴坊）刚好不超过上限，自动规则会把它们留在原生 128 宽，而同一批的另外四座
+//   (81/87/87/92) 会被 ÷2 成 64 宽：**同一批素材一半大一半小**。
+//   用户对着两种方案的渲染图明确选了"整批 ÷2 = 64 宽"——理由是这样才和其余
+//   二十多座作坊(64 宽)协调；按 128 宽显示会明显比周围一圈房子大出一档。
+//   所以这里按"批"强制 ÷2，而不是让高度上限去逐座判断。
+const FORCE_HALF: Record<string, true> = {
+  hunting_camp: true,
+  fishery: true,
+  smokehouse: true,
+  dried_meat_works: true,
+  lumberjack: true,
+  firewood_works: true,
+}
 
 function storeysOf(id: string): number {
   return STOREYS[id] ?? 1
@@ -260,9 +265,7 @@ function storeysOf(id: string): number {
 
 /** 该建筑的显示高度上限（像素）。 */
 function maxDisplayH(id: string): number {
-  const n = storeysOf(id)
-  if (n === 1) return CAP_1F
-  return (STOREY_TILES * n + ROOF_TILES) * G
+  return (STOREY_TILES * storeysOf(id) + ROOF_TILES) * G
 }
 
 /** 整数倍下采样：先裁到 f 的整数倍，再取每 f×f 块的左上像素（= 最近邻）。 */
@@ -280,8 +283,9 @@ function downscaleExact(src: Canvas, f: number): Canvas {
 function spriteBuilding(id: string, srcPath: string, forceScale?: number): Canvas {
   const src = Canvas.fromPng(srcPath)
   const cap = maxDisplayH(id)
-  let f = forceScale ?? 1
-  if (forceScale === undefined) {
+  const f0 = forceScale ?? (FORCE_HALF[id] ? 2 : undefined)
+  let f = f0 ?? 1
+  if (f0 === undefined) {
     // 倍率只取 2 的幂，这样"裁到整数倍"最多只丢 1px
     while (Math.floor(src.h / f) > cap && f < 8) f *= 2
   }
