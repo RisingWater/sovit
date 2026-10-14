@@ -34,7 +34,7 @@ export { advanceDay, advanceHour, runDawn, runNight } from './tick.ts'
 export { applyActions } from './actions.ts'
 export { observe } from './observe.ts'
 export { housingCapacity, privateCapacity, splitOccupancy } from './systems/housing.ts'
-export { usedSlots, constructionRate } from './systems/investment.ts'
+export { usedSlots, constructionRate, applyConstructionHours, settleConstruction } from './systems/investment.ts'
 export { foodChainShopIds, assignedWorkers, effectiveSlots } from './systems/labor.ts'
 export { applyStorageCap, storageCapacity, storedTotal } from './systems/storage.ts'
 export {

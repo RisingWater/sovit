@@ -12,7 +12,8 @@
 - `tickSec`：1 游戏小时 = 多少真实秒（@1x，默认 5 → 2 分钟/天）。
 - 每小时的阶段（`tick.ts` → `stepHour`）：
   - `h == dawnHour(6)`：**黎明** `runDawn`
-  - `workStart(6) <= h < workEnd(18)`：**生产** `runProductionStep(1/(workEnd-workStart))`
+  - `workStart(6) <= h < workEnd(18)`：**生产** `runProductionStep(f)` → **施工** `applyConstructionHours(f)`，
+    `f = 1/(workEnd-workStart)`
   - `h == settleHour(18)`：**夜晚** `runNight`
   - 推进：`hour = (hour+1) % hoursPerDay`
 - `state.day` 在**黎明** +1。
@@ -93,8 +94,9 @@ cap_g = government.storageCaps[g]        # 缺项 = 不限
 | 仓库容量（1 级） | 300 | 同上 `warehouse` |
 | 仓库每级增量 | 150 | `warehouse.storage.storagePerLevel` |
 
-**顺序上的两条硬约束**（都在 `tick.ts` 的夜晚序列里，见 §9.3 / §2.3）：
-1. 在 `settleConstruction` **之后** —— 工地开工扣材料发生在更早，不会被超限丢弃抢走材料
+**顺序上的两条硬约束**（都在 `tick.ts` 的夜晚序列里，见 §9.4 / §2.3）：
+1. 在**施工开工扣材料之后** —— 开工扣料发生在白天第一个工作小时（§9.3），
+   夜晚那条施工收尾（§9.4）也排在丢弃之前，所以不会出现"工地材料被超限丢弃、工地卡死"
 2. 在 `applySpoilage` **之后** —— 先损耗、后判上限，损耗腾出的空间能救下本来会被丢的货
 
 **报警**：库存总量 ≥ 容量时 `alerts` 里加 `{type:'storage_full'}`（否则货凭空消失，像是 bug）。
@@ -232,6 +234,10 @@ satisfaction = clamp(satisfaction + (target−satisfaction)*satisfactionSmoothin
 ## 9. 施工（建店 / 升级 / 建房）
 
 > **建造力 = 每日施工产能（速率，不是库存）**。完整设计见 `docs/construction.md`。
+>
+> **节奏**：施工与生产**同一节奏** —— 产能摊在白天的工作小时里逐小时投入（§9.3），
+> 工地上白天能看见进度在爬；**一天的总量仍是 `constructionRate`**（不结转）。
+> 夜晚只做收尾（§9.4）：诊断队首为什么没动 + 把当日投入折成建造工资。
 
 ### 9.1 每日产能 `constructionRate`
 ```
@@ -250,27 +256,62 @@ rate = (Σ(失业居民) × construction.unemployedRate
 - 升级工时 = `construction.upgradePerLevel × 当前等级`。
 - `usedSlots = shops + 在建(非 upgrade) + housing`。
 
-### 9.3 夜晚 `settleConstruction`（**在 `payWages` 之前**）
+### 9.3 白天 `applyConstructionHours(fraction)`（**与 §2.2 同一条件**）
+
+在 `state.hour` 满足 `workStart <= h < workEnd` 时**每小时调用一次**（排在
+`runProductionStep` **之后** —— 当小时刚产出的木石粘土，当小时就能用于工地开工扣料）。
+`fraction = 1/(workEnd−workStart)`（默认 1/12）。
+
 先进先出，串行投入：
 ```
-for c in construction:                       # 队首 → 队尾
+rate   = constructionRate × fraction          # 这一个小时的产能；**不取整**
+work   = 0
+for c in construction:                        # 队首 → 队尾
+    if rate <= 0 → break
     if !c.started:
-        spec = costOf(c)                     # 实物原料，或（无可用原料时）资金
-        不足 → 记日志「等待材料」，break      # 停在队首，不跳过
-        足够 → payCost(spec); c.started = true
+        spec = costOf(c)                      # 实物原料，或（无可用原料时）资金
+        定义缺失 → break                       # 诊断留给夜晚（§9.4）
+        不足     → break                       # 停在队首等待，**不跳过**
+        足够     → payCost(spec); c.started = true
+                   记日志「开工（需建造力 N）」   # **只在 started 翻转时写一次**
     used = min(rate, c.remaining)
-    c.remaining -= used ; rate -= used ; work += used
-    rate <= 0 → break
-markConstructionWorkers(work)
+    c.remaining = round4(c.remaining − used)  # **r4**：12 次 r2 会漂移
+    rate -= used ; work += used
+state.constructionWorkToday = round4(state.constructionWorkToday + work)
 ```
-`markConstructionWorkers`：出工人数 `n = min(失业人数, ceil(work))`；
+- **开工时刻 = 这一天第一个工作小时**（材料在这一刻扣，不是夜晚）。
+- 一天的投入总量 = `constructionRate`（每小时 1/工作小时数），**不结转**。
+- 日志节奏：小时里**不写**「等待材料」（否则一天刷 12 条）—— 那条诊断在夜晚（§9.4），
+  每天最多一条；「开工」只在 `started` 翻转的那一小时写一次。
+- `rate` 本身**不取整**（取整会让工作小时之和不再恰好等于日产能）；
+  只有落进状态的两处（`remaining` / `constructionWorkToday`）用 r4。
+
+### 9.4 夜晚 `settleConstruction`（**在 `payWages` 之前**）
+
+产能已经在白天投完了，这里只做两件事：
+
+```
+# ① 诊断：队首为什么没动（每天最多一条）
+若 constructionRate > 0：
+    c = 第一条 !started 的工程
+    它前面若有「已开工且 remaining > 0」的工程 → 不诊断   # 产能被前面的工程正常吃掉了
+    costOf(c) 缺失 → 记日志「定义缺失，施工停摆」
+    买不起        → 记日志「等待材料（…）」
+
+# ② 当日投入折成建造工资
+markConstructionWorkers(state.constructionWorkToday)
+state.constructionWorkToday = 0
+```
+
+`markConstructionWorkers(work)`：出工人数 `n = min(失业人数, ceil(work))`；
 总工资 `bill = work × refWage × construction.wageRate`，在 n 人之间平均分配，
 写入 `resident.constructionPay` 并置 `employed = true`（当晚算就业、计熟练度增长）。
+`work` = 当日白天逐小时累计的投入量（`constructionWorkToday`，r4）。
 
-### 9.4 黎明 `activateCompleted`
+### 9.5 黎明 `activateCompleted`
 `remaining <= 0` 的按 kind 生效（建店 / 升级 / 建房），其余留队。
 
-### 9.5 有效工位数 `effectiveSlots`
+### 9.6 有效工位数 `effectiveSlots`
 ```
 slots = (def.maxWorkers ?? def.workers) + (def.capacity?.slotsPerLevel ?? 0) × (等级 − 1)
 ```
@@ -292,7 +333,7 @@ slots = (def.maxWorkers ?? def.workers) + (def.capacity?.slotsPerLevel ?? 0) × 
 
 不减这一手的话，研究所从 L1 升到 L2 会"自动少 3 个工位"，玩家看着莫名其妙。
 
-### 9.6 拆除 `demolish`
+### 9.7 拆除 `demolish`
 `{ type: 'demolish', shopId }` → 从 `state.shops` 移除该店。
 
 - **只作用于已建成的**。还在 `state.construction` 队列里的不属于 `state.shops`，

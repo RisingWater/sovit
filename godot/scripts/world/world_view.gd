@@ -1700,8 +1700,8 @@ func site_tip_at(cell: Vector2i) -> String:
 	if list.is_empty():
 		# 刚放下时队列里还没有它：命令在黎明生效、施工要等入夜结算。
 		# 时刻从内容里读（别写死 06:00/18:00 —— 它们是 economy.json 的 time 块）。
-		return "%s · 已下单（%02d:00 生效 → %02d:00 结算开工）" % [
-			name_zh, int(db_time("dawnHour", 6)), int(db_time("settleHour", 18))]
+		return "%s · 已下单（%02d:00 开工，白天按小时累积）" % [
+			name_zh, int(db_time("dawnHour", 6))]
 	# 优先报正在施工的那处；都在排队就报排最前的
 	var best: Dictionary = list[0]
 	for c in list:
@@ -1743,7 +1743,7 @@ func _why_waiting(c: Dictionary) -> String:
 		return "等待开工（工程定义缺失）"
 	if not sim._can_afford(spec):
 		return "等待材料（缺 %s）" % _shortage_zh(spec)
-	return "等待开工（%02d:00 结算时扣材料）" % int(db_time("settleHour", 18))
+	return "等待开工（下一个工作小时开工，届时扣材料）"
 
 ## 前面有没有"卡住"的工程：队首在等材料时，**后面的全都动不了**，
 ## 但玩家看到的只是一句"等前面的工程"。把那个罪魁祸首与缺口直接写出来。

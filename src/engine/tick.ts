@@ -14,7 +14,7 @@ import { collectRent, assignTenure, runPrivateHousingMarket } from './systems/ho
 import { runConsumption } from './systems/consumption.ts'
 import { updateSatisfaction } from './systems/satisfaction.ts'
 import { updatePopulation, applyAdmission, computeArrivals } from './systems/population.ts'
-import { settleConstruction, activateCompleted } from './systems/investment.ts'
+import { applyConstructionHours, settleConstruction, activateCompleted } from './systems/investment.ts'
 import { settleResearch, activateResearch } from './systems/research.ts'
 import { allocateTools } from './systems/tools.ts'
 
@@ -22,8 +22,8 @@ import { allocateTools } from './systems/tools.ts'
 // 每日结算（小时制）
 //
 // 06:00 黎明：day++ → 应用「次日生效」队列 → 启用昨日完工 → 用工 → 排产
-// 06–18 白天：每小执行今日计划 × 1/工作小时数
-// 18:00 夜晚：施工结算（产能投队列、开工扣材料）→ 工资 → 收租 → 消费 → 买房
+// 06–18 白天：每小时执行今日计划 × 1/工作小时数；施工也在同一节奏里按小时投入
+// 18:00 夜晚：施工收尾（诊断 + 建造工资）→ 研究 → 工资 → 收租 → 消费 → 买房
 //             → 满意度 → 人口 → 移民 → 损耗 → 技能
 // ---------------------------------------------------------------------------
 
@@ -94,7 +94,8 @@ export function runNight(state: GameState, ctx: ContentContext, rng: ReturnType<
   const day = state.day
   const logs: LogEntry[] = []
 
-  // 施工结算必须在工资之前：它决定当天有多少失业人口「在工地上出工」（建造工资）。
+  // 施工收尾必须在工资之前：它把**白天已经投进去的**建造力折算成
+  // 「在工地上出工」的失业人口（建造工资，见 docs/spec.md §9.4）。
   logs.push(...settleConstruction(state, ctx, day))
   // 研究独立成队、不占人口：只消耗科研力（研究所）与材料
   logs.push(...settleResearch(state, ctx, day))
@@ -145,7 +146,11 @@ function stepHour(
     applied = r.applied
   }
   if (h >= TIME.workStart && h < TIME.workEnd) {
-    runProductionStep(state, ctx, 1 / WORK_HOURS)
+    const fraction = 1 / WORK_HOURS
+    // 生产与施工**同一条件、同一节奏**（都在工作小时里按小时推进）：
+    // 先生产、后施工 —— 当小时刚产出的木石粘土，当小时就能用于工地开工扣料。
+    runProductionStep(state, ctx, fraction)
+    logs.push(...applyConstructionHours(state, ctx, fraction))
   }
   if (h === TIME.settleHour) {
     logs.push(...runNight(state, ctx, rng))

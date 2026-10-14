@@ -66,8 +66,8 @@ function nameOf(gid: string): string {
 /**
  * 日终丢弃。返回日志（调用方负责并进当日 logs）。
  *
- * ⚠️ 在建工程的材料在 `settleConstruction` 阶段就已经从 `goods` 扣走了，
- * 而它在夜晚顺序里排在前面 —— 所以不会出现"把工地材料丢了导致工地卡死"。
+ * ⚠️ 在建工程的材料在**工作小时**开工时（`applyConstructionHours`）就已经从 `goods`
+ * 扣走了，而它在夜晚顺序里排在日终丢弃之前 —— 所以不会出现"把工地材料丢了导致工地卡死"。
  */
 export function applyStorageCap(state: GameState, ctx: ContentContext, day: number): LogEntry[] {
   const logs: LogEntry[] = []

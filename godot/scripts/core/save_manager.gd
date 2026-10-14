@@ -49,6 +49,9 @@ static func load_into(path: String, db: ContentDB) -> SimCore:
 static func _sanitize(s: Dictionary, db: ContentDB) -> void:
 	s["day"] = int(s.get("day", 0))
 	s["hour"] = int(s.get("hour", 0))
+	# 施工当日累计（白天按小时投入的累加器，见 docs/spec.md §9.3）。
+	# 旧存档没有这个键 -> 用 .get 兜 0，不然 tick 里第一次 += 会炸。
+	s["constructionWorkToday"] = float(s.get("constructionWorkToday", 0.0))
 	s["arrivals"] = int(s.get("arrivals", 0))
 	s["seed"] = int(s.get("seed", 0))
 	s["rngState"] = int(s.get("rngState", 0))

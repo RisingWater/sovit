@@ -284,7 +284,8 @@ settleConstruction → settleResearch → payWages → assignTenure → collectR
 放这里的三条理由：
 
 1. **一天只判一次**，与损耗同一节奏
-2. **在 `settleConstruction` 之后** —— 工地开工扣材料发生在夜晚更早，不会被"超限丢弃"抢走材料
+2. **在施工结算之后** —— 开工扣材料发生在**当天第一个工作小时（06:00）**，
+   比入夜的"超限丢弃"（`applyStorageCap`，§2.4）早，不会被抢走材料
 3. **在 `applySpoilage` 之后** —— 先损耗、后判上限；损耗腾出的空间可以救下本来会被丢的货
 
 **丢弃顺序（确定性）**：按 `baseValue` **升序**丢（先丢便宜的），并列时按 `goodId` 字典序。
@@ -1036,7 +1037,7 @@ for side in [出售侧(市场卖给你), 收购侧(市场从你买)]:      # 固
 | §12 初始状态 | `pack.start.shops` 含 `town_center`（**不含** warehouse，见 §4.3） |
 | §13 随机数 | **新增一条派生流**的说明（§5.3 的 `streamSeed` 式子）—— 这是新的契约，TS 与 GDScript 必须逐字一致 |
 | §14 内容 schema | **新增建筑字段** `storage` / `storagePerLevel`；`goods.json` 不变 |
-| §15 golden | 轨迹会漂移（§9.4） |
+| §15 golden | 轨迹会漂移（§9.3 白天按小时投入） |
 
 ### 9.2 `docs/technology.md`
 
@@ -1218,7 +1219,7 @@ for side in [出售侧(市场卖给你), 收购侧(市场从你买)]:      # 固
 | 右侧常驻面板的四块内容 | `godot/scripts/ui/inspector.gd:384 _global_panel()`（395/405/445/463） |
 | 税收/租金**没有任何 UI 入口** | 全仓 `.gd` 搜索 `set_tax|set_rent`：只有 `sim_core.gd` 的动作处理 |
 | 用工滑块与拆除已落地（另一条在途改动） | `inspector.gd:198 _title("用工（0 = 停产）")`、`:214 _build_worker_slider`、`:247 _demolish` |
-| `spec.md` 已有 §9.5 `effectiveSlots` / §9.6 拆除 | `docs/spec.md` 章节列表 |
+| `spec.md` 已有 §9.6 `effectiveSlots` / §9.7 拆除 | `docs/spec.md` 章节列表 |
 
 **未能核实、留给实装时确认的**：
 

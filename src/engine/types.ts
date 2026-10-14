@@ -551,6 +551,14 @@ export interface GameState {
 
   /** 当日台账累加器：黎明清零，夜间结算时挂到当天快照上。 */
   ledgerToday: DayLedger
+  /**
+   * 当日已投入施工的建造力（人·天）累加器。
+   *
+   * 施工在**工作小时里按小时累积**（`applyConstructionHours`），到夜晚才把它
+   * 一次性折成「工地出工」的建造工资（`markConstructionWorkers`）——
+   * 所以这一天里投了多少必须攒着，结算完清零。见 `docs/spec.md` §9.3 / §9.4。
+   */
+  constructionWorkToday: number
 
   history: DaySnapshot[]
   log: LogEntry[]
@@ -573,7 +581,7 @@ export type Action =
   /**
    * 拆除：直接销毁一座**已建成**的建筑（玩家在建筑面板点「拆除」）。
    *
-   * 语义（见 docs/spec.md §9.6）：
+   * 语义（见 docs/spec.md §9.7）：
    * - 从 `state.shops` 移除；**不退钱、不退料**（"直接销毁"就是玩家的决定）
    * - 里面的工人自动变回失业 —— `assignLabor` 每晚按 `state.shops` 现算，
    *   不需要额外处理

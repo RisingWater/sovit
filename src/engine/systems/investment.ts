@@ -2,7 +2,7 @@ import type { Construction, GameState, LogEntry, Shop } from '../types.ts'
 import type { ContentContext } from '../content/index.ts'
 import type { BuildingDef } from '../types.ts'
 import { DEFAULTS, ECONOMY, TUNING } from '../config.ts'
-import { round2 } from '../util.ts'
+import { round2, round4 } from '../util.ts'
 import { markConstructionWorkers } from './labor.ts'
 import { assignedWorkers } from './labor.ts'
 import { effectiveSlots } from './labor.ts'
@@ -16,6 +16,11 @@ import { techBonuses } from './tech_bonus.ts'
 //            + Σ(建筑工坊工人 × capacity.perWorker × (1 + levelBonus × (等级−1)) × 熟练度曲线)
 //   一个工程需要「n 建造力」= n 个人·天，工期 = 需求量 ÷ 每日产能。
 //   建造与升级共用一条**先进先出**队列，串行投入；当天没用完的产能作废（不结转）。
+//
+// **白天**在工作小时里按小时投入（`applyConstructionHours`，与生产同一节奏）：
+//   每小时投入 产能 / 工作小时数，一眼能在工地上看见进度在爬；一天的总额仍是 产能。
+// **夜晚**只做收尾（`settleConstruction`）：诊断队首为什么没动 + 把当日累计投入
+//   折成工地出工的建造工资。
 //
 // 材料在**下单时只检查够不够**，**开工时才真正扣除**（排队 20 天不会把材料压死）；
 // 开工时材料不足就停在队首等待，不跳过队列。
@@ -250,19 +255,30 @@ export function constructionRate(state: GameState, ctx: ContentContext): number 
 }
 
 /**
- * 夜晚：把当日产能投入队首工程（先进先出，串行）。
+ * 工作小时：把当日产能的这一份（`constructionRate × fraction`）投入队首工程。
  *
- * - 队首未开工 → 先扣材料；材料不足则停在队首等待，写日志，**不跳过**
+ * 与 `runProductionStep` **同一节奏、同一条件**（`workStart <= h < workEnd`，
+ * fraction = 1/工作小时数），所以"一天 = constructionRate 人·天"这个总量不变，
+ * 只是摊平到 12 个工作小时里 —— 工地上白天能看见进度在爬。
+ *
+ * 队列语义与从前逐字一致（先进先出、串行）：
+ * - 队首未开工 → 先扣材料（**开工时刻 = 这一天第一个工作小时**）；
+ *   材料不足则停在队首等待，**不跳过**（这条是契约）
  * - 产能没用完就溢给下一个工程；产能耗尽即停止
- * - 返回当日实际投入的建造力（人·天），并据此把相应失业人口标成「工地出工」
+ * - 一天里每个工程可以只被投一点，所以 `remaining` 用 **r4** 累积：
+ *   12 次 r2 会漂移（一天就不再恰好等于 constructionRate）
+ * - 日志：`开工（需建造力 N）` 只在 `started` 翻转时写一次；「等待材料」的诊断
+ *   留给夜晚（`settleConstruction`，每天最多一条），这里不刷屏
  */
-export function settleConstruction(
+export function applyConstructionHours(
   state: GameState,
   ctx: ContentContext,
-  day: number,
+  fraction: number,
 ): LogEntry[] {
   const logs: LogEntry[] = []
-  let rate = constructionRate(state, ctx)
+  // rate 是「这一个小时里的产能」。**不取整**（取整会让 12 小时加起来不等于日产能），
+  // 只有落进状态的两处（remaining / 当日累计）用 r4。
+  let rate = constructionRate(state, ctx) * fraction
   let work = 0
 
   for (const c of state.construction) {
@@ -270,35 +286,74 @@ export function settleConstruction(
 
     if (!c.started) {
       const spec = costOf(c, state, ctx)
-      if (!spec) {
-        logs.push({ day, kind: 'invest', text: `${labelOf(c, ctx)} 定义缺失，施工停摆` })
-        break
-      }
-      if (!canAfford(state, spec)) {
-        logs.push({
-          day,
-          kind: 'invest',
-          text: `${labelOf(c, ctx)} 等待材料（${shortageReason(state, spec)}）`,
-        })
-        break
-      }
+      if (!spec) break // 定义缺失：夜晚写诊断，这里不刷屏
+      if (!canAfford(state, spec)) break // 停在队首等待材料，**不跳过**
       payCost(state, spec)
       c.started = true
       logs.push({
-        day,
+        day: state.day,
         kind: 'invest',
         text: `${labelOf(c, ctx)} 开工（需建造力 ${round2(c.totalRequired)}）`,
       })
     }
 
     const used = Math.min(rate, c.remaining)
-    c.remaining = round2(c.remaining - used)
-    rate = round2(rate - used)
-    work = round2(work + used)
+    c.remaining = round4(c.remaining - used)
+    rate -= used
+    work += used
   }
 
-  // 当日出工的失业人口 → 建造工资（在当晚 payWages 里计发）
-  markConstructionWorkers(state, work)
+  // 当日累计投入：入夜时一次性折成「工地出工」（markConstructionWorkers）
+  state.constructionWorkToday = round4(state.constructionWorkToday + work)
+  return logs
+}
+
+/**
+ * 夜晚：施工的**收尾**（产能已经在工作小时里按小时投完了，见 `applyConstructionHours`）。
+ *
+ * 只做两件事：
+ * 1. 队首为什么没动 —— 写一条诊断（每天最多一条）。白天每小时都可能撞上材料不足，
+ *    日志若写在小时里会刷 12 条屏，所以挪到这里。
+ *    诊断对象是**第一条未开工**的工程，且它前面不能有"已开工但没干完"的工程
+ *    （那说明产能是被前面的工程正常吃掉的，不是卡住）
+ * 2. 把当日累计投入的建造力折成「工地出工」的失业人口（建造工资，在 `payWages` 之前）
+ *    —— 顺序不能动：它决定当晚多少人算就业、领建造工资
+ */
+export function settleConstruction(
+  state: GameState,
+  ctx: ContentContext,
+  day: number,
+): LogEntry[] {
+  const logs: LogEntry[] = []
+
+  // 产能为 0 时队首本来就没机会开工（不是材料的问题），与旧口径一致：不写诊断
+  if (constructionRate(state, ctx) > 0) {
+    let blocked: Construction | null = null
+    for (const c of state.construction) {
+      if (!c.started) {
+        blocked = c // 卡住的是**第一条未开工**的工程
+        break
+      }
+      // 前面那几条已开工、还没干完 —— 今天的产能是被它们吃掉的，不是材料的问题，
+      // 别误报"等待材料"（旧口径：产能耗尽就先 break 了，根本走不到后面那条）
+      if (c.remaining > 0) break
+    }
+    if (blocked) {
+      const spec = costOf(blocked, state, ctx)
+      if (!spec) {
+        logs.push({ day, kind: 'invest', text: `${labelOf(blocked, ctx)} 定义缺失，施工停摆` })
+      } else if (!canAfford(state, spec)) {
+        logs.push({
+          day,
+          kind: 'invest',
+          text: `${labelOf(blocked, ctx)} 等待材料（${shortageReason(state, spec)}）`,
+        })
+      }
+    }
+  }
+
+  markConstructionWorkers(state, state.constructionWorkToday)
+  state.constructionWorkToday = 0
   return logs
 }
 

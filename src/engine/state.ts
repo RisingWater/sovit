@@ -113,6 +113,7 @@ export function createInitialState(options: CreateOptions = {}): GameState {
     // 开局已研究的科技来自 pack.start.techs（缺省空 = 只有无科技锁的建筑可建）
     research: { done: [...(start.techs ?? [])], queue: [] },
     ledgerToday: emptyLedger(0),
+    constructionWorkToday: 0,
     history: [
       {
         day: 0,

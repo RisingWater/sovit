@@ -148,6 +148,9 @@ func new_game(pack_id: String, seed_value: int, resource_mult: float = 1.0) -> v
 		# 科技：开局已研究的来自 pack.start.techs（见 docs/technology.md）
 		"research": {"done": _start_techs(pack_id), "queue": []},
 		"ledgerToday": _empty_ledger(0),
+		# 当日已投入施工的建造力（人·天）累加器：工作小时里逐小时累加，
+		# 入夜折成「工地出工」的建造工资后清零。见 docs/spec.md §9.3 / §9.4。
+		"constructionWorkToday": 0.0,
 		"history": [{"day": 0, "population": pop, "avgSatisfaction": float(sd["satisfaction"]), "money": money, "hungry": 0, "employed": 0, "ledger": _empty_ledger(0)}],
 		"log": [], "alerts": [], "arrivals": 0,
 		# 村庄名（可改，随存档保存）。UI 层显示用，不参与任何仿真计算。
@@ -188,7 +191,11 @@ func tick_hour(pending_actions: Array = []) -> Array:
 		logs.append_array(_run_dawn())
 	if h >= int(db.time["workStart"]) and h < int(db.time["workEnd"]):
 		var work_hours = int(db.time["workEnd"]) - int(db.time["workStart"])
-		_run_production_step(1.0 / float(work_hours))
+		var fraction = 1.0 / float(work_hours)
+		# 生产与施工**同一条件、同一节奏**（都在工作小时里按小时推进）：
+		# 先生产、后施工 —— 当小时刚产出的木石粘土，当小时就能用于工地开工扣料。
+		_run_production_step(fraction)
+		logs.append_array(_apply_construction_hours(fraction))
 	if h == int(db.time["settleHour"]):
 		logs.append_array(_run_night())
 	s["hour"] = (h + 1) % int(db.time["hoursPerDay"])
@@ -212,7 +219,8 @@ func _run_dawn() -> Array:
 func _run_night() -> Array:
 	var day = int(s["day"])
 	var logs := []
-	# 施工结算必须在工资之前：它决定当天有多少失业人口「在工地上出工」（建造工资）。
+	# 施工收尾必须在工资之前：它把**白天已经投进去的**建造力折算成
+	# 「在工地上出工」的失业人口（建造工资，见 docs/spec.md §9.4）。
 	logs.append_array(_settle_construction(day))
 	# 研究独立成队、不占人口：只消耗科研力（研究所）与材料
 	logs.append_array(_settle_research(day))
@@ -569,8 +577,9 @@ func _good_name(gid: String) -> String:
 
 ## 日终丢弃。返回日志（调用方并进当日 logs）。见 docs/town.md §3.3。
 ##
-## ⚠️ 在建工程的材料在 `_settle_construction` 阶段就已经从 `goods` 扣走了，
-## 而它在夜晚顺序里排在前面 —— 所以不会出现「把工地材料丢了导致工地卡死」。
+## ⚠️ 在建工程的材料在**工作小时**开工时（`_apply_construction_hours`）就已经从
+## `goods` 扣走了，而它在夜晚顺序里排在日终丢弃之前 —— 所以不会出现
+## 「把工地材料丢了导致工地卡死」。
 func apply_storage_cap(day: int) -> Array:
 	var logs := []
 
@@ -1691,11 +1700,23 @@ func _mark_construction_workers(work: float) -> void:
 		idle[i]["employed"] = true
 		idle[i]["constructionPay"] = per
 
-func _settle_construction(day: int) -> Array:
-	## 夜晚：把当日产能投入队首工程（先进先出，串行）。
-	## 队首未开工 → 先扣材料；材料不足 → 停在队首等待，不跳过。
+func _apply_construction_hours(fraction: float) -> Array:
+	## 工作小时：把当日产能的这一份（`_construction_rate() × fraction`）投入队首工程。
+	##
+	## 与 `_run_production_step` **同一节奏、同一条件**（workStart <= h < workEnd，
+	## fraction = 1/工作小时数），所以"一天 = constructionRate 人·天"这个总量不变，
+	## 只是摊平到工作小时里 —— 工地上白天能看见进度在爬。
+	##
+	## 队列语义与从前逐字一致（先进先出、串行）：
+	##   队首未开工 → 先扣材料（**开工时刻 = 这一天第一个工作小时**）；
+	##   材料不足 → 停在队首等待，**不跳过**
+	##   产能没用完就溢给下一个工程；产能耗尽即停止
+	## `remaining` 用 r4 累积：12 次 r2 会漂移（一天就不再恰好等于 constructionRate）。
+	## 「等待材料」的诊断留给夜晚（_settle_construction，每天最多一条），这里不刷屏。
 	var logs := []
-	var rate = _construction_rate()
+	# rate 是「这一个小时里的产能」。**不取整**（取整会让工作小时加起来不等于日产能），
+	# 只有落进状态的两处（remaining / 当日累计）用 r4。
+	var rate = _construction_rate() * fraction
 	var work = 0.0
 	for c in s["construction"]:
 		if rate <= 0.0:
@@ -1703,19 +1724,50 @@ func _settle_construction(day: int) -> Array:
 		if not bool(c.get("started", false)):
 			var spec = _cost_of(c)
 			if spec.is_empty():
-				logs.append({"day": day, "kind": "invest", "text": "%s 定义缺失，施工停摆" % _label_of(c)})
 				break
 			if not _can_afford(spec):
-				logs.append({"day": day, "kind": "invest", "text": "%s 等待材料（%s）" % [_label_of(c), _shortage_reason(spec)]})
 				break
 			_pay_cost(spec)
 			c["started"] = true
-			logs.append({"day": day, "kind": "invest", "text": "%s 开工（需建造力 %s）" % [_label_of(c), SimUtil.r2(float(c["totalRequired"]))]})
+			logs.append({"day": int(s["day"]), "kind": "invest",
+				"text": "%s 开工（需建造力 %s）" % [_label_of(c), SimUtil.r2(float(c["totalRequired"]))]})
 		var used = minf(rate, float(c["remaining"]))
-		c["remaining"] = SimUtil.r2(float(c["remaining"]) - used)
-		rate = SimUtil.r2(rate - used)
-		work = SimUtil.r2(work + used)
-	_mark_construction_workers(work)
+		c["remaining"] = _r4(float(c["remaining"]) - used)
+		rate -= used
+		work += used
+	# 当日累计投入：入夜时一次性折成「工地出工」（_mark_construction_workers）
+	s["constructionWorkToday"] = _r4(float(s.get("constructionWorkToday", 0.0)) + work)
+	return logs
+
+func _settle_construction(day: int) -> Array:
+	## 夜晚：施工的**收尾**（产能已经在工作小时里按小时投完了，见 _apply_construction_hours）。
+	##
+	## 只做两件事：
+	##   1. 队首为什么没动 —— 写一条诊断（每天最多一条）。白天每小时都可能撞上材料不足，
+	##      日志若写在小时里会刷屏，所以挪到这里。
+	##      诊断对象是**第一条未开工**的工程，且它前面不能有"已开工但没干完"的工程
+	##      （那说明产能是被前面的工程正常吃掉的，不是卡住）
+	##   2. 把当日累计投入的建造力折成「工地出工」的失业人口（建造工资，在 _pay_wages 之前）
+	var logs := []
+	# 产能为 0 时队首本来就没机会开工（不是材料的问题），与旧口径一致：不写诊断
+	if _construction_rate() > 0.0:
+		var blocked = null
+		for c in s["construction"]:
+			if not bool(c.get("started", false)):
+				blocked = c	# 卡住的是**第一条未开工**的工程
+				break
+			# 前面那几条已开工、还没干完 —— 今天的产能是被它们吃掉的，不是材料的问题，
+			# 别误报"等待材料"（旧口径：产能耗尽就先 break 了，根本走不到后面那条）
+			if float(c["remaining"]) > 0.0:
+				break
+		if blocked != null:
+			var spec = _cost_of(blocked)
+			if spec.is_empty():
+				logs.append({"day": day, "kind": "invest", "text": "%s 定义缺失，施工停摆" % _label_of(blocked)})
+			elif not _can_afford(spec):
+				logs.append({"day": day, "kind": "invest", "text": "%s 等待材料（%s）" % [_label_of(blocked), _shortage_reason(spec)]})
+	_mark_construction_workers(float(s.get("constructionWorkToday", 0.0)))
+	s["constructionWorkToday"] = 0.0
 	return logs
 
 func _activate_completed() -> Array:
