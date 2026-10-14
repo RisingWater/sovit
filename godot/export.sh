@@ -7,6 +7,17 @@
 #
 # 产物在 `builds/`（已在 .gitignore 里，不会进仓库）。
 #
+# 图标（WorkBuddy 出图后要填的三个地方，现在都是 Godot 默认图）：
+#   1. **窗口 / 运行时图标**：`project.godot` 的 `application/config/icon`
+#      → 换成一张 PNG（建议 256×256）。注意别动 `application/config/name` ——
+#      它同时决定 `user://` 目录（现在存档在 `app_userdata/sovit`），改了存档会"消失"。
+#   2. **exe 文件图标**：`export_presets.cfg` 里 `[preset.0.options]` 的
+#      `application/icon` → 一个 **.ico**（多尺寸 16/24/32/48/64/128/256，
+#      Pillow: `im.save(p, sizes=[...])`）。顺便可填 `file_version` / `product_version` /
+#      `file_description` / `copyright`（现在都是空的，exe 属性页看着很白）。
+#   3. **Android**（以后）：预设里的 `launcher_icons/main_192x192` 与
+#      `launcher_icons/adaptive_foreground_432x432`。
+#
 # ⚠️ 一次性前提：**导出模板**。没装的话 Godot 只会说
 #   "在预期路径处未找到导出模板：.../export_templates/4.7.2.stable/windows_release_x86_64.exe"
 # 装法二选一：
