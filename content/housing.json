@@ -4,7 +4,17 @@
       "id": "hut",
       "nameZh": "茅屋",
       "art": {
-        "arch": "sprite"
+        "arch": "sprite",
+        "foot": [
+          4,
+          3
+        ],
+        "doors": [
+          [
+            1,
+            2
+          ]
+        ]
       },
       "quality": 1,
       "capacity": 4,

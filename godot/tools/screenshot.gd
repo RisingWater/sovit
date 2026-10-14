@@ -122,6 +122,48 @@ func _run() -> void:
 				world._paint_cell(c + Vector2i(dx - 8, 7 + dy))
 		world._cancel_mode()
 
+	# 门洞验收：开「建筑占地」调试开关 + 镜头怼到城镇中心，并在它下面摆一排建筑。
+	#
+	# 一张图里同时看得到三件事：
+	#   · 城镇中心的**两格门洞**（占地上两格，门前两格 —— 橙色描边 = map.reserved）；
+	#   · 每座建筑的**门格**（彩色占格里的那一格）；
+	#   · 门前那一格**自动铺的路**（放下就在了，不用等建成）。
+	#
+	# 开一局全新的：默认地图没有一格路，"门前那格是这次铺的"才看得出来。
+	if mode == "doors":
+		world.start_new_game(20261014, 20.0, "门洞")
+		if runner.sim != null and runner.db != null:
+			var all3: Array = []
+			for t in runner.db.tech_ids:
+				all3.append(String(t))
+			runner.sim.s["research"]["done"] = all3          # 建筑有科技锁
+			runner.sim.s["government"]["populationCap"] = 999.0
+		await process_frame
+		var tc: Rect2i = world.map.town_center
+		# 一排无地形要求的建筑（有 terrain 的会把脚下的地刷成别的地形，画面变花）
+		var row := ["coarse_bakery", "coarse_weaver", "common_clothes_shop"]
+		var ox := tc.position.x - 6
+		var oy := tc.end.y + 3                                  # 城镇中心占地底边往下 3 格
+		for k in row.size():
+			var id: String = row[k]
+			var fp2: Vector2i = world._footprint(id)
+			var origin3 := Vector2i(ox, oy)
+			if not world._try_place(id, origin3 + Vector2i.ONE):
+				print("SCREENSHOT doors: 放不下 ", id, " @ ", origin3,
+					" 钱=", world._can_afford(id), " 原因=", world.place_reason(id, origin3 + Vector2i.ONE))
+			ox += fp2.x + 1
+		# 住房也放一间（hut 是另一条入口：_place_housing_instance）
+		var hfp: Vector2i = world._footprint("hut")
+		if not world._try_place("hut", Vector2i(ox, oy) + Vector2i.ONE):
+			print("SCREENSHOT doors: 放不下 hut @ ", Vector2i(ox, oy))
+		world.set_debug_footprints(true)                        # 彩色占地格 + 橙框（门洞预留格）
+		world.camera.zoom = Vector2(3.0, 3.0)
+		world.camera.position = Vector2(world.map.center.x * world.TILE,
+			(oy - 1) * world.TILE)
+		print("SCREENSHOT doors: 城镇中心门洞=", world._door_cells("town_center", tc.position,
+			Vector2i(tc.size.x, tc.size.y)), " 门前=", world._door_front_cells("town_center",
+			tc.position, Vector2i(tc.size.x, tc.size.y)))
+
 	# 验证资源设置弹窗
 	if mode == "picker":
 		var hud = node.get_node_or_null("UI/Root/HUD")
