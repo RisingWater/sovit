@@ -572,11 +572,6 @@ func _good_name(gid: String) -> String:
 ## 而它在夜晚顺序里排在前面 —— 所以不会出现「把工地材料丢了导致工地卡死」。
 func apply_storage_cap(day: int) -> Array:
 	var logs := []
-	# 展示村庄豁免（见 world_view.showcase_village）：那份状态每种物资 20000、
-	# 合计 66 万，按真实上限 1000 会在标题页第一天全丢掉，接着木材清零、居民饿死。
-	# 这个标记只由客户端在标题页设置，正式开局的 state 里没有它。
-	if bool(s.get("showcase", false)):
-		return logs
 
 	# ① 逐项软上限
 	var caps: Dictionary = s["government"].get("storageCaps", {})

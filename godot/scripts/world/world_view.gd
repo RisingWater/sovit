@@ -690,18 +690,34 @@ func showcase_village(seed_value: int) -> void:
 	var s: Dictionary = runner.sim.s
 	s["government"]["money"] = 500000.0
 	s["government"]["populationCap"] = 100000.0
+	# 开局物资：**够撑过下面那 6 天快进**就行，不再一味堆 20000。
+	# 仓储上限是"全局总量"口径（城镇中心 1000 + 每座仓库 300，见 docs/town.md §三），
+	# 堆多了当晚就被丢掉 —— 以前没上限才敢写 20000。
+	# 这份小清单合计 580，留了足够余量给快进期间的产出。
 	for g in (s["goods"] as Dictionary).keys():
-		s["goods"][g] = 20000.0
-	# ⚠️ **展示村庄豁免仓储上限**（`sim_core.apply_storage_cap` 认这个标记）。
-	#
-	# 为什么必须豁免：这份状态是"看起来很热闹的村子"，每种物资 20000 ——
-	# 加起来 66 万，而真实上限只有 1000。不豁免的话标题页第一天就把货全丢了
-	# （日志实测：丢 66 万单位），接着木材 = 0（截图工具连建筑都摆不下）、
-	# 居民成批饿死 —— 标题页上会看到一个正在死掉的村子。
-	# 它只在客户端、只在标题页存在：真开局走 `start_new_game()` 重建 state，
-	# 这个标记不会留下来，所以正式游戏完全不受影响。
-	# TS 侧刻意**没有**这个字段（引擎不产生也不消费它），golden 轨迹不受影响。
-	s["showcase"] = true
+		s["goods"][g] = 0.0
+	var seed_goods := {
+		"coarse_bread": 120.0, "vegetable": 60.0,       # 口粮（6 天里 40 来人吃得起）
+		"wheat": 60.0, "coarse_flour": 40.0,            # 面包链的引子
+		"wood": 120.0, "stone": 60.0, "clay": 40.0,     # 建材
+		"firewood": 40.0, "brick": 40.0,
+	}
+	for gid in seed_goods.keys():
+		if (s["goods"] as Dictionary).has(gid):
+			s["goods"][gid] = float(seed_goods[gid])
+	# 补 3 座仓库把容量从 1000 撑到 1900：快进 6 天里村子会持续产出，
+	# 没有这几座的话产出会顶到 1000 上限被丢掉（而且仓库本身也是新建筑，正好展示）。
+	# ⚠️ 仓库要**有在岗工人**才算容量（docs/town.md §3.2），所以 targetWorkers 给满 2。
+	for i in 3:
+		(s["shops"] as Array).append({
+			"id": "show_wh#%d" % (i + 1), "defId": "warehouse", "owner": "state",
+			"targetWorkers": 2, "wage": float(runner.db.economy["refWage"]),
+			"wageCap": float(runner.db.economy["defaultWageCap"]),
+			"level": int(runner.db.defaults["newShop"]["level"]),
+			"active": true, "profit": 0.0,
+			"skill": float(runner.db.defaults["newShop"]["skill"]),
+			"planned": 0.0,
+		})
 
 	# 先铺路和地板 —— 没有路面的村庄看着非常奇怪（空地上一堆房子）。
 	# 顺序很关键：路先铺，后面摆建筑时再避开路面。
@@ -785,6 +801,11 @@ func showcase_village(seed_value: int) -> void:
 	# 先加的话这 40 人跑几天就没了（截图里街上只剩一两个人就是这么来的）。
 	for i in 40:
 		(s["residents"] as Array).append(runner.sim._make_resident("poor"))
+
+	# ⚠️ 补完人**必须再派一次工**：`_assign_labor()` 只在黎明跑，而这 40 人是在
+	# 快进结束之后才进来的 —— 不补这一下，他们全是失业状态（65 人里只有 21 人上岗），
+	# 商店空着、**仓库也一个工人都没有 → 仓储容量加不上**（仓库要有在岗工人才算容量）。
+	runner.sim._assign_labor()
 
 	_prev_res = -1
 	_prev_housing_n = -1
