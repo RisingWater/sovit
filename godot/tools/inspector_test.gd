@@ -66,8 +66,10 @@ func _run() -> void:
 	if ins.visible:
 		_fail("没选中任何东西时右侧面板仍然显示")
 		return
-	if ins.find_children("*", "Label", true, false).size() > 0:
-		_fail("未选中时右侧面板里还留着内容")
+	# ⚠️ 不能查整棵树里的 Label —— 浮动框的标题栏（标题/副标题）是常驻子节点，
+	# 隐藏时也在。要看**内容区**有没有东西。
+	if (ins._body as VBoxContainer).get_child_count() > 0:
+		_fail("未选中时内容区还留着 %d 个节点" % (ins._body as VBoxContainer).get_child_count())
 		return
 
 	# ---- 2a. 城镇中心 → 浮动对话框（人口），右侧面板收起
@@ -146,17 +148,31 @@ func _run() -> void:
 		_fail("清空输入框后该项仍在上限表里（留空应 = 不限）")
 		return
 
-	# ---- 3. 普通建筑 → 右侧面板（对话框收起）
+	# ---- 3. 普通建筑 → 同一个浮动对话框（形式一致：标题 + 拖动把手 + 关闭）
 	node._on_select_building("lumberjack#t")
 	await process_frame
 	if not ins.visible:
-		_fail("选中普通建筑没有显示右侧面板")
+		_fail("选中普通建筑没有显示对话框")
 		return
 	if civic.visible:
-		_fail("选中普通建筑时对话框还开着")
+		_fail("选中普通建筑时城镇中心/仓库的对话框还开着")
 		return
-	if not _labels(ins).has("用工"):
-		_fail("普通建筑的右侧面板内容不对（缺「用工」）")
+	var ins_keys: Array = _labels(ins)
+	if not ins_keys.has("用工"):
+		_fail("普通建筑的对话框内容不对（缺「用工」）：%s" % [ins_keys])
+		return
+	if not ins_keys.has("伐木场"):
+		_fail("普通建筑的对话框标题栏没写建筑名：%s" % [ins_keys])
+		return
+	var ins_drag := false
+	for c in ins.find_children("*", "Control", true, false):
+		if String(c.tooltip_text) == "按住拖动对话框":
+			ins_drag = true
+	if not ins_drag:
+		_fail("普通建筑的对话框没有拖动把手")
+		return
+	if ins.find_children("*", "HSlider", true, false).size() == 0:
+		_fail("普通建筑的对话框里没有用工拖动条")
 		return
 
 	# ---- 4.「设置资源」不再管上限

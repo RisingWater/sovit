@@ -24,45 +24,127 @@ var _confirm_text: Label
 ## 当前查看的建筑的 defId，供弹窗写文案（`_id` 是 shop 实例 id，不是 defId）
 var _demolish_def_id := ""
 var _body: VBoxContainer
+## 标题栏（浮动框形式；见 `_ready()`）
+var _title_lb: Label
+var _sub_lb: Label
+var _dragging := false
+var _drag_off := Vector2.ZERO
 
 ## 拖动用工滑块期间置真。见 `_rebuild()` 里的说明。
 var _dragging_slider := false
 
+## 每种内容一套尺寸：普通建筑内容不多（等级/用工/滑块/三个按钮），别留一大片空白
+const SIZE_BUILDING := Vector2(560, 440)
+const SIZE_RESIDENT := Vector2(560, 380)
+const SIZE_HOUSING := Vector2(560, 330)
+const KEEP_VISIBLE := 80.0
+
 func _ready() -> void:
-	set_anchors_and_offsets_preset(Control.PRESET_RIGHT_WIDE)
-	offset_left = -300
-	offset_top = UIKit.BAR_H + 2
-	offset_bottom = -UIKit.BOT_H - 4
-	mouse_filter = Control.MOUSE_FILTER_PASS
-	add_theme_stylebox_override("panel", UIKit.pad(UIKit.box(UIKit.T_PANEL_CREAM), 7, 6, 7, 6))
+	# **浮动对话框**，不再是右侧那条常驻面板（用户："我对右侧显示面板的这种界面形式
+	# 不满意，不能是对话框吗"）。形式和 panel_civic / panel_stats 一致：
+	# 标题 + 拖动把手 + 关闭，浮在画面中央，可以拖走。
+	anchor_left = 0.0
+	anchor_top = 0.0
+	anchor_right = 0.0
+	anchor_bottom = 0.0
+	mouse_filter = Control.MOUSE_FILTER_STOP
+	add_theme_stylebox_override("panel", UIKit.pad(UIKit.box(UIKit.T_PANEL_CREAM), 12, 10, 12, 10))
+
+	var root := VBoxContainer.new()
+	root.add_theme_constant_override("separation", 6)
+	add_child(root)
+
+	var head := HBoxContainer.new()
+	head.add_theme_constant_override("separation", 5)
+	root.add_child(head)
+	_title_lb = UIKit.label("", UIKit.FG_HEAD)
+	_title_lb.add_theme_font_size_override("font_size", UIKit.BIG_FS)
+	head.add_child(_title_lb)
+	var dragbar := Control.new()
+	dragbar.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	dragbar.mouse_filter = Control.MOUSE_FILTER_STOP
+	dragbar.mouse_default_cursor_shape = Control.CURSOR_MOVE
+	dragbar.tooltip_text = "按住拖动对话框"
+	var hint := UIKit.label("拖动此处移动", Color(0.66, 0.52, 0.36))
+	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	hint.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	hint.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	dragbar.add_child(hint)
+	dragbar.gui_input.connect(_on_drag_input)
+	head.add_child(dragbar)
+	var close := UIKit.button("关闭", true)
+	close.pressed.connect(func(): clear())
+	head.add_child(close)
+	root.add_child(UIKit.hsep())
+	_sub_lb = UIKit.label("", UIKit.FG_DIM)
+	root.add_child(_sub_lb)
 
 	var scroll := ScrollContainer.new()
-	scroll.set_anchors_preset(Control.PRESET_FULL_RECT)
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	add_child(scroll)
+	root.add_child(scroll)
 	_body = VBoxContainer.new()
 	_body.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_body.add_theme_constant_override("separation", 2)
 	scroll.add_child(_body)
 
+	visible = false
 	if runner != null:
 		runner.hour_ticked.connect(_rebuild)
-	_rebuild()
+
+## 拖动标题栏移动对话框；拖出屏幕会被 `_clamp_pos()` 拉回来。
+func _on_drag_input(event: InputEvent) -> void:
+	if event is InputEventMouseButton:
+		var mb := event as InputEventMouseButton
+		if mb.button_index == MOUSE_BUTTON_LEFT:
+			_dragging = mb.pressed
+			if _dragging:
+				_drag_off = get_global_mouse_position() - position
+	elif event is InputEventMouseMotion and _dragging:
+		position = _clamp_pos(get_global_mouse_position() - _drag_off)
+
+func _clamp_pos(p: Vector2) -> Vector2:
+	var vp := get_viewport_rect().size
+	return Vector2(
+		clampf(p.x, KEEP_VISIBLE - size.x, vp.x - KEEP_VISIBLE),
+		clampf(p.y, 0.0, vp.y - KEEP_VISIBLE))
+
+## 面板范围内的鼠标事件一律吃掉，别让滚内容把外面的地图也缩放了。
+func _gui_input(event: InputEvent) -> void:
+	if event is InputEventMouseButton or event is InputEventMouseMotion:
+		accept_event()
+
+## 摆好尺寸并居中（每次切换目标都重新居中，免得从上一个位置"跳"出来）。
+func _open_with(title: String, sub: String, want: Vector2) -> void:
+	_title_lb.text = title
+	_sub_lb.text = sub
+	custom_minimum_size = want
+	reset_size()
+	var vp := get_viewport_rect().size
+	position = _clamp_pos(((vp - size) * 0.5).round())
+	visible = true
+	move_to_front()
 
 func show_building(id: String) -> void:
 	_kind = "building"
 	_id = id
 	_rebuild()
+	if _kind == "building":
+		_open_with(String(_title_lb.text), "所有操作次日 06:00 生效", SIZE_BUILDING)
 
 func show_resident(id: String) -> void:
 	_kind = "resident"
 	_id = id
 	_rebuild()
+	# 标题由 `_resident_panel()` 填（居民姓名），这里沿用
+	_open_with(_title_lb.text, "个人状态", SIZE_RESIDENT)
 
 func show_housing(uid: String) -> void:
 	_kind = "housing"
 	_id = uid
 	_rebuild()
+	_open_with(_title_lb.text, "产权与住户", SIZE_HOUSING)
 
 func clear() -> void:
 	_kind = ""
@@ -246,7 +328,7 @@ func _building_panel() -> void:
 	var eff_workers: int = pend_workers if queued_workers else int(shop["targetWorkers"])
 	var exp_queued := _pending_expand()
 
-	_title(String(def["nameZh"]), true)
+	_title_lb.text = String(def["nameZh"])   # 标题栏显示建筑名，正文里不再重复一遍
 	if exp_queued:
 		_kv("等级", "Lv%d（升级已排队）" % int(shop["level"]), Color(0.72, 0.35, 0.15))
 	else:
@@ -407,6 +489,7 @@ func _resident_panel() -> void:
 				break
 
 	# 头像：取该阶层精灵表的 S 向第 0 帧，放大 3 倍
+	_title_lb.text = Names.for_id(_id)      # 标题栏显示名字，正文不再重复
 	var head := HBoxContainer.new()
 	head.add_theme_constant_override("separation", 6)
 	var av := TextureRect.new()
@@ -450,7 +533,7 @@ func _housing_panel() -> void:
 		return
 	var def: Dictionary = runner.db.housing[inst["type"]]
 	var occ: Array = inst["occupants"]
-	_title(String(def["nameZh"]), true)
+	_title_lb.text = String(def["nameZh"])   # 标题栏显示房型
 	_kv("产权", "私有" if bool(inst["private"]) else "国有",
 		Color(0.55, 0.35, 0.15) if bool(inst["private"]) else UIKit.FG_DARK)
 	_kv("等级", "Lv%d" % int(def["quality"]))
