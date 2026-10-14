@@ -45,6 +45,8 @@ var label_layer: CanvasLayer
 var _label_items: Array = []
 ## 在建工地的悬停提示（独立 CanvasLayer，见 `_ready` 里的说明）
 var tip_layer: CanvasLayer
+## 工地头顶的进度条：世界空间的 `_draw` 层，跟着镜头走（和 `ring_layer` 同一套写法）
+var site_layer: Node2D
 var _tip: PanelContainer
 var _tip_label: Label
 ## UI 根节点（由 main 注入）。用来判断鼠标是否落在 UI 面板上，
@@ -316,6 +318,12 @@ func _build_tileset() -> void:
 	_tip_label = UIKit.label("", UIKit.FG_DARK)
 	_tip.add_child(_tip_label)
 	tip_layer.add_child(_tip)
+
+	# 工地进度条：盖在建筑之上，`_process` 里每帧 queue_redraw（有工地才重画）
+	site_layer = Node2D.new()
+	site_layer.z_index = 6
+	add_child(site_layer)
+	site_layer.draw.connect(_draw_site_bars)
 
 	_render_base_terrain()
 
@@ -1336,6 +1344,8 @@ func _process(delta: float) -> void:
 	_update_cursor()
 	_update_labels()
 	ring_layer.queue_redraw()
+	if not _sites.is_empty():
+		site_layer.queue_redraw()
 
 ## 建造 / 笔刷模式下换成十字光标
 func _update_cursor() -> void:
@@ -1815,6 +1825,65 @@ func _update_site_tip(screen_pos: Vector2) -> void:
 func _hide_site_tip() -> void:
 	if _tip != null and _tip.visible:
 		_tip.visible = false
+
+# ---- 工地头顶的进度条 -----------------------------------------------------
+## 三色一眼看清状态（用户要的"红黄蓝"）：
+##   红 = 卡在材料（队首缺料，后面全都动不了）
+##   黄 = 排队中（前面还有工程）
+##   蓝 = 正在施工（填充比例 = 已投入 / 需要）
+##   灰 = 刚下单，还没进队列（命令次日黎明才生效）
+const ST_BAR_COLOR := {
+	"building": Color(0.30, 0.62, 0.95),
+	"queued": Color(0.95, 0.80, 0.25),
+	"blocked": Color(0.90, 0.30, 0.25),
+	"pending": Color(0.72, 0.72, 0.72),
+}
+
+func _draw_site_bars() -> void:
+	for s in _sites:
+		var fp := Vector2i(int(s["fw"]), int(s["fh"]))
+		var cell: Vector2i = s["cell"]
+		var st := _site_bar_state(String(s["id"]))
+		var w := 30.0
+		var h := 6.0
+		var origin := Vector2(_area_center(cell, fp.x, fp.y).x - w * 0.5,
+			float(cell.y) * TILE - 16.0)
+		# 底：深色描边，保证在草地/屋顶上都看得清
+		site_layer.draw_rect(Rect2(origin + Vector2(-1, -1), Vector2(w + 2, h + 2)),
+			Color(0.10, 0.08, 0.07, 0.9))
+		var inner := Rect2(origin, Vector2(w, h))
+		var col: Color = ST_BAR_COLOR[String(st["state"])]
+		var frac := clampf(float(st["frac"]), 0.0, 1.0)
+		if frac > 0.0:
+			site_layer.draw_rect(Rect2(inner.position, Vector2(inner.size.x * frac, inner.size.y)), col)
+		else:
+			# 一点都没投入时别只剩一条黑杠：用状态色描个空框
+			site_layer.draw_rect(inner, col, false, 1.0)
+
+## 进度条需要的三个数：状态 + 填充比例。与悬停提示同一套判定口径。
+func _site_bar_state(type: String) -> Dictionary:
+	var list := _construction_entries(type)
+	if list.is_empty():
+		return {"state": "pending", "frac": 0.0}
+	var best: Dictionary = list[0]
+	for c in list:
+		if bool(c.get("started", false)):
+			best = c
+			break
+	var need := float(best.get("totalRequired", 0.0))
+	var done := maxf(0.0, need - float(best.get("remaining", 0.0)))
+	var state := "building"
+	if not bool(best.get("started", false)):
+		state = _site_queued_state(best)
+	return {"state": state, "frac": (0.0 if need <= 0.0 else done / need)}
+
+## 还没开工的那条：材料不够 → 红；否则 → 黄（在等前面的工程）。
+func _site_queued_state(c: Dictionary) -> String:
+	var sim = runner.sim
+	var spec: Dictionary = sim._cost_of(c)
+	if not spec.is_empty() and not sim._can_afford(spec):
+		return "blocked"
+	return "queued"
 
 func _cancel_mode() -> void:
 	build_mode = ""
