@@ -234,6 +234,14 @@ func _unhandled_input(event: InputEvent) -> void:
 		# 标题页期间不弹游戏内菜单（那时 HUD 整个是隐藏的）
 		if _title_layer != null and _title_layer.visible:
 			return
+		# 全屏面板开着时，Esc 先关面板（那是"当前一层"），不直接弹菜单 ——
+		# 否则玩家想退出面板却弹出一个菜单盖上来。
+		if _panel_stats != null and _panel_stats.visible:
+			_panel_stats.visible = false
+			return
+		if _panel_tech != null and _panel_tech.visible:
+			_panel_tech.visible = false
+			return
 		_esc_menu.toggle()
 	if event.keycode == KEY_F5:
 		var err := SaveManager.save_to(SaveManager.DEFAULT_PATH, runner.sim)

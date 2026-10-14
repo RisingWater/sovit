@@ -11,8 +11,7 @@ var runner: SimRunner
 var world: Node
 var stats: GameStats
 
-const TABS := ["资源", "人口", "财务"]
-## 页签 -> 图标 id（assets/ui/panel/）。
+const TABS := ["资源", "人口", "财务"]## 页签 -> 图标 id（assets/ui/panel/）。
 const TAB_ICONS := {"资源": "resource", "人口": "population", "财务": "finance"}
 
 ## 表头颜色：必须用深色。UIKit.FG_LABEL 是浅米色，那是给深色 section 条用的，
@@ -30,42 +29,31 @@ func setup(r: SimRunner, w: Node, st: GameStats) -> void:
 	world = w
 	stats = st
 
-const PANEL_W := 1100.0
-const PANEL_H := 680.0
-const CFG_PATH := "user://hud.cfg"
-## 拖动时至少留这么多像素在屏幕内，避免把面板拖没了
-const KEEP_VISIBLE := 80.0
-
-var _dragging := false
-var _drag_off := Vector2.ZERO
-var _dragbar: Control
-
 func _ready() -> void:
-	custom_minimum_size = Vector2(PANEL_W, PANEL_H)
-	# 用左上角锚点 + position 定位：拖动时直接改 position，比改 offset 直观得多
+	# **全屏最大化**（用户要求）：顶栏保留，其余全被盖住 —— 地图、左侧圆钮、
+	# 底部建造栏都看不见了。**不可拖动**（原来是浮框 + 拖动把手 + 记住位置）。
 	anchor_left = 0.0
 	anchor_top = 0.0
-	anchor_right = 0.0
-	anchor_bottom = 0.0
+	anchor_right = 1.0
+	anchor_bottom = 1.0
+	offset_left = 0.0
+	offset_right = 0.0
+	offset_top = float(UIKit.BAR_H)
+	offset_bottom = 0.0
 	mouse_filter = Control.MOUSE_FILTER_STOP
-	add_theme_stylebox_override("panel", UIKit.pad(UIKit.box(UIKit.T_PANEL_CREAM), 9, 8, 9, 8))
-
-	var vp := get_viewport_rect().size
-	var saved := _load_pos()
-	if saved == Vector2.INF:
-		position = ((vp - Vector2(PANEL_W, PANEL_H)) * 0.5).round()
-	else:
-		position = _clamp_pos(saved)
+	add_theme_stylebox_override("panel", UIKit.pad(UIKit.box(UIKit.T_PANEL_CREAM), 14, 10, 14, 10))
 
 	var root := VBoxContainer.new()
 	root.add_theme_constant_override("separation", 5)
 	add_child(root)
 
-	# 标题行
+	# 标题行：标题 + 页签 + 撑开 + 关闭。不再有拖动把手。
 	var head := HBoxContainer.new()
 	head.add_theme_constant_override("separation", 4)
 	root.add_child(head)
-	head.add_child(UIKit.label("统计", UIKit.FG_HEAD))
+	var title := UIKit.label("统计", UIKit.FG_HEAD)
+	title.add_theme_font_size_override("font_size", UIKit.BIG_FS)
+	head.add_child(title)
 	for i in TABS.size():
 		var b := UIKit.button(TABS[i], true)
 		# 三个页签都给图标（作者 workbuddy，MIT）。只给一个的话，
@@ -81,21 +69,10 @@ func _ready() -> void:
 		b.pressed.connect(_select_tab.bind(i))
 		head.add_child(b)
 		_tab_btns.append(b)
-	# Tab 右边整条都是拖动把手
-	_dragbar = Control.new()
-	_dragbar.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_dragbar.mouse_filter = Control.MOUSE_FILTER_STOP
-	_dragbar.mouse_default_cursor_shape = Control.CURSOR_MOVE
-	_dragbar.tooltip_text = "按住拖动面板"
-	var hint := UIKit.label("拖动此处移动面板", Color(0.66, 0.52, 0.36))
-	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	hint.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	hint.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	_dragbar.add_child(hint)
-	_dragbar.gui_input.connect(_on_drag_input)
-	head.add_child(_dragbar)
+	# Tab 右边撑开，把「关闭」推到最右（原来那条是拖动把手，已删）
+	head.add_child(UIKit.spacer())
 	var close := UIKit.button("关闭", true)
+	close.tooltip_text = "回到地图（Esc 也行）"
 	close.pressed.connect(func(): visible = false)
 	head.add_child(close)
 
@@ -112,11 +89,15 @@ func _ready() -> void:
 	_select_tab(0)
 
 func open() -> void:
+	# 全屏面板必须**盖住小地图和左侧圆钮**：它们是 root_ui 里更晚加进去的兄弟节点，
+	# 不 move_to_front 的话会浮在面板上面、把标题栏压住（实测就是这样）。
+	move_to_front()
 	visible = true
 	refresh()
 
 ## 打开并直接切到某个页签（顶栏左侧的圆钮用：资源 / 人口 / 财政）。
 func open_tab(i: int) -> void:
+	move_to_front()
 	visible = true
 	_select_tab(clampi(i, 0, TABS.size() - 1))
 
@@ -138,45 +119,8 @@ func _gui_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton or event is InputEventMouseMotion:
 		accept_event()
 
-# ---------------------------------------------------------------------------
-# 拖动：按在标题栏（Tab 右边那条）上拖，位置存 user://hud.cfg
-# ---------------------------------------------------------------------------
-func _on_drag_input(event: InputEvent) -> void:
-	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
-		_dragging = event.pressed
-		if _dragging:
-			_drag_off = get_global_mouse_position() - global_position
-			# 拖到最前，避免被其它面板挡住
-			move_to_front()
-		else:
-			position = _clamp_pos(position)
-			_save_pos()
-	elif event is InputEventMouseMotion and _dragging:
-		position = _clamp_pos(get_global_mouse_position() - _drag_off)
-
-## 至少留 KEEP_VISIBLE 像素在屏幕内，别拖出去找不回来
-func _clamp_pos(p: Vector2) -> Vector2:
-	var vp := get_viewport_rect().size
-	return Vector2(
-		clampf(p.x, -(PANEL_W - KEEP_VISIBLE), vp.x - KEEP_VISIBLE),
-		clampf(p.y, 0.0, vp.y - KEEP_VISIBLE))
-
-func _load_pos() -> Vector2:
-	var cf := ConfigFile.new()
-	if cf.load(CFG_PATH) != OK:
-		return Vector2.INF
-	if not cf.has_section_key("panel", "stats_pos"):
-		return Vector2.INF
-	var v = cf.get_value("panel", "stats_pos")
-	if v is Vector2:
-		return v
-	return Vector2.INF
-
-func _save_pos() -> void:
-	var cf := ConfigFile.new()
-	cf.load(CFG_PATH)   # 保留其它段（顶栏资源选择、音乐设置都在同一个文件里）
-	cf.set_value("panel", "stats_pos", position)
-	cf.save(CFG_PATH)
+# 面板是**全屏、不可移动**的（用户要求），所以原来那套"拖动把手 + 位置夹取 +
+# 存到 user://hud.cfg"的代码整段删掉了 —— 留着只会有个永远读不到的配置项。
 
 func refresh() -> void:
 	if _body == null or runner == null or runner.sim == null or stats == null:

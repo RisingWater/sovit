@@ -149,6 +149,24 @@ func _run() -> void:
 			await process_frame
 			await process_frame
 
+	# 验证全屏面板：统计（资源/人口/财务）与科技 —— 顶栏保留、地图与建造栏被盖住
+	if mode == "stats" or mode == "stats_people" or mode == "stats_finance" or mode == "tech":
+		var s_panel = node.get_node_or_null("UI/Root/Stats")
+		var t_panel = node.get_node_or_null("UI/Root/Tech")
+		if mode.begins_with("stats") and s_panel != null:
+			var tab := 0
+			if mode == "stats_people":
+				tab = 1
+			elif mode == "stats_finance":
+				tab = 2
+			s_panel.open_tab(tab)
+			await process_frame
+			await process_frame
+		elif mode == "tech" and t_panel != null:
+			t_panel.open()
+			await process_frame
+			await process_frame
+
 	# 验证浮动对话框：城镇中心（人口）/ 仓库（资源 + 上限）/ 普通建筑（运营）
 	# 走 main 的真实分派路径，保证截到的就是玩家点出来的那个东西
 	if mode == "towncenter" or mode == "warehouse" or mode == "building":

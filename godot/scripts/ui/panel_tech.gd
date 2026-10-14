@@ -21,10 +21,6 @@ extends PanelContainer
 var runner: SimRunner
 var world: Node
 
-const PANEL_W := 900.0
-const PANEL_H := 740.0
-const CFG_PATH := "user://hud.cfg"
-const KEEP_VISIBLE := 80.0
 
 # --- 树布局 ---------------------------------------------------------------
 const CARD_W := 108
@@ -61,8 +57,6 @@ var _ptr_press := Vector2.ZERO
 var _ptr_card: Node = null
 
 # 面板自身拖动（标题栏）
-var _dragging := false
-var _drag_off := Vector2.ZERO
 var _last_day := -1
 
 
@@ -72,23 +66,25 @@ func setup(r: SimRunner, w: Node) -> void:
 
 
 func _ready() -> void:
-	custom_minimum_size = Vector2(PANEL_W, PANEL_H)
+	# **全屏最大化**（用户要求）：顶栏保留，其余全被盖住 —— 地图、左侧圆钮、
+	# 底部建造栏都看不见了。**面板本身不可拖动**（原来是浮框 + 拖动把手）；
+	# 面板**内部**按住平移科技树照旧（那是看树，不是搬窗口）。
 	anchor_left = 0.0
 	anchor_top = 0.0
-	anchor_right = 0.0
-	anchor_bottom = 0.0
+	anchor_right = 1.0
+	anchor_bottom = 1.0
+	offset_left = 0.0
+	offset_right = 0.0
+	offset_top = float(UIKit.BAR_H)
+	offset_bottom = 0.0
 	mouse_filter = Control.MOUSE_FILTER_STOP
-	add_theme_stylebox_override("panel", UIKit.pad(UIKit.box(UIKit.T_PANEL_CREAM), 9, 8, 9, 8))
-
-	var vp := get_viewport_rect().size
-	var saved := _load_pos()
-	position = ((vp - Vector2(PANEL_W, PANEL_H)) * 0.5).round() if saved == Vector2.INF else _clamp_pos(saved)
+	add_theme_stylebox_override("panel", UIKit.pad(UIKit.box(UIKit.T_PANEL_CREAM), 14, 10, 14, 10))
 
 	var root := VBoxContainer.new()
 	root.add_theme_constant_override("separation", 5)
 	add_child(root)
 
-	# ---------------- 标题行：烧瓶图标 + 「科技」+ 拖动把手 + 关闭
+	# ---------------- 标题行：烧瓶图标 + 「科技」+（撑开）+ 关闭
 	var head := HBoxContainer.new()
 	head.add_theme_constant_override("separation", 4)
 	root.add_child(head)
@@ -99,21 +95,15 @@ func _ready() -> void:
 		tir.custom_minimum_size = Vector2(UIKit.CHIP_ICON, UIKit.CHIP_ICON)
 		tir.stretch_mode = TextureRect.STRETCH_KEEP_CENTERED
 		head.add_child(tir)
-	head.add_child(UIKit.label("科技", UIKit.FG_HEAD))
-	var dragbar := Control.new()
-	dragbar.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	dragbar.mouse_filter = Control.MOUSE_FILTER_STOP
-	dragbar.mouse_default_cursor_shape = Control.CURSOR_MOVE
-	dragbar.tooltip_text = "按住拖动面板（面板内部按住可平移科技树）"
-	var hint := UIKit.label("拖动此处移动面板　·　面板内按住可平移科技树", Color(0.66, 0.52, 0.36))
-	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	hint.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	hint.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	dragbar.add_child(hint)
-	dragbar.gui_input.connect(_on_drag_input)
-	head.add_child(dragbar)
+	var title := UIKit.label("科技", UIKit.FG_HEAD)
+	title.add_theme_font_size_override("font_size", UIKit.BIG_FS)
+	head.add_child(title)
+	head.add_child(UIKit.spacer())
+	var tip := UIKit.label("面板内按住可平移科技树", Color(0.66, 0.52, 0.36))
+	head.add_child(tip)
+	head.add_child(UIKit.spacer())
 	var close := UIKit.button("关闭", true)
+	close.tooltip_text = "回到地图（Esc 也行）"
 	close.pressed.connect(func(): visible = false)
 	head.add_child(close)
 
@@ -166,6 +156,8 @@ func _process(_dt: float) -> void:
 
 
 func open() -> void:
+	# 全屏面板要盖住小地图与左侧圆钮（它们是更晚加入 root_ui 的兄弟节点）
+	move_to_front()
 	visible = true
 	_last_day = int(runner.sim.s["day"]) if runner != null and runner.sim != null else -1
 	_pan = _clamp_pan(_pan)
@@ -661,41 +653,6 @@ func _fmt(v: float) -> String:
 	return "%.1f" % v
 
 
-# ===========================================================================
-# 面板自身拖动（标题栏）：位置存 user://hud.cfg
-# ===========================================================================
-func _on_drag_input(event: InputEvent) -> void:
-	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
-		_dragging = event.pressed
-		_drag_off = get_global_mouse_position() - position
-		accept_event()
-	elif event is InputEventMouseMotion and _dragging:
-		position = _clamp_pos(get_global_mouse_position() - _drag_off)
-		accept_event()
-
-
-func _clamp_pos(p: Vector2) -> Vector2:
-	var vp := get_viewport_rect().size
-	return Vector2(
-		clampf(p.x, -PANEL_W + KEEP_VISIBLE, vp.x - KEEP_VISIBLE),
-		clampf(p.y, 0.0, vp.y - KEEP_VISIBLE))
-
-
-func _load_pos() -> Vector2:
-	var cf := ConfigFile.new()
-	if cf.load(CFG_PATH) != OK:
-		return Vector2.INF
-	var v = cf.get_value("tech", "pos", null)
-	return v if v is Vector2 else Vector2.INF
-
-
-func _save_pos() -> void:
-	var cf := ConfigFile.new()
-	cf.load(CFG_PATH)
-	cf.set_value("tech", "pos", position)
-	cf.save(CFG_PATH)
-
-
-func _exit_tree() -> void:
-	if visible:
-		_save_pos()
+# 面板本身是**全屏、不可移动**的（用户要求），所以原来那套"标题栏拖动 +
+# 位置夹取 + 存到 user://hud.cfg"整段删掉了。注意**面板内**的科技树平移
+# （`_on_view_input` / `_pan`）不受影响 —— 那是看树，不是搬窗口。

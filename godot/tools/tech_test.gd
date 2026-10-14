@@ -162,12 +162,21 @@ func _run() -> void:
 		return
 
 	# ---- 4. 拖动：按住 → 移动超过阈值 → 画布必须真的动，且不能误触发研究
+	#
+	# ⚠️ 面板改成**全屏**之后视口变得很大，整棵科技树往往**装得下** ——
+	# 那种情况下 `_clamp_pan` 会把可平移量夹成 0，拖动本来就不该动
+	# （这是正确行为，不是 bug）。所以先把视口压小，制造"装不下"的场景，
+	# 否则这条断言测的其实是"树刚好装下时不许平移"。
 	var canvas = panel.get("_canvas")
 	var card0 = cards[String(db.tech_ids[0])]     # research_institute：开局可研究
 	for a in sim.s["pending"]:
 		if String(a.get("type", "")) == "research":
 			_fail("拖动之前 pending 里就有研究指令，测试前提不成立")
 			return
+	panel._view.size = Vector2(420, 300)
+	if panel._clamp_pan(Vector2(-400, -400)) == Vector2.ZERO:
+		_fail("视口压到 420x300 之后仍然无处可平移，测不出拖动")
+		return
 	var before: Vector2 = canvas.position
 	card0._gui_input(_mouse(Vector2(200, 200), true))
 	card0._gui_input(_motion(Vector2(200, 160), Vector2(0, -40)))

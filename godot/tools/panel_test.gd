@@ -1,10 +1,17 @@
 extends SceneTree
 
-# 统计面板拖动：把手存在、位置能存能读、越界能被夹住。
+# 统计 / 科技面板：**全屏最大化、不可移动**（用户要求）。
 #
-# 不模拟真实鼠标事件 —— _on_drag_input 内部读 get_global_mouse_position()，
-# 合成事件改不动它。所以这里测的是拖动链路上可独立验证的三段：
-# 把手配置、位置持久化、边界夹取。
+# 用户原话："左侧圆形按钮弹出的面板不能是对话框了，我希望弹出来的面板是全屏
+# （最大化）的。保留顶栏显示（隐藏地图），遮住下面建筑列表，同时无法移动。"
+#
+# 所以这个门槛测四件事：
+#   1. 铺满顶栏以下的整个屏幕（顶栏那 58px 露着）；
+#   2. 盖住底部建造栏 —— 几何上包住它，**而且**兄弟顺序在它之后（真的画在上面）；
+#   3. 不可移动：拖动把手 / 拖动函数 / 位置夹取都该消失；
+#   4. 面板吃掉滚轮，关闭后地图滚轮照常生效（别把正常功能一起锁死）。
+#
+# 后半段（页签选中出曲线、无新数据不重建）是原来就有的，保留。
 
 const CFG := "user://hud.cfg"
 
@@ -15,12 +22,51 @@ func _fail(msg: String) -> void:
 	print("PANEL TEST FAIL: ", msg)
 	quit(1)
 
-## 在标题行里找"关闭"按钮
+## 在面板里找"关闭"按钮
 func _find_close(root: Node) -> Button:
 	for c in root.find_children("*", "Button", true, false):
 		if (c as Button).text == "关闭":
 			return c
 	return null
+
+## 全屏断言：面板必须铺满 [BAR_H, 视口底] 这块矩形。
+func _check_fullscreen(tag: String, panel: Control, vp: Vector2, bar: Control) -> bool:
+	var r := panel.get_global_rect()
+	if absf(r.position.y - float(UIKit.BAR_H)) > 1.0:
+		_fail("%s 顶边 %.0f 不在顶栏下沿（应 %d）" % [tag, r.position.y, UIKit.BAR_H])
+		return false
+	if absf(r.position.x) > 1.0 or absf(r.position.x + r.size.x - vp.x) > 1.0:
+		_fail("%s 没有横向铺满：x=%.0f..%.0f（视口宽 %.0f）" % [tag, r.position.x, r.position.x + r.size.x, vp.x])
+		return false
+	if absf(r.position.y + r.size.y - vp.y) > 1.0:
+		_fail("%s 没有铺到底：底边 %.0f（视口高 %.0f）" % [tag, r.position.y + r.size.y, vp.y])
+		return false
+	# 顶栏必须露着 —— 用同一个常量核对，别让面板顶边跑到顶栏中间去
+	if r.position.y < float(UIKit.BAR_H) - 1.0:
+		_fail("%s 把顶栏盖住了一截（顶边 %.0f < %d）" % [tag, r.position.y, UIKit.BAR_H])
+		return false
+	# 建造栏：既要被包住，又要真的画在它上面
+	if not r.encloses(bar.get_global_rect()):
+		_fail("%s 没有盖住底部建造栏（面板 %s vs 建造栏 %s）" % [tag, r, bar.get_global_rect()])
+		return false
+	if panel.get_index() < bar.get_index():
+		_fail("%s 画在建造栏下面（顺序 %d < %d），会被挡住" % [tag, panel.get_index(), bar.get_index()])
+		return false
+	# 不可移动：拖动链路必须整段消失
+	if panel.get("_dragbar") != null:
+		_fail("%s 还留着 _dragbar 拖动把手（应全屏不可移动）" % tag)
+		return false
+	if panel.has_method("_on_drag_input") or panel.has_method("_clamp_pos"):
+		_fail("%s 还留着拖动/夹取函数（应全屏不可移动）" % tag)
+		return false
+	var close_btn := _find_close(panel)
+	if close_btn == null:
+		_fail("%s 找不到「关闭」按钮" % tag)
+		return false
+	if close_btn.global_position.x + close_btn.size.x > vp.x + 1.0:
+		_fail("%s 的关闭按钮被挤出屏幕" % tag)
+		return false
+	return true
 
 func _run() -> void:
 	var ps: PackedScene = load("res://scenes/main.tscn")
@@ -28,123 +74,61 @@ func _run() -> void:
 	root.add_child(node)
 	await process_frame
 	await process_frame
-
-	# 标题页会藏掉整个游戏 UI 并接管镜头，测游戏内 UI 前先关掉它
 	if node.has_method("_end_title"):
 		node._end_title()
 		await process_frame
 
 	var panel = node.get_node_or_null("UI/Root/Stats")
-	if panel == null:
-		_fail("找不到 UI/Root/Stats")
+	var tech = node.get_node_or_null("UI/Root/Tech")
+	var bar = node.get_node_or_null("UI/Root/BuildBar")
+	if panel == null or tech == null or bar == null:
+		_fail("找不到 UI/Root/Stats | Tech | BuildBar")
 		return
+	var vp := root.get_visible_rect().size
 
 	# 面板初始是隐藏的，隐藏时容器不做布局 —— 必须先打开再量尺寸
 	panel.open()
 	for i in 3:
 		await process_frame
-
-	# 1. 拖动把手：必须能接鼠标、光标是移动样式
-	var bar = panel.get("_dragbar")
-	if bar == null:
-		_fail("没有 _dragbar 拖动把手")
+	if not _check_fullscreen("统计面板", panel, vp, bar):
 		return
-	if bar.mouse_filter != Control.MOUSE_FILTER_STOP:
-		_fail("拖动把手的 mouse_filter 不是 STOP，接不到鼠标")
+	print("PANEL TEST 统计面板 = %s" % panel.get_global_rect())
+
+	tech.open()
+	for i in 3:
+		await process_frame
+	if not _check_fullscreen("科技面板", tech, vp, bar):
 		return
-	if bar.mouse_default_cursor_shape != Control.CURSOR_MOVE:
-		_fail("拖动把手的光标不是 CURSOR_MOVE")
-		return
-	# 把手必须真的占宽度（挤在 tab 与关闭按钮之间）
-	if bar.size.x < 40.0:
-		_fail("拖动把手太窄（%.0f px），拖不动" % bar.size.x)
-		return
+	print("PANEL TEST 科技面板 = %s" % tech.get_global_rect())
+	tech.visible = false
 
-	var vp := root.get_visible_rect().size
-
-	# 2. 面板不能被内容撑宽 —— 曾经商品曲线选择那行 36 个按钮把最小宽度顶到
-	#    2500px，面板右半边连同关闭按钮被挤出屏幕外。
-	var pw: float = panel.custom_minimum_size.x
-	if panel.size.x > pw + 4.0:
-		_fail("面板被内容撑宽：%.0f > 设定 %.0f" % [panel.size.x, pw])
-		return
-	var close_btn := _find_close(panel)
-	if close_btn != null:
-		var right := close_btn.global_position.x + close_btn.size.x
-		if right > vp.x:
-			_fail("关闭按钮被挤出屏幕：右边缘 %.0f > 视口 %.0f" % [right, vp.x])
-			return
-
-	# 3. 边界夹取：往四个方向拖出屏幕，都要留 KEEP_VISIBLE 在屏内
-	var keep: float = panel.KEEP_VISIBLE
-	var far_neg: Vector2 = panel._clamp_pos(Vector2(-99999, -99999))
-	var far_pos: Vector2 = panel._clamp_pos(Vector2(99999, 99999))
-	if far_neg.y < 0.0:
-		_fail("向上拖出屏幕没有被夹住：%s" % far_neg)
-		return
-	if far_pos.x > vp.x - keep + 0.5 or far_pos.y > vp.y - keep + 0.5:
-		_fail("向右下拖出屏幕没有被夹住：%s（视口 %s）" % [far_pos, vp])
-		return
-
-	# 3. 位置持久化：改位置 -> 存 -> 新建实例读回来
-	#    门禁不能有副作用，所以整文件备份，测完原样还原（原本不存在就删掉）
-	var had_cfg := FileAccess.file_exists(CFG)
-	var backup := FileAccess.get_file_as_string(CFG) if had_cfg else ""
-
-	var target := Vector2(137, 88)
-	panel.position = target
-	panel._save_pos()
-	var again = load("res://scripts/ui/panel_stats.gd").new()
-	root.add_child(again)
-	await process_frame
-	var restored_ok: bool = again.position.distance_to(target) <= 1.5
-
-	if had_cfg:
-		var fw := FileAccess.open(CFG, FileAccess.WRITE)
-		fw.store_string(backup)
-		fw.close()
-	else:
-		DirAccess.remove_absolute(ProjectSettings.globalize_path(CFG))
-
-	if not restored_ok:
-		_fail("位置没有持久化：存 %s，读回 %s" % [target, again.position])
-		return
-
-	print("PANEL TEST 把手宽=%.0f 夹取负向=%s 正向=%s 位置=%s" % [bar.size.x, far_neg, far_pos, again.position])
-
-	# 5. 面板里滚动不能影响外面的地图
-	#    Control 的 mouse_filter=STOP 只挡住它后面的控件；自己不 accept_event() 的话
-	#    事件仍会走到 _unhandled_input，于是滚列表把地图也缩放了。
+	# ---- 面板内滚轮不该动镜头；关掉面板后地图滚轮照常生效
 	var world = node.get_node_or_null("World")
 	if world == null:
 		_fail("找不到 World")
 		return
 	var camera: Camera2D = world.camera
-
-	# 面板内滚轮：镜头不该动
-	panel.position = Vector2(250, 110)
-	await process_frame
 	var z0: float = camera.zoom.x
-	var probe: Vector2 = panel.position + Vector2(400, 300)
-
+	# 面板中间一点（全屏之后没有"面板外"的地图可点了 —— 那正是用户要的效果）
+	var probe: Vector2 = Vector2(vp.x * 0.5, float(UIKit.BAR_H) + (vp.y - float(UIKit.BAR_H)) * 0.5)
 	_wheel(root, probe, true)
 	await process_frame
-	var z_in: float = camera.zoom.x
-	if absf(z_in - z0) > 0.0001:
-		_fail("面板内滚轮影响了地图缩放：%.4f -> %.4f" % [z0, z_in])
+	if absf(camera.zoom.x - z0) > 0.0001:
+		_fail("面板内滚轮影响了地图缩放：%.4f -> %.4f" % [z0, camera.zoom.x])
 		return
-
-	# 地图上滚轮：应当正常缩放
+	panel.visible = false
+	await process_frame
 	_wheel(root, Vector2(120, 430), true)
 	await process_frame
-	var z_map: float = camera.zoom.x
-	if absf(z_map - z0) < 0.0001:
-		_fail("地图上滚轮没有缩放，正常功能被误伤：%.4f" % z_map)
+	if absf(camera.zoom.x - z0) < 0.0001:
+		_fail("关掉面板后地图滚轮不缩放，正常功能被误伤：%.4f" % camera.zoom.x)
 		return
+	print("PANEL TEST 缩放 面板内%.3f(不动) 面板关掉后%.3f(生效)" % [z0, camera.zoom.x])
+	panel.open()
+	for i in 3:
+		await process_frame
 
-	print("PANEL TEST 缩放 面板内%.3f(不动) 地图上%.3f(生效)" % [z_in, z_map])
-
-	# 6. 资源 Tab：直接在列表里点商品名选中并出曲线（不再有底部那排选择按钮）
+	# ---- 资源 Tab：直接在列表里点商品名选中并出曲线（不再有底部那排选择按钮）
 	panel._select_tab(0)
 	await process_frame
 	var pick_buttons := 0
@@ -168,7 +152,7 @@ func _run() -> void:
 		return
 	print("PANEL TEST 列表可选商品=%d 选中=%s 选中后图表=%d" % [pick_buttons, panel._sel_good, charts])
 
-	# 7. 没有新数据时不能重建面板
+	# ---- 没有新数据时不能重建面板
 	#    曾经 main.gd 写成"只要面板可见就 refresh()"，于是每帧把所有子节点
 	#    （含按钮）销毁重建 —— 面板看着正常，但按钮永远点不动。
 	var before_ids := []
