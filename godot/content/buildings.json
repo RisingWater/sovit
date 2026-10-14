@@ -48,6 +48,7 @@
 	},
 	{
 	  "id": "wheat_farm",
+	  "sector": "agri",
 	  "nameZh": "小麦农场",
 	  "art": {
 		"arch": "field",
@@ -72,6 +73,7 @@
 	},
 	{
 	  "id": "vegetable_farm",
+	  "sector": "agri",
 	  "nameZh": "蔬菜农场",
 	  "art": {
 		"arch": "field",
@@ -96,6 +98,7 @@
 	},
 	{
 	  "id": "flax_farm",
+	  "sector": "agri",
 	  "nameZh": "亚麻农场",
 	  "art": {
 		"arch": "field",
@@ -120,6 +123,7 @@
 	},
 	{
 	  "id": "cotton_farm",
+	  "sector": "agri",
 	  "nameZh": "棉花农场",
 	  "art": {
 		"arch": "field",
@@ -144,6 +148,7 @@
 	},
 	{
 	  "id": "sugarcane_farm",
+	  "sector": "agri",
 	  "nameZh": "甘蔗园",
 	  "art": {
 		"arch": "field",
@@ -168,6 +173,7 @@
 	},
 	{
 	  "id": "dye_farm",
+	  "sector": "agri",
 	  "nameZh": "染料园",
 	  "art": {
 		"arch": "field",
@@ -192,6 +198,7 @@
 	},
 	{
 	  "id": "lumberjack",
+	  "sector": "material",
 	  "nameZh": "伐木场",
 	  "art": {
 		"arch": "sprite"
@@ -214,6 +221,7 @@
 	},
 	{
 	  "id": "quarry",
+	  "sector": "material",
 	  "nameZh": "采石场",
 	  "art": {
 		"arch": "sprite"
@@ -236,6 +244,7 @@
 	},
 	{
 	  "id": "clay_pit",
+	  "sector": "material",
 	  "nameZh": "粘土坑",
 	  "art": {
 		"arch": "sprite"
@@ -258,6 +267,7 @@
 	},
 	{
 	  "id": "hunting_camp",
+	  "sector": "agri",
 	  "nameZh": "狩猎营地",
 	  "art": {
 		"arch": "sprite"
@@ -279,6 +289,7 @@
 	},
 	{
 	  "id": "fishery",
+	  "sector": "agri",
 	  "nameZh": "渔场",
 	  "art": {
 		"arch": "sprite"
@@ -299,6 +310,7 @@
 	},
 	{
 	  "id": "coarse_mill",
+	  "sector": "agri",
 	  "nameZh": "粗面粉磨坊",
 	  "art": {
 		"arch": "sprite"
@@ -322,6 +334,7 @@
 	},
 	{
 	  "id": "fine_mill",
+	  "sector": "agri",
 	  "nameZh": "精面粉磨坊",
 	  "art": {
 		"arch": "sprite"
@@ -345,6 +358,7 @@
 	},
 	{
 	  "id": "coarse_bakery",
+	  "sector": "agri",
 	  "nameZh": "粗面包房",
 	  "art": {
 		"arch": "sprite"
@@ -368,6 +382,7 @@
 	},
 	{
 	  "id": "white_bakery",
+	  "sector": "agri",
 	  "nameZh": "白面包房",
 	  "art": {
 		"arch": "sprite"
@@ -391,6 +406,7 @@
 	},
 	{
 	  "id": "pastry_shop",
+	  "sector": "agri",
 	  "nameZh": "糕点房",
 	  "art": {
 		"arch": "sprite"
@@ -415,6 +431,7 @@
 	},
 	{
 	  "id": "sugar_works",
+	  "sector": "agri",
 	  "nameZh": "糖坊",
 	  "art": {
 		"arch": "sprite"
@@ -438,6 +455,7 @@
 	},
 	{
 	  "id": "coarse_weaver",
+	  "sector": "goods",
 	  "nameZh": "粗织坊",
 	  "art": {
 		"arch": "sprite"
@@ -461,6 +479,7 @@
 	},
 	{
 	  "id": "fine_weaver",
+	  "sector": "goods",
 	  "nameZh": "细织坊",
 	  "art": {
 		"arch": "sprite"
@@ -484,6 +503,7 @@
 	},
 	{
 	  "id": "coarse_clothes_shop",
+	  "sector": "goods",
 	  "nameZh": "粗布衣坊",
 	  "art": {
 		"arch": "sprite"
@@ -507,6 +527,7 @@
 	},
 	{
 	  "id": "common_clothes_shop",
+	  "sector": "goods",
 	  "nameZh": "常服坊",
 	  "art": {
 		"arch": "sprite"
@@ -530,6 +551,7 @@
 	},
 	{
 	  "id": "luxury_clothes_shop",
+	  "sector": "goods",
 	  "nameZh": "华服坊",
 	  "art": {
 		"arch": "sprite"
@@ -554,6 +576,7 @@
 	},
 	{
 	  "id": "leather_shop",
+	  "sector": "goods",
 	  "nameZh": "皮衣坊",
 	  "art": {
 		"arch": "sprite"
@@ -577,6 +600,7 @@
 	},
 	{
 	  "id": "firewood_works",
+	  "sector": "material",
 	  "nameZh": "木柴坊",
 	  "art": {
 		"arch": "sprite"
@@ -600,6 +624,7 @@
 	},
 	{
 	  "id": "brick_kiln",
+	  "sector": "material",
 	  "nameZh": "砖窑",
 	  "art": {
 		"arch": "sprite"
@@ -624,6 +649,7 @@
 	},
 	{
 	  "id": "pottery_works",
+	  "sector": "goods",
 	  "nameZh": "陶器坊",
 	  "art": {
 		"arch": "sprite"
@@ -648,6 +674,7 @@
 	},
 	{
 	  "id": "porcelain_works",
+	  "sector": "goods",
 	  "nameZh": "瓷窑",
 	  "art": {
 		"arch": "sprite"
@@ -672,6 +699,7 @@
 	},
 	{
 	  "id": "domestic_service",
+	  "sector": "goods",
 	  "nameZh": "家政工坊",
 	  "art": {
 		"arch": "sprite",
@@ -697,6 +725,7 @@
 	},
 	{
 	  "id": "theater",
+	  "sector": "goods",
 	  "nameZh": "剧院",
 	  "art": {
 		"arch": "sprite"
@@ -719,6 +748,7 @@
 	},
 	{
 	  "id": "smokehouse",
+	  "sector": "agri",
 	  "nameZh": "熏鱼坊",
 	  "art": {
 		"arch": "sprite"
@@ -743,6 +773,7 @@
 	},
 	{
 	  "id": "dried_meat_works",
+	  "sector": "agri",
 	  "nameZh": "肉干坊",
 	  "art": {
 		"arch": "sprite"
@@ -787,6 +818,7 @@
 	},
 	{
 	  "id": "housing_works",
+	  "sector": "goods",
 	  "nameZh": "住房坊",
 	  "art": {
 		"arch": "workshop",
@@ -839,6 +871,7 @@
 	},
 	{
 	  "id": "tool_works",
+	  "sector": "goods",
 	  "nameZh": "工具坊",
 	  "art": {
 		"arch": "workshop",

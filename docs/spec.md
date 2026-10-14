@@ -54,7 +54,7 @@ shop.profit  = Σ_output(q*planned*baseValue) − Σ_input(q*planned*baseValue) 
 ```
 batches = shop.planned * fraction
 goods[g] -= inputPer[g] * batches      // 含 firewood
-goods[g] += output[g]  * batches
+goods[g] += output[g]  * batches * shop.toolBoost * (1 + techBonuses[def.sector])
 ```
 
 **不取整**（浮点，避免 12 次累积误差）。
@@ -100,6 +100,42 @@ cap_g = government.storageCaps[g]        # 缺项 = 不限
 **报警**：库存总量 ≥ 容量时 `alerts` 里加 `{type:'storage_full'}`（否则货凭空消失，像是 bug）。
 
 **命令 `set_storage_caps { caps }`**：整体替换 `government.storageCaps`；只收本 pack 里存在的商品，值取非负整数，`0` 视为不限（不入表）。
+
+### 2.5 效率科技加成 `techBonuses`（跨全天的倍率）
+
+15 项「效率科技」在 `content/technologies.json` 里带 `effects`，形如 `"effects": { "agri": 0.10 }`。
+值是**加成小数**（`0.10` = +10%），不是倍率。可用键只有 5 个：
+
+| 键 | 作用点 |
+|---|---|
+| `agri` / `goods` / `material` | 该 **sector** 建筑的产出 |
+| `research` | 每日科研力（§10.1） |
+| `build` | 每日建造力（§9.1） |
+
+```
+techBonuses(state) = for tid in research.done:
+                       for k in [agri, goods, material, research, build]:
+                         out[k] += technologies[tid].effects[k] ?? 0      # 缺省 0
+```
+
+- **加法叠加，不是连乘**：轮作 +10% + 灌溉 +15% + 良种 +20% = **+0.45**。
+  连乘后期滚雪球，而且玩家在面板上没法一眼算出"现在是多少"。
+- **不取整**（`round2` 只用在最终速率上）。
+- 按固定键序累加，**不依赖内容里 `effects` 的键序**。
+
+**三处作用点**（乘数一律是 `1 + 加成`）：
+
+| 位置 | 公式 |
+|---|---|
+| §2.2 产出 | `goods[g] += output[g] * batches * shop.toolBoost * (1 + techBonuses[def.sector])` |
+| §10.1 科研 | `researchRate = (基础 + Σ 研究所) * (1 + techBonuses.research)` —— **整条**速率，含 `baseRate` |
+| §9.1 建造 | `constructionRate = (失业人口 + Σ 建筑工坊) * (1 + techBonuses.build)` —— **整条**速率 |
+
+- 产出那条与 `toolBoost` 是**相乘**（两条独立路线：工具 +25%、产业科技最多 +45%）。
+- 建筑没有 `sector`（无配方建筑：城镇中心 / 仓库 / 建筑工坊 / 研究所）→ 倍率 1。
+- 建筑的 `sector`（`agri`/`goods`/`material`）是**内容字段**，校验器强制：
+  **有 `recipe` 就必须有 `sector`**，反之不许有。
+- **前端**：科技面板顶部显示累计加成，卡片 tooltip 里有单项效果。
 
 ## 3. 用工 `assignLabor`（黎明）
 
@@ -199,11 +235,13 @@ satisfaction = clamp(satisfaction + (target−satisfaction)*satisfactionSmoothin
 
 ### 9.1 每日产能 `constructionRate`
 ```
-rate = Σ(失业居民) × construction.unemployedRate
-     + Σ(建筑工坊在岗工人) × construction.workshopBase × (skillEffectBase + skillEffectSlope × 熟练度/100)
+rate = (Σ(失业居民) × construction.unemployedRate
+     + Σ(建筑工坊在岗工人) × construction.workshopBase × (skillEffectBase + skillEffectSlope × 熟练度/100))
+     × (1 + techBonuses.build)          # 效率科技：起重架 / 脚手架 / 预制件（见 §2.5）
 ```
 - 「建筑工坊」= **没有 `recipe` 的建筑**（产出建造产能而非商品）。
 - 失业居民 = `!resident.employed`。产能**不结转**，当天没用完即作废。
+- 效率加成乘在**整条速率**上（失业人口那一项也一起放大）。
 
 ### 9.2 下单 `tryBuild` / `tryExpand` / `tryBuildHousing`
 只检查资源是否够，占住队列位，**不扣材料**；压入
@@ -275,12 +313,14 @@ slots = (def.maxWorkers ?? def.workers) + (def.capacity?.slotsPerLevel ?? 0) × 
 
 ### 10.1 每日产能 `researchRate`
 ```
-rate = economy.research.baseRate
+rate = (economy.research.baseRate
      + Σ(研究所在岗工人 × capacity.perWorker × (1 + capacity.levelBonus × (等级−1))
-                              × (skillEffectBase + skillEffectSlope × 熟练度/100))
+                              × (skillEffectBase + skillEffectSlope × 熟练度/100)))
+     × (1 + techBonuses.research)       # 效率科技：抄书房 / 学院 / 印刷术（见 §2.5）
 ```
 - 「研究所」= `capacity.kind == 'research'` 的建筑（不产商品）。
-- 基础项**不需要任何建筑**（2.0/天）：保证"研究所"本身能被研究出来，不会自锁。
+- 基础项现在是 **0**（研究所是科研力的唯一来源，见 `docs/technology.md` 纪元 0）。
+- 效率加成乘在**整条速率**上（基础项也一起放大）。
 - 产能**不结转**，当天没用完即作废。
 
 ### 10.2 下单 `research { techId }`
@@ -340,7 +380,7 @@ for shop in shops:
 
 ### 11.2 生产小时 `runProductionStep`
 ```
-goods[g] += q × batches × shop.toolBoost          # 只放大**产出**
+goods[g] += q × batches × shop.toolBoost × (1 + techBonuses[def.sector])   # 只放大**产出**
 ledgerToday.produced[g] += 同上
 # 投入与燃料那几行**完全不动**
 ```

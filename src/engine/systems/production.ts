@@ -4,6 +4,7 @@ import { ALL_GOODS } from '../content/index.ts'
 import { TUNING } from '../config.ts'
 import { assignedWorkers } from './labor.ts'
 import { shopToolBoost } from './tools.ts'
+import { buildingSectorBoost, techBonuses } from './tech_bonus.ts'
 import { round2, round4 } from '../util.ts'
 
 // ---------------------------------------------------------------------------
@@ -101,6 +102,8 @@ export function planProduction(state: GameState, ctx: ContentContext): void {
 
 /** 白天按小时执行今日计划的一部分（fraction = 1 / 工作小时数）。 */
 export function runProductionStep(state: GameState, ctx: ContentContext, fraction: number): void {
+  // 效率科技加成当日一次性取出（`state.research.done` 当天不会变，黎明才结算科技）。
+  const tech = techBonuses(state, ctx)
   for (const shop of state.shops) {
     if (!shop.active || shop.planned <= 0) continue
     const def = ctx.buildings[shop.defId]
@@ -123,7 +126,9 @@ export function runProductionStep(state: GameState, ctx: ContentContext, fractio
       state.ledgerToday.consumed['firewood'] = round4((state.ledgerToday.consumed['firewood'] ?? 0) + recipe.fuel * batches)
     }
     // 只放大**产出**，投入（上面两段）完全不动 —— 这就是"虚空产量"。
-    const boost = shopToolBoost(shop)
+    // 倍率 = 工具（+25%）× 该产业的效率科技加成（1 + techBonuses()[def.sector]），两者**相乘**；
+    // 建筑没写 sector（无配方建筑不产商品，本来就到不了这里）则为 1。
+    const boost = shopToolBoost(shop) * buildingSectorBoost(def, tech)
     for (const [g, q] of Object.entries(recipe.output)) {
       if (q && q > 0) {
         state.goods[g] = (state.goods[g] ?? 0) + q * batches * boost

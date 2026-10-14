@@ -51,6 +51,7 @@
 | `buildCost` | 可选，建店消耗的实物材料（缺省用 money 兜底）。**开工时才扣** |
 | `buildWork` | **必填**，施工所需建造力（人·天）。工期 = 该值 ÷ 每日产能，见 `docs/construction.md` |
 | `recipe` | **可选**。产商品的建筑必填；只提供"每日建造产能"的建筑（建筑工坊）**不写 `recipe`** |
+| `sector` | **有 `recipe` 就必填**：`"agri"` \| `"goods"` \| `"material"`。效率科技按它给该产业加成（见下）。**无配方建筑不许写** —— 它不产商品，写了也不会被读到，校验器直接报错 |
 | `capacity` | **可选**。只产"每日产能"的建筑写它：`{kind:"build"\|"research", perWorker, levelBonus, slotsPerLevel}`（建筑工坊 / 研究所） |
 | `storage` | **可选**。仓储建筑的容量：`{storage, storagePerLevel}`（城镇中心 / 仓库）。写了它就可以**既不写 `recipe` 也不写 `capacity`** —— 两者必有其一，校验器会拦 |
 | `art.foot` | **可选**（`arch:"sprite"` 专用）。占地 `[宽,高]`（格）；缺省按贴图尺寸算。贴图**可以比占地高**，往上伸出去和身后的建筑按地面线互相遮挡，见 `docs/town.md` §3 与 `world_view._place_sprite()` |
@@ -120,4 +121,21 @@
 ```
 
 - `shops` 里的 defId 必须在 `buildings.json`；`housing` 里的 id 必须在 `housing.json` 且属于本 pack；`goods` 里的 id 必须在 `goods.json`。
+
+## 8. 科技（`technologies.json`）
+
+| 字段 | 说明 |
+|---|---|
+| `era` | **必填**，纪元 id（UI 分组 + 树按它分列）。只在 `eras` 里声明过的 id 有效 |
+| `research` | **必填**，完成所需科研力（人·天） |
+| `cost.goods` | 开工时扣的实物材料。**前置闭包里必须能产出这些原料**，否则校验器报死锁（§1.1 闸门） |
+| `requires` | 知识前置（科技 id 列表）。**它同时决定原料可达性** —— 闭包只跟 `requires` 走 |
+| `unlocks.buildings` / `unlocks.housing` | 解锁的建筑 / 住房 |
+| `effects` | **可选**，效率加成：`{ "agri"\|"goods"\|"material"\|"research"\|"build": 0.10 }`。值是**加成小数**（0.10 = +10%），必须 > 0；同一键的多个科技**加法**叠加（见 `docs/spec.md` §2.5） |
+
+- **解锁或效果至少给一个**：一项科技可以什么建筑都不解锁、只给加成（那 15 项效率科技就是这样）。
+- **效率科技的前置要自己把原料链带上**：它们不解锁任何东西，`requires` 闭包里就凑不出原料。
+  例：`irrigation`（花石块）的前置链上有 `crop_rotation`，而 `crop_rotation` 又挂了 `stonework`
+  —— 于是"采石场"进了闭包，石头可达。**不要**指望校验器给效率科技开后门：§1.1 闸门一视同仁。
+- 引擎内部把配方 id 记为 `r_<建筑id>`，与科技无关；科技 id 就是内容里的 `id`。
 - 空开局就这样写：`"shops": {}`、`"housing": { "hut": 3 }`、`"goods": { ... }`。

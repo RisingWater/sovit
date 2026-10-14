@@ -22,6 +22,9 @@ export {
   CLASS_IDS,
   ALL_HOUSING,
   HOUSING_IDS,
+  ALL_TECHS,
+  TECH_IDS,
+  ERA_IDS,
   isLuxuryGood,
 } from './content/index.ts'
 export type { ContentContext } from './content/index.ts'
@@ -48,3 +51,5 @@ export {
   techForHousing,
 } from './systems/research.ts'
 export { allocateTools, shopToolBoost } from './systems/tools.ts'
+export { techBonuses, sectorOutputBoost, buildingSectorBoost } from './systems/tech_bonus.ts'
+export type { TechBonuses } from './systems/tech_bonus.ts'

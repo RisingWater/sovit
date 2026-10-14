@@ -1,6 +1,7 @@
 import type { Action, GameState } from '../engine/types.ts'
 import {
   ALL_GOODS,
+  ALL_TECHS,
   ECONOMY,
   assignedWorkers,
   buildContext,
@@ -33,18 +34,50 @@ const CREW_RESERVE_RATIO = 0.2
 /**
  * 研究优先级 = docs/technology.md 依赖图的拓扑序。
  * 每天只在队列为空时补一项；买不起 / 前置未满足就顺延到下一项。
+ *
+ * ## 15 项「效率科技」（带 `effects` 的那批）是怎么插进来的
+ *
+ * 它们**什么都不解锁**，只给加成（`agri` / `goods` / `material` / `research` / `build`），
+ * 所以在依赖图上是一串挂件。插入规则三条：
+ *
+ * 1. **同纪元里排在"解锁新建筑"的科技之后**。解锁科技打开的是全新产线
+ *    （烧砖 → 砖窑 → 建材链），效率科技只是把已有的活干得更多 ——
+ *    先有产线再谈效率。
+ * 2. **但只隔一小段**。这批加成是**乘性复利**（`crane` 让每天多盖一点，
+ *    多盖的那点在后面每一天都继续放大），拖到纪元末尾再研究，等于白扔
+ *    前半局的全部收益。所以每个纪元的效率科技就紧跟在同纪元解锁科技的那一串后面。
+ * 3. **同纪元内部按复利强弱排**：`research` > `build` > `agri` > `goods` > `material`。
+ *    - `research` 买的是**后面所有科技的到达时间**，复利最强；
+ *    - `build` 让施工队列整体提速（本 AI 的瓶颈一直是建造力）；
+ *    - `agri` 是粮食 —— 迁入闸门 = `min(面包产能, 蔬菜产能)`，
+ *      它是**人口增长的直接闸门**（simulate 的硬指标），所以排在产出三兄弟之首。
+ *
+ * 例外只有一条：纪元 1 的 `toolmaking`（石制工具）保持在 `construction` 之后靠前 ——
+ * 它解锁的 `tool_works` 直接给所有工坊 +25% 产出，比任何效率科技都划算。
  */
 const RESEARCH_ORDER: string[] = [
+  // ---- 纪元 1：先铺原料与建造力，工具坊紧随其后 ----
   'stonework',
   'digging',
   'firewood',
   'construction',
   'toolmaking',
   'hunting',
+
+  // ---- 纪元 2 解锁：把基础产线（砖 / 陶 / 纤维 / 渔）打开 ----
   'brickmaking',
   'pottery',
   'fiber_crops',
   'fishing',
+
+  // ---- 纪元 2 效率：先科研、后建造，再按"粮食 → 加工 → 原料" ----
+  'scriptorium', // research +10%
+  'crane', // build +10%
+  'crop_rotation', // agri +10%
+  'workshop_division', // goods +10%
+  'kiln_upgrade', // material +10%
+
+  // ---- 纪元 3 解锁：住房、精粮、纺织、腌熏、娱乐 ----
   'carpentry',
   'fine_milling',
   'white_baking',
@@ -53,6 +86,15 @@ const RESEARCH_ORDER: string[] = [
   'curing',
   'coarse_tailoring',
   'entertainment',
+
+  // ---- 纪元 3 效率（同上顺序，系数更大）----
+  'academy', // research +15%
+  'scaffolding', // build +15%
+  'irrigation', // agri +15%
+  'standardization', // goods +15%
+  'sawmill_machinery', // material +15%
+
+  // ---- 纪元 4 解锁 ----
   'cash_crops',
   'sugar_refining',
   'common_tailoring',
@@ -61,6 +103,15 @@ const RESEARCH_ORDER: string[] = [
   'masonry_housing',
   'porcelain',
   'luxury_tailoring',
+
+  // ---- 纪元 4 效率 ----
+  'printing_press', // research +20%
+  'prefab_parts', // build +20%
+  'improved_seeds', // agri +20%
+  'assembly_line', // goods +20%
+  'brick_press', // material +20%
+
+  // ---- 纪元 5 ----
   'domestic_service',
   'housing_works',
 ]
@@ -88,6 +139,22 @@ function jobCapacity(state: GameState, ctx: ContentContext): number {
   }
   return total
 }
+
+/**
+ * 一次性自检：`RESEARCH_ORDER` 必须**一项不漏**地覆盖内容里的全部科技。
+ *
+ * 为什么放在这里：漏了一项不会报错，只会让 AI **永远不研究它** ——
+ * 那种"村子看着正常、就是有一支科技树点不亮"的问题查起来最费时间。
+ * 表里有、内容里没有（换 pack 的冗余项）不算错，只有"内容里有、表里没有"才抛。
+ */
+function assertResearchOrderComplete(): void {
+  const listed = new Set(RESEARCH_ORDER)
+  const missing = Object.keys(ALL_TECHS).filter((id) => !listed.has(id))
+  if (missing.length > 0) {
+    throw new Error(`[ai] RESEARCH_ORDER 漏了科技：${missing.join('、')}`)
+  }
+}
+assertResearchOrderComplete()
 
 /** 公共动作：满员用工 + 工资 + 价格。 */
 function commonActions(
@@ -408,6 +475,7 @@ function decideGrowth(state: GameState, ctx: ContentContext): Action[] {
   // 之后 营造（建筑工坊）是最关键的一步：不研究它，村子满员就业后建造力归零、彻底停工。
   if (state.research.queue.length === 0) {
     for (const tid of RESEARCH_ORDER) {
+      // 表里有、内容里没有 → 这家 pack 没这项科技，跳过（换 pack 时表可以更全）
       if (!ctx.technologies[tid]) continue
       const check = canResearch(state, ctx, tid)
       if (check.ok) {

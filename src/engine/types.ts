@@ -33,6 +33,21 @@ export type GoodCategory =
 export type BuildingTier = 1 | 2 | 3
 export type ShopStatus = 'green' | 'yellow' | 'red'
 
+/**
+ * 产业：效率科技（`TechnologyDef.effects`）按它把产出加成加到哪一类建筑上。
+ * 只有**有 recipe** 的建筑才有产业（无配方建筑不产商品，加成无从施加）。
+ */
+export type Sector = 'agri' | 'goods' | 'material'
+
+/** 效率科技加成的 5 个可用键（产出的三个 = `Sector`）。 */
+export type TechEffectKey = Sector | 'research' | 'build'
+
+/**
+ * 效率科技的效果：**加法**叠加的加成小数（`0.10` = +10%），不是倍率。
+ * 口径与 GDScript `sim_core.gd::tech_bonuses()` 一致，见 `docs/spec.md`。
+ */
+export type TechEffects = Partial<Record<TechEffectKey, number>>
+
 // ---------------------------------------------------------------------------
 // 内容定义（静态数据）
 // ---------------------------------------------------------------------------
@@ -181,6 +196,12 @@ export interface BuildingDef {
   maxWorkers?: number
   /** 生产配方。产出「建造产能」而非商品时缺省（如建筑工坊、研究所）。 */
   recipe?: RecipeID
+  /**
+   * 所属产业（只有**有 recipe** 的建筑才有）。决定效率科技（`effects.agri/goods/material`）
+   * 的产出加成加在它身上：产出倍率 = 1 + techBonuses()[sector]。
+   * 无 recipe 的建筑缺省 → 倍率恒为 1。
+   */
+  sector?: Sector
   /** 施工工时（建造力 / 人·天）。设计见 docs/construction.md。 */
   buildWork: number
   /** 产能参数（只有不产商品的建筑有）；缺省表示它靠 recipe 产商品。 */
@@ -398,9 +419,17 @@ export interface TechDef {
   cost: { goods: Partial<Record<GoodID, number>> }
   /** 知识前置。 */
   requires: TechID[]
+  /**
+   * 效率加成（加法叠加，见 `techBonuses()`）。缺省 = 这项科技只解锁东西、不给加成。
+   * 键只有 5 个：`agri` / `goods` / `material`（产出）、`research`（科研速度）、`build`（建造速度）。
+   */
+  effects?: TechEffects
   /** 本科技解锁的建筑与住房。每座建筑至多被一项科技解锁。 */
   unlocks: { buildings: BuildingID[]; housing: GoodID[] }
 }
+
+/** `TechDef` 的别名（两者是同一份定义）。 */
+export type TechnologyDef = TechDef
 
 /** 队列里的一项在研科技。结构与 Construction 刻意保持一致。 */
 export interface ResearchProject {

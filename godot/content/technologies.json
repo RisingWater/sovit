@@ -265,6 +265,156 @@
       "cost": { "goods": { "wood": 80, "brick": 40 } },
       "requires": ["carpentry", "brickmaking"],
       "unlocks": { "buildings": ["housing_works"], "housing": [] }
+    },
+    {
+      "id": "crop_rotation",
+      "nameZh": "轮作",
+      "era": 2,
+      "research": 30,
+      "cost": { "goods": { "wood": 20 } },
+      "requires": ["stonework"],
+      "effects": { "agri": 0.10 },
+      "unlocks": { "buildings": [], "housing": [] }
+    },
+    {
+      "id": "irrigation",
+      "nameZh": "灌溉",
+      "era": 3,
+      "research": 50,
+      "cost": { "goods": { "wood": 30, "stone": 15 } },
+      "requires": ["crop_rotation"],
+      "effects": { "agri": 0.15 },
+      "unlocks": { "buildings": [], "housing": [] }
+    },
+    {
+      "id": "improved_seeds",
+      "nameZh": "良种",
+      "era": 4,
+      "research": 80,
+      "cost": { "goods": { "wood": 40, "stone": 25 } },
+      "requires": ["irrigation"],
+      "effects": { "agri": 0.20 },
+      "unlocks": { "buildings": [], "housing": [] }
+    },
+    {
+      "id": "workshop_division",
+      "nameZh": "作坊分工",
+      "era": 2,
+      "research": 30,
+      "cost": { "goods": { "wood": 20 } },
+      "requires": ["stonework"],
+      "effects": { "goods": 0.10 },
+      "unlocks": { "buildings": [], "housing": [] }
+    },
+    {
+      "id": "standardization",
+      "nameZh": "标准化",
+      "era": 3,
+      "research": 50,
+      "cost": { "goods": { "wood": 30, "stone": 15 } },
+      "requires": ["workshop_division"],
+      "effects": { "goods": 0.15 },
+      "unlocks": { "buildings": [], "housing": [] }
+    },
+    {
+      "id": "assembly_line",
+      "nameZh": "流水线",
+      "era": 4,
+      "research": 80,
+      "cost": { "goods": { "wood": 40, "stone": 25 } },
+      "requires": ["standardization"],
+      "effects": { "goods": 0.20 },
+      "unlocks": { "buildings": [], "housing": [] }
+    },
+    {
+      "id": "kiln_upgrade",
+      "nameZh": "窑炉改良",
+      "era": 2,
+      "research": 30,
+      "cost": { "goods": { "wood": 20, "stone": 20 } },
+      "requires": ["stonework"],
+      "effects": { "material": 0.10 },
+      "unlocks": { "buildings": [], "housing": [] }
+    },
+    {
+      "id": "sawmill_machinery",
+      "nameZh": "木工机械",
+      "era": 3,
+      "research": 50,
+      "cost": { "goods": { "wood": 20, "stone": 20 } },
+      "requires": ["kiln_upgrade"],
+      "effects": { "material": 0.15 },
+      "unlocks": { "buildings": [], "housing": [] }
+    },
+    {
+      "id": "brick_press",
+      "nameZh": "制砖机械",
+      "era": 4,
+      "research": 80,
+      "cost": { "goods": { "wood": 40, "stone": 25 } },
+      "requires": ["sawmill_machinery"],
+      "effects": { "material": 0.20 },
+      "unlocks": { "buildings": [], "housing": [] }
+    },
+    {
+      "id": "scriptorium",
+      "nameZh": "抄书房",
+      "era": 2,
+      "research": 30,
+      "cost": { "goods": { "wood": 20 } },
+      "requires": ["stonework"],
+      "effects": { "research": 0.10 },
+      "unlocks": { "buildings": [], "housing": [] }
+    },
+    {
+      "id": "academy",
+      "nameZh": "学院",
+      "era": 3,
+      "research": 50,
+      "cost": { "goods": { "wood": 30, "stone": 15 } },
+      "requires": ["scriptorium"],
+      "effects": { "research": 0.15 },
+      "unlocks": { "buildings": [], "housing": [] }
+    },
+    {
+      "id": "printing_press",
+      "nameZh": "印刷术",
+      "era": 4,
+      "research": 80,
+      "cost": { "goods": { "wood": 40, "stone": 25 } },
+      "requires": ["academy"],
+      "effects": { "research": 0.20 },
+      "unlocks": { "buildings": [], "housing": [] }
+    },
+    {
+      "id": "crane",
+      "nameZh": "起重架",
+      "era": 2,
+      "research": 30,
+      "cost": { "goods": { "wood": 20 } },
+      "requires": ["stonework"],
+      "effects": { "build": 0.10 },
+      "unlocks": { "buildings": [], "housing": [] }
+    },
+    {
+      "id": "scaffolding",
+      "nameZh": "脚手架",
+      "era": 3,
+      "research": 50,
+      "cost": { "goods": { "wood": 30, "stone": 15 } },
+      "requires": ["crane"],
+      "effects": { "build": 0.15 },
+      "unlocks": { "buildings": [], "housing": [] }
+    },
+    {
+      "id": "prefab_parts",
+      "nameZh": "预制件",
+      "era": 4,
+      "research": 80,
+      "cost": { "goods": { "wood": 40, "stone": 25 } },
+      "requires": ["scaffolding"],
+      "effects": { "build": 0.20 },
+      "unlocks": { "buildings": [], "housing": [] }
     }
   ]
 }

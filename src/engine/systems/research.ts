@@ -4,6 +4,7 @@ import { ECONOMY, TUNING } from '../config.ts'
 import { round2 } from '../util.ts'
 import { assignedWorkers } from './labor.ts'
 import { isCapacityKind } from './investment.ts'
+import { techBonuses } from './tech_bonus.ts'
 
 // ---------------------------------------------------------------------------
 // 研究（见 docs/technology.md）
@@ -14,6 +15,9 @@ import { isCapacityKind } from './investment.ts'
 //
 // 科技消耗「科研力 + 原材料」：原材料在**开工时**（队首开始投入科研力时）扣，
 // 进度按先进先出队列逐日投入，产能不结转。研究完成在**次日黎明**生效（解锁建筑）。
+//
+// 效率科技（抄书房 / 学院 / 印刷术）把**整条速率**乘 (1 + effects.research)，
+// 见 docs/spec.md §10.1。
 // ---------------------------------------------------------------------------
 
 /** 当日科研力产能（人·天）。 */
@@ -26,6 +30,8 @@ export function researchRate(state: GameState, ctx: ContentContext): number {
     const levelMul = 1 + def.capacity.levelBonus * (shop.level - 1)
     rate += assignedWorkers(state, shop.id) * def.capacity.perWorker * levelMul * skillEff
   }
+  // 效率科技：**整条返回值**乘 (1 + 加成) —— 基础速率也一起放大。
+  rate *= 1 + techBonuses(state, ctx).research
   return round2(rate)
 }
 

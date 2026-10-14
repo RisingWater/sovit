@@ -6,6 +6,7 @@ import { round2 } from '../util.ts'
 import { markConstructionWorkers } from './labor.ts'
 import { assignedWorkers } from './labor.ts'
 import { effectiveSlots } from './labor.ts'
+import { techBonuses } from './tech_bonus.ts'
 
 // ---------------------------------------------------------------------------
 // 投资：扩产 / 建店 / 建房 / 施工队列
@@ -226,6 +227,9 @@ export function isCapacityKind(def: BuildingDef, kind: 'build' | 'research'): bo
  * 熟练度曲线沿用产量那条（production.ts），不引入第二套熟练度语义。
  * 建筑工坊的 `perWorker` 取 2.5：新工坊熟练度 50 → 曲线 0.8 → `2.5 × 0.8 = 2.0`，
  * 正好「一人顶两个失业人口」。它的 `levelBonus` 是 0，所以升级不影响每人产能。
+ *
+ * 效率科技（起重架 / 脚手架 / 预制件）把**整条速率**乘 (1 + effects.build)，
+ * 见 docs/spec.md §9.1。
  */
 export function constructionRate(state: GameState, ctx: ContentContext): number {
   const { unemployedRate } = ECONOMY.construction
@@ -240,6 +244,8 @@ export function constructionRate(state: GameState, ctx: ContentContext): number 
     const levelMul = 1 + def.capacity.levelBonus * (shop.level - 1)
     rate += assignedWorkers(state, shop.id) * def.capacity.perWorker * levelMul * skillEff
   }
+  // 效率科技：**整条返回值**乘 (1 + 加成) —— 失业人口那一项也一起放大。
+  rate *= 1 + techBonuses(state, ctx).build
   return round2(rate)
 }
 

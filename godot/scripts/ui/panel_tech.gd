@@ -39,6 +39,15 @@ const C_PENDING := Color(0.70, 0.58, 0.14)
 const C_READY := Color(0.62, 0.36, 0.16)
 const C_LOCKED := Color(0.55, 0.53, 0.50)
 
+## 效率科技的效果键 → 中文（面板顶部累计行 + 卡片 tooltip 共用一套说法）
+const EFFECT_NAMES := {
+	"agri": "农业食品",
+	"goods": "工业商品",
+	"material": "建材",
+	"research": "科研速度",
+	"build": "建造速度",
+}
+
 var _top: VBoxContainer
 var _view: Control
 var _canvas: Control
@@ -325,6 +334,27 @@ func _refresh_top() -> void:
 			"已装配工具的工坊：%d 座（产出 ×%s）" % [boosted, _fmt(1.0 + db.tool_bonus("stone_tools"))],
 			Color(0.18, 0.45, 0.20)))
 
+	# 效率科技的累计加成 —— 玩家得看见"研究这些到底涨了多少"。
+	# 加法叠加（+10% +15% +20% = +45%），与引擎 tech_bonuses() 同一口径。
+	var b: Dictionary = runner.sim.tech_bonuses()
+	var out_parts := []
+	for k in ["agri", "goods", "material"]:
+		var v := float(b.get(k, 0.0))
+		if v > 0.0:
+			out_parts.append("%s +%d%%" % [EFFECT_NAMES[k], int(round(v * 100.0))])
+	var spd_parts := []
+	for k in ["research", "build"]:
+		var v2 := float(b.get(k, 0.0))
+		if v2 > 0.0:
+			spd_parts.append("%s +%d%%" % [EFFECT_NAMES[k], int(round(v2 * 100.0))])
+	if not out_parts.is_empty() or not spd_parts.is_empty():
+		var line := "效率科技："
+		if not out_parts.is_empty():
+			line += "产出 " + "、".join(out_parts)
+		if not spd_parts.is_empty():
+			line += ("　" if not out_parts.is_empty() else "") + "　".join(spd_parts)
+		_top.add_child(UIKit.label(line, Color(0.18, 0.45, 0.20)))
+
 	var q: Array = s["research"]["queue"]
 	if q.is_empty():
 		_top.add_child(UIKit.label("研究队列：空闲", UIKit.FG_DIM))
@@ -579,6 +609,15 @@ func build_tooltip(tid: String) -> Control:
 
 	# --- 科研力
 	vb.add_child(UIKit.label("科研力 %s" % _fmt(float(tech["research"])), UIKit.FG_DARK))
+
+	# --- 效果（效率科技才有）：把 effects 翻译成人话
+	var eff: Dictionary = tech.get("effects", {})
+	if not eff.is_empty():
+		var eparts := []
+		for k in eff.keys():
+			eparts.append("%s +%d%%" % [
+				EFFECT_NAMES.get(String(k), String(k)), int(round(float(eff[k]) * 100.0))])
+		_tip_kv(vb, "效果", "　".join(eparts))
 
 	# --- 材料（带图标）
 	var cost: Dictionary = tech["cost"]["goods"]

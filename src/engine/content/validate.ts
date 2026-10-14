@@ -17,8 +17,11 @@ import type {
   PackStart,
   RecipeDef,
   RecipeID,
+  Sector,
   StorageDef,
   TechDef,
+  TechEffectKey,
+  TechEffects,
   TechID,
 } from '../types.ts'
 import type { DefaultsConfig, EconomyConfig, TimeConfig, TuningConfig } from '../config.ts'
@@ -124,6 +127,43 @@ function asNumEnum<T extends number>(v: unknown, allowed: readonly T[], p: strin
     fail(`${p} 取值非法：${n}（允许：${allowed.join(' / ')}）`)
   }
   return n as T
+}
+
+// ---------------------------------------------------------------------------
+// 产业（sector）与效率科技加成（effects）
+//
+// 契约（与 GDScript `sim_core.gd::tech_bonuses()` / `_sector_output_boost()` 同口径）：
+//   - sector 只有三个值，且**只属于有 recipe 的建筑**（无配方建筑不产商品）
+//   - effects 的键只有那 5 个，值是**加成小数**（0.10 = +10%），必须 > 0 且有限
+// ---------------------------------------------------------------------------
+
+const SECTORS = ['agri', 'goods', 'material'] as const
+const TECH_EFFECT_KEYS: readonly TechEffectKey[] = ['agri', 'goods', 'material', 'research', 'build']
+
+function asSector(v: unknown, p: string): Sector {
+  return asEnum(v, SECTORS, p)
+}
+
+/**
+ * 效率科技的加成表。
+ *
+ * 为什么值必须 **> 0**：`techBonuses()` 只做加法，0（或负数）在面板上等于
+ * 「研究了一项什么都没发生的科技」——那是内容写错了，不是合法的"无加成"
+ * （无加成请直接省略 `effects`，或省略那个键）。
+ */
+function parseTechEffects(v: unknown, p: string): TechEffects {
+  const o = asObj(v, p)
+  const keys = Object.keys(o)
+  if (keys.length === 0) fail(`${p} 不能为空对象（没有加成请省略 effects）`)
+  const out: TechEffects = {}
+  for (const k of keys) {
+    if (!(TECH_EFFECT_KEYS as readonly string[]).includes(k)) {
+      fail(`${p}.${k} 不是合法的加成键（允许：${TECH_EFFECT_KEYS.join(' / ')}）`)
+    }
+    const n = asPos(o[k], `${p}.${k}`)
+    out[k as TechEffectKey] = n
+  }
+  return out
 }
 
 /** 商品数量表（inputs / output / buildCost）。 */
@@ -310,6 +350,20 @@ function parseBuildings(
       recipeId = recipe.id
     }
 
+    // 产业：只有**有 recipe** 的建筑才谈得上"产出"。
+    // 无配方建筑（研究所 / 建筑工坊 / 仓库 / 城镇中心）给 sector 是内容写错了 →
+    // 直接报错（而不是只警告）：它永远不会被 `_sector_output_boost()` 读到，
+    // 留着只会让改内容的人以为"我给它配了加成"。
+    let sector: Sector | undefined
+    if (o.sector !== undefined) {
+      sector = asSector(o.sector, `${p}.sector`)
+      if (recipeId === undefined) {
+        fail(`${p}（${id}）没有 recipe 却给了 sector：产业只属于产商品的建筑`)
+      }
+    } else if (recipeId !== undefined) {
+      fail(`${p}（${id}）有 recipe 就必须给 sector（agri / goods / material）`)
+    }
+
     const buildCost = numMap(o.buildCost, `${p}.buildCost`, goodSet)
     const art = parseArt(o.art, `${p}.art`)
     // 施工工时（人·天）。设计见 docs/construction.md。
@@ -351,6 +405,7 @@ function parseBuildings(
       workers,
       ...(maxWorkers !== undefined ? { maxWorkers } : {}),
       ...(recipeId !== undefined ? { recipe: recipeId } : {}),
+      ...(sector !== undefined ? { sector } : {}),
       ...(capacity !== undefined ? { capacity } : {}),
       ...(storage !== undefined ? { storage } : {}),
       buildWork,
@@ -703,8 +758,13 @@ function parseTechnologies(
       if (!housingSet.has(h)) fail(`${p}.unlocks.housing 引用了未定义的住房：${h}`)
     }
     if (unlocks.buildings.length + unlocks.housing.length === 0) {
-      fail(`${p} 什么都没解锁：科技至少要给出一座建筑或一种住房`)
+      // 纯效率科技（只给 effects、不解锁任何东西）也是合法的 —— 它的价值在加成上。
+      // 但两者都没有 = 一项什么都不做的科技，直接报错。
+      if (o.effects === undefined) {
+        fail(`${p} 既没有 unlocks 也没有 effects：科技至少要解锁一座建筑 / 一种住房，或给一项效率加成`)
+      }
     }
+    const effects = o.effects === undefined ? undefined : parseTechEffects(o.effects, `${p}.effects`)
     technologies[id] = {
       id,
       nameZh: asStr(o.nameZh, `${p}.nameZh`),
@@ -712,6 +772,7 @@ function parseTechnologies(
       research: asPos(o.research, `${p}.research`),
       cost: { goods },
       requires: strList(o.requires, `${p}.requires`),
+      ...(effects !== undefined ? { effects } : {}),
       unlocks,
     }
     techIds.push(id)
@@ -753,6 +814,8 @@ function parseTechnologies(
 
   // §1.1：花费的原料必须来自「免费建筑 + 传递前置解锁的建筑」
   // 「免费」= 没有任何科技解锁它的建筑（开局即可建造）
+  //
+  // ⚠️ **纯效率科技**（有 effects、但什么都不解锁）不适用这一条，见下面的说明。
   const freeBuildings = [...buildingSet].filter((b) => !owner.has(b))
   const outputsOf = (bid: string): string[] => {
     const def = buildings[bid]
@@ -771,6 +834,17 @@ function parseTechnologies(
   }
   for (const id of techIds) {
     const t = technologies[id]!
+
+    // ⚠️ 效率科技**同样要过这道闸门**，不许放行。
+    //
+    // 一开始有 11 项过不了：它们的 `requires` 是"速度树"前置（轮作 → 灌溉），
+    // 这条链什么都不解锁，闭包恒空 → 花掉的石头 / 砖永远不可达。
+    // 当时的第一版处理是"纯效率科技跳过闸门、把够不够料留给下单时判"——
+    // **那等于把安全规则挖掉一块**：真走到那一步才发现料不够，就是一次静默的下单失败。
+    // 正确的修法是**改内容**（`content/technologies.json`）：
+    //   1. 五个 L1 都挂 `stonework` → 采石场进闭包，石头顺着链被 L2/L3 继承；
+    //   2. 五个 L3 的花费去掉砖（砖要靠 `brickmaking`，跟速度树无关）。
+    // 于是"前置闭包里原料可达"这条不变量对所有科技一视同仁。
     const avail = new Set<string>(freeBuildings.flatMap(outputsOf))
     for (const pre of closureOf(id)) {
       for (const b of technologies[pre]!.unlocks.buildings) for (const g of outputsOf(b)) avail.add(g)

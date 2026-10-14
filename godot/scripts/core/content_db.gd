@@ -78,6 +78,10 @@ func _load() -> void:
 		# 只挑固定键组装 bdef，所以漏了这一句就会静默丢掉 —— 容量会变成 0，货被丢光。
 		if it.has("storage"):
 			bdef["storage"] = it["storage"]
+		# 产业归属（agri / goods / material）：效率科技按它给产出加成。
+		# 见 docs/spec.md §2.5 与 docs/technology.md。有配方的建筑校验器强制要写。
+		if it.has("sector"):
+			bdef["sector"] = String(it["sector"])
 		# terrain 只在存在时写入，避免 has("terrain") 永远为真
 		if it.has("terrain"):
 			bdef["terrain"] = String(it["terrain"])
@@ -110,6 +114,9 @@ func _load() -> void:
 			"research": float(it["research"]),
 			"cost": {"goods": cost.get("goods", {})},
 			"requires": it.get("requires", []),
+			# 效率加成（可选）：{agri/goods/material/research/build: 加成小数}。
+			# 语义与聚合方式见 docs/spec.md（**加法**叠加，不是连乘）。
+			"effects": it.get("effects", {}),
 			"unlocks": {
 				"buildings": unlocks.get("buildings", []),
 				"housing": unlocks.get("housing", []),

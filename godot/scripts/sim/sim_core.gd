@@ -484,7 +484,8 @@ func _run_production_step(fraction: float) -> void:
 			s["reserved"]["firewood"] = maxf(0.0, float(s["reserved"].get("firewood", 0.0)) - fuel * batches)
 			lt["consumed"]["firewood"] = _r4(float(lt["consumed"].get("firewood", 0.0)) + fuel * batches)
 		# 只放大**产出**，投入（上面几段）完全不动 —— 这就是"虚空产量"。
-		var boost = _shop_tool_boost(shop)
+		# 倍率 = 工具（+25%）× 该产业的效率科技加成（见 tech_bonuses()），两者相乘。
+		var boost = _shop_tool_boost(shop) * _sector_output_boost(shop)
 		for g in (recipe["output"] as Dictionary).keys():
 			var q = float(recipe["output"][g])
 			if q > 0.0:
@@ -1472,6 +1473,9 @@ func _research_rate() -> float:
 		var skill_eff = float(db.tuning["skillEffectBase"]) + float(db.tuning["skillEffectSlope"]) * (float(shop["skill"]) / 100.0)
 		var level_mul = 1.0 + float(cap["levelBonus"]) * (float(shop["level"]) - 1.0)
 		rate += float(_assigned_workers(shop["id"])) * float(cap["perWorker"]) * level_mul * skill_eff
+	# 效率科技（抄书房/学院/印刷术）：**整条速率**乘 (1 + 加成)。
+	# 口径与 TS `researchRate()` 一致，见 docs/spec.md §10.1。
+	rate *= 1.0 + float(tech_bonuses()["research"])
 	return SimUtil.r2(rate)
 
 func research_rate() -> float:
@@ -1607,6 +1611,34 @@ func _shop_tool_boost(shop: Dictionary) -> float:
 	var b = float(shop.get("toolBoost", 1.0))
 	return b if b > 0.0 else 1.0
 
+## 已研究科技的效率加成，五个键：agri / goods / material（产出）、research、build。
+##
+## ⚠️ **加法**叠加（+10% +15% +20% = +45%），不是连乘 —— 连乘后期滚雪球，
+## 而且玩家在面板上没法一眼算出"我现在是多少"。口径与 TS `techBonuses()` 一致，
+## 契约见 docs/spec.md。
+func tech_bonuses() -> Dictionary:
+	var out := {"agri": 0.0, "goods": 0.0, "material": 0.0, "research": 0.0, "build": 0.0}
+	for tid in (s["research"]["done"] as Array):
+		var t = db.techs.get(String(tid), null)
+		if t == null:
+			continue
+		for k in (t.get("effects", {}) as Dictionary).keys():
+			var key := String(k)
+			if out.has(key):
+				out[key] = float(out[key]) + float(t["effects"][k])
+	return out
+
+## 某座商店的**产业**产出加成：1 + tech_bonuses()[该建筑的 sector]。
+## 建筑没写 sector（无配方建筑）就返回 1。
+func _sector_output_boost(shop: Dictionary) -> float:
+	var def = db.buildings.get(shop["defId"], null)
+	if def == null:
+		return 1.0
+	var sec := String(def.get("sector", ""))
+	if sec == "":
+		return 1.0
+	return 1.0 + float(tech_bonuses().get(sec, 0.0))
+
 func _capacity_kind(def: Dictionary, kind: String) -> bool:	## 该建筑是否是某种产能来源（不产商品、只产每日产能）。见 docs/technology.md §6.2。
 	if not def.has("capacity"):
 		return false
@@ -1637,6 +1669,8 @@ func _construction_rate() -> float:
 		var skill_eff = float(db.tuning["skillEffectBase"]) + float(db.tuning["skillEffectSlope"]) * (float(shop["skill"]) / 100.0)
 		var level_mul = 1.0 + float(cap["levelBonus"]) * (float(shop["level"]) - 1.0)
 		rate += float(_assigned_workers(shop["id"])) * float(cap["perWorker"]) * level_mul * skill_eff
+	# 效率科技（起重架/脚手架/预制件）：**整条速率**乘 (1 + 加成)。见 docs/spec.md §9.1。
+	rate *= 1.0 + float(tech_bonuses()["build"])
 	return SimUtil.r2(rate)
 
 func _mark_construction_workers(work: float) -> void:
