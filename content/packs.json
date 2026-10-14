@@ -12,7 +12,7 @@
         "money": 2000,
         "techs": [],
         "shops": { "town_center": 1 },
-        "housing": { "hut": 5 },
+        "housing": { "hut": 6 },
         "goods": { "coarse_bread": 200, "vegetable": 100, "wood": 300, "stone": 150, "clay": 150, "firewood": 40, "brick": 40 }
       }
     },

@@ -148,6 +148,38 @@ func _run() -> void:
 			await process_frame
 			await process_frame
 
+	# 在建工地的悬停提示：真开一局（失业人口就是建造力）→ 放一座 → 跑一天 → 显示提示
+	if mode == "sitetip":
+		world.start_new_game(20261014, 1.0, "提示")
+		if runner.sim != null and runner.db != null:
+			var all2: Array = []
+			for t in runner.db.tech_ids:
+				all2.append(String(t))
+			runner.sim.s["research"]["done"] = all2
+			runner.sim.s["government"]["populationCap"] = 999.0
+		await process_frame
+		var bid := "theater"   # 工期 48：跑一天是"施工中 25/48"，比刚好完工的更能说明问题
+		var fp: Vector2i = world._footprint(bid)
+		var site_cell := Vector2i(-1, -1)
+		for dy in range(0, 24):
+			for dx in range(0, 36):
+				var cand: Vector2i = world.map.town_center.position + Vector2i(10 + dx, -6 + dy)
+				if world.map.in_bounds(cand + fp) and world._area_free(cand, fp):
+					site_cell = cand
+					break
+			if site_cell.x >= 0:
+				break
+		if site_cell.x >= 0 and world._try_place(bid, site_cell):
+			# 跑满一天：它就会在施工中，提示上能看到"已投入 / 需要"
+			for h in 24:
+				runner.sim.tick_hour([])
+			await process_frame
+			var probe := Vector2i(site_cell.x - 1 + fp.x / 2, site_cell.y - 1 + fp.y / 2)
+			var scr: Vector2 = world.get_global_transform_with_canvas() * world._cell_center(probe)
+			world._update_site_tip(scr)
+			await process_frame
+			await process_frame
+
 	# 验证全屏面板：统计（资源/人口/财务）与科技 —— 顶栏保留、地图与建造栏被盖住
 	if mode == "stats" or mode == "stats_people" or mode == "stats_finance" or mode == "tech":
 		var s_panel = node.get_node_or_null("UI/Root/Stats")

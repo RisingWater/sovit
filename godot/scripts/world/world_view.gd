@@ -43,6 +43,10 @@ var _actor_tex := {}
 var _cursor_shape := Input.CURSOR_ARROW
 var label_layer: CanvasLayer
 var _label_items: Array = []
+## 在建工地的悬停提示（独立 CanvasLayer，见 `_ready` 里的说明）
+var tip_layer: CanvasLayer
+var _tip: PanelContainer
+var _tip_label: Label
 ## UI 根节点（由 main 注入）。用来判断鼠标是否落在 UI 面板上，
 ## 是的话就不把鼠标事件当成地图操作。
 var ui_root: Control = null
@@ -297,6 +301,22 @@ func _build_tileset() -> void:
 	label_layer.layer = 1
 	add_child(label_layer)
 
+	# 工地悬停提示：也走屏幕空间（要贴着鼠标走），但**单独一层**。
+	#
+	# ⚠️ 不能挂进 `ui_root`：`_mouse_over_ui()` 是按"鼠标是否落在可见 Control 的
+	# 矩形内"判定的，而这个提示是**跟着鼠标跑**的 —— 挂进去等于鼠标一碰到提示
+	# 就自我判定成"在 UI 上"，滚轮缩放和拖拽平移会被自己挡掉。
+	tip_layer = CanvasLayer.new()
+	tip_layer.layer = 2
+	add_child(tip_layer)
+	_tip = PanelContainer.new()
+	_tip.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_tip.add_theme_stylebox_override("panel", UIKit.pad(UIKit.box(UIKit.T_PANEL_CREAM), 8, 5, 8, 5))
+	_tip.visible = false
+	_tip_label = UIKit.label("", UIKit.FG_DARK)
+	_tip.add_child(_tip_label)
+	tip_layer.add_child(_tip)
+
 	_render_base_terrain()
 
 ## 整数哈希：把 (x,y) 混成均匀分布。
@@ -427,7 +447,14 @@ func _camera_setup() -> void:
 
 func _find_free_area(type: String, near: Vector2i, gap: int) -> Vector2i:
 	var fp = _footprint(type)
-	var base = map.town_center.position + Vector2i(-14, 8)
+	# 从**城镇中心紧邻的一格**开始，一圈圈往外找。
+	#
+	# 这里曾经是 `+ Vector2i(-14, 8)`（左 14 格、下 8 格）。后果不只是"不好看"：
+	# 开局那 6 间茅屋会整齐地落在**屏幕外** —— 默认镜头 zoom=3 只看得到约 16 格宽，
+	# 房子全在 14~18 格之外。玩家的第一反应就是"初始不给房子？"（用户原话），
+	# 而 `state.housing` 里明明写着 6 间。挪到紧邻之后，开局的村子是围着
+	# 城镇中心的一小簇，一眼看得见。
+	var base = map.town_center.position + Vector2i(-1, -1)
 	for ring in range(0, 90):
 		for dy in range(-ring, ring + 1):
 			for dx in range(-ring, ring + 1):
@@ -1119,24 +1146,6 @@ func _sync() -> void:
 			continue
 		_create_shop_view(nid, def_id, cell)
 
-## 收掉一座建筑的视图：精灵 + 地格占用 + 所有按 shop_id 索引的表。
-func _remove_shop_view(sid: String) -> void:
-	var spr = _shop_sprites.get(sid, null)
-	if spr != null and is_instance_valid(spr):
-		spr.queue_free()
-	var origin: Vector2i = _shop_cell.get(sid, Vector2i(-1, -1))
-	if origin.x >= 0:
-		var def_id := String(_shop_def.get(sid, ""))
-		var fp := _footprint(def_id)
-		var door: Vector2i = _shop_door.get(sid, Vector2i(-1, -1))
-		var interior := _interior_cell(origin, fp.x, fp.y)
-		# _free_building_cells 会把 map.occupied 上这几格一起擦掉
-		_free_building_cells(origin, fp, door, interior)
-		_walk_inside.erase(_shop_goal.get(sid, Vector2i(-1, -1)))
-	for d in [_shop_sprites, _shop_cell, _shop_def, _shop_label,
-			_shop_anchor, _shop_door, _shop_goal]:
-		d.erase(sid)
-
 	# 新住房实例
 	var housing: Dictionary = runner.sim.s["housing"]
 	for type in housing.keys():
@@ -1160,6 +1169,24 @@ func _remove_shop_view(sid: String) -> void:
 		_prev_housing_n = _housing_instances.size()
 		_assign_homes()
 	_refresh_agents()
+
+## 收掉一座建筑的视图：精灵 + 地格占用 + 所有按 shop_id 索引的表。
+func _remove_shop_view(sid: String) -> void:
+	var spr = _shop_sprites.get(sid, null)
+	if spr != null and is_instance_valid(spr):
+		spr.queue_free()
+	var origin: Vector2i = _shop_cell.get(sid, Vector2i(-1, -1))
+	if origin.x >= 0:
+		var def_id := String(_shop_def.get(sid, ""))
+		var fp := _footprint(def_id)
+		var door: Vector2i = _shop_door.get(sid, Vector2i(-1, -1))
+		var interior := _interior_cell(origin, fp.x, fp.y)
+		# _free_building_cells 会把 map.occupied 上这几格一起擦掉
+		_free_building_cells(origin, fp, door, interior)
+		_walk_inside.erase(_shop_goal.get(sid, Vector2i(-1, -1)))
+	for d in [_shop_sprites, _shop_cell, _shop_def, _shop_label,
+			_shop_anchor, _shop_door, _shop_goal]:
+		d.erase(sid)
 
 func _take_site_for(type: String) -> Vector2i:
 	var list: Array = _site_by_type.get(type, [])
@@ -1546,6 +1573,8 @@ func _unhandled_input(event: InputEvent) -> void:
 	# 悬停在 UI 上时不碰镜头：不吃滚轮、不拖拽平移、不误触地图
 	if (event is InputEventMouseButton or event is InputEventMouseMotion) \
 			and _mouse_over_ui(event.position):
+		if event is InputEventMouseMotion:
+			_hide_site_tip()
 		return
 	if event is InputEventMouseButton:
 		if event.button_index == MOUSE_BUTTON_WHEEL_UP and event.pressed:
@@ -1580,6 +1609,7 @@ func _unhandled_input(event: InputEvent) -> void:
 				camera.position -= event.relative / camera.zoom
 		if build_mode != "" or move_mode != "":
 			_update_ghost(_mouse_cell())
+		_update_site_tip(event.position)
 	elif event is InputEventKey and event.pressed and not event.echo:
 		if event.keycode == KEY_ESCAPE:
 			_cancel_mode()
@@ -1634,6 +1664,83 @@ func _nearest_agent(pos: Vector2) -> String:
 func _mouse_cell() -> Vector2i:
 	var p = get_global_mouse_position()
 	return Vector2i(int(floor(p.x / TILE)), int(floor(p.y / TILE)))
+
+# ---- 在建工地的悬停提示 ---------------------------------------------------
+## 这一格上的工地说明；不是工地就返回 ""（空串 = 不显示）。
+##
+## 为什么按**类型**去 sim 那边找工程条目，而不是按格子：`build` 动作里不带坐标，
+## sim 也不认格子（它只知道"要建什么"），工地占格是表现层自己登记的。
+## 所以同类工地共用一份进度 —— 真有多处时在文字里写明有几处，不假装精确。
+func site_tip_at(cell: Vector2i) -> String:
+	if map == null or runner == null or runner.sim == null:
+		return ""
+	if not map.in_bounds(cell):
+		return ""
+	var occ = map.occupied_at(cell)
+	if occ == null or String(occ["kind"]) != "site":
+		return ""
+	var type := String(occ["id"])
+	var name_zh := type
+	if runner.db.buildings.has(type):
+		name_zh = String(runner.db.buildings[type]["nameZh"])
+	elif runner.db.housing.has(type):
+		name_zh = String(runner.db.housing[type]["nameZh"])
+
+	var list := _construction_entries(type)
+	if list.is_empty():
+		# 命令次日 06:00 才生效，刚放下时队列里还没有它 —— 这句比"0 / 60"诚实
+		return "%s · 已下单，次日 06:00 开工" % name_zh
+	# 优先报正在施工的那处；都在排队就报排最前的
+	var best: Dictionary = list[0]
+	for c in list:
+		if bool(c.get("started", false)):
+			best = c
+			break
+	var need := float(best.get("totalRequired", 0.0))
+	var left := float(best.get("remaining", 0.0))
+	var done := maxf(0.0, need - left)
+	var pct := 0 if need <= 0.0 else int(roundf(done / need * 100.0))
+	var head := "建造中" if bool(best.get("started", false)) else "排队中（等前面的工程）"
+	var text := "%s · %s\n建造力 %d / %d（%d%%）" % [
+		name_zh, head, int(roundf(done)), int(roundf(need)), pct]
+	if list.size() > 1:
+		text += "\n同类工地共 %d 处" % list.size()
+	return text
+
+## sim 建造队列里与这个工地类型匹配的条目（shop 按 buildingId，住房按 housingId）。
+func _construction_entries(type: String) -> Array:
+	var out := []
+	for c in (runner.sim.s["construction"] as Array):
+		var k := String(c["kind"])
+		if k == "shop" and String(c.get("buildingId", "")) == type:
+			out.append(c)
+		elif k == "housing" and String(c.get("housingId", "")) == type:
+			out.append(c)
+	return out
+
+func _update_site_tip(screen_pos: Vector2) -> void:
+	if _tip == null:
+		return
+	# 屏幕坐标 → 世界坐标 → 格子：走画布变换，与 `_mouse_cell()` 同一套口径
+	var world := get_global_transform_with_canvas().affine_inverse() * screen_pos
+	var cell := Vector2i(int(floor(world.x / TILE)), int(floor(world.y / TILE)))
+	var text := site_tip_at(cell)
+	if text == "":
+		_hide_site_tip()
+		return
+	_tip_label.text = text
+	_tip.reset_size()
+	# 贴着鼠标、但不盖住指针，也不越出屏幕
+	var vp := get_viewport_rect().size
+	var pos := screen_pos + Vector2(18, 10)
+	pos.x = clampf(pos.x, 4.0, maxf(4.0, vp.x - _tip.size.x - 4.0))
+	pos.y = clampf(pos.y, 4.0, maxf(4.0, vp.y - _tip.size.y - 4.0))
+	_tip.position = pos
+	_tip.visible = true
+
+func _hide_site_tip() -> void:
+	if _tip != null and _tip.visible:
+		_tip.visible = false
 
 func _cancel_mode() -> void:
 	build_mode = ""

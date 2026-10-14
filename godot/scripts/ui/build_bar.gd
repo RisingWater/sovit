@@ -129,12 +129,22 @@ func _primary_output_is_food(b: Dictionary) -> bool:
 	var gd: Dictionary = runner.db.goods.get(best, {})
 	return String(gd.get("category", "")) == "food"
 
+## 地图上**固定存在**的建筑，不进建造列表。
+##
+## 城镇中心是开局就在地图中央的那一座（`world_view._build_town_center()` 画的），
+## 它的 shop 实例在 `_sync()` 里被**专门跳过**（不然会多画一张精灵）。
+## 于是"再建一座"会得到：材料照扣、精灵不画 —— 一个**看不见的建筑**，
+## 玩家只会以为卡了。所以这里把它挡掉（AI 本来也不建它）。
+const MAP_FIXED := ["town_center"]
+
 func _ids_of(cat: String) -> Array:
 	var out := []
 	if runner == null or runner.db == null:
 		return out
 	var pack: Dictionary = runner.db.packs[String(runner.sim.s["pack"])]
 	for id in pack["buildings"]:
+		if MAP_FIXED.has(String(id)):
+			continue
 		if runner.db.buildings.has(id) and _category_of(String(id)) == cat:
 			out.append(String(id))
 	for hid in pack["housing"]:

@@ -1,4 +1,4 @@
-﻿extends SceneTree
+extends SceneTree
 func _init() -> void: call_deferred("_run")
 func _run() -> void:
 	var ps: PackedScene = load("res://scenes/main.tscn")
@@ -59,9 +59,13 @@ func _run() -> void:
 		for id in bar._ids_of(cat):
 			if seen.has(id): dup += 1
 			seen[String(id)] = cat
-	# 期望值从内容包推导，不硬编码（各 pack 的建筑数量不同）
+	# 期望值从内容包推导，不硬编码（各 pack 的建筑数量不同）。
+	# 减去 `MAP_FIXED`：地图上**固定存在**的建筑（城镇中心）不进建造列表 ——
+	# 地图中央那一座是 `_build_town_center()` 画的，再"建"一座只会得到
+	# 材料照扣、精灵不画的隐形建筑。
 	var pack: Dictionary = bar.runner.db.packs[String(bar.runner.sim.s["pack"])]
-	var expect: int = (pack["buildings"] as Array).size() + (pack["housing"] as Array).size()
+	var expect: int = (pack["buildings"] as Array).size() + (pack["housing"] as Array).size() \
+		- (bar.MAP_FIXED as Array).size()
 	print("BARTAB 去重后=%d 重复=%d 期望=%d" % [seen.size(), dup, expect])
 	var ok: bool = dup == 0 and total == expect and seen.size() == expect
 	print("BARTAB RESULT: ", "PASS" if ok else "FAIL")

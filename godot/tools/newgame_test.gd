@@ -96,6 +96,28 @@ func _run() -> void:
 	# 6. 默认 1.0 倍必须与从前逐位相同（golden 依赖这一点）
 	world.start_new_game(12345, 1.0, "sovit")
 	await process_frame
+
+	# 7. 开局住房必须**真的摆到地图上**（不只是躺在 state.housing 里）
+	#
+	# 这条是补的门：曾经 `_sync()` 在 1140 行就结束了，"新住房实例 / 居民刷新"
+	# 那一整段被吞进了 `_remove_shop_view()` 的函数体 —— 于是新开局
+	# `state.housing={hut:6}` 而地图上**一间茅屋都没有**（用户："初始不给房子？"），
+	# 而且只有"拆掉一座建筑"时才会跑那段代码。27 步门槛全绿，就是没人验这个。
+	world._sync()
+	await process_frame
+	var want_housing := 0
+	for hid in (world.runner.db.packs[String(world.runner.sim.s["pack"])]["housing"] as Array):
+		want_housing += int(float((world.runner.sim.s["housing"] as Dictionary).get(String(hid), 0.0)))
+	var got_housing: int = (world._housing_instances as Array).size()
+	if got_housing != want_housing:
+		_fail("开局住房没摆到地图上：state.housing 合计 %d 间，地图实例 %d 个" % [want_housing, got_housing])
+		return
+	if (world._agents as Array).size() != (world.runner.sim.s["residents"] as Array).size():
+		_fail("开局居民没全生成：状态 %d 人，地图小人 %d 个" % [
+			(world.runner.sim.s["residents"] as Array).size(), (world._agents as Array).size()])
+		return
+	print("NEWGAME TEST 开局住房 %d 间 / 居民 %d 人都已在地图上" % [got_housing, (world._agents as Array).size()])
+
 	print("NEWGAME TEST 1x=%.1f 2x=%.1f 0.5x=%.1f 村名=%s" % [
 		one["goods"], two["goods"], half["goods"], nm])
 	print("NEWGAME TEST RESULT: PASS")
