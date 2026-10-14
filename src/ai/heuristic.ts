@@ -54,6 +54,12 @@ const CREW_RESERVE_RATIO = 0.2
  *
  * 例外只有一条：纪元 1 的 `toolmaking`（石制工具）保持在 `construction` 之后靠前 ——
  * 它解锁的 `tool_works` 直接给所有工坊 +25% 产出，比任何效率科技都划算。
+ *
+ * ⚠️ 2026-10 追加一条：**效率科技的加成加强到 +20/35/50% 之后，住房解锁要提到它们前面。**
+ * 原来五条 L1 效率科技紧跟在纪元 2 解锁之后，实测把 150 点科研花在效率上、木屋（`carpentry`）
+ * 迟迟不来 → **人口终值从 34 掉到 28**（住房容量才是人口增长的硬闸门）。
+ * 现在把 `carpentry` 插到效率科技之前：先让人住得下，再回头点效率。
+ * 这不违反规则 1 —— 规则说的是"同纪元内解锁优先"，跨纪元时**瓶颈优先**。
  */
 const RESEARCH_ORDER: string[] = [
   // ---- 纪元 1：先铺原料与建造力，工具坊紧随其后 ----
@@ -70,15 +76,17 @@ const RESEARCH_ORDER: string[] = [
   'fiber_crops',
   'fishing',
 
-  // ---- 纪元 2 效率：先科研、后建造，再按"粮食 → 加工 → 原料" ----
-  'scriptorium', // research +10%
-  'crane', // build +10%
-  'crop_rotation', // agri +10%
-  'workshop_division', // goods +10%
-  'kiln_upgrade', // material +10%
-
-  // ---- 纪元 3 解锁：住房、精粮、纺织、腌熏、娱乐 ----
+  // ---- 纪元 3 解锁里的**住房**：提前到效率科技之前（人口增长的硬闸门） ----
   'carpentry',
+
+  // ---- 纪元 2 效率：先科研、后建造，再按"粮食 → 加工 → 原料" ----
+  'scriptorium', // research +20%
+  'crane', // build +20%
+  'crop_rotation', // agri +20%
+  'workshop_division', // goods +20%
+  'kiln_upgrade', // material +20%
+
+  // ---- 纪元 3 其余解锁：精粮、纺织、腌熏、娱乐（`carpentry` 已提到前面） ----
   'fine_milling',
   'white_baking',
   'coarse_weaving',
@@ -88,11 +96,11 @@ const RESEARCH_ORDER: string[] = [
   'entertainment',
 
   // ---- 纪元 3 效率（同上顺序，系数更大）----
-  'academy', // research +15%
-  'scaffolding', // build +15%
-  'irrigation', // agri +15%
-  'standardization', // goods +15%
-  'sawmill_machinery', // material +15%
+  'academy', // research +35%
+  'scaffolding', // build +35%
+  'irrigation', // agri +35%
+  'standardization', // goods +35%
+  'sawmill_machinery', // material +35%
 
   // ---- 纪元 4 解锁 ----
   'cash_crops',
@@ -105,11 +113,11 @@ const RESEARCH_ORDER: string[] = [
   'luxury_tailoring',
 
   // ---- 纪元 4 效率 ----
-  'printing_press', // research +20%
-  'prefab_parts', // build +20%
-  'improved_seeds', // agri +20%
-  'assembly_line', // goods +20%
-  'brick_press', // material +20%
+  'printing_press', // research +50%
+  'prefab_parts', // build +50%
+  'improved_seeds', // agri +50%
+  'assembly_line', // goods +50%
+  'brick_press', // material +50%
 
   // ---- 纪元 5 ----
   'domestic_service',

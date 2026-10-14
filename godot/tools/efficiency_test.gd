@@ -105,11 +105,11 @@ func _run() -> void:
 	# ---- 3. 按 sector 生效：一级轮作只抬农业，工业和建材不动
 	_learn(sim, ["crop_rotation"])
 	var b: Dictionary = sim.tech_bonuses()
-	if not _approx(float(b["agri"]), 0.10):
-		_fail("轮作之后 agri 加成应为 0.10，实际 %s" % b["agri"])
+	if not _approx(float(b["agri"]), 0.20):
+		_fail("轮作之后 agri 加成应为 0.20，实际 %s" % b["agri"])
 		return
-	if not _approx(sim._sector_output_boost(_shop_of(sim, "wheat_farm#t")), 1.10):
-		_fail("轮作之后小麦农场倍率应为 1.10，实际 %s" % sim._sector_output_boost(_shop_of(sim, "wheat_farm#t")))
+	if not _approx(sim._sector_output_boost(_shop_of(sim, "wheat_farm#t")), 1.20):
+		_fail("轮作之后小麦农场倍率应为 1.20，实际 %s" % sim._sector_output_boost(_shop_of(sim, "wheat_farm#t")))
 		return
 	if not _approx(sim._sector_output_boost(_shop_of(sim, "coarse_weaver#t")), 1.0):
 		_fail("轮作不该影响工业商品（粗织坊）")
@@ -122,17 +122,18 @@ func _run() -> void:
 		sim._sector_output_boost(_shop_of(sim, "coarse_weaver#t")),
 		sim._sector_output_boost(_shop_of(sim, "quarry#t"))])
 
-	# ---- 4. **加法**叠加：轮作 + 灌溉 = 0.25（不是 1.1×1.15−1 = 0.265）
+	# ---- 4. **加法**叠加：轮作 + 灌溉 = 0.55；三级全拿 = 1.05
+	# （用户要求"最高级 50% 至少"，所以是 20 / 35 / 50）
 	_learn(sim, ["crop_rotation", "irrigation"])
 	b = sim.tech_bonuses()
-	if not _approx(float(b["agri"]), 0.25):
-		_fail("轮作+灌溉 应为 0.25（加法），实际 %s —— 是不是写成连乘了？" % b["agri"])
+	if not _approx(float(b["agri"]), 0.55):
+		_fail("轮作+灌溉 应为 0.55（加法），实际 %s —— 是不是写成连乘了？" % b["agri"])
 		return
 	_learn(sim, ["crop_rotation", "irrigation", "improved_seeds"])
-	if not _approx(float(sim.tech_bonuses()["agri"]), 0.45):
-		_fail("三级全拿应为 0.45（+10+15+20），实际 %s" % sim.tech_bonuses()["agri"])
+	if not _approx(float(sim.tech_bonuses()["agri"]), 1.05):
+		_fail("三级全拿应为 1.05（+20+35+50），实际 %s" % sim.tech_bonuses()["agri"])
 		return
-	print("EFFICIENCY TEST 加法叠加：一级 0.10 → 二级 0.25 → 三级 0.45 ✅")
+	print("EFFICIENCY TEST 加法叠加：一级 0.20 → 二级 0.55 → 三级 1.05（全拿满 = ×2.05）✅")
 
 	# ---- 5. 科研 / 建造速率
 	_learn(sim, [])
@@ -143,31 +144,31 @@ func _run() -> void:
 		return
 	_learn(sim, ["scriptorium"])
 	var r1: float = sim._research_rate()
-	if not _approx(r1, r0 * 1.10, 0.02):
-		_fail("抄书房之后科研力应为基线 ×1.10：%s → %s" % [r0, r1])
+	if not _approx(r1, r0 * 1.20, 0.02):
+		_fail("抄书房之后科研力应为基线 ×1.20：%s → %s" % [r0, r1])
 		return
 	if not _approx(sim._construction_rate(), c0, 0.02):
 		_fail("抄书房不该影响建造力")
 		return
 	_learn(sim, ["crane"])
 	var c1: float = sim._construction_rate()
-	if not _approx(c1, c0 * 1.10, 0.02):
-		_fail("起重架之后建造力应为基线 ×1.10：%s → %s" % [c0, c1])
+	if not _approx(c1, c0 * 1.20, 0.02):
+		_fail("起重架之后建造力应为基线 ×1.20：%s → %s" % [c0, c1])
 		return
-	print("EFFICIENCY TEST 速率：科研 %.2f→%.2f，建造 %.2f→%.2f（各 +10%%）✅" % [r0, r1, c0, c1])
+	print("EFFICIENCY TEST 速率：科研 %.2f→%.2f，建造 %.2f→%.2f（各 +20%%）✅" % [r0, r1, c0, c1])
 
-	# ---- 6. 与工具相乘（不是相加）：toolBoost 1.25 × 产业 1.10 = 1.375
+	# ---- 6. 与工具相乘（不是相加）：toolBoost 1.25 × 产业 1.20 = 1.50
 	var sim2 = _make(node)
 	_learn(sim2, ["crop_rotation"])
 	var farm := _shop_of(sim2, "wheat_farm#t")
 	farm["toolBoost"] = 1.25
-	if not _approx(sim2._shop_tool_boost(farm) * sim2._sector_output_boost(farm), 1.375):
-		_fail("toolBoost 与产业加成应为相乘：1.25 × 1.10 = 1.375，实际 %s" % (
+	if not _approx(sim2._shop_tool_boost(farm) * sim2._sector_output_boost(farm), 1.50):
+		_fail("toolBoost 与产业加成应为相乘：1.25 × 1.20 = 1.50，实际 %s" % (
 			sim2._shop_tool_boost(farm) * sim2._sector_output_boost(farm)))
 		return
-	print("EFFICIENCY TEST 与工具相乘：1.25 × 1.10 = 1.375 ✅")
+	print("EFFICIENCY TEST 与工具相乘：1.25 × 1.20 = 1.50 ✅")
 
-	# ---- 7. 端到端：轮作必须让**一天的实际产量**多 10%
+	# ---- 7. 端到端：轮作必须让**一天的实际产量**多 20%
 	# 前面几步只验了"倍率函数算得对"；这一步验它真的走到了产出结算里
 	# （倍率算对了但没接到 `_run_production_step` 上，是这类改动最典型的漏法）。
 	var a: float = _day_wheat(node, [])
@@ -176,13 +177,63 @@ func _run() -> void:
 		_fail("基线一天没产出小麦（%s），测不出倍率" % a)
 		return
 	var ratio := b2 / a
-	if not _approx(ratio, 1.10, 0.02):
-		_fail("轮作之后一天的小麦产量应为 1.10 倍：%s → %s（比值 %.3f）" % [a, b2, ratio])
+	if not _approx(ratio, 1.20, 0.02):
+		_fail("轮作之后一天的小麦产量应为 1.20 倍：%s → %s（比值 %.3f）" % [a, b2, ratio])
 		return
 	print("EFFICIENCY TEST 端到端：一天小麦 %.1f → %.1f（×%.2f）✅" % [a, b2, ratio])
 
+	# ---- 8. "虚空产量"：多出来的产出**不吃原料**
+	#
+	# 用户原话："额外生成产物，不要消耗原材料"。
+	# 口径就是 docs/spec.md §2.2：投入那张表一行不动，只放大产出。
+	# 这一步拿**有投入**的厂子来验（磨坊吃小麦），前面第 7 步用的是不耗料的农场，
+	# 验不出这一条。
+	var ia: Dictionary = _day_mill(node, [])
+	var ib: Dictionary = _day_mill(node, ["improved_seeds"])   # 农业三级 +50%
+	if float(ia["in"]) <= 0.0:
+		_fail("基线一天没消耗小麦（%s），测不出" % ia["in"])
+		return
+	if not _approx(float(ib["in"]), float(ia["in"]), 0.01):
+		_fail("开了效率科技之后原料消耗变了：小麦 %s → %s（应**完全不变**）" % [ia["in"], ib["in"]])
+		return
+	var oratio := float(ib["out"]) / float(ia["out"])
+	if not _approx(oratio, 1.50, 0.05):
+		_fail("三级农业科技下产出应为 1.50 倍：%s → %s（比值 %.3f）" % [ia["out"], ib["out"], oratio])
+		return
+	print("EFFICIENCY TEST 虚空产量：小麦消耗 %.1f → %.1f（不变），粗面粉 %.1f → %.1f（×%.2f）✅" % [
+		ia["in"], ib["in"], ia["out"], ib["out"], oratio])
+
 	print("EFFICIENCY TEST RESULT: PASS")
 	quit(0)
+
+## 跑一天粗面粉磨坊，返回 `{in: 小麦净消耗, out: 粗面粉净产出}`。
+##
+## 只留这一座磨坊在产（把 `_make()` 造的其它店都拆掉），并把库存清成只有小麦，
+## 这样 `goods[wheat]` 的减少就是原料消耗、`goods[coarse_flour]` 就是产出。
+func _day_mill(node, done: Array) -> Dictionary:
+	var sim = _make(node)
+	(sim.s["research"] as Dictionary)["done"] = done
+	var kept := []
+	for sh in (sim.s["shops"] as Array):
+		if String(sh["defId"]) == "coarse_mill":
+			kept.append(sh)
+	(sim.s["shops"] as Array).clear()
+	for sh in kept:
+		(sim.s["shops"] as Array).append(sh)
+	(sim.s["shops"] as Array).append({
+		"id": "mill#t", "defId": "coarse_mill", "owner": "state",
+		"targetWorkers": 4, "wage": 3.0, "wageCap": 6.0, "level": 1,
+		"active": true, "profit": 0.0, "skill": 50.0, "planned": 0.0,
+	})
+	for g in (sim.s["goods"] as Dictionary).keys():
+		sim.s["goods"][g] = 0.0
+	sim.s["goods"]["wheat"] = 60.0
+	for h in 24:
+		sim.tick_hour([])
+	return {
+		"in": 60.0 - float(sim.s["goods"].get("wheat", 0.0)),
+		"out": float(sim.s["goods"].get("coarse_flour", 0.0)),
+	}
 
 ## 跑满一天（24 小时），返回**小麦净产出**。
 ##

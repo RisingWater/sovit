@@ -311,20 +311,20 @@ buildingAvailable(defId) =
 
 前 28 项都是"解锁"型（解锁建筑/住房）。另有一类是**效率型**：不解锁任何东西，
 只给一个**加成**。它们按"每类三级"排，级别分别落在**纪元 2 / 3 / 4**，
-加成 **+10% / +15% / +20%**。
+加成 **+20% / +35% / +50%**。
 
 | 类别 | 一级（era2，30） | 二级（era3，50） | 三级（era4，80） | 效果 |
 |---|---|---|---|---|
-| 农业食品 | **轮作** `crop_rotation` | **灌溉** `irrigation` | **良种** `improved_seeds` | 所有 `sector=agri` 的建筑产出 +10/+15/+20% |
-| 工业商品 | **作坊分工** `workshop_division` | **标准化** `standardization` | **流水线** `assembly_line` | 所有 `sector=goods` 的建筑产出 +10/+15/+20% |
-| 建材 | **窑炉改良** `kiln_upgrade` | **木工机械** `sawmill_machinery` | **制砖机械** `brick_press` | 所有 `sector=material` 的建筑产出 +10/+15/+20% |
-| 研究速度 | **抄书房** `scriptorium` | **学院** `academy` | **印刷术** `printing_press` | 每日科研力 +10/+15/+20% |
-| 建造速度 | **起重架** `crane` | **脚手架** `scaffolding` | **预制件** `prefab_parts` | 每日建造力 +10/+15/+20% |
+| 农业食品 | **轮作** `crop_rotation` | **灌溉** `irrigation` | **良种** `improved_seeds` | 所有 `sector=agri` 的建筑产出 +20/+35/+50% |
+| 工业商品 | **作坊分工** `workshop_division` | **标准化** `standardization` | **流水线** `assembly_line` | 所有 `sector=goods` 的建筑产出 +20/+35/+50% |
+| 建材 | **窑炉改良** `kiln_upgrade` | **木工机械** `sawmill_machinery` | **制砖机械** `brick_press` | 所有 `sector=material` 的建筑产出 +20/+35/+50% |
+| 研究速度 | **抄书房** `scriptorium` | **学院** `academy` | **印刷术** `printing_press` | 每日科研力 +20/+35/+50% |
+| 建造速度 | **起重架** `crane` | **脚手架** `scaffolding` | **预制件** `prefab_parts` | 每日建造力 +20/+35/+50% |
 
-- **加法叠加**：三级全拿 = 该类别 **+45%**（不是 1.1×1.15×1.2 = 1.518 那种连乘）。
+- **加法叠加**：三级全拿 = 该类别 **+105%**（不是 1.2×1.35×1.5 = 2.43 那种连乘）。
   理由：连乘后期滚雪球，而且玩家在面板上没法一眼算出"我现在是多少"。
 - **与工具相乘**：产出那条路上的倍率 = `toolBoost`（石制工具 +25%）**×** 产业加成。
-  两条独立路线，都拿满 = 1.25 × 1.45。
+  两条独立路线，都拿满 = 1.25 × 2.05。
 - **前置**：同级之间互相独立（五条链并行）；五个 **L1 都挂 `stonework`**，
   之后每一级只要求同级的前一级（如 `irrigation` ← `crop_rotation`）。
   - 为什么 L1 要挂 `stonework`：L2 起要花**石块**，而"前置闭包里原料必须可达"

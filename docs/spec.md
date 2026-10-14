@@ -118,7 +118,7 @@ techBonuses(state) = for tid in research.done:
                          out[k] += technologies[tid].effects[k] ?? 0      # 缺省 0
 ```
 
-- **加法叠加，不是连乘**：轮作 +10% + 灌溉 +15% + 良种 +20% = **+0.45**。
+- **加法叠加，不是连乘**：轮作 +20% + 灌溉 +35% + 良种 +50% = **+1.05**。
   连乘后期滚雪球，而且玩家在面板上没法一眼算出"现在是多少"。
 - **不取整**（`round2` 只用在最终速率上）。
 - 按固定键序累加，**不依赖内容里 `effects` 的键序**。
@@ -127,11 +127,11 @@ techBonuses(state) = for tid in research.done:
 
 | 位置 | 公式 |
 |---|---|
-| §2.2 产出 | `goods[g] += output[g] * batches * shop.toolBoost * (1 + techBonuses[def.sector])` |
+| §2.2 产出 | `goods[g] += output[g] * batches * shop.toolBoost * (1 + techBonuses[def.sector])` —— **投入那张表不动**，多出来的产出是"虚空产量"（不额外吃原料） |
 | §10.1 科研 | `researchRate = (基础 + Σ 研究所) * (1 + techBonuses.research)` —— **整条**速率，含 `baseRate` |
 | §9.1 建造 | `constructionRate = (失业人口 + Σ 建筑工坊) * (1 + techBonuses.build)` —— **整条**速率 |
 
-- 产出那条与 `toolBoost` 是**相乘**（两条独立路线：工具 +25%、产业科技最多 +45%）。
+- 产出那条与 `toolBoost` 是**相乘**（两条独立路线：工具 +25%、产业科技最多 +105%）。
 - 建筑没有 `sector`（无配方建筑：城镇中心 / 仓库 / 建筑工坊 / 研究所）→ 倍率 1。
 - 建筑的 `sector`（`agri`/`goods`/`material`）是**内容字段**，校验器强制：
   **有 `recipe` 就必须有 `sector`**，反之不许有。

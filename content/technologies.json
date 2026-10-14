@@ -273,7 +273,7 @@
       "research": 30,
       "cost": { "goods": { "wood": 20 } },
       "requires": ["stonework"],
-      "effects": { "agri": 0.10 },
+      "effects": { "agri": 0.20 },
       "unlocks": { "buildings": [], "housing": [] }
     },
     {
@@ -283,7 +283,7 @@
       "research": 50,
       "cost": { "goods": { "wood": 30, "stone": 15 } },
       "requires": ["crop_rotation"],
-      "effects": { "agri": 0.15 },
+      "effects": { "agri": 0.35 },
       "unlocks": { "buildings": [], "housing": [] }
     },
     {
@@ -293,7 +293,7 @@
       "research": 80,
       "cost": { "goods": { "wood": 40, "stone": 25 } },
       "requires": ["irrigation"],
-      "effects": { "agri": 0.20 },
+      "effects": { "agri": 0.50 },
       "unlocks": { "buildings": [], "housing": [] }
     },
     {
@@ -303,7 +303,7 @@
       "research": 30,
       "cost": { "goods": { "wood": 20 } },
       "requires": ["stonework"],
-      "effects": { "goods": 0.10 },
+      "effects": { "goods": 0.20 },
       "unlocks": { "buildings": [], "housing": [] }
     },
     {
@@ -313,7 +313,7 @@
       "research": 50,
       "cost": { "goods": { "wood": 30, "stone": 15 } },
       "requires": ["workshop_division"],
-      "effects": { "goods": 0.15 },
+      "effects": { "goods": 0.35 },
       "unlocks": { "buildings": [], "housing": [] }
     },
     {
@@ -323,7 +323,7 @@
       "research": 80,
       "cost": { "goods": { "wood": 40, "stone": 25 } },
       "requires": ["standardization"],
-      "effects": { "goods": 0.20 },
+      "effects": { "goods": 0.50 },
       "unlocks": { "buildings": [], "housing": [] }
     },
     {
@@ -333,7 +333,7 @@
       "research": 30,
       "cost": { "goods": { "wood": 20, "stone": 20 } },
       "requires": ["stonework"],
-      "effects": { "material": 0.10 },
+      "effects": { "material": 0.20 },
       "unlocks": { "buildings": [], "housing": [] }
     },
     {
@@ -343,7 +343,7 @@
       "research": 50,
       "cost": { "goods": { "wood": 20, "stone": 20 } },
       "requires": ["kiln_upgrade"],
-      "effects": { "material": 0.15 },
+      "effects": { "material": 0.35 },
       "unlocks": { "buildings": [], "housing": [] }
     },
     {
@@ -353,7 +353,7 @@
       "research": 80,
       "cost": { "goods": { "wood": 40, "stone": 25 } },
       "requires": ["sawmill_machinery"],
-      "effects": { "material": 0.20 },
+      "effects": { "material": 0.50 },
       "unlocks": { "buildings": [], "housing": [] }
     },
     {
@@ -363,7 +363,7 @@
       "research": 30,
       "cost": { "goods": { "wood": 20 } },
       "requires": ["stonework"],
-      "effects": { "research": 0.10 },
+      "effects": { "research": 0.20 },
       "unlocks": { "buildings": [], "housing": [] }
     },
     {
@@ -373,7 +373,7 @@
       "research": 50,
       "cost": { "goods": { "wood": 30, "stone": 15 } },
       "requires": ["scriptorium"],
-      "effects": { "research": 0.15 },
+      "effects": { "research": 0.35 },
       "unlocks": { "buildings": [], "housing": [] }
     },
     {
@@ -383,7 +383,7 @@
       "research": 80,
       "cost": { "goods": { "wood": 40, "stone": 25 } },
       "requires": ["academy"],
-      "effects": { "research": 0.20 },
+      "effects": { "research": 0.50 },
       "unlocks": { "buildings": [], "housing": [] }
     },
     {
@@ -393,7 +393,7 @@
       "research": 30,
       "cost": { "goods": { "wood": 20 } },
       "requires": ["stonework"],
-      "effects": { "build": 0.10 },
+      "effects": { "build": 0.20 },
       "unlocks": { "buildings": [], "housing": [] }
     },
     {
@@ -403,7 +403,7 @@
       "research": 50,
       "cost": { "goods": { "wood": 30, "stone": 15 } },
       "requires": ["crane"],
-      "effects": { "build": 0.15 },
+      "effects": { "build": 0.35 },
       "unlocks": { "buildings": [], "housing": [] }
     },
     {
@@ -413,7 +413,7 @@
       "research": 80,
       "cost": { "goods": { "wood": 40, "stone": 25 } },
       "requires": ["scaffolding"],
-      "effects": { "build": 0.20 },
+      "effects": { "build": 0.50 },
       "unlocks": { "buildings": [], "housing": [] }
     }
   ]
