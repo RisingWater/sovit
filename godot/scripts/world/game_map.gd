@@ -30,7 +30,9 @@ func _init() -> void:
 	road.resize(n)
 	floor_tiles.resize(n)
 	center = Vector2i(W / 2, H / 2)
-	warehouse = Rect2i(W / 2 - 2, H / 2 - 1, 4, 3)
+	# 中央固定建筑（现在叫"仓库"，将来是城镇中心）：占地 8x3，贴图原生 128 宽、
+	# 比占地高，往上伸出去 —— 见 world_view._build_warehouse。
+	warehouse = Rect2i(W / 2 - 4, H / 2 - 1, 8, 3)
 
 func idx(x: int, y: int) -> int:
 	return y * W + x

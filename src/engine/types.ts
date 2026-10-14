@@ -123,6 +123,16 @@ export interface BuildingArt {
   w?: number
   /** 竖向格数；field / prop 必填。 */
   rows?: number
+  /**
+   * arch='sprite' 的**占地**（格）[宽, 高]，缺省按贴图尺寸算 ceil(px/16)。
+   *
+   * 为什么要能单独声明：贴图的高度**不占满占地**。建筑是正面平视图，
+   * 屋顶/塔尖往上长、可以伸到身后那栋楼的画面上（按地面线做 y 排序遮挡），
+   * 所以"占地几格"和"贴图多高"是两件事。不声明的话占地会被贴图撑大
+   * —— 128x73 会占 8x5 格，于是只能反过来把贴图缩小，把建筑压成一片小房子。
+   * 见 `godot/scripts/world/world_view.gd::_footprint()`。
+   */
+  foot?: [number, number]
   /** 使用原生烟囱 tile（51 蓝顶 / 55 红顶）。 */
   chimney?: boolean
   /** 附加自绘特征件。 */

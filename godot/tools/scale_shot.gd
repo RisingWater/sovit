@@ -48,6 +48,15 @@ func _run() -> void:
 	var only: Array = []
 	if args.size() > 2 and args[2] != "":
 		only = args[2].split(",", false)
+	# 可选：每行几座 / 网格间距（格）。间距小于贴图高度就能看到"前排压后排"的遮挡。
+	var cols_arg := 0
+	if args.size() > 3 and args[3].is_valid_int():
+		cols_arg = int(args[3])
+	var gap_x := GAP_X
+	var gap_y := GAP_Y
+	if args.size() > 4 and args[4].is_valid_int():
+		gap_x = int(args[4])
+		gap_y = gap_x
 
 	var ps: PackedScene = load("res://scenes/main.tscn")
 	if ps == null:
@@ -107,7 +116,7 @@ func _run() -> void:
 	_log("sized %d" % sized.size())
 
 	# 摆放：紧凑网格（间距要容下最大占地 10x10 的剧院）
-	var cols := int(ceil(sqrt(float(sized.size()))))
+	var cols := cols_arg if cols_arg > 0 else int(ceil(sqrt(float(sized.size()))))
 	var c: Vector2i = world.map.center
 	var placed := 0
 	var failed := []
@@ -119,8 +128,8 @@ func _run() -> void:
 	for i in sized.size():
 		var e: Dictionary = sized[i]
 		var base: Vector2i = c + Vector2i(
-			(i % cols) * GAP_X - (cols * GAP_X) / 2,
-			int(i / cols) * GAP_Y - (int(ceil(float(sized.size()) / cols)) * GAP_Y) / 2)
+			(i % cols) * gap_x - (cols * gap_x) / 2,
+			int(i / cols) * gap_y - (int(ceil(float(sized.size()) / cols)) * gap_y) / 2)
 		var cell: Vector2i = base
 		var ok := false
 		var why := ""

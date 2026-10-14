@@ -628,7 +628,11 @@
       "id": "domestic_service",
       "nameZh": "家政工坊",
       "art": {
-        "arch": "sprite"
+        "arch": "sprite",
+        "foot": [
+          8,
+          3
+        ]
       },
       "tier": 2,
       "workers": 4,
@@ -719,7 +723,11 @@
       "id": "construction_works",
       "nameZh": "建筑工坊",
       "art": {
-        "arch": "sprite"
+        "arch": "sprite",
+        "foot": [
+          8,
+          3
+        ]
       },
       "tier": 3,
       "workers": 3,
@@ -767,7 +775,11 @@
       "id": "research_institute",
       "nameZh": "研究所",
       "art": {
-        "arch": "sprite"
+        "arch": "sprite",
+        "foot": [
+          8,
+          3
+        ]
       },
       "tier": 3,
       "workers": 6,

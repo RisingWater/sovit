@@ -25,12 +25,11 @@ var terrain_layer: TileMapLayer
 var floor_layer: TileMapLayer
 var road_layer: TileMapLayer
 var deco_layer: TileMapLayer
+## 建筑 + 小人共用的 **y 排序容器**（按地面线排序，见 _ready 里的说明）。
+## 名字保留 building_layer 是历史原因；_reset_buildings() 会跳过带 "agent" meta 的子节点。
 var building_layer: Node2D
-var agent_layer: Node2D
-## 走在街上的人画在这一层（z=1，压在建筑上面）。
-## 只用一个 agent_layer(z=-1) 的话所有人都在建筑下面，
-## 走在房子前面的人头会被切掉。
-var agent_front: Node2D
+## 选中小人的地面圈（z=-4，属于地面层）。
+var ring_layer: Node2D
 var camera: Camera2D
 var ghost: Sprite2D
 
@@ -263,14 +262,22 @@ func _build_tileset() -> void:
 	deco_layer.z_index = -5
 	add_child(deco_layer)
 
+	# 建筑和小人放在**同一个 y 排序容器**里，按"地面线"（建筑占地底边 / 小人的脚底）
+	# 排序 —— 这是遮挡正确的前提：
+	#   * 建筑贴图可以比占地高（content 的 art.foot，往上伸出去盖住身后那栋）。
+	#     谁盖谁只能由地面线的先后决定。原来那套"后层 z=-1 / 前层 z=+1 两个图层"
+	#     分不出"走在两栋互相重叠的房子**中间**的人"，所以小人从"一层 _draw 画所有人"
+	#     改成一具一个 Sprite2D 节点，好在 y 排序里和建筑互相插队。
+	#   * 道路/地板/装饰是地面，负 z_index，永远在这层下面，不会被压错；
+	#     建筑压住的是"身后的路面"（正确的：它在路面前面），压不住身前的路面。
 	building_layer = Node2D.new()
+	building_layer.y_sort_enabled = true
 	add_child(building_layer)
-	agent_layer = Node2D.new()
-	agent_layer.z_index = -1        # 后层：脚底在建筑底边之上的人
-	add_child(agent_layer)
-	agent_front = Node2D.new()
-	agent_front.z_index = 1         # 前层：脚底在建筑底边之下的人，压在房子上面
-	add_child(agent_front)
+
+	# 选中小人的地面圈：属于地面，单独一层，不参与遮挡
+	ring_layer = Node2D.new()
+	ring_layer.z_index = -4
+	add_child(ring_layer)
 
 	# 建筑名标签走屏幕空间，字号不随镜头缩放变化
 	label_layer = CanvasLayer.new()
@@ -348,25 +355,32 @@ func _restore_deco(cell: Vector2i, w: int, h: int) -> void:
 				deco_layer.set_cell(c, 2, Vector2i(hv % DECO_VARIANTS, 0))
 
 func _build_warehouse() -> void:
+	var fp := map.warehouse.size
 	var spr := Sprite2D.new()
 	warehouse_sprite = spr
 	spr.texture = load("res://assets/buildings/_warehouse.png")
 	spr.centered = false
-	spr.position = Vector2(map.warehouse.position.x * TILE, map.warehouse.position.y * TILE)
-	# 正面平视整图：底边对齐到 4x3 占地的底边（见 _apply_art_offset 的说明）
-	if spr.texture != null:
-		spr.offset = Vector2(0, 3 * TILE - spr.texture.get_height())
+	# 和普通建筑同一条规则：横向居中、底边对齐，节点位置 = 地面线（供 y 排序）。
+	# 仓库原生 128x62，占地 8x3 -> 贴图比占地高 14px，往上伸出去。
+	var tex := spr.texture
+	if tex != null:
+		spr.position = Vector2(
+			map.warehouse.position.x * TILE + fp.x * TILE * 0.5,
+			map.warehouse.position.y * TILE + fp.y * TILE)
+		spr.offset = Vector2(-tex.get_width() * 0.5, -tex.get_height())
+	else:
+		spr.position = Vector2(map.warehouse.position.x * TILE, map.warehouse.position.y * TILE)
 	building_layer.add_child(spr)
 	_warehouse_pos = Vector2(map.warehouse.get_center().x * TILE, map.warehouse.get_center().y * TILE)
-	_warehouse_door = _door_cell(map.warehouse.position, 4, 3)
+	_warehouse_door = _door_cell(map.warehouse.position, fp.x, fp.y)
 	_doors[_warehouse_door] = true
-	_warehouse_goal = _interior_cell(map.warehouse.position, 4, 3)
+	_warehouse_goal = _interior_cell(map.warehouse.position, fp.x, fp.y)
 	_walk_inside[_warehouse_door] = true
 	_walk_inside[_warehouse_goal] = true
 	map.reserved[_warehouse_door] = true
 	map.reserved[_warehouse_door + Vector2i(0, 1)] = true
 	_warehouse_anchor = _warehouse_door
-	_add_label("仓库", map.warehouse.position, 4, 3)
+	_add_label("仓库", map.warehouse.position, fp.x, fp.y)
 
 func _camera_setup() -> void:
 	camera = Camera2D.new()
@@ -406,13 +420,17 @@ func _art_of(type: String) -> Dictionary:
 	return {}
 
 func _footprint(type: String) -> Vector2i:
-	# 占地直接由 art 规格决定：贴图多大就占多大（gen-art 用同一套规则）
+	# 占地由 art 规格决定。成品整图**优先用 content 声明的 art.foot** ——
+	# 贴图可以比占地高（往上伸出去、和身后的建筑互相遮挡），两者不是一回事；
+	# 不声明才退回"按贴图尺寸算"。
 	var a := _art_of(type)
 	if a.is_empty():
 		return Vector2i(2, 2)
 	var arch := String(a.get("arch", ""))
 	if arch == "sprite":
-		# 成品整图：占地由 PNG 尺寸算出，避免在内容里重复写一遍
+		var foot = a.get("foot", null)
+		if foot is Array and (foot as Array).size() == 2:
+			return Vector2i(int(foot[0]), int(foot[1]))
 		var tex := _texture_for(type)
 		if tex != null:
 			return Vector2i(int(ceil(tex.get_width() / float(TILE))),
@@ -425,18 +443,23 @@ func _footprint(type: String) -> Vector2i:
 	var roof_rows := 1 if String(a.get("roof", "")) == "green" else 2
 	return Vector2i(w, roof_rows + 1)
 
-## 成品整图按"横向居中、底部对齐"摆进占地格；生成的建筑本来就是格对齐的，不用动。
+## 把成品整图摆进占地格：**横向居中、底边对齐**，并把节点自身的位置落在"地面线"
+## （占地底边的中点）上 —— y 排序用的就是节点 y，所以必须让它等于地面线，
+## 而不是贴图左上角（那样前排后排会排错）。
 ##
 ## **底部对齐**是正面平视图的关键：新素材是完全正面平视（无透视、看不到屋顶坡面），
 ## 建筑应该"站"在占地的底边上、向上生长；居中会让它一半陷进地里。
-## 占地高度按 PNG 算出来，而 PNG 通常比占地高（屋顶/塔尖超出去），所以要往上偏移。
-func _apply_art_offset(spr: Sprite2D, type: String, fp: Vector2i) -> void:
+## 占地比贴图矮时 offset.y 为负 —— 贴图就往**上**伸出占地，盖住身后的建筑，
+## 这正是 content 里 art.foot 想表达的东西。
+func _place_sprite(spr: Sprite2D, type: String, origin: Vector2i, fp: Vector2i) -> void:
 	var a := _art_of(type)
 	if String(a.get("arch", "")) != "sprite" or spr.texture == null:
+		spr.position = Vector2(origin.x * TILE, origin.y * TILE)
 		return
-	spr.offset = Vector2(
-		(fp.x * TILE - spr.texture.get_width()) * 0.5,
-		fp.y * TILE - spr.texture.get_height())
+	spr.position = Vector2(
+		origin.x * TILE + fp.x * TILE * 0.5,
+		origin.y * TILE + fp.y * TILE)
+	spr.offset = Vector2(-spr.texture.get_width() * 0.5, -spr.texture.get_height())
 
 func _texture_for(type: String) -> Texture2D:
 	if _tex_cache.has(type):
@@ -454,8 +477,7 @@ func _place_housing_instance(type: String, cell: Vector2i) -> void:
 	var spr := Sprite2D.new()
 	spr.texture = _texture_for(type)
 	spr.centered = false
-	spr.position = Vector2(cell.x * TILE, cell.y * TILE)
-	_apply_art_offset(spr, type, fp)
+	_place_sprite(spr, type, cell, fp)
 	building_layer.add_child(spr)
 	var cap = 4
 	if runner.db.housing.has(type):
@@ -493,8 +515,7 @@ func _create_shop_view(sid: String, def_id: String, cell: Vector2i) -> void:
 	var spr := Sprite2D.new()
 	spr.texture = _texture_for(def_id)
 	spr.centered = false
-	spr.position = Vector2(cell.x * TILE, cell.y * TILE)
-	_apply_art_offset(spr, def_id, fp)
+	_place_sprite(spr, def_id, cell, fp)
 	building_layer.add_child(spr)
 	_shop_sprites[sid] = spr
 	_shop_cell[sid] = cell
@@ -599,7 +620,11 @@ func _site_list() -> Array:
 	return out
 
 func _reset_buildings() -> void:
+	# ⚠️ 小人和建筑共用 building_layer（y 排序要求同一个父节点），所以这里必须
+	# 跳过带 "agent" meta 的子节点 —— 否则每次读档/重开都会把小人节点一并删掉。
 	for ch in building_layer.get_children():
+		if ch.has_meta("agent"):
+			continue
 		ch.queue_free()
 	_shop_sprites.clear()
 	_shop_cell.clear()
@@ -929,8 +954,7 @@ func move_shop_to(sid: String, origin: Vector2i) -> bool:
 		_shop_label[sid].queue_free()
 	_shop_label.erase(sid)
 	var spr = _shop_sprites[sid]
-	spr.position = Vector2(origin.x * TILE, origin.y * TILE)
-	_apply_art_offset(spr, def_id, fp)
+	_place_sprite(spr, def_id, origin, fp)
 	_shop_label[sid] = _add_label(String(runner.db.buildings[def_id]["nameZh"]), origin, fp.x, fp.y)
 	var d = _occupy_building("shop", sid, origin, fp)
 	_shop_cell[sid] = origin
@@ -955,9 +979,8 @@ func move_housing_to(uid: String, origin: Vector2i) -> bool:
 	_restore_deco(old, fp.x, fp.y)     # 旧址还原成自然地
 	if is_instance_valid(inst.get("label", null)):
 		inst["label"].queue_free()
-	inst["sprite"].position = Vector2(origin.x * TILE, origin.y * TILE)
-	# prop 整图是按占地居中的，换位置后要重算
-	_apply_art_offset(inst["sprite"], type, fp)
+	# 贴图是按占地"横向居中、底边对齐"摆的，换位置后要重算
+	_place_sprite(inst["sprite"], type, origin, fp)
 	inst["cell"] = origin
 	inst["label"] = _add_label(String(runner.db.housing[type]["nameZh"]), origin, fp.x, fp.y)
 	var d = _occupy_building("housing", uid, origin, fp)
@@ -1064,10 +1087,8 @@ func _take_sites_for(type: String, n: int) -> Array:
 	return out
 
 func _spawn_agents() -> void:
-	if not agent_layer.draw.is_connected(_draw_agents):
-		agent_layer.draw.connect(_draw_agents)
-	if not agent_front.draw.is_connected(_draw_agents_front):
-		agent_front.draw.connect(_draw_agents_front)
+	if not ring_layer.draw.is_connected(_draw_rings):
+		ring_layer.draw.connect(_draw_rings)
 	_refresh_agents()
 
 func _refresh_agents() -> void:
@@ -1076,17 +1097,72 @@ func _refresh_agents() -> void:
 		alive[String(r["id"])] = true
 	var kept := []
 	for a in _agents:
-		if alive.has(a["id"]):
-			a["home"] = _resident_home.get(a["id"], _warehouse_pos)
+		var id := String(a["id"])
+		if alive.has(id):
+			a["home"] = _resident_home.get(id, _warehouse_pos)
 			kept.append(a)
+		elif is_instance_valid(a.get("node", null)):
+			# 人没了，把节点一起收掉（否则会留一个不动的"鬼影"站在街上）
+			a["node"].queue_free()
 	_agents = kept
 	var have := {}
 	for a in _agents:
 		have[a["id"]] = true
 	for id in alive.keys():
-		if not have.has(id):
-			var home = _resident_home.get(id, _warehouse_pos)
-			_agents.append({"id": id, "pos": home, "target": home, "home": home})
+		if have.has(id):
+			continue
+		var home = _resident_home.get(id, _warehouse_pos)
+		var node := Sprite2D.new()
+		node.centered = false
+		# 标记"这不是建筑"：_reset_buildings() 清 building_layer 时要跳过小人，
+		# 因为小人和建筑共用同一个 y 排序容器（见 _ready 里的说明）。
+		node.set_meta("agent", true)
+		building_layer.add_child(node)
+		_agents.append({"id": id, "pos": home, "target": home, "home": home, "node": node})
+
+## 每帧把每具小人节点同步到脚底位置 / 朝向帧 / 是否进屋。
+##
+## **节点位置 = 脚底**，这不是随便定的：y 排序用的就是节点 y，只有让它等于脚底
+## （= 人的"地面线"），人和建筑才能按地面线互相插队 —— 走在两栋互相重叠的房子
+## 中间的人才会正确地被前排那栋挡住、同时压住后排那栋。
+func _update_agent_nodes() -> void:
+	var cls_of := {}
+	if runner != null and runner.sim != null:
+		for r in runner.sim.s["residents"]:
+			cls_of[String(r["id"])] = String(r["classId"])
+	var rows := ["S", "N", "W", "E"]
+	for a in _agents:
+		var node: Sprite2D = a.get("node", null)
+		if not is_instance_valid(node):
+			continue
+		var tex := _actor_texture(String(cls_of.get(String(a["id"]), "poor")))
+		node.texture = tex
+		node.region_enabled = tex != null
+		if tex != null:
+			var row := rows.find(String(a.get("dir", "S")))
+			if row < 0:
+				row = 0
+			var frame := int(a.get("anim", 0)) % 4
+			node.region_rect = Rect2(frame * TILE, row * TILE, TILE, TILE)
+		node.position = a["pos"]
+		# 精灵脚底对齐坐标点（和原来 draw_texture_rect_region 的 dst 一致）
+		node.offset = Vector2(-TILE * 0.5, 2.0 - TILE)
+		# 进屋的人不画 —— 门格与屋内落脚格都在 _walk_inside 里（可通行），
+		# 居民会真的走进房子里面停下，照画就会看到一个人站在屋子正中间。
+		node.visible = not _agent_inside_building(a)
+
+## 选中小人脚下的椭圆（画在地面层 ring_layer 上，不参与遮挡）。
+func _draw_rings() -> void:
+	if String(selected_resident) == "":
+		return
+	for a in _agents:
+		if String(a["id"]) != String(selected_resident):
+			continue
+		# 把圆压扁，比正圆更贴地
+		ring_layer.draw_set_transform(a["pos"] + Vector2(0, -1), 0.0, Vector2(1.0, 0.5))
+		ring_layer.draw_arc(Vector2.ZERO, 9.0, 0, TAU, 24, Color(1.0, 0.95, 0.2), 1.5)
+		ring_layer.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+		return
 
 ## 人是否在建筑/仓库的占地范围内 —— 也就是"进屋了"。
 ## 门格与屋内落脚格都在 _walk_inside 里（可通行），所以居民会真的走进房子**里面**
@@ -1097,72 +1173,6 @@ func _agent_inside_building(a: Dictionary) -> bool:
 	if not map.in_bounds(c):
 		return false
 	return map.occupied.has(c) or map.warehouse.has_point(c)
-
-## 人是否被建筑挡住 —— 按**深度**判断，不是按在不在屋里。
-##
-## 单纯把所有街上的人画到建筑上面，走在房子后面时看起来就像穿过建筑；
-## 单层(z=-1) 又会让走在房子前面的人被切头。所以按脚底与建筑底边的相对位置分流：
-##   人的脚底在该建筑底边之上  -> 后层，被房子挡住
-##   人之下的建筑底边         -> 前层，压在房子上面
-func _agent_behind_buildings(a: Dictionary) -> bool:
-	var pos: Vector2 = a["pos"]
-	var c := Vector2i(int(floor(pos.x / float(TILE))), int(floor(pos.y / float(TILE))))
-	if not map.in_bounds(c):
-		return false
-	# 只查脚底附近几格：够覆盖相邻建筑，又不至于每帧扫太多
-	for dy in range(-2, 3):
-		for dx in range(-2, 3):
-			var cc := c + Vector2i(dx, dy)
-			if not map.in_bounds(cc):
-				continue
-			if not (map.occupied.has(cc) or map.warehouse.has_point(cc)):
-				continue
-			# 该占位格的底边
-			if pos.y < float(cc.y * TILE + TILE):
-				return true
-	return false
-
-func _draw_agents() -> void:
-	_draw_agent_pass(agent_layer, true)
-
-func _draw_agents_front() -> void:
-	_draw_agent_pass(agent_front, false)
-
-func _draw_agent_pass(layer: Node2D, behind: bool) -> void:
-	# 居民阶层（每帧建一次表，避免 N² 查找）
-	var cls_of := {}
-	if runner != null and runner.sim != null:
-		for r in runner.sim.s["residents"]:
-			cls_of[String(r["id"])] = String(r["classId"])
-	var rows := ["S", "N", "W", "E"]
-	for a in _agents:
-		var is_sel := String(a["id"]) == selected_resident
-		var inside := _agent_inside_building(a)
-		# 进屋的人不画身体 —— 门格与屋内落脚格都在 _walk_inside 里（可通行），
-		# 居民会真的走进房子里面停下，照画就会看到一个人站在屋子正中间。
-		# 选中圈例外：否则点了名却什么都看不到。
-		if inside and not is_sel:
-			continue
-		if _agent_behind_buildings(a) != behind:
-			continue
-		var cls := String(cls_of.get(String(a["id"]), "poor"))
-		var tex := _actor_texture(cls)
-		if tex == null:
-			continue
-		var row := rows.find(String(a.get("dir", "S")))
-		if row < 0:
-			row = 0
-		var frame := int(a.get("anim", 0)) % 4
-		var src := Rect2(frame * TILE, row * TILE, TILE, TILE)
-		# 精灵脚底对齐坐标点
-		var dst := Rect2(a["pos"] - Vector2(TILE * 0.5, TILE - 2.0), Vector2(TILE, TILE))
-		if not inside:
-			layer.draw_texture_rect_region(tex, dst, src)
-		if is_sel:
-			# 脚下椭圆（把圆压扁），比正圆更贴地
-			layer.draw_set_transform(a["pos"] + Vector2(0, -1), 0.0, Vector2(1.0, 0.5))
-			layer.draw_arc(Vector2.ZERO, 9.0, 0, TAU, 24, Color(1.0, 0.95, 0.2), 1.5)
-			layer.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 
 func _actor_texture(cls: String) -> Texture2D:
 	if _actor_tex.has(cls):
@@ -1200,10 +1210,10 @@ func _process(delta: float) -> void:
 			_nav_timer = 0.0
 	_update_agents(delta)
 	_animate_agents(delta)
+	_update_agent_nodes()
 	_update_cursor()
 	_update_labels()
-	agent_layer.queue_redraw()
-	agent_front.queue_redraw()
+	ring_layer.queue_redraw()
 
 ## 建造 / 笔刷模式下换成十字光标
 func _update_cursor() -> void:
@@ -1616,7 +1626,7 @@ func _register_site(kind: String, type: String, cell: Vector2i, fp: Vector2i) ->
 	node.texture = _texture_for(type)
 	node.centered = false
 	node.modulate = Color(1, 1, 1, 0.45)
-	node.position = Vector2(cell.x * TILE, cell.y * TILE)
+	_place_sprite(node, type, cell, fp)
 	building_layer.add_child(node)
 	var site = {"kind": kind, "id": type, "cell": cell, "fw": fp.x, "fh": fp.y, "node": node}
 	_sites.append(site)

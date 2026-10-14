@@ -179,6 +179,15 @@ function parseArt(v: unknown, p: string): BuildingArt | undefined {
     if (!Number.isInteger(r) || r < 1 || r > 12) fail(`${p}.rows 必须是 1–12 的整数`)
     art.rows = r
   }
+  if (o.foot !== undefined) {
+    const f = asArr(o.foot, `${p}.foot`)
+    if (f.length !== 2) fail(`${p}.foot 必须是 [宽, 高] 两个数`)
+    const fw = asNum(f[0], `${p}.foot[0]`)
+    const fh = asNum(f[1], `${p}.foot[1]`)
+    if (!Number.isInteger(fw) || fw < 2 || fw > 12) fail(`${p}.foot[0] 必须是 2–12 的整数`)
+    if (!Number.isInteger(fh) || fh < 1 || fh > 12) fail(`${p}.foot[1] 必须是 1–12 的整数`)
+    art.foot = [fw, fh]
+  }
   if (o.chimney !== undefined) art.chimney = asBool(o.chimney, `${p}.chimney`)
   if (o.feat !== undefined) {
     art.feat = asArr(o.feat, `${p}.feat`).map((x, i) => asEnum(x, ART_FEATS, `${p}.feat[${i}]`))
@@ -196,10 +205,11 @@ function parseArt(v: unknown, p: string): BuildingArt | undefined {
     if (!art.crop) fail(`${p}：arch=field 必须给 crop`)
     if (art.roof || art.wall) fail(`${p}：arch=field 不应给 roof / wall`)
   } else if (arch === 'sprite') {
-    // 成品整图：文件名就是建筑 id（godot/assets/building_src/<id>.png），
-    // 所以**不需要** sprite 字段；占地由 gen-art 按图 + 层数规则算出，也不手填。
-    if (art.w) fail(`${p}：arch=sprite 的占地由 gen-art 按图算出，不要手填`)
-    if (art.rows) fail(`${p}：arch=sprite 的占地由 gen-art 按图算出，不要手填`)
+    // 成品整图：文件名就是建筑 id（godot/assets/building_src/<id>.png），所以**不需要**
+    // sprite 字段。占地缺省按贴图尺寸算；要让贴图比占地高（往上伸长、和身后的建筑
+    // 互相遮挡），用 foot 显式声明，而不是走 w/rows —— 那两个是程序化拼装的字段。
+    if (art.w) fail(`${p}：arch=sprite 请不要用 w，占地要单独声明就用 foot`)
+    if (art.rows) fail(`${p}：arch=sprite 请不要用 rows，占地要单独声明就用 foot`)
     if (art.roof || art.wall || art.soil || art.crop) {
       fail(`${p}：arch=sprite 不应给 roof / wall / soil / crop`)
     }

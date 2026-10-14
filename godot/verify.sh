@@ -109,6 +109,7 @@ step "imm" "$GODOT_BIN" --headless --path . -s res://tools/imm_test.gd
 step "minimap" "$GODOT_BIN" --headless --path . -s res://tools/minimap_test.gd
 step "esc" "$GODOT_BIN" --headless --path . -s res://tools/esc_test.gd
 step "newgame" "$GODOT_BIN" --headless --path . -s res://tools/newgame_test.gd
+step "occlusion" "$GODOT_BIN" --headless --path . -s res://tools/occlusion_test.gd
 
 if [ "$FAIL" -ne 0 ]; then
   echo "SOME CHECKS FAILED" >&2

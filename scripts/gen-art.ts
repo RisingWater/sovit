@@ -241,26 +241,43 @@ const STOREYS: Record<string, number> = {
 const STOREY_TILES = 3 // 每层 3 格
 const ROOF_TILES = 2 // 屋顶 2 格
 
-// 强制 ÷2 的 1 层小建筑。
+// 强制 ÷2 的建筑名单 = **"小建筑"档**：显示 64 宽，和伐木场(64x39)同一档。
 //
-// 为什么必须显式列出来、不能只靠上面的高度上限自动挑：
-//   * v5 那批营地/工棚素材是 128 宽、78~92px。1 层上限 80px —— 其中**两座只有 78**
-//     （伐木场、木柴坊）刚好不超过上限，自动规则会把它们留在原生 128 宽，而同一批
-//     另外四座 (81/87/87/92) 被 ÷2 成 64 宽：**同一批素材一半大一半小**。
-//   * 粘土坑源高 67，也没超 80，自动规则会给它 128 宽 —— 但用户要求它和伐木场对齐：
-//     128x67 是**整整大一档**（占地 8x5 对 4x3，面积差 4 倍），看着不像同一种
-//     "小采集建筑"。÷2 后 64x33，占地和伐木场一样是 4x3。
+// 为什么要显式列名单、不让上面的高度上限逐座判断：
+//   1 层上限 80px 太松，源高 62~78 的建筑都会原样留在 128 宽，于是同一类建筑劈成
+//   两档（128 宽的大房子 vs 64 宽的小房子），地图上看着就不像一套。用户要的是
+//   "这些小建筑都按小档来"：
+//     * v5 那批营地/工棚是 78~92px，其中伐木场/木柴坊只有 78 —— 不点名的话这两座
+//       会留在 128 宽，而同批另外四座被 ÷2，**同一批素材一半大一半小**；
+//     * 粘土坑源高 67，不点名就是 128x67（占地 8x5），比伐木场整整大一档
+//       （面积 4 倍），用户要求它和伐木场对齐。
 //
-// 用户对着两种方案的渲染图选了"整批 ÷2"：64 宽那档才和其余二十多座建筑协调，
-// 128 宽会明显比周围一圈房子大出一档。所以这些按名单强制，而不是让上限逐座判断。
+// ⚠️ 占地和贴图现在是**解耦**的（见 content 的 art.foot）：占地由 content 声明，
+//    贴图可以比占地高，往上和身后的建筑互相遮挡。所以这里"压到 64 宽"纯粹是
+//    造型选择（小房子就该小），不再是为了塞进格子 —— 以前是为了塞格子才不得不压。
 const FORCE_HALF: Record<string, true> = {
+  // v5 重绘批次（营地/工棚）
   hunting_camp: true,
   fishery: true,
   smokehouse: true,
   dried_meat_works: true,
   lumberjack: true,
   firewood_works: true,
+  // 采集类，和伐木场对齐
   clay_pit: true,
+}
+
+// 强制按**原生尺寸**显示（不缩放）。用户指定的"大建筑"档：研究所 / 建筑工坊 /
+// 家政工坊 / 仓库 这四座一样大。它们的源图是 128x73 / 84 / 64 / 62：
+//   * 建筑工坊 84 超过 1 层上限 80，自动规则会把它 ÷2 成 64x42，必须点名留住；
+//   * 其余三座源高 ≤80 本来就 ×1，一并写进来是为了让"这四座是同一档"这件事
+//     在代码里看得见，而不是靠上限的巧合。
+// 它们的占地在 content 里声明成 8x3，贴图比占地高（最多 36px），往上伸出去，
+// 和身后的建筑按地面线 y 排序遮挡 —— 见 world_view._footprint / _apply_art_offset。
+const FORCE_NATIVE: Record<string, true> = {
+  research_institute: true,
+  construction_works: true,
+  domestic_service: true,
 }
 
 function storeysOf(id: string): number {
@@ -287,7 +304,7 @@ function downscaleExact(src: Canvas, f: number): Canvas {
 function spriteBuilding(id: string, srcPath: string, forceScale?: number): Canvas {
   const src = Canvas.fromPng(srcPath)
   const cap = maxDisplayH(id)
-  const f0 = forceScale ?? (FORCE_HALF[id] ? 2 : undefined)
+  const f0 = forceScale ?? (FORCE_HALF[id] ? 2 : FORCE_NATIVE[id] ? 1 : undefined)
   let f = f0 ?? 1
   if (f0 === undefined) {
     // 倍率只取 2 的幂，这样"裁到整数倍"最多只丢 1px
@@ -1042,12 +1059,13 @@ function main(): void {
     writeFileSync(`${ROOT}/thumbs/${b.id}.png`, thumbOf(cv).toPng())
     n++
   }
-  // 地图上的固定仓库结构（4x3 格，见 game_map.gd）。用新素材的 warehouse 整图，
-  // 强制 ÷2 让它装进 64x48 的占地（世界层会把它底边对齐，见 _build_warehouse）。
+  // 地图上的固定仓库结构。用户要求它和研究所/建筑工坊/家政工坊**一样大**，
+  // 所以也按原生 128x62 显示；占地由 game_map 的 warehouse Rect 声明成 8x3，
+  // 贴图比占地高 14px，往上伸出去（见 world_view._build_warehouse）。
   {
     const whSrc = `${BUILDING_SRC}/warehouse.png`
     if (existsSync(whSrc)) {
-      const wh = spriteBuilding('warehouse', whSrc, 2)
+      const wh = spriteBuilding('warehouse', whSrc, 1)
       writeFileSync(`${ROOT}/buildings/_warehouse.png`, wh.toPng())
       writeFileSync(`${ROOT}/thumbs/_warehouse.png`, thumbOf(wh).toPng())
     }
