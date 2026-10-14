@@ -17,6 +17,9 @@ var _confirm_text: Label
 var _demolish_def_id := ""
 var _body: VBoxContainer
 
+## 拖动用工滑块期间置真。见 `_rebuild()` 里的说明。
+var _dragging_slider := false
+
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_RIGHT_WIDE)
 	offset_left = -300
@@ -122,12 +125,16 @@ func _icon_row(gid: String, right: String, color: Color = UIKit.FG_DARK) -> void
 	row.add_child(UIKit.label(right, color))
 	_body.add_child(row)
 
+## 按钮行。每项是 `[文案, 回调]`，可选的第三项 `true` = 禁用
+## （用于"命令已排队、再点没意义"的情况，比如已经排着升级）。
 func _buttons(items: Array) -> void:
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 3)
 	for it in items:
 		var b := UIKit.button(String(it[0]), true)
 		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		if it.size() > 2 and bool(it[2]):
+			b.disabled = true
 		b.pressed.connect(it[1])
 		row.add_child(b)
 	_body.add_child(row)
@@ -145,12 +152,52 @@ func _button(t: String, cb: Callable) -> Button:
 func _rebuild() -> void:
 	if _body == null or runner == null or runner.sim == null:
 		return
+	# 拖动中**真的**不重建。
+	#
+	# 原来这里只有 `_build_worker_slider` 上方的一行注释声称"拖动中不能 _rebuild()"，
+	# 但代码里并没有任何东西挡住它 —— 注释不等于事实。而 `runner.hour_ticked`
+	# **每个游戏小时**都会触发本函数（sim_runner.gd:51），于是拖到一半滑块就被
+	# `_clear()` 销毁重建，拖动当场断掉。
+	if _dragging_slider:
+		return
 	_clear()
 	match _kind:
 		"building": _building_panel()
 		"resident": _resident_panel()
 		"housing": _housing_panel()
 		_: _global_panel()
+
+## 本店在 pending 队列里排着的 `set_workers`；-1 = 没排队。
+##
+## 为什么必须看 pending：命令是"次日 06:00 生效"的，在黎明之前
+## `shop["targetWorkers"]` **不会变**。面板每小时都会 `_rebuild()`，
+## 滑块初值若直接取 `targetWorkers`，用户拖完几秒就被打回原位
+## —— 这就是"拖动之后会跳回去"那个 bug 的根。
+##
+## 与全局面板的人口上限（`_global_panel`）是同一套做法，那一格当初就修过这个问题。
+## 引擎按 shopId 合并同名命令（`sim_core.gd` 的 `_dedup_key`），所以最多一条。
+func _pending_workers() -> int:
+	if runner == null or runner.sim == null:
+		return -1
+	for a in (runner.sim.s["pending"] as Array):
+		if String(a.get("type", "")) == "set_workers" and String(a.get("shopId", "")) == _id:
+			return int(float(a["value"]))
+	return -1
+
+## 本店有没有排着「升级」（同样是次日生效，所以要标注出来）。
+func _pending_expand() -> bool:
+	if runner == null or runner.sim == null:
+		return false
+	for a in (runner.sim.s["pending"] as Array):
+		if String(a.get("type", "")) == "expand" and String(a.get("shopId", "")) == _id:
+			return true
+	return false
+
+## 用工提示文案：`实际在岗 / 目标`（排着队就缀上「已排队」）。
+##
+## 拖动时也走这个函数，保证"滑块拖到 12"和"文字写 6"不会同时出现。
+func _worker_hint_text(assigned: int, target: int, queued: bool) -> String:
+	return "%d / %d%s" % [assigned, target, "（已排队）" if queued else ""]
 
 func _building_panel() -> void:
 	var shop = null
@@ -173,12 +220,21 @@ func _building_panel() -> void:
 	# 与引擎共用同一个口径（TS effectiveSlots / GDScript effective_slots）。
 	var slots := runner.sim.effective_slots(def, int(shop["level"]))
 	var active := bool(shop["active"])
+	# 排着队的命令次日才生效，所以显示值要优先取 pending（见 _pending_workers 的说明）
+	var pend_workers := _pending_workers()
+	var queued_workers := pend_workers >= 0
+	var eff_workers: int = pend_workers if queued_workers else int(shop["targetWorkers"])
+	var exp_queued := _pending_expand()
 
 	_title(String(def["nameZh"]), true)
-	_kv("等级", "Lv%d" % int(shop["level"]))
+	if exp_queued:
+		_kv("等级", "Lv%d（升级已排队）" % int(shop["level"]), Color(0.72, 0.35, 0.15))
+	else:
+		_kv("等级", "Lv%d" % int(shop["level"]))
 	_kv("状态", "生产中" if active else "已停产",
 		Color(0.18, 0.45, 0.20) if active else Color(0.60, 0.20, 0.18))
-	var worker_hint := _kv("用工", "%d / %d" % [assigned, int(shop["targetWorkers"])])
+	var worker_hint := _kv("用工", _worker_hint_text(assigned, eff_workers, queued_workers),
+		Color(0.72, 0.35, 0.15) if queued_workers else UIKit.FG_DARK)
 	var pb := ProgressBar.new()
 	pb.max_value = maxf(1.0, float(slots))
 	pb.value = float(assigned)
@@ -196,22 +252,24 @@ func _building_panel() -> void:
 		Color(0.18, 0.45, 0.20) if float(shop["profit"]) >= 0.0 else Color(0.60, 0.20, 0.18))
 	_gap()
 	_title("用工（0 = 停产）")
-	_build_worker_slider(slots, int(shop["targetWorkers"]), worker_hint)
+	_build_worker_slider(slots, eff_workers, worker_hint, assigned)
 	_gap()
-	_buttons([["升级", func(): _expand()],
+	_buttons([["升级" if not exp_queued else "升级（已排队）", func(): _expand(), exp_queued],
 		["移动", func(): _begin_move_shop()],
 		["拆除", func(): _demolish()]])
 	_gap(2)
-	_body.add_child(_label("所有操作次日 06:00 生效"))
+	_body.add_child(_label("所有操作次日 06:00 生效" if not (queued_workers or exp_queued)
+		else "已排队，次日 06:00 生效"))
 
 ## 用工拖动条。
 ##
 ## 为什么不用那四个 ±按钮：拖动条一眼能看出"满员是多少、现在开了多少"，
 ## 而且拖到 0 就是停产 —— 原来那个「停产/复工」开关就多余了，已删掉。
 ##
-## 拖动中**不能** _rebuild()：那会把滑块自己销毁重建，拖到一半就断了。
-## 所以拖动时只更新提示文字 + 入队（引擎按 shopId 合并同名命令，连发也只留最后一条）。
-func _build_worker_slider(slots: int, current: int, hint: Label) -> void:
+## 拖动期间 `_dragging_slider = true`，`_rebuild()` 会让路（否则滑块被销毁重建、
+## 拖动断掉）；松手后再补一次重建，让面板与队列一致。
+## 拖动中只更新提示文字 + 入队（引擎按 shopId 合并同名命令，连发也只留最后一条）。
+func _build_worker_slider(slots: int, current: int, hint: Label, assigned: int) -> void:
 	var s := HSlider.new()
 	s.min_value = 0
 	s.max_value = float(maxi(1, slots))
@@ -236,9 +294,17 @@ func _build_worker_slider(slots: int, current: int, hint: Label) -> void:
 	if grab != null:
 		s.add_theme_icon_override("grabber", grab)
 		s.add_theme_icon_override("grabber_highlight", grab)
+	# 拖动起止：挡住 _rebuild()，松手后补一次
+	s.drag_started.connect(func(): _dragging_slider = true)
+	s.drag_ended.connect(func(_changed: bool):
+		_dragging_slider = false
+		_rebuild())
 	s.value_changed.connect(func(v: float):
 		var w := int(round(v))
-		hint.text = "%d / %d" % [w, w]
+		# 文字跟着滑块走，并且立刻标「已排队」——
+		# 否则会出现"滑块 12、文字写 6"这种自相矛盾（文案由 _worker_hint_text 统一生成）
+		hint.text = _worker_hint_text(assigned, w, true)
+		hint.add_theme_color_override("font_color", Color(0.72, 0.35, 0.15))
 		runner.enqueue([{"type": "set_workers", "shopId": _id, "value": w}]))
 	_body.add_child(s)
 	# 下面这行让"拖到 0"这件事一眼可见
@@ -281,6 +347,9 @@ func _demolish() -> void:
 	_confirm.popup_centered(Vector2i(340, 150))
 
 func _expand() -> void:
+	# 已经排着升级就别再入队（按钮虽然会置灰，但别只靠 UI 拦）
+	if _pending_expand():
+		return
 	runner.enqueue([{"type": "expand", "shopId": _id}])
 	_rebuild()
 

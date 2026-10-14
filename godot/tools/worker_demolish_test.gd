@@ -128,6 +128,69 @@ func _run() -> void:
 	s2["level"] = 3   # 还原，后面的拆除断言按 L3 走
 	s2["targetWorkers"] = 6
 
+	# 2c. **用户报的 bug**：拖动之后面板一重建，滑块就跳回旧值。
+	#
+	#     根因：`set_workers` 是"次日 06:00 生效"的命令，在黎明之前
+	#     `shop["targetWorkers"]` **不会变**；而面板每个游戏小时都会 `_rebuild()`
+	#     （`runner.hour_ticked`，sim_runner.gd:51），滑块初值若直接取
+	#     `targetWorkers`，拖完几秒就被打回原位。
+	#     这里用 `hour_ticked.emit()` 走**真实那条路径**，不是直接调 `_rebuild()`。
+	ins.show_building(sid)
+	await process_frame
+	var sl_a: HSlider = null
+	for ch in ins.find_children("*", "HSlider", true, false):
+		sl_a = ch
+	if sl_a == null:
+		_fail("2c：找不到 HSlider")
+		return
+	sl_a.value = 9          # 拖到 9，而引擎里的 targetWorkers 是 6
+	await process_frame
+	node.runner.hour_ticked.emit()
+	await process_frame
+	var sl_b: HSlider = null
+	for ch in ins.find_children("*", "HSlider", true, false):
+		sl_b = ch
+	if sl_b == null:
+		_fail("2c：hour_ticked 之后找不到 HSlider")
+		return
+	if int(sl_b.value) != 9:
+		_fail("2c：拖动后经过一次面板重建，滑块被打回 %d（应为 9）—— 这正是「拖动之后会跳回去」"
+			% int(sl_b.value))
+		return
+	# 文字也得跟着滑块，不能出现"滑块 9、文字写 6"这种自相矛盾
+	var hint_txt := ""
+	for ch in ins.find_children("*", "Label", true, false):
+		var t := String((ch as Label).text)
+		if t.contains(" / ") and t.contains("已排队"):
+			hint_txt = t
+	if not hint_txt.contains("/ 9"):
+		_fail("2c：用工提示文字与滑块不一致（滑块 9，文字「%s」）" % hint_txt)
+		return
+
+	# 2d. 拖动**期间**不能重建：否则滑块被 _clear() 销毁重建，拖动当场断掉。
+	#     原来只有一行注释声称"拖动中不能 _rebuild()"，代码里并没有真的挡住。
+	var sl_c: HSlider = null
+	for ch in ins.find_children("*", "HSlider", true, false):
+		sl_c = ch
+	sl_c.drag_started.emit()
+	node.runner.hour_ticked.emit()
+	await process_frame
+	if not is_instance_valid(sl_c) or sl_c.is_queued_for_deletion():
+		_fail("2d：拖动中 _rebuild() 把滑块销毁了 —— 拖动会拖到一半就断")
+		return
+	# 松手：应当恢复重建，且滑块保持拖动后的值
+	sl_c.drag_ended.emit(true)
+	await process_frame
+	var sl_d: HSlider = null
+	for ch in ins.find_children("*", "HSlider", true, false):
+		sl_d = ch
+	if sl_d == null:
+		_fail("2d：松手后面板没有恢复重建")
+		return
+	if int(sl_d.value) != 9:
+		_fail("2d：松手后滑块是 %d，应为 9" % int(sl_d.value))
+		return
+
 	# 3. 拆除：按钮 → 弹出确认窗口 → 点「确定拆除」才入队
 	var demo := _find_button(ins, "拆除")
 	if demo == null:
