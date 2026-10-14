@@ -80,7 +80,7 @@ scripts/                   # check-content / golden / simulate / gen-art
 | `ui_kit.gd` | 静态工具：字体 / 9-slice 样式盒 / 按钮 / 卡片 / 颜色常量 |
 | `hud.gd` | 顶栏（两行）：人口就业满意国库 + 资源条 + 快存快读统计菜单 |
 | `minimap_widget.gd` | 左上角挂件：日期时间框 + 圆形小地图 + 村名红巾（可改名） |
-| `build_bar.gd` | 底部建造栏：住宅/农场/食品加工/矿场/工业/娱乐/其它 + 笔刷尺寸 |
+| `build_bar.gd` | 底部建造栏：住宅/农场/食品加工/矿场/工业/娱乐/市政/其它 + 笔刷尺寸 |
 | `inspector.gd` | 右侧详情：选中建筑/居民，移民开关 |
 | `panel_stats.gd` | 可拖动的统计面板：资源 / 人口 / 财务三 Tab |
 | `chart.gd` | 折线图控件（自绘） |

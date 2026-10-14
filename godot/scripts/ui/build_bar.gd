@@ -2,19 +2,28 @@ extends PanelContainer
 
 # 底栏：Tab 式建造目录。
 #
-#   [住宅][农场][矿场][工业][娱乐][其它]
+#   [住宅][农场][食品加工][矿场][工业][娱乐][市政][其它]
 #   <该分类的建筑按钮...>                  < 1/3 >
 #
 # 分类由建筑的 art.arch 推导，所以新增建筑只要填 art 就自动归类。
+# 例外是那几个**功能型**分类（娱乐 / 矿场 / 市政）：它们靠白名单，
+# 因为 art.arch 分不出"这座是村子基础设施"。
 
 var runner: SimRunner
 var world: Node
 
-const TABS := ["住宅", "农场", "食品加工", "矿场", "工业", "娱乐", "其它"]
+const TABS := ["住宅", "农场", "食品加工", "矿场", "工业", "娱乐", "市政", "其它"]
 # 这两个虽然产出不是食物，但归到「娱乐」
 const ENTERTAINMENT := ["theater", "domestic_service"]
 # 采掘业白名单（现在与 art.arch == "extract" 重合，留作显式覆盖的口子）
 const MINING := ["lumberjack", "quarry", "clay_pit", "hunting_camp", "fishery"]
+## 市政（用户："建筑菜单加一个 tab 是市政，把仓库/建造中心/研究中心放进去"）。
+##
+## 这三座都是**没有 `recipe` 的服务建筑**：仓库给仓储容量、建筑工坊给建造力、
+## 研究所给科研力 —— 按 `art.arch` 推导只会掉进「工业」，而它们跟工坊不是一类东西
+## （`docs/technology.md` §614 早就记过这个"无配方建筑该怎么归类"的口子）。
+## 顺序与用户点名的顺序一致：仓库 → 建筑工坊 → 研究所。
+const CIVIC := ["warehouse", "construction_works", "research_institute"]
 
 var _tab: int = 0
 var _page: int = 0
@@ -139,6 +148,9 @@ func _category_of(id: String) -> String:
 		return "娱乐"
 	if MINING.has(id):
 		return "矿场"
+	# 市政（仓库 / 建筑工坊 / 研究所）：白名单，别让它们掉进「工业」
+	if CIVIC.has(id):
+		return "市政"
 	var b: Dictionary = runner.db.buildings.get(id, {})
 	var a: Dictionary = b.get("art", {})
 	var arch := String(a.get("arch", ""))
