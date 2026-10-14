@@ -202,11 +202,36 @@ const ART_FEATS = ['windmill', 'wheel', 'logs', 'rocks'] as const
 const ART_CROPS = ['wheat', 'cabbage', 'sprout', 'bush', 'corn', 'tomato'] as const
 const ART_SOILS = ['row5', 'row6'] as const
 
+/**
+ * `art.doors` 是**表现层**的字段（门洞画在哪一格 / 从哪一格进屋），仿真层不读它。
+ *
+ * 为什么类型写在这里而不是 `src/engine/types.ts`：那样要动引擎类型文件，
+ * 而这次改动限定在内容校验 + Godot 表现层。运行时对象上带着这个键就够了，
+ * 返回时按 `BuildingArt` 向上转型。
+ */
+type ArtWithDoors = BuildingArt & { doors?: [number, number][] }
+
+/**
+ * 推导一栋建筑的**占地**（格），口径与
+ * `godot/scripts/world/world_view.gd::_footprint()` 一致（不一致 = 引擎占的地
+ * 和玩家看到的地错开）：
+ *   - `arch='sprite'`：只认 `foot`。没声明时占地由**贴图尺寸**算，而校验器读不到
+ *     PNG，只好返回 undefined —— 调用方据此判断"这个偏移能不能校验"。
+ *   - `arch='field'` / 带 `rows`：`w × rows`
+ *   - 其余：`w × (屋顶行数 + 1 行墙)`，绿顶（谷仓）只占 1 行屋顶
+ */
+function artFootprint(art: ArtWithDoors): [number, number] | undefined {
+  if (art.arch === 'sprite') return art.foot
+  const w = art.w ?? 3
+  if (art.arch === 'field' || art.rows !== undefined) return [w, art.rows ?? 1]
+  return [w, (art.roof === 'green' ? 1 : 2) + 1]
+}
+
 function parseArt(v: unknown, p: string): BuildingArt | undefined {
   if (v === undefined) return undefined
   const o = asObj(v, p)
   const arch = asEnum(o.arch, ART_ARCHS, `${p}.arch`)
-  const art: BuildingArt = { arch }
+  const art: ArtWithDoors = { arch }
 
   if (o.roof !== undefined) art.roof = asEnum(o.roof, ART_ROOFS, `${p}.roof`)
   if (o.wall !== undefined) art.wall = asEnum(o.wall, ART_WALLS, `${p}.wall`)
@@ -239,6 +264,44 @@ function parseArt(v: unknown, p: string): BuildingArt | undefined {
     const s = asStr(o.sprite, `${p}.sprite`)
     if (!/^[a-z0-9_]+$/.test(s)) fail(`${p}.sprite 只能用小写字母/数字/下划线：${s}`)
     art.sprite = s
+  }
+
+  // 门洞（表现层字段，见 content/README.md「art.doors」）。
+  //
+  // 语义：一串 `[dx, dy]`，相对**占地左上角**的格偏移；**第一项是主门**
+  // （居民实际从这一格进屋，屋内落脚格由它推出来）。所有门格 + 每扇门**正下方**
+  // 那一格（门前通行格）都会被 `map.reserved` 永久占住 —— 否则门会被别的建筑堵死。
+  // 缺省（不写）= 占地底边横向居中那一格，见 world_view.gd::_default_door_offset()。
+  //
+  // 为什么 `arch='sprite'` 必须同时写 `foot`：占地缺省按贴图尺寸算，校验器读不到
+  // PNG，就没法判断偏移有没有越界 —— 与其放行一个可能越界的门，不如要求写清楚。
+  if (o.doors !== undefined) {
+    const list = asArr(o.doors, `${p}.doors`)
+    if (list.length === 0) fail(`${p}.doors 不能是空数组（不要门洞就整条省掉）`)
+    const fp = artFootprint(art)
+    if (fp === undefined) {
+      fail(`${p}.doors 必须同时声明 art.foot：arch=sprite 的占地缺省按贴图尺寸算，校验器读不到贴图，无法确认偏移越界`)
+    }
+    const [fw, fh] = fp
+    const seen = new Set<string>()
+    art.doors = list.map((d, i) => {
+      const dp = `${p}.doors[${i}]`
+      const pair = asArr(d, dp)
+      if (pair.length !== 2) fail(`${dp} 必须是 [dx, dy] 两个整数`)
+      const nums = pair.map((n, k) => {
+        if (typeof n !== 'number' || !Number.isInteger(n)) {
+          fail(`${dp}[${k}] 必须是整数格偏移`)
+        }
+        return n as number
+      })
+      const [dx, dy] = nums as [number, number]
+      if (dx < 0 || dy < 0 || dx >= fw || dy >= fh) {
+        fail(`${dp} = [${dx}, ${dy}] 超出占地 ${fw}×${fh}（偏移必须落在 0..${fw - 1} / 0..${fh - 1}）`)
+      }
+      if (seen.has(`${dx},${dy}`)) fail(`${dp} = [${dx}, ${dy}] 与前面的门格重复`)
+      seen.add(`${dx},${dy}`)
+      return [dx, dy] as [number, number]
+    })
   }
 
   if (arch === 'field') {

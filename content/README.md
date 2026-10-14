@@ -55,6 +55,7 @@
 | `capacity` | **可选**。只产"每日产能"的建筑写它：`{kind:"build"\|"research", perWorker, levelBonus, slotsPerLevel}`（建筑工坊 / 研究所） |
 | `storage` | **可选**。仓储建筑的容量：`{storage, storagePerLevel}`（城镇中心 / 仓库）。写了它就可以**既不写 `recipe` 也不写 `capacity`** —— 两者必有其一，校验器会拦 |
 | `art.foot` | **可选**（`arch:"sprite"` 专用）。占地 `[宽,高]`（格）；缺省按贴图尺寸算。贴图**可以比占地高**，往上伸出去和身后的建筑按地面线互相遮挡，见 `docs/town.md` §3 与 `world_view._place_sprite()` |
+| `art.doors` | **可选**，门洞：`[[dx, dy], ...]`，偏移相对**占地左上角**（不是贴图左上角）。**第一项是主门** —— 居民从这一格进出、屋内落脚格由它推出来。所有门格 + 每扇门**正下方**那一格（门前通行格）都写进 `map.reserved`（别的建筑永远盖不上去，否则门就被堵死了）。缺省 = 占地底边横向居中那一格；`arch:"sprite"` 声明它时必须同时写 `art.foot`（否则校验器算不出占地、没法判越界）。见 `docs/town.md` §十三 |
 | `recipe.inputs` | 每批次投入（`{}` = 一级产业，不耗料） |
 | `recipe.output` | 每批次产出（不能为空） |
 | `recipe.baseRate` | 满员每日批次数 |

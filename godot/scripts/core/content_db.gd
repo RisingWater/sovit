@@ -176,3 +176,63 @@ func tool_bonus(gid: String) -> float:
 	if g == null:
 		return 0.0
 	return float(g.get("toolBonus", 0.0))
+
+# ---- 门洞声明（art.doors）---------------------------------------------------
+## 校验一栋建筑 / 住房的 `art.doors`；返回错误信息数组，空 = 合法。
+##
+## 语义（与 `src/engine/content/validate.ts::parseArt` 同一份契约）：
+##   · `doors` 是一串 `[dx, dy]`，相对**占地左上角**的格偏移；
+##   · **第一项是主门** —— 居民实际进出的那一格，屋内落脚格由它推出来；
+##   · 缺省（不写）= 占地底边横向居中那一格（`world_view._default_door_offset`）。
+##
+## 为什么在这里而不是在 world_view 里顺手判：门槛要能**单独**遍历全部内容跑一遍
+## 这个校验（包含贴图缺失、占地推导不出来的情况），所以把它做成纯函数。
+## `fp` = 该建筑的占地（格），由 `world_view._footprint()` 推出来。
+static func validate_doors(art: Dictionary, fp: Vector2i) -> Array:
+	var errs: Array = []
+	if not art.has("doors"):
+		return errs
+	var v: Variant = art["doors"]
+	if not (v is Array):
+		errs.append("art.doors 必须是数组，形如 [[dx, dy], [dx, dy], ...]")
+		return errs
+	var list: Array = v
+	if list.is_empty():
+		errs.append("art.doors 不能是空数组（不要门洞就整条省掉）")
+		return errs
+	var seen := {}
+	for i in list.size():
+		var d: Variant = list[i]
+		if not (d is Array) or (d as Array).size() != 2:
+			errs.append("art.doors[%d] 必须是 [dx, dy] 两个整数" % i)
+			continue
+		var pair: Array = d
+		# ⚠️ JSON 里的数字统统是 float：不能只判 `is int`，要看 int() 之后是否等值。
+		var ok_num := true
+		var xy := Vector2i.ZERO
+		for k in 2:
+			var n: Variant = pair[k]
+			if typeof(n) != TYPE_INT and typeof(n) != TYPE_FLOAT:
+				errs.append("art.doors[%d][%d] 必须是整数格偏移" % [i, k])
+				ok_num = false
+				break
+			var f := float(n)
+			if float(int(f)) != f:
+				errs.append("art.doors[%d][%d] = %s 不是整数格偏移" % [i, k, str(n)])
+				ok_num = false
+				break
+			if k == 0:
+				xy.x = int(f)
+			else:
+				xy.y = int(f)
+		if not ok_num:
+			continue
+		if xy.x < 0 or xy.y < 0 or xy.x >= fp.x or xy.y >= fp.y:
+			errs.append("art.doors[%d] = [%d, %d] 越界：占地是 %dx%d，偏移必须落在 0..%d / 0..%d"
+				% [i, xy.x, xy.y, fp.x, fp.y, fp.x - 1, fp.y - 1])
+			continue
+		if seen.has(xy):
+			errs.append("art.doors[%d] = [%d, %d] 与前面的门格重复" % [i, xy.x, xy.y])
+			continue
+		seen[xy] = true
+	return errs

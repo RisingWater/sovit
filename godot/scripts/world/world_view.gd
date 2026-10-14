@@ -80,7 +80,7 @@ var _shop_label := {}
 var _agents := []               # [{id, pos, home, goal_cell, path, pi, need_path}]
 var _resident_home := {}        # id -> Vector2
 var _shop_anchor := {}          # shop_id -> Vector2i（保留：施工点等）
-var _shop_door := {}            # shop_id -> Vector2i（门格，可通行）
+var _shop_door := {}            # shop_id -> Array[Vector2i]（门格，可通行；声明式，可能多于一个）
 var _shop_goal := {}            # shop_id -> Vector2i（屋内落脚格）
 var _doors := {}                # Vector2i -> true（门格）
 var _walk_inside := {}          # Vector2i -> true（门格 + 屋内格：可通行）
@@ -428,13 +428,12 @@ func _build_town_center() -> void:
 		spr.position = Vector2(map.town_center.position.x * TILE, map.town_center.position.y * TILE)
 	building_layer.add_child(spr)
 	_town_center_pos = Vector2(map.town_center.get_center().x * TILE, map.town_center.get_center().y * TILE)
-	_town_center_door = _door_cell(map.town_center.position, fp.x, fp.y)
-	_doors[_town_center_door] = true
-	_town_center_goal = _interior_cell(map.town_center.position, fp.x, fp.y)
-	_walk_inside[_town_center_door] = true
-	_walk_inside[_town_center_goal] = true
-	map.reserved[_town_center_door] = true
-	map.reserved[_town_center_door + Vector2i(0, 1)] = true
+	# 门洞由 content 声明：`town_center.art.doors = [[3,5],[4,5]]` —— 贴图上画的是
+	# **双开门**，门口本来就占两格（用户明确要求"门口两格都必须是门洞"）。
+	# 两格门格 + 两格门前通行格全部预留，见 `_register_doors()`。
+	var tc_doors := _register_doors("town_center", map.town_center.position, fp)
+	_town_center_door = (tc_doors[0] as Array)[0]
+	_town_center_goal = tc_doors[1]
 	# ⚠️ **把占地登记成一条 shop 占格**，否则这座楼是"点不动"的。
 	#
 	# 点击选中走的是 `_on_left_click()` → `map.occupied_at(cell)` → `select_building`。
@@ -569,14 +568,9 @@ func _place_housing_instance(type: String, cell: Vector2i) -> void:
 	var cap = 4
 	if runner.db.housing.has(type):
 		cap = int(runner.db.housing[type]["capacity"])
-	var dcell = _door_cell(cell, fp.x, fp.y)
-	_doors[dcell] = true
-	var icell = _interior_cell(cell, fp.x, fp.y)
-	_walk_inside[dcell] = true
-	_walk_inside[icell] = true
-	map.reserved[dcell] = true
-	map.reserved[dcell + Vector2i(0, 1)] = true
-	var inst = {"uid": uid, "id": type, "type": type, "cell": cell, "fw": fp.x, "fh": fp.y, "sprite": spr, "capacity": cap, "private": false, "occupants": [], "anchor": _anchor_cell(cell, fp.x, fp.y), "door": dcell, "goal": icell}
+	var dd := _register_doors(type, cell, fp)
+	var icell: Vector2i = dd[1]
+	var inst = {"uid": uid, "id": type, "type": type, "cell": cell, "fw": fp.x, "fh": fp.y, "sprite": spr, "capacity": cap, "private": false, "occupants": [], "anchor": _anchor_cell(cell, fp.x, fp.y), "door": dd[0], "goal": icell}
 	_housing_instances.append(inst)
 	_housing_by_uid[uid] = inst
 	_nav_dirty = true
@@ -608,15 +602,9 @@ func _create_shop_view(sid: String, def_id: String, cell: Vector2i) -> void:
 	_shop_cell[sid] = cell
 	_shop_def[sid] = def_id
 	_shop_anchor[sid] = _anchor_cell(cell, fp.x, fp.y)
-	var d = _door_cell(cell, fp.x, fp.y)
-	_doors[d] = true
-	_shop_door[sid] = d
-	var ic = _interior_cell(cell, fp.x, fp.y)
-	_walk_inside[d] = true
-	_walk_inside[ic] = true
-	_shop_goal[sid] = ic
-	map.reserved[d] = true
-	map.reserved[d + Vector2i(0, 1)] = true
+	var dd := _register_doors(def_id, cell, fp)
+	_shop_door[sid] = dd[0]
+	_shop_goal[sid] = dd[1]
 	_nav_dirty = true
 	if runner.db.buildings.has(def_id):
 		_shop_label[sid] = _add_label(String(runner.db.buildings[def_id]["nameZh"]), cell, fp.x, fp.y)
@@ -1069,27 +1057,23 @@ func _move_ok(type: String, origin: Vector2i, fp: Vector2i, own: Dictionary) -> 
 				return false
 	return true
 
-func _free_building_cells(cell: Vector2i, fp: Vector2i, door: Vector2i, interior: Vector2i) -> void:
+func _free_building_cells(cell: Vector2i, fp: Vector2i, doors: Array, interior: Vector2i) -> void:
 	for dy in fp.y:
 		for dx in fp.x:
 			map.occupied.erase(cell + Vector2i(dx, dy))
-	_doors.erase(door)
-	_walk_inside.erase(door)
+	for d in doors:
+		_doors.erase(d)
+		_walk_inside.erase(d)
+		map.reserved.erase(d)
+		map.reserved.erase(d + Vector2i(0, 1))
 	_walk_inside.erase(interior)
-	map.reserved.erase(door)
-	map.reserved.erase(door + Vector2i(0, 1))
 
-func _occupy_building(kind: String, id: String, cell: Vector2i, fp: Vector2i) -> Array:
+## 占格 + 门洞（`_register_doors`）。`type` 是**内容定义 id**（如 `coarse_weaver`、
+## `hut`），不是实例 id —— 门洞要从 `art.doors` 读，实例 id 查不到 art。
+func _occupy_building(kind: String, id: String, type: String, cell: Vector2i, fp: Vector2i) -> Array:
 	map.occupy(cell, fp.x, fp.y, kind, id)
 	_clear_deco(cell, fp.x, fp.y)
-	var door = _door_cell(cell, fp.x, fp.y)
-	var interior = _interior_cell(cell, fp.x, fp.y)
-	_doors[door] = true
-	_walk_inside[door] = true
-	_walk_inside[interior] = true
-	map.reserved[door] = true
-	map.reserved[door + Vector2i(0, 1)] = true
-	return [door, interior]
+	return _register_doors(type, cell, fp)
 
 func move_shop_to(sid: String, origin: Vector2i) -> bool:
 	var def_id = String(_shop_def.get(sid, ""))
@@ -1099,7 +1083,7 @@ func move_shop_to(sid: String, origin: Vector2i) -> bool:
 	var old = _shop_cell[sid]
 	if not _move_ok(def_id, origin, fp, _own_cells(old, fp)):
 		return false
-	_free_building_cells(old, fp, _shop_door.get(sid, old), _shop_goal.get(sid, old))
+	_free_building_cells(old, fp, _shop_door.get(sid, []), _shop_goal.get(sid, old))
 	_restore_deco(old, fp.x, fp.y)     # 旧址还原成自然地（该长树的把树补回来）
 	if _shop_label.has(sid) and is_instance_valid(_shop_label[sid]):
 		_shop_label[sid].queue_free()
@@ -1107,11 +1091,14 @@ func move_shop_to(sid: String, origin: Vector2i) -> bool:
 	var spr = _shop_sprites[sid]
 	_place_sprite(spr, def_id, origin, fp)
 	_shop_label[sid] = _add_label(String(runner.db.buildings[def_id]["nameZh"]), origin, fp.x, fp.y)
-	var d = _occupy_building("shop", sid, origin, fp)
+	var d = _occupy_building("shop", sid, def_id, origin, fp)
 	_shop_cell[sid] = origin
 	_shop_door[sid] = d[0]
 	_shop_goal[sid] = d[1]
 	_shop_anchor[sid] = _anchor_cell(origin, fp.x, fp.y)
+	# 新位置门口自动铺路。**旧址那格路故意不擦**（用户："移走的时候可以先不擦除"）——
+	# 路面是"这里曾经有门"的痕迹，擦掉反而让玩家以为路是自己消失的。
+	_pave_door_front(def_id, origin, fp)
 	_after_move()
 	return true
 
@@ -1134,10 +1121,12 @@ func move_housing_to(uid: String, origin: Vector2i) -> bool:
 	_place_sprite(inst["sprite"], type, origin, fp)
 	inst["cell"] = origin
 	inst["label"] = _add_label(String(runner.db.housing[type]["nameZh"]), origin, fp.x, fp.y)
-	var d = _occupy_building("housing", uid, origin, fp)
+	var d = _occupy_building("housing", uid, type, origin, fp)
 	inst["door"] = d[0]
 	inst["goal"] = d[1]
 	inst["anchor"] = _anchor_cell(origin, fp.x, fp.y)
+	# 新位置门口自动铺路；旧址那格路**不擦**（同 move_shop_to）
+	_pave_door_front(type, origin, fp)
 	_after_move()
 	return true
 
@@ -1218,11 +1207,10 @@ func _remove_shop_view(sid: String) -> void:
 	if origin.x >= 0:
 		var def_id := String(_shop_def.get(sid, ""))
 		var fp := _footprint(def_id)
-		var door: Vector2i = _shop_door.get(sid, Vector2i(-1, -1))
-		var interior := _interior_cell(origin, fp.x, fp.y)
+		var doors: Array = _shop_door.get(sid, [])
+		var interior: Vector2i = _shop_goal.get(sid, Vector2i(-1, -1))
 		# _free_building_cells 会把 map.occupied 上这几格一起擦掉
-		_free_building_cells(origin, fp, door, interior)
-		_walk_inside.erase(_shop_goal.get(sid, Vector2i(-1, -1)))
+		_free_building_cells(origin, fp, doors, interior)
 	for d in [_shop_sprites, _shop_cell, _shop_def, _shop_label,
 			_shop_anchor, _shop_door, _shop_goal]:
 		d.erase(sid)
@@ -1495,13 +1483,87 @@ func _blocked(c: Vector2i) -> bool:
 	return map.occupied.has(c)
 
 # 门格：占地底边中间那一格。
+#
+# ⚠️ 这是**缺省**门格，不再是无条件规则 —— content 的 `art.doors` 可以声明门在
+# 哪几格（城镇中心贴图上画的是双开门，门口本来就占两格）。取门一律走
+# `_door_cells()`；这个函数只用来算缺省偏移（`_default_door_offset`）。
 func _door_cell(cell: Vector2i, fw: int, fh: int) -> Vector2i:
-	return Vector2i(cell.x + fw / 2, cell.y + fh - 1)
+	return cell + _default_door_offset(Vector2i(fw, fh))
 
-# 屋内落脚格：大建筑取中心，小建筑(2×2)取门格本身。
-func _interior_cell(cell: Vector2i, fw: int, fh: int) -> Vector2i:
+## 缺省门洞偏移（相对占地左上角）：底边、横向居中。
+## 整数除法，所以宽 4 取第 2 列（0 起）——偏左的那一格，和改动前完全一致。
+func _default_door_offset(fp: Vector2i) -> Vector2i:
+	return Vector2i(fp.x / 2, fp.y - 1)
+
+## 一栋建筑的**所有**门格（世界坐标），按 `art.doors` 的声明顺序。
+##
+## 声明式门洞：`art.doors = [[dx, dy], ...]`，偏移相对占地左上角，第一项是主门。
+## 不声明就退回缺省（底边居中一格）—— 老内容 / 老存档行为不变。
+## 声明非法（越界 / 格式错）时 `push_error` 喊一声再退回缺省：宁可门在缺省位置，
+## 也不能让一栋建筑没有门（那等于居民进不了屋、也走不到门口）。
+func _door_cells(type: String, cell: Vector2i, fp: Vector2i) -> Array:
+	var art := _art_of(type)
+	var declared: Variant = art.get("doors", null)
+	var out: Array = []
+	if declared is Array and not (declared as Array).is_empty():
+		var errs := ContentDB.validate_doors(art, fp)
+		if errs.is_empty():
+			for d in (declared as Array):
+				out.append(cell + Vector2i(int(d[0]), int(d[1])))
+		else:
+			push_error("建筑 %s 的 art.doors 非法：%s" % [type, "；".join(errs)])
+	if out.is_empty():
+		out.append(cell + _default_door_offset(fp))
+	return out
+
+## 登记一栋建筑的门洞：**每个**门格 + 每扇门**正下方**那一格（门前通行格）都写进
+## `map.reserved`（语义见 game_map.gd 的声明注释），门格同时可通行（`_walk_inside`）。
+## 返回 `[门格数组, 屋内落脚格]`。
+func _register_doors(type: String, cell: Vector2i, fp: Vector2i) -> Array:
+	var doors := _door_cells(type, cell, fp)
+	for d in doors:
+		_doors[d] = true
+		_walk_inside[d] = true
+		map.reserved[d] = true
+		map.reserved[d + Vector2i(0, 1)] = true
+	var interior := _interior_cell(cell, fp.x, fp.y, doors)
+	_walk_inside[interior] = true
+	return [doors, interior]
+
+## 每扇门的**门前通行格**：门格正下方那一格（居民从这一格迈进门槛）。
+## 它和门格一起进 `map.reserved` —— 门前站不了人，等于门被堵死。
+func _door_front_cells(type: String, cell: Vector2i, fp: Vector2i) -> Array:
+	var out: Array = []
+	for d in _door_cells(type, cell, fp):
+		out.append(d + Vector2i(0, 1))
+	return out
+
+## 在每扇门前的通行格自动铺一格路。
+##
+## 只在**玩家放下 / 移动**建筑时调用 —— 目的是给玩家一个"门在这一侧"的视觉提示
+## （用户："防止用户不知道门洞"）。工地阶段就铺，玩家一放下就能看见。
+## 移走时**不擦**（用户明确要求"可以先不擦除"），所以这里只有写、没有删。
+##
+## ⚠️ 只动 `map.road`，绝不碰 `map.floor_tiles`：地板是玩家自己花钱铺的，
+## 两者是分开的两套位图（路画在地板上面，z_index -6 > -7），互不覆盖。
+func _pave_door_front(type: String, cell: Vector2i, fp: Vector2i) -> void:
+	for c in _door_front_cells(type, cell, fp):
+		if not map.in_bounds(c) or map.is_water(c):
+			continue
+		# 路面上不能立着树 —— 和 _paint_cell() 的 road 分支同一条处理
+		deco_layer.erase_cell(c)
+		if map.road[map.idx(c.x, c.y)] != 0:
+			continue
+		map.road[map.idx(c.x, c.y)] = 1
+		_refresh_road(c)
+		_nav_dirty = true
+
+# 屋内落脚格：大建筑取中心，小建筑(2×2)取主门格本身。
+func _interior_cell(cell: Vector2i, fw: int, fh: int, doors: Array = []) -> Vector2i:
 	if fw >= 3 and fh >= 3:
 		return Vector2i(cell.x + fw / 2, cell.y + fh / 2)
+	if not doors.is_empty():
+		return doors[0]
 	return _door_cell(cell, fw, fh)
 
 func _anchor_cell(cell: Vector2i, fw: int, fh: int) -> Vector2i:
@@ -2083,11 +2145,14 @@ func _try_place(id: String, cell: Vector2i) -> bool:
 		return false
 	if runner.db.buildings.has(id):
 		_register_site("shop", id, origin, fp)
+		# 工地阶段就把门口那一格铺上路：玩家一放下就能看见"门在这一侧"
+		_pave_door_front(id, origin, fp)
 		runner.enqueue([{"type": "build", "buildingId": id}])
 		notice.emit("已下单建造 %s（次日 06:00 生效）" % id)
 		return true
 	elif runner.db.housing.has(id):
 		_register_site("housing", id, origin, fp)
+		_pave_door_front(id, origin, fp)
 		runner.enqueue([{"type": "build_housing", "goodId": id}])
 		notice.emit("已下单建造住房 %s（次日 06:00 生效）" % id)
 		return true
