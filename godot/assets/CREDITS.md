@@ -17,6 +17,7 @@
 | `thumbs/*.png` | 同上（含自绘的道路/地板笔刷卡） | — | 同项目授权 |
 | `icons/*.png` | 用户提供的像素图标包，由 `scripts/import-icons.py` 导入 | **doubao** | **MIT**（见 `icons/LICENSE.txt`） |
 | `ui/panel/*.png` | 面板 / 顶栏 / 圆钮图标（财政·科技·人口·就业·金币·建造力·研究力·移民·资源工业），由 `scripts/import-panel-icons.py` 与 `scripts/import-stat-icons.py` 导入 | **workbuddy** | **MIT**（见 `ui/panel/LICENSE.txt`） |
+| `ui/tech/*.png` | 科技树卡片图标（29 个，文件名 = 科技 id），由 `scripts/import-tech-icons.py` 导入 | **workbuddy** | **MIT**（见 `ui/tech/LICENSE.txt`） |
 | `goods/*.png` | 本项目自绘（36 个商品图标的**程序化兜底**，16×16） | — | 同项目授权 |
 | `tiny/extra.png` | 本项目自绘（道路 / 水面 / 桥 / 矿脉 / 砖石地板） | — | 同项目授权 |
 | `tiny/deco.png` | 本项目自绘（树 4 种） | — | 同项目授权 |
@@ -37,6 +38,21 @@
   重新导入用 `python scripts/import-icons.py`（读本地素材包）。
 
 > MIT 要求保留版权声明，所以 `LICENSE.txt` 必须随图标一起留在仓库里。
+
+## ui/panel/ 与 ui/tech/ —— MIT（workbuddy）
+
+`ui/panel/`：面板 / 顶栏数值 / 左侧圆钮用的小图标（人口·就业·金钱·满意度·建造力·
+研究力·移民·资源工业·财政·科技）。
+
+`ui/tech/`：科技树卡片图标，29 个，**文件名 = 科技 id**。
+UI 通过 `UIKit.tech_icon(id)` 取用。
+
+- **作者**：workbuddy
+- **授权**：MIT，许可证原文见各自的 `LICENSE.txt`
+- 素材包本身**不入库**，只提交导出的 PNG：
+  `python scripts/import-panel-icons.py` / `import-stat-icons.py` / `import-tech-icons.py`
+- 三者的共同处理放在 `scripts/icon_util.py` 的 `dematt()` —— 同一批素材外圈都有
+  一圈浅色 matte，在深色 HUD 上看着像白边，导入时统一去掉
 
 ## music/ —— 需署名
 

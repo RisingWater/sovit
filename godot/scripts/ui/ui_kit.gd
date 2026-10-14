@@ -60,6 +60,19 @@ static func stat_icon(name: String) -> Texture2D:
 		return null
 	return panel_icon(name)
 
+## 科技树卡片图标（`assets/ui/tech/<techId>.png`，作者 workbuddy，MIT）。
+## 文件名就是科技 id，所以这里直接用 id 取。
+const TECH_ICON_DIR := "res://assets/ui/tech/"
+
+static func tech_icon(tech_id: String) -> Texture2D:
+	var p := TECH_ICON_DIR + tech_id + ".png"
+	if ResourceLoader.exists(p):
+		return load(p)
+	return null
+
+## 科技卡片里的图标尺寸。原生 32，所以只做 1 倍（整数倍才不糊）。
+const TECH_ICON_SIZE := 32
+
 ## 面板图标在按钮里的显示尺寸。按钮只有 21px 高，放 32px 会把整行撑开。
 const PANEL_ICON_BTN := 16
 

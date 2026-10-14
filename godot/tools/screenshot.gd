@@ -53,7 +53,11 @@ func _run() -> void:
 
 	# 建筑现在带科技锁，不先解锁的话 _try_place 全部会被拒（截图里空空如也）。
 	# 这里只为截图把科技全开，不改引擎。
-	if runner.sim != null and runner.db != null:
+	#
+	# ⚠️ 但**截科技树时不能全开** —— 全开之后 29 张卡片全变"已完成"，
+	#    就看不出"可研究 / 需先研究"这些状态了。所以 tech* 模式跳过这一步。
+	var is_tech_shot: bool = mode.begins_with("tech")
+	if not is_tech_shot and runner.sim != null and runner.db != null:
 		var all: Array = []
 		for t in runner.db.tech_ids:
 			all.append(String(t))
@@ -184,13 +188,48 @@ func _run() -> void:
 				await create_timer(1.5).timeout
 				print("SCREENSHOT tip hover at ", gp, " tip=", chip.tooltip_text.replace("\n", " / "))
 
-	# 科技面板
-	if mode == "tech":
+	# 科技面板（科技树）。
+	#
+	# 树是 5 列 x 最多 10 行（画布约 996x1134），默认的 900x740 面板一次看不全，
+	# 所以这里**把面板撑到接近全屏**并横向居中 —— 一张图里就能同时看到
+	# "最左最初始、最右最高级"和它们之间的连线。
+	# 第 4 个参数是画布的 y 平移量（负数往下看），例如 `tech 0` / `tech -520`
+	if mode == "tech" or mode == "techtip":
 		var tp = node.get_node_or_null("UI/Root/Tech")
 		if tp != null:
+			tp.custom_minimum_size = Vector2(1520, 856)
+			tp.size = Vector2(1520, 856)
+			tp.position = Vector2(20, 16)
 			tp.open()
-			await process_frame
-			print("SCREENSHOT tech panel opened")
+			for _k in 3:
+				await process_frame
+			var vs: Vector2 = tp._view.size
+			var cs: Vector2 = tp._canvas_size
+			# 参数下标：0=输出路径 1=模式 2=向下滚多少像素 3=(仅 techtip) 科技 id
+			var py := 0.0
+			if args.size() > 2:
+				# 传正数 = 向下滚多少像素。
+				# ⚠️ 不能直接传 "-520"：Godot 会把以 `-` 开头的参数当成引擎开关吃掉
+				#    （踩过：截图看起来"平移没生效"）。
+				py = -absf(float(String(args[2])))
+			tp._pan = Vector2(maxf(0.0, (vs.x - cs.x) * 0.5), py)
+			tp._canvas.position = tp._pan
+			for _k2 in 2:
+				await process_frame
+			print("SCREENSHOT tech view=", vs, " canvas=", cs, " pan=", tp._pan)
+			# techtip：把某个科技的 tooltip 直接摆出来。
+			# headless 下没法真悬停，而 tooltip 的内容（尤其是**带图标的解锁项**）
+			# 只能靠眼看，所以这里直接调 build_tooltip 摆到画面上。
+			if mode == "techtip":
+				var tid := "carpentry"
+				if args.size() > 3:
+					tid = String(args[3])
+				var tip: Control = tp.build_tooltip(tid)
+				tip.position = Vector2(200, 220)
+				node.get_node("UI/Root").add_child(tip)
+				for _k3 in 2:
+					await process_frame
+				print("SCREENSHOT techtip for ", tid)
 
 	# 可选：切到指定建造 Tab（0=住宅 1=农业 2=矿场 3=工业 4=娱乐 5=其它）
 	if args.size() > 2:
