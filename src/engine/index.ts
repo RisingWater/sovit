@@ -39,11 +39,13 @@ export { foodChainShopIds, assignedWorkers, effectiveSlots } from './systems/lab
 export { applyStorageCap, storageCapacity, storedTotal } from './systems/storage.ts'
 export {
   activateResearch,
+  applyResearchHours,
   canResearch,
   cancelResearch,
   isBuildingUnlocked,
   isHousingUnlocked,
   isResearched,
+  planResearchDay,
   researchRate,
   settleResearch,
   startResearch,

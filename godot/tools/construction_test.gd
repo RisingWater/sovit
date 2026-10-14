@@ -18,6 +18,8 @@ extends SceneTree
 # （见 sitetip_test.gd）。这里验的是**仿真节奏**本身，所以直接喂 SimCore。
 
 var _fail_msg := ""
+## 内容库：`_run` 里赋值，A/B/C 那几个助手函数也要用（GDScript 没有闭包）。
+var db = null
 
 func _init() -> void:
 	call_deferred("_run")
@@ -71,7 +73,7 @@ func _invested(sim, bid: String) -> float:
 	return -1.0
 
 func _run() -> void:
-	var db = ContentDB.load_all()
+	db = ContentDB.load_all()
 	var sim = SimCore.new(db)
 	sim.new_game("v0.3", 20261014)
 	_unlock_non_build_techs(sim)
@@ -174,8 +176,152 @@ func _run() -> void:
 	print("CONSTRUCTION TEST 日志节奏：开工 %d 条；等待材料 %d 条（%d 天，每天 ≤ 1）" % [
 		starts, waits_by_day.size(), days])
 
+	# =====================================================================
+	# A/B/C：中途完成 / 剩余产能不丢 / 不结转
+	# =====================================================================
+	#
+	# 用户口径（施工与科研同一条）：
+	#   每个工作小时投入的量 = 当天产能 / 工作小时数，**是个常数**
+	#   （不是"把队首剩下的需求摊到当天剩下的小时里"）；
+	#   队首中途跑完时，那一格剩下的产能不能丢，继续投给队列的下一条（同格、串行）；
+	#   队列空了就作废，**不结转到第二天**。
+	# 每小时的量 = **新局**的日产能 / 工作小时数（`sim` 已经被前几段跑到很远，
+	# 它现在的失业人口不再是 12，别拿它当基准）
+	var rate_hour := 12.0 / float(_work_hours())
+	var built := _make_pair(rate_hour * 0.4, rate_hour * 20.0)
+	if built.is_empty():
+		_fail("A/B 场景搭不起来（排不进两条工程）")
+		return
+	var sim_ab = built["sim"]
+	var mq: Array = sim_ab.s["construction"]
+	# `_make_pair` 已经走过 06:00 那一格（黎明 + 今天第一个工作小时）：
+	# 队列里的两条都按期望量被消耗过一点，`constructionWorkToday` 也已经有值。
+	var used_ab := float(sim_ab.s.get("constructionWorkToday", 0.0))
+	var spill_m := 0.0
+	var finish_hour := -1
+	# 队首可能就在**黎明那一格**跑完了（它只剩 0.4 小时的量）—— 那一格的溢出量
+	# 只能从"下一条已经被投进去多少"反推：`_make_pair` 里 tail 的初始值是已知的。
+	if float(mq[0]["remaining"]) <= 0.0:
+		finish_hour = int(db.time["workStart"])
+		spill_m = float(mq[1]["totalRequired"]) - float(mq[1]["remaining"])
+	while int(sim_ab.s["hour"]) != 0:
+		var h0 := float(mq[0]["remaining"])
+		var t0 := float(mq[1]["remaining"])
+		sim_ab.tick_hour([])
+		var hd := h0 - float(mq[0]["remaining"])
+		var td := t0 - float(mq[1]["remaining"])
+		used_ab += hd + td
+		if finish_hour < 0 and float(mq[0]["remaining"]) <= 0.0:
+			finish_hour = int(sim_ab.s["hour"]) - 1
+			spill_m = td	# 同一格里溢给下一条的量
+	if finish_hour < 0:
+		_fail("队首一天下来都没跑完 —— 每小时的量不是常数？")
+		return
+	if int(db.time["workEnd"]) <= finish_hour:
+		_fail("队首拖到 %02d:00 才跑完（workEnd 是 %02d:00）—— 不是中途完成" % [
+			finish_hour, int(db.time["workEnd"])])
+		return
+	if spill_m <= 0.0:
+		_fail("队首中途跑完那一格，下一条一分进度都没拿到（剩余产能被丢了）")
+		return
+	print("CONSTRUCTION TEST A 中途完成：队首只剩 0.4 小时的量，在 %02d:00（workEnd=%02d:00 之前）就跑完 ✅" % [
+		finish_hour, int(db.time["workEnd"])])
+	# 当天总量 == 当天产能：`used_ab` = 黎明那一格已投的 + 后面逐格实测的增量
+	#（不能用 `constructionWorkToday`：它在入夜那一步就被折成工资并清零了）
+	if absf(used_ab - rate_hour * float(_work_hours())) > 1e-3:
+		_fail("这天投入 %.6f ≠ 每小时的量 %.6f × %d 个小时 = %.6f（剩余产能丢了？）" % [
+			used_ab, rate_hour, _work_hours(), rate_hour * float(_work_hours())])
+		return
+	print("CONSTRUCTION TEST B 剩余产能不丢：队首跑完那格溢给下一条 %.6f；当天总量 %.4f = 每小时的量 %.6f × %d 小时 ✅" % [
+		spill_m, used_ab, rate_hour, _work_hours()])
+
+	# C：队列清空后不再投入（不结转）
+	var built_c := _make_pair(rate_hour * 0.4, rate_hour * 0.4)
+	if built_c.is_empty():
+		_fail("C 场景搭不起来")
+		return
+	var cs = built_c["sim"]
+	# 两条各 0.4 小时的量：第一个工作日的前两格就跑完，次日黎明都出队
+	while int(cs.s["hour"]) != 0:
+		cs.tick_hour([])
+	for i in 24:
+		cs.tick_hour([])
+	if not (cs.s["construction"] as Array).is_empty():
+		_fail("C 场景：队列应该已经清空（跑完的工程在黎明启用），实际 %d 项" % (cs.s["construction"] as Array).size())
+		return
+	var work_before := float(cs.s.get("constructionWorkToday", -1.0))
+	for i in 24:
+		cs.tick_hour([])
+	if absf(float(cs.s.get("constructionWorkToday", -1.0)) - work_before) > 1e-9:
+		_fail("队列空着的时候还在投建造力（workToday %s → %s）—— 结转到第二天了？" % [
+			str(work_before), str(cs.s.get("constructionWorkToday", -1.0))])
+		return
+	print("CONSTRUCTION TEST C 不结转：队列清空后推满一天，当日投入量 %s → %s（不变）✅" % [
+		str(work_before), str(cs.s.get("constructionWorkToday", -1.0))])
+
 	print("CONSTRUCTION TEST RESULT: PASS")
 	quit(0)
+
+## 工作小时数（workEnd − workStart）。
+func _work_hours() -> int:
+	return int(db.time["workEnd"]) - int(db.time["workStart"])
+
+## 在 06:00 的那一格**起点**下 `actions`：先推到 05:00，再 tick 两次。
+##
+## ⚠️ 时间语义：`tick_hour` 是"先结算 `state.hour` 那一刻、再把 hour +1"，
+## 所以"06:00 的黎明"要发生，必须让某一格的**起点**是 6。
+func _boot_dawn(sim, actions: Array) -> void:
+	while int(sim.s["hour"]) != int(db.time["workStart"]) - 1:
+		sim.tick_hour([])
+	sim.tick_hour(actions)	# 起点 05:00：动作进队列，hour → 06
+	sim.tick_hour([])	# 起点 06:00：黎明执行动作 + 投出第一个工作小时
+
+## 每工作小时投入的**常数**（引擎口径：日产能 × 1/工作小时数，r4）。
+func _hour_rate(sim) -> float:
+	var wh := _work_hours()
+	if wh <= 0:
+		return 0.0
+	return floor((float(sim.construction_rate()) / float(wh)) * 10000.0 + 0.5) / 10000.0
+
+## 造一对"同一座建筑排两次"的工程，返回时**停在 05:00、动作还在 pending**。
+##
+## ⚠️ 时序（踩过两次，注意）：`tick_hour` 是"先结算 `state.hour` 那一刻、再把 hour +1"，
+## 而黎明（workStart=6）那一格会**先把当天的产能投出去**。所以调用方要分两步走：
+##   ① `sim.tick_hour([])`（起点 05:00）→ hour 推到 06，黎明在这里应用动作
+##   ② 接着 `sim.tick_hour([])`（起点 06:00）→ 黎明已经应用过动作、投出第一个工作小时
+## 这里先把两条 `remaining` 改成期望值，正是为了让②那一格按期望量消耗。
+##
+## 返回 `{sim}`；动作已入 pending（两条都排得进去）才返回，否则 `{}`。
+func _make_pair(need0: float, need1: float) -> Dictionary:
+	var sim = SimCore.new(db)
+	sim.new_game("v0.3", 20261014)
+	# 人口上限钉在开局人口：失业人口就是建造力的唯一来源，产能才不会被移民动摇
+	sim.s["government"]["populationCap"] = float((sim.s["residents"] as Array).size())
+	# 材料管够：这里只验节奏，不想被"材料不足停在队首"干扰
+	for gid in (sim.s["goods"] as Dictionary).keys():
+		sim.s["goods"][gid] = 9999.0
+	# 推到 05:00 再下单：动作在这一格进 pending
+	while int(sim.s["hour"]) != int(db.time["workStart"]) - 1:
+		sim.tick_hour([])
+	sim.tick_hour([
+		{"type": "build", "buildingId": "wheat_farm"},
+		{"type": "build", "buildingId": "wheat_farm"},
+	])
+	# 走一格：起点 05:00 → hour 推到 06，黎明在这里把两条建出来（队列在 `sim.s["construction"]` 里）
+	sim.tick_hour([])
+	var q: Array = sim.s["construction"]
+	if q.size() < 2:
+		return {}
+	# 都当成**已开工**：材料不参与，这里只验节奏与产能分配
+	q[0]["started"] = true
+	q[0]["remaining"] = need0
+	q[0]["totalRequired"] = need0
+	q[1]["started"] = true
+	q[1]["remaining"] = need1
+	q[1]["totalRequired"] = need1
+	# 值设好了，再走**黎明那一格**（起点 06:00：投出今天第一个工作小时）
+	sim.tick_hour([])
+	return {"sim": sim}
 
 ## 把一个 tick 的日志并进统计：开工次数 + 每天的「等待材料」条数。
 ## （GDScript 没有出参，所以用 Dictionary 累积。）

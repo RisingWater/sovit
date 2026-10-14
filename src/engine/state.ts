@@ -114,6 +114,9 @@ export function createInitialState(options: CreateOptions = {}): GameState {
     research: { done: [...(start.techs ?? [])], queue: [] },
     ledgerToday: emptyLedger(0),
     constructionWorkToday: 0,
+    // 当日科研力预算：由黎明 planResearchDay 钉死（开局为 0，黎明那一小时算出来）
+    researchRateToday: 0,
+    researchWorkToday: 0,
     history: [
       {
         day: 0,

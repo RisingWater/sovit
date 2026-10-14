@@ -15,15 +15,15 @@ import { runConsumption } from './systems/consumption.ts'
 import { updateSatisfaction } from './systems/satisfaction.ts'
 import { updatePopulation, applyAdmission, computeArrivals } from './systems/population.ts'
 import { applyConstructionHours, settleConstruction, activateCompleted } from './systems/investment.ts'
-import { settleResearch, activateResearch } from './systems/research.ts'
+import { applyResearchHours, planResearchDay, settleResearch, activateResearch } from './systems/research.ts'
 import { allocateTools } from './systems/tools.ts'
 
 // ---------------------------------------------------------------------------
 // 每日结算（小时制）
 //
 // 06:00 黎明：day++ → 应用「次日生效」队列 → 启用昨日完工 → 用工 → 排产
-// 06–18 白天：每小时执行今日计划 × 1/工作小时数；施工也在同一节奏里按小时投入
-// 18:00 夜晚：施工收尾（诊断 + 建造工资）→ 研究 → 工资 → 收租 → 消费 → 买房
+// 06–18 白天：每小时执行今日计划 × 1/工作小时数；施工、科研也在同一节奏里按小时投入
+// 18:00 夜晚：施工收尾（诊断 + 建造工资）→ 研究收尾（诊断）→ 工资 → 收租 → 消费 → 买房
 //             → 满意度 → 人口 → 移民 → 损耗 → 技能
 // ---------------------------------------------------------------------------
 
@@ -86,6 +86,9 @@ export function runDawn(state: GameState, ctx: ContentContext): { logs: LogEntry
   // 工具必须在排产之前分配：它决定今天各工坊的产出倍率（shop.toolBoost）
   logs.push(...allocateTools(state, ctx, state.day))
   planProduction(state, ctx)
+  // 当日科研力预算：必须在**用工之后**（科研力取决于研究所的在岗人数），
+  // 且必须在第一个工作小时之前 —— 全天按这个数投入（见 planResearchDay）
+  planResearchDay(state, ctx)
   return { logs, applied }
 }
 
@@ -97,7 +100,8 @@ export function runNight(state: GameState, ctx: ContentContext, rng: ReturnType<
   // 施工收尾必须在工资之前：它把**白天已经投进去的**建造力折算成
   // 「在工地上出工」的失业人口（建造工资，见 docs/spec.md §9.4）。
   logs.push(...settleConstruction(state, ctx, day))
-  // 研究独立成队、不占人口：只消耗科研力（研究所）与材料
+  // 研究独立成队、不占人口：科研力已经在白天按小时投完了，这里只诊断队首为什么没动
+  // （见 docs/spec.md §10.4）
   logs.push(...settleResearch(state, ctx, day))
   logs.push(...payWages(state, day))
   assignTenure(state, ctx)
@@ -147,10 +151,14 @@ function stepHour(
   }
   if (h >= TIME.workStart && h < TIME.workEnd) {
     const fraction = 1 / WORK_HOURS
-    // 生产与施工**同一条件、同一节奏**（都在工作小时里按小时推进）：
-    // 先生产、后施工 —— 当小时刚产出的木石粘土，当小时就能用于工地开工扣料。
+    // 生产 / 施工 / 科研**同一条件、同一节奏**（都在工作小时里按小时推进）。
+    // 顺序固定为**先生产、再施工、后科研**：
+    //   1. 生产：当小时刚产出的木石粘土，当小时就能用于下面两步扣料
+    //   2. 施工：工地开工优先吃当小时的产出
+    //   3. 科研：研究所在岗工人不参与建造力，两条队列互不争抢
     runProductionStep(state, ctx, fraction)
     logs.push(...applyConstructionHours(state, ctx, fraction))
+    logs.push(...applyResearchHours(state, ctx, fraction))
   }
   if (h === TIME.settleHour) {
     logs.push(...runNight(state, ctx, rng))

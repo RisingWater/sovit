@@ -434,12 +434,20 @@ export type TechnologyDef = TechDef
 /** 队列里的一项在研科技。结构与 Construction 刻意保持一致。 */
 export interface ResearchProject {
   id: TechID
-  /** 还差的科研力。 */
+  /** 还差的科研力。白天按小时投入，用 r4 累积。 */
   remaining: number
   /** 总需求（进度条用）。 */
   totalRequired: number
-  /** 材料是否已扣（队首开始投入科研力时扣）。 */
+  /** 材料是否已扣（队首开始投入科研力时扣，即当天第一个工作小时）。 */
   started: boolean
+  /**
+   * 队首是否正卡在材料上（**尚未满足**开工条件）。
+   *
+   * 科研力在工作小时里按小时投入，每小时都会撞上同一个缺口 —— 用它去重，
+   * 「等待材料」一天只写一条，不逐小时刷屏（与施工把诊断留给夜晚同一目的）。
+   * 旧存档没有这个键 = 还没判定过，照常当 false。
+   */
+  waiting?: boolean
 }
 
 export interface ResearchState {
@@ -559,6 +567,16 @@ export interface GameState {
    * 所以这一天里投了多少必须攒着，结算完清零。见 `docs/spec.md` §9.3 / §9.4。
    */
   constructionWorkToday: number
+  /**
+   * 当日科研力预算（人·天）：黎明 `planResearchDay` 钉死，全天不变。
+   *
+   * 它是"一天总量恰好等于当日科研力"的硬闸：逐小时投入的量与当日已投累计
+   * （`researchWorkToday`）都抵着它，不必依赖"同一天里 `researchRate()` 恰好不变"。
+   * 与施工的 `constructionWorkToday` 同一套口径。见 `docs/spec.md` §10.3。
+   */
+  researchRateToday: number
+  /** 当日已投入科研的科研力（人·天）累加器：抵住上面的预算，黎明清零。 */
+  researchWorkToday: number
 
   history: DaySnapshot[]
   log: LogEntry[]

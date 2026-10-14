@@ -45,8 +45,12 @@ var label_layer: CanvasLayer
 var _label_items: Array = []
 ## 在建工地的悬停提示（独立 CanvasLayer，见 `_ready` 里的说明）
 var tip_layer: CanvasLayer
-## 工地头顶的进度条：世界空间的 `_draw` 层，跟着镜头走（和 `ring_layer` 同一套写法）
+## 工地头顶的进度条：世界空间的 `_draw` 层，跟着镜头走（和 `ring_layer` 同一套写法）。
+## 研究所的进度条也画在这一层上（见 `_draw_site_bars`）—— 工地占的是 `map.occupied`
+## 的 `"site"` 格，研究所是已建成的商店，两者永远不会落在同一格上，所以不必再开一层。
 var site_layer: Node2D
+## 这一帧有没有研究所要画进度条（`_sync` 里更新，`_process` 据此决定要不要重画）。
+var _has_research_bar := false
 var _tip: PanelContainer
 var _tip_label: Label
 ## UI 根节点（由 main 注入）。用来判断鼠标是否落在 UI 面板上，
@@ -1154,6 +1158,10 @@ func _sync() -> void:
 			continue
 		_create_shop_view(nid, def_id, cell)
 
+	# 研究所在场：头顶的科研进度条也跟着这个 `_draw` 层一起画（见 `_draw_site_bars`）。
+	# 这一帧算一次，`_process` 就不必每帧去翻 shops。
+	_has_research_bar = not _research_shops().is_empty()
+
 	# 新住房实例
 	var housing: Dictionary = runner.sim.s["housing"]
 	for type in housing.keys():
@@ -1345,6 +1353,8 @@ func _process(delta: float) -> void:
 	_update_labels()
 	ring_layer.queue_redraw()
 	if not _sites.is_empty():
+		site_layer.queue_redraw()
+	elif _has_research_bar:
 		site_layer.queue_redraw()
 
 ## 建造 / 笔刷模式下换成十字光标
@@ -1826,7 +1836,7 @@ func _hide_site_tip() -> void:
 	if _tip != null and _tip.visible:
 		_tip.visible = false
 
-# ---- 工地头顶的进度条 -----------------------------------------------------
+# ---- 工地 / 研究所头顶的进度条 ---------------------------------------------
 ## 三色一眼看清状态（用户要的"红黄蓝"）：
 ##   红 = 卡在材料（队首缺料，后面全都动不了）
 ##   黄 = 排队中（前面还有工程）
@@ -1837,6 +1847,8 @@ const ST_BAR_COLOR := {
 	"queued": Color(0.95, 0.80, 0.25),
 	"blocked": Color(0.90, 0.30, 0.25),
 	"pending": Color(0.72, 0.72, 0.72),
+	# 研究所空闲（队列为空）= 灰：与"刚下单"共用一支，含义都是"这条没有在动"
+	"idle": Color(0.72, 0.72, 0.72),
 }
 
 func _draw_site_bars() -> void:
@@ -1859,8 +1871,75 @@ func _draw_site_bars() -> void:
 		else:
 			# 一点都没投入时别只剩一条黑杠：用状态色描个空框
 			site_layer.draw_rect(inner, col, false, 1.0)
+	_draw_research_bars()
 
-## 进度条需要的三个数：状态 + 填充比例。与悬停提示同一套判定口径。
+## 研究所头顶的进度条（用户："科研也可以，以后研究所头上也放个进度条"）。
+##
+## 与工地条**同一层、同一位置口径**（占地顶边往上 16px、底衬深色描边 +2px），
+## 所以镜头缩放时会跟着建筑一起放大缩小。两者不会重叠：工地是 `map.occupied`
+## 的 `"site"` 格，研究所是**已建成**的商店，同一格不可能既是工地又是商店。
+##
+## 画的是**当前研究项目**（`research.queue[0]`）的进度
+## （`(totalRequired − remaining) / totalRequired`）；队列空 = 一条灰色空框
+## （见 `_research_bar_state` 的理由）。
+func _draw_research_bars() -> void:
+	for sh in _research_shops():
+		var sid := String(sh["id"])
+		var cell: Vector2i = _shop_cell.get(sid, Vector2i(-1, -1))
+		if cell.x < 0:
+			continue	# 还没落到地图上（刚建成那一帧）
+		var fp := _footprint(String(sh["defId"]))
+		var st := _research_bar_state()
+		var w := 30.0
+		var h := 6.0
+		var origin := Vector2(_area_center(cell, fp.x, fp.y).x - w * 0.5,
+			float(cell.y) * TILE - 16.0)
+		site_layer.draw_rect(Rect2(origin + Vector2(-1, -1), Vector2(w + 2, h + 2)),
+			Color(0.10, 0.08, 0.07, 0.9))
+		var inner := Rect2(origin, Vector2(w, h))
+		var col: Color = ST_BAR_COLOR[String(st["state"])]
+		var frac := clampf(float(st["frac"]), 0.0, 1.0)
+		if frac > 0.0:
+			site_layer.draw_rect(Rect2(inner.position, Vector2(inner.size.x * frac, inner.size.y)), col)
+		else:
+			site_layer.draw_rect(inner, col, false, 1.0)
+
+## 场上的研究所（`capacity.kind == "research"` 且已启用）。
+func _research_shops() -> Array:
+	var out := []
+	for shop in runner.sim.s["shops"]:
+		if not bool(shop.get("active", false)):
+			continue
+		var def = runner.db.buildings.get(String(shop["defId"]), null)
+		if def == null:
+			continue
+		if runner.sim._capacity_kind(def, "research"):
+			out.append(shop)
+	return out
+
+## 研究所进度条的两个数：状态 + 填充比例。与工地条同一口径（`_site_bar_state`）。
+##
+## 颜色（沿用现有 `ST_BAR_COLOR`，不新造颜色）：
+##   - **蓝 = 正在研究**（进行中，填充比例 = 已投入 / 需要）—— 与工地"正在施工"同色，
+##     一眼就知道"这条在动"
+##   - **灰 = 队列空、研究所闲着**。这里**画一条灰色空框而不是干脆不画**：研究所是
+##     可交互的经营建筑，玩家点开它就要下单；一条常在的灰框让"这里有座研究所、现在
+##     闲着"一眼可辨 —— 不画的话，闲置的研究所和普通房子长得一模一样。
+##   - **黄 = 已下单但还没开工**（`!started`，通常是在等材料）。这一条沿用工地那条
+##     "黄 = 排队中"的语义，让两条进度条读法一致。
+func _research_bar_state() -> Dictionary:
+	var sim = runner.sim
+	var q: Array = sim.s["research"].get("queue", [])
+	if q.is_empty():
+		return {"state": "idle", "frac": 0.0}
+	var p: Dictionary = q[0]
+	if not bool(p.get("started", false)):
+		return {"state": "queued", "frac": 0.0}	# 还没开工（在等材料）：黄，与工地一致
+	var need := float(p.get("totalRequired", 0.0))
+	var done := maxf(0.0, need - float(p.get("remaining", 0.0)))
+	return {"state": "building", "frac": (0.0 if need <= 0.0 else done / need)}
+
+## 工地条需要的两个数：状态 + 填充比例。与悬停提示同一套判定口径。
 func _site_bar_state(type: String) -> Dictionary:
 	var list := _construction_entries(type)
 	if list.is_empty():

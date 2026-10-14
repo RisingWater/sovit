@@ -151,6 +151,10 @@ func new_game(pack_id: String, seed_value: int, resource_mult: float = 1.0) -> v
 		# 当日已投入施工的建造力（人·天）累加器：工作小时里逐小时累加，
 		# 入夜折成「工地出工」的建造工资后清零。见 docs/spec.md §9.3 / §9.4。
 		"constructionWorkToday": 0.0,
+		# 当日科研力预算（人·天）：黎明 _plan_research_day 钉死，全天不变；
+		# 以及当日已投入的科研力累加器。见 docs/spec.md §10.3。
+		"researchRateToday": 0.0,
+		"researchWorkToday": 0.0,
 		"history": [{"day": 0, "population": pop, "avgSatisfaction": float(sd["satisfaction"]), "money": money, "hungry": 0, "employed": 0, "ledger": _empty_ledger(0)}],
 		"log": [], "alerts": [], "arrivals": 0,
 		# 村庄名（可改，随存档保存）。UI 层显示用，不参与任何仿真计算。
@@ -192,10 +196,14 @@ func tick_hour(pending_actions: Array = []) -> Array:
 	if h >= int(db.time["workStart"]) and h < int(db.time["workEnd"]):
 		var work_hours = int(db.time["workEnd"]) - int(db.time["workStart"])
 		var fraction = 1.0 / float(work_hours)
-		# 生产与施工**同一条件、同一节奏**（都在工作小时里按小时推进）：
-		# 先生产、后施工 —— 当小时刚产出的木石粘土，当小时就能用于工地开工扣料。
+		# 生产 / 施工 / 科研**同一条件、同一节奏**（都在工作小时里按小时推进）。
+		# 顺序固定为**先生产、再施工、后科研**：
+		#   1. 生产：当小时刚产出的木石粘土，当小时就能用于下面两步扣料
+		#   2. 施工：工地开工优先吃当小时的产出
+		#   3. 科研：研究所在岗工人不参与建造力，两条队列互不争抢
 		_run_production_step(fraction)
 		logs.append_array(_apply_construction_hours(fraction))
+		logs.append_array(_apply_research_hours(fraction))
 	if h == int(db.time["settleHour"]):
 		logs.append_array(_run_night())
 	s["hour"] = (h + 1) % int(db.time["hoursPerDay"])
@@ -214,6 +222,9 @@ func _run_dawn() -> Array:
 	# 工具必须在排产之前分配：它决定今天各工坊的产出倍率（shop.toolBoost）
 	logs.append_array(_allocate_tools())
 	_plan_production()
+	# 当日科研力预算：必须在**用工之后**（科研力取决于研究所的在岗人数），
+	# 且必须在第一个工作小时之前 —— 全天按这个数投入（见 _plan_research_day）
+	_plan_research_day()
 	return logs
 
 func _run_night() -> Array:
@@ -222,7 +233,8 @@ func _run_night() -> Array:
 	# 施工收尾必须在工资之前：它把**白天已经投进去的**建造力折算成
 	# 「在工地上出工」的失业人口（建造工资，见 docs/spec.md §9.4）。
 	logs.append_array(_settle_construction(day))
-	# 研究独立成队、不占人口：只消耗科研力（研究所）与材料
+	# 研究独立成队、不占人口：科研力已经在白天按小时投完了，这里只诊断队首为什么没动
+	# （见 docs/spec.md §10.4）
 	logs.append_array(_settle_research(day))
 	logs.append_array(_pay_wages(day))
 	_assign_tenure()
@@ -1491,6 +1503,13 @@ func research_rate() -> float:
 	## 供 UI 读取的当日科研力速率。
 	return _research_rate()
 
+func _research_shortage(tech: Dictionary) -> String:
+	## 队首缺哪种材料（够则返回空串）；等待诊断的文案与判定只有这一份。
+	for gid in (tech["cost"]["goods"] as Dictionary).keys():
+		if float(s["goods"].get(gid, 0.0)) < float(tech["cost"]["goods"][gid]):
+			return "%s 需 %s" % [gid, tech["cost"]["goods"][gid]]
+	return ""
+
 ## 该建筑现在能不能建：没有科技锁，或解锁它的科技已完成。
 func is_building_unlocked(bid: String) -> bool:
 	var tid = db.tech_for_building(bid)
@@ -1520,6 +1539,8 @@ func _start_research(tid: String) -> void:
 		"remaining": float(tech["research"]),
 		"totalRequired": float(tech["research"]),
 		"started": false,
+		# 队首是否正卡在材料上（等待诊断去重用；见 _apply_research_hours）
+		"waiting": false,
 	})
 
 func _cancel_research(tid: String) -> void:
@@ -1529,33 +1550,103 @@ func _cancel_research(tid: String) -> void:
 			q.remove_at(i)
 			return
 
-func _settle_research(day: int) -> Array:
+func _plan_research_day() -> void:
+	## 黎明：钉死**当日科研力预算**。
+	##
+	## 为什么要有它（不是为了好看，是为了让"一天总量不变"有个**硬闸**）：
+	## 科研进度是按"这一天投了多少"（`researchWorkToday`）抵着预算走的 ——
+	## 没有这个数就只能靠"每小时都现算一次 `_research_rate()`"，而那要依赖
+	## "同一天里 `shop["skill"]` 不变"（它只在黎明 `_assign_labor` 与入夜
+	## `_grow_skills` 两处变）。多一条依赖就多一个将来会被改坏的地方，
+	## 何况施工那边（`constructionWorkToday`）本来就是这么算的，两边口径统一。
+	##
+	## 口径：**一天的预算 = 这一天黎明那一刻的 `_research_rate()`**，全天不变
+	## （与"产能不结转、当天没用完即作废"同一精神）。
+	s["researchWorkToday"] = 0.0
+	s["researchRateToday"] = _research_rate()
+
+func _apply_research_hours(fraction: float) -> Array:
+	## 工作小时：把**固定的一份**科研力（`researchRateToday × fraction`）投入队首科技。
+	##
+	## 与 `_run_production_step` / `_apply_construction_hours` **同一节奏、同一条件**
+	## （workStart <= h < workEnd，fraction = 1/工作小时数）。
+	##
+	## **每小时投入量是个常数**（`researchRateToday / 工作小时数`），**不是**"把队首
+	## 剩下的需求摊到当天剩下的小时里"：队首只剩 5、日产能 12 时，就是每小时 1、
+	## 走 5 个小时在**当天中途**跑完 —— 既不会 18:00 才跳完，也不会被压进一个小时。
+	##
+	## 队列语义（先进先出、串行）：
+	##   队首未开工 → 先扣材料（**开工时刻 = 这一天第一个工作小时**，不是夜晚）；
+	##   材料不足 → 停在队首等待，**不跳过**
+	##   **队首中途跑完 → 这一小时剩下的产能继续投给下一条**（同小时、串行）：
+	##   这是"一天总量 = 当天科研力"这个不变量成立的关键 —— 剩下的产能不许丢。
+	##   队列空了就作废（**不结转到第二天**）
+	## `remaining` 用 r4 累积：12 次 r2 会漂移（一天就不再恰好等于日产能）。
+	## 「开始研究」只在 started 翻转时写一次；「等待材料」只在队首进入等待的那一刻
+	## 写一条（p["waiting"] 去重），**不逐小时刷屏**。
+	##
+	## ⚠️ 完工**不在这里激活**：跑完后仍然留在队列里，等夜晚之后的黎明
+	## `_activate_research` 才出队生效 —— 见 docs/spec.md §10.5。
 	var logs := []
-	var rate = _research_rate()
+	# 这一个小时的产能：**常数**（当日科研力 × 1/工作小时数）。
+	# 再拿当日累计兜一道底（同一小时被多调一次也不会多投），两道都不取整。
+	var rate_today = float(s.get("researchRateToday", 0.0))
+	var left = minf(rate_today * fraction, rate_today - float(s.get("researchWorkToday", 0.0)))
+	if left <= 0.0:
+		return logs
 	for p in s["research"]["queue"]:
-		if rate <= 0.0:
+		# 产能用完了就停（队首跑完时从这里溢到下一条，不是 break）
+		if left <= 0.0:
 			break
 		var tech = db.techs.get(String(p["id"]), null)
 		if tech == null:
-			break
+			break	# 科技定义缺失：这里不刷屏（与施工的 break 同口径）
 		if not bool(p.get("started", false)):
-			var short := false
-			for gid in (tech["cost"]["goods"] as Dictionary).keys():
-				if float(s["goods"].get(gid, 0.0)) < float(tech["cost"]["goods"][gid]):
-					logs.append({"day": day, "kind": "invest",
-						"text": "研究「%s」等待材料（%s 需 %s）" % [tech["nameZh"], gid, tech["cost"]["goods"][gid]]})
-					short = true
-					break
-			if short:
+			var gap := _research_shortage(tech)
+			if gap != "":
+				# 停在队首等待材料，**不跳过**。同一个"等待"只写一条日志
+				#（白天每小时都会撞上同一个缺口；有 waiting 标志才不刷屏）
+				if not bool(p.get("waiting", false)):
+					p["waiting"] = true
+					logs.append({"day": int(s["day"]), "kind": "invest",
+						"text": "研究「%s」等待材料（%s）" % [tech["nameZh"], gap]})
 				break
 			for gid in (tech["cost"]["goods"] as Dictionary).keys():
 				s["goods"][gid] = SimUtil.r2(float(s["goods"].get(gid, 0.0)) - float(tech["cost"]["goods"][gid]))
 			p["started"] = true
-			logs.append({"day": day, "kind": "invest",
+			p["waiting"] = false
+			logs.append({"day": int(s["day"]), "kind": "invest",
 				"text": "开始研究「%s」（需科研力 %s）" % [tech["nameZh"], SimUtil.r2(float(p["totalRequired"]))]})
-		var used = minf(rate, float(p["remaining"]))
-		p["remaining"] = SimUtil.r2(float(p["remaining"]) - used)
-		rate = SimUtil.r2(rate - used)
+		var used = minf(left, float(p["remaining"]))
+		p["remaining"] = maxf(0.0, _r4(float(p["remaining"]) - used))
+		left = _r4(left - used)
+		s["researchWorkToday"] = _r4(float(s.get("researchWorkToday", 0.0)) + used)
+	return logs
+
+func _settle_research(day: int) -> Array:
+	## 夜晚：研究的**收尾**（科研力已经在工作小时里按小时投完了，见 _apply_research_hours）。
+	##
+	## 只做一件事：队首为什么没动 —— 写一条诊断（每天最多一条）。
+	## 白天每小时都可能撞上材料不足，日志若写在小时里会刷屏，所以挪到这里，
+	## 与施工的 _settle_construction 同一套口径（见 docs/spec.md §9.4 / §10.4）。
+	var logs := []
+	# 科研力为 0 时队首本来就没机会开工（不是材料的问题）：不写诊断，与施工同口径
+	if _research_rate() <= 0.0:
+		return logs
+	var q: Array = s["research"]["queue"]
+	if q.is_empty():
+		return logs
+	var p: Dictionary = q[0]
+	var tech = db.techs.get(String(p["id"]), null)
+	if tech == null:
+		return logs
+	# 队首已经跑完（在等黎明生效）：今天的科研力是被它正常吃掉的，不是卡住
+	if bool(p.get("started", false)) and float(p["remaining"]) <= 0.0:
+		return logs
+	var gap := _research_shortage(tech)
+	if gap != "":
+		logs.append({"day": day, "kind": "invest",
+			"text": "研究「%s」等待材料（%s）" % [tech["nameZh"], gap]})
 	return logs
 
 func _activate_research() -> Array:

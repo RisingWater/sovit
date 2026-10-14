@@ -52,6 +52,10 @@ static func _sanitize(s: Dictionary, db: ContentDB) -> void:
 	# 施工当日累计（白天按小时投入的累加器，见 docs/spec.md §9.3）。
 	# 旧存档没有这个键 -> 用 .get 兜 0，不然 tick 里第一次 += 会炸。
 	s["constructionWorkToday"] = float(s.get("constructionWorkToday", 0.0))
+	# 科研当日预算 + 已投累计（见 docs/spec.md §10.3）。旧存档没有这两个键：
+	# 预算兜 0（黎明 `_plan_research_day` 会立刻重算），累计兜 0。
+	s["researchRateToday"] = float(s.get("researchRateToday", 0.0))
+	s["researchWorkToday"] = float(s.get("researchWorkToday", 0.0))
 	s["arrivals"] = int(s.get("arrivals", 0))
 	s["seed"] = int(s.get("seed", 0))
 	s["rngState"] = int(s.get("rngState", 0))

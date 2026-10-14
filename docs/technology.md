@@ -129,23 +129,41 @@ research: {
 
 ### 2.5 每日结算
 
-```
-夜晚 settleResearch(state, day)：          # 排在 settleConstruction 之后
-    rate = researchRate(state)             # §2.1
-    for c in research.queue:               # 队首 → 队尾
-        if rate <= 0: break
-        if not c.started:
-            材料不足 → 记日志「等待材料」，break   # 停在队首，不跳过
-            足够   → 扣材料; c.started = true; 记「开工」
-        used = min(rate, c.remaining)
-        c.remaining -= used ; rate -= used
-        rate <= 0 → break
+**节奏与施工完全一致**：科研力是"当天的产能"，摊在白天的工作小时里逐小时投入
+（每小时 `rate / 工作小时数`，是个**常数**）；夜晚只做诊断收尾。
 
-黎明 activateResearch(state, day)：        # 与施工一致：昨晚跑完、今晨生效
+```
+黎明 planResearchDay(state)：                # 排在 assignLabor 之后、第一个工作小时之前
+    researchRateToday = researchRate(state)  # §2.1；当天预算，全天不变（"一天总量"的硬闸）
+    researchWorkToday = 0
+
+白天 applyResearchHours(state, fraction)：   # workStart <= h < workEnd，每小时一次
+    left = min(researchRateToday × fraction, researchRateToday − researchWorkToday)
+    for p in research.queue:                 # 队首 → 队尾
+        if left <= 0: break
+        if not p.started:
+            材料不足 → 记「等待材料」（p.waiting 去重，每天最多一条）; break  # 停在队首，不跳过
+            足够   → 扣材料; p.started = true; 记「开始研究」
+        used = min(left, p.remaining)
+        p.remaining = max(0, round4(p.remaining − used))    # r4：12 次 r2 会漂移
+        left = round4(left − used)
+        researchWorkToday = round4(researchWorkToday + used)
+
+夜晚 settleResearch(state, day)：            # 排在 settleConstruction 之后
+    # 产能已经投完了，这里只诊断"队首为什么没动"（每天最多一条）
+    若 researchRate > 0 且 queue[0] 该动没动且材料不足 → 记「等待材料」
+
+黎明 activateResearch(state, day)：          # 与施工一致：昨晚跑完、今晨生效
     while queue 非空 and queue[0].remaining <= 0:
         done.push(queue.shift().id)
         记日志「研究完成：<名称>」
 ```
+
+- **每小时的量是常数**（不是"把队首剩下的需求摊到当天剩下的小时里"）：队首只剩 5、
+  日产能 12 时，就是每小时 1、走 5 个小时在**当天中途**跑完。
+- **队首中途跑完 → 那一格剩下的产能继续投给下一条**（同格、串行）：剩余产能不许丢，
+  这是"一天总量 = 当天科研力"的关键；队列空了就作废（**不结转第二天**）。
+- **完工不提前启用**：跑完的科技仍留在队列里，等次日黎明 `activateResearch` 才出队生效。
 
 与施工的对照：
 
@@ -153,8 +171,10 @@ research: {
 |---|---|---|
 | 产能来源 | 失业人口 + 建筑工坊工人 | 基础科研力 + 研究所工人 |
 | 计量单位 | 建造力（人·天） | 科研力（人·天） |
-| 材料 | 开工时扣 | 开工时扣（同） |
+| 每日预算 | 黎明那一刻的 `constructionRate` | 黎明那一刻的 `researchRate` |
+| 材料 | 开工时扣（当天第一个工作小时） | 开工时扣（同） |
 | 队列 | 先进先出，共用一条 | 先进先出，**独立一条** |
+| 中途跑完 | 同格溢给下一条 | 同格溢给下一条（同） |
 | 完成后 | 次日黎明启用建筑 | 次日黎明解锁科技 |
 | 不结转 | ✅ | ✅ |
 
@@ -513,13 +533,13 @@ want = max(0, min(shop.targetWorkers, slots))
 | `src/engine/types.ts` | `TechID`、`ResearchProject`、`GameState.research`、`BuildingDef.capacity`、`GoodCategory` 加 `tool`、`GoodDef.toolBonus`、`Shop.toolBoost`、`Action` 两个新动作 |
 | `src/engine/content/validate.ts` | 解析 + §6.1 六条校验 + `capacity` 校验 + `CATEGORIES` 加 `tool` + `toolBonus` 校验 |
 | `src/engine/content/index.ts` | 导出 `TECHNOLOGIES` / `TECH_IDS` |
-| `src/engine/systems/research.ts` | **新增**：`researchRate` / `canResearch` / `startResearch` / `settleResearch` / `activateResearch` / `isBuildingUnlocked` |
+| `src/engine/systems/research.ts` | **新增**：`researchRate` / `planResearchDay` / `applyResearchHours` / `settleResearch` / `activateResearch` / `canResearch` / `startResearch` / `isBuildingUnlocked` |
 | `src/engine/systems/tools.ts` | **新增**：`allocateTools(state, ctx)`（§8.3 的黎明分配） |
 | `src/engine/systems/production.ts` | `runProductionStep` 产出两行乘 `shop.toolBoost`（**投入行不动**） |
 | `src/engine/systems/investment.ts` | `isConstructionWorks` 改用 `capacity.kind`；`constructionRate` 读建筑的 `perWorker` |
 | `src/engine/systems/labor.ts` | 工位上限随等级缩放（§6.2） |
 | `src/engine/actions.ts` | 接 `research` / `cancel_research`；`build*` 前置检查加"是否已解锁" |
-| `src/engine/tick.ts` | 黎明 `allocateTools`（在 `planProduction` 之前）；夜晚 `settleConstruction` → `settleResearch`；黎明 `activateResearch` |
+| `src/engine/tick.ts` | 黎明 `allocateTools`（在 `planProduction` 之前）→ `planResearchDay`；白天 `applyResearchHours`；夜晚 `settleConstruction` → `settleResearch`；黎明 `activateResearch` |
 | `src/engine/state.ts` | 初始化 `research`，应用 `start.techs` |
 | `src/ai/heuristic.ts` | §2.8：研究优先级表 + 研究所建造/扩建 + 工具坊常驻产线 |
 | `godot/scripts/core/content_db.gd` | 载入 `technologies.json`；`capacity` 字段；`toolBonus` |

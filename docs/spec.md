@@ -351,6 +351,10 @@ slots = (def.maxWorkers ?? def.workers) + (def.capacity?.slotsPerLevel ?? 0) × 
 ## 10. 研究（科技解锁）
 
 > **科研力 = 每日产能（速率，不是库存）**，与建造力同构。完整设计见 `docs/technology.md`。
+>
+> **节奏**：科研与生产 / 施工**同一节奏** —— 产能摊在白天的工作小时里逐小时投入（§10.3），
+> 研究所头顶的进度条白天能看见在爬；**一天的总量仍是当天的科研力**（不结转）。
+> 夜晚只做收尾（§10.4）：诊断队首为什么没动。
 
 ### 10.1 每日产能 `researchRate`
 ```
@@ -371,22 +375,59 @@ rate = (economy.research.baseRate
 
 `cancel_research { techId }` 从队列移除，**已扣材料不退**（与施工一致）。
 
-### 10.3 夜晚 `settleResearch`（紧接 `settleConstruction` 之后）
-```
-for p in research.queue:                 # 队首 → 队尾
-    if rate <= 0: break
-    if !p.started:
-        材料不足 → 记日志「等待材料」，break   # 停在队首，不跳过
-        足够   → 扣材料; p.started = true
-    used = min(rate, p.remaining)
-    p.remaining -= used ; rate -= used
-    rate <= 0 → break
-```
+### 10.3 黎明 `planResearchDay` + 白天 `applyResearchHours(fraction)`
 
-### 10.4 黎明 `activateResearch`
+**黎明**（`runDawn`，排在 `assignLabor` **之后**、第一个工作小时**之前**）：
+```
+state.researchRateToday = researchRate(state)   # 当天预算：全天不变
+state.researchWorkToday = 0
+```
+> 为什么要钉死"当天的预算"：这是"一天总量恰好等于当日科研力"的**硬闸** ——
+> 逐小时投入的量与当日已投累计都抵着它，不必依赖"同一天里 `researchRate()` 恰好不变"
+> （`shop.skill` 只在黎明 `assignLabor` 与入夜 `growSkills` 两处变，所以实际一天内不变，
+> 但多一条隐含依赖就多一个将来会被改坏的地方）。施工那边（`constructionWorkToday`）
+> 本来就是同一套口径，两边统一。
+
+**白天**在 `state.hour` 满足 `workStart <= h < workEnd` 时**每小时调用一次**，
+排在 `runProductionStep`、`applyConstructionHours` **之后**（先生产、再施工、后科研）。
+`fraction = 1/(workEnd−workStart)`（默认 1/12）。
+```
+rate  = researchRateToday × fraction     # 这一个小时的量：**常数**，不取整
+left  = min(rate, researchRateToday − researchWorkToday)   # 同一格多调一次不会多投
+for p in research.queue:                 # 队首 → 队尾
+    if left <= 0 → break
+    if !p.started:
+        材料不足 → 记「等待材料」（p.waiting 去重，每天最多一条）; break   # 停在队首，不跳过
+        足够   → 扣材料; p.started = true; 记「开始研究」
+    used = min(left, p.remaining)
+    p.remaining = max(0, round4(p.remaining − used))   # **r4**：12 次 r2 会漂移
+    p.waiting = false
+    left = round4(left − used)
+    researchWorkToday = round4(researchWorkToday + used)
+```
+- **每小时的量是个常数**（不是"把队首剩下的需求摊到当天剩下的小时里"）：队首只剩 5、
+  日产能 12 时，就是每小时 1、走 5 个小时在**当天中途**跑完。
+- **队首中途跑完 → 这一格剩下的产能继续投给下一条**（同格、串行）—— 剩余的产能不许丢，
+  这是"一天总量 = 当天科研力"成立的关键；队列空了就作废（**不结转第二天**）。
+- `fraction` 只用于"这一格投多少"的语义说明与对称；实际额度由 `researchRateToday` 与
+  `researchWorkToday` 的差兜底，所以一天的总投入恰好等于 `researchRateToday`。
+- **完工不在这里激活**：跑完后仍留在队列里，等夜晚之后的黎明 `activateResearch` 才出队（§10.5）。
+
+### 10.4 夜晚 `settleResearch`（紧接 `settleConstruction` 之后）
+
+产能已经在白天投完了，这里只做一件事：**队首为什么没动**（每天最多一条诊断）。
+```
+若 researchRate(state) > 0：               # 产能为 0 时队首本来就没机会开工，不诊断
+    p = queue[0]；没有 / 定义缺失 / 已 started 且 remaining<=0 → 不写
+    材料不足 → 记「研究「X」等待材料（缺什么）」
+```
+> 白天每小时都可能撞上同一个缺口，日志若写在小时里会刷 12 条屏，所以挪到夜晚，
+> 与施工的 §9.4 同一套口径。
+
+### 10.5 黎明 `activateResearch`
 `queue[0].remaining <= 0` 时出队并 push 进 `research.done`（解锁随之生效），可连出多项。
 
-### 10.5 解锁判定
+### 10.6 解锁判定
 ```
 可建(建筑) = 没有任何科技 unlocks 它          # 开局免费
           或 解锁它的科技 ∈ research.done
