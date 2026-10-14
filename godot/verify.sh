@@ -107,6 +107,7 @@ step "workerdemolish" "$GODOT_BIN" --headless --path . -s res://tools/worker_dem
 step "tech" "$GODOT_BIN" --headless --path . -s res://tools/tech_test.gd
 step "efficiency" "$GODOT_BIN" --headless --path . -s res://tools/efficiency_test.gd
 step "sitetip" "$GODOT_BIN" --headless --path . -s res://tools/sitetip_test.gd
+step "footprint" "$GODOT_BIN" --headless --path . -s res://tools/footprint_test.gd
 step "construction" "$GODOT_BIN" --headless --path . -s res://tools/construction_test.gd
 step "research" "$GODOT_BIN" --headless --path . -s res://tools/research_test.gd
 step "imm" "$GODOT_BIN" --headless --path . -s res://tools/imm_test.gd

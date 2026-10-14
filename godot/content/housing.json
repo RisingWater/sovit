@@ -4,8 +4,7 @@
       "id": "hut",
       "nameZh": "茅屋",
       "art": {
-        "arch": "sprite",
-        "foot": [2, 1]
+        "arch": "sprite"
       },
       "quality": 1,
       "capacity": 4,
@@ -21,8 +20,7 @@
       "id": "wooden_house",
       "nameZh": "木屋",
       "art": {
-        "arch": "sprite",
-        "foot": [2, 1]
+        "arch": "sprite"
       },
       "quality": 2,
       "capacity": 3,
@@ -38,8 +36,7 @@
       "id": "brick_house",
       "nameZh": "砖房",
       "art": {
-        "arch": "sprite",
-        "foot": [2, 1]
+        "arch": "sprite"
       },
       "quality": 3,
       "capacity": 2,

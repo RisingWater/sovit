@@ -501,8 +501,17 @@ func _footprint(type: String) -> Vector2i:
 			return Vector2i(int(foot[0]), int(foot[1]))
 		var tex := _texture_for(type)
 		if tex != null:
-			return Vector2i(int(ceil(tex.get_width() / float(TILE))),
-				int(ceil(tex.get_height() / float(TILE))))
+			# ⚠️ 用 **floor**，不是 ceil。
+			#
+			# `_place_sprite()` 把贴图**底边**对齐占地的**底边**，所以多算出来的行
+			# 全在占地顶部、**画面上什么都没有**，却实实在在占着格子挡建造 ——
+			# 玩家报过"画面上明明没有占到，但是实际上占到了"（茅屋 64×48：
+			# ceil(1.5)=2 格，顶部 16px 就是隐形的）。
+			# floor 之后，贴图高出来的那部分变成"往上伸出去的装饰"，
+			# 可以和后一格的建筑互相遮挡 —— 这正是本函数注释里写的设计本意。
+			# 至少留 1 格，别让矮贴图算出 0 占地。
+			return Vector2i(maxi(1, int(floor(tex.get_width() / float(TILE)))),
+				maxi(1, int(floor(tex.get_height() / float(TILE)))))
 		return Vector2i(3, 3)
 	var w := int(a.get("w", 6 if arch == "field" else 3))
 	if arch == "field" or a.has("rows"):
