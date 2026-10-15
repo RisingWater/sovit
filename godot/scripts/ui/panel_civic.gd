@@ -384,8 +384,8 @@ func _build_goods() -> void:
 	for gid in (runner.db.packs[String(s["pack"])]["goods"] as Array):
 		_cap_cell(grid, String(gid), int(caps.get(String(gid), 0)), float(goods.get(String(gid), 0.0)))
 	_gap(2)
-	_note("数量 = 当前库存；上限留空 = 不限。超过上限的部分当天夜里按价值从低到高丢掉，"
-		+ "价值并列时按商品 id 排（docs/spec.md §2.4）。数量标红＝这一项已经超了自己的上限。")
+	_note("数量 = 当前库存；上限留空 = 不限。超过上限的部分当天夜里按同一比例削减"
+		+ "（所有物资一起缩水，食物不会被优先丢掉，docs/spec.md §2.4）。数量标红＝这一项已经超了自己的上限。")
 
 # ---------------------------------------------------------------------------
 # 仓库：容量 + 每种资源（数量 / 上限）

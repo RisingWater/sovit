@@ -29,7 +29,7 @@
       },
       "buildWork": 60,
       "storage": {
-        "storage": 1000,
+        "storage": 2000,
         "storagePerLevel": 0
       }
     },

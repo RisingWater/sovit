@@ -539,12 +539,18 @@ func _apply_spoilage() -> void:
 #
 # 两层口径：
 #   1. **全局总量上限** = 所有仓储建筑的容量之和（城镇中心 + 每座仓库）。
-#      超了就在日终结算时把货丢掉 —— 先丢便宜的（baseValue 升序）。
+#      超了就在日终结算时把货丢掉 —— **每种物资按同一比例削减**（见 §3.3）。
 #   2. **每种物资的软上限**（玩家逐项设置，缺项 = 不限）。先按它修剪，再按全局
 #      上限修剪：某一种货囤满自己的额度后就不再挤占全局空间。
 #
 # 两步都在 `_apply_spoilage` **之后**：先损耗、后判上限 —— 损耗腾出来的空间
 # 可以救下本来会被丢掉的货。
+#
+# ⚠️ 2026-10 改：全局那一步原来是**按 `baseValue` 升序丢**（先丢便宜的）。
+# 那条规则有个致命副作用 —— **食物恰好是最便宜的**（蔬菜 1.2 / 粗面包 1.3），
+# 于是「开局资源 x2」（1960 > 容量 1000）第一晚就把 400 粗面包 + 174.6 蔬菜全丢了，
+# 剩下的全是木材/石块/砖，接下来几天饿死一半人。用户原话：「怎么能先盯着食物
+# 丢弃，应该是各种物资平均丢弃吧。」现在改成**同比例削减**。
 # ===========================================================================
 
 ## 一座建筑在某个等级下的仓储容量。
@@ -576,17 +582,9 @@ func stored_total() -> float:
 		n += float(s["goods"].get(gid, 0.0))
 	return SimUtil.r2(n)
 
-## 丢弃顺序：`baseValue` 升序（先丢便宜的），并列按 goodId 字典序。
-func _discard_order() -> Array:
-	var rows := []
-	for gid in _pack()["goods"]:
-		var g = db.goods.get(gid, null)
-		rows.append([(float(g["baseValue"]) if g != null else 0.0), String(gid)])
-	rows.sort_custom(func(a, b): return a[0] < b[0] if a[0] != b[0] else a[1] < b[1])
-	var out := []
-	for r in rows:
-		out.append(r[1])
-	return out
+## 向下取整到两位小数（与 TS `storage.ts::floor2` 同构）。
+func _floor2(v: float) -> float:
+	return floor(v * 100.0) / 100.0
 
 func _good_name(gid: String) -> String:
 	var g = db.goods.get(gid, null)
@@ -615,21 +613,23 @@ func apply_storage_cap(day: int) -> Array:
 		logs.append({"day": day, "kind": "storage",
 			"text": "%s 超过单项上限 %s，丢弃 %s 单位" % [_good_name(key), _num_str(lim), _num_str(lost)]})
 
-	# ② 全局总量上限
+	# ② 全局总量上限：**每种物资按同一比例削减**（确定性：一次乘 + 一次向下取整）
 	var cap = storage_capacity()
-	var over = SimUtil.r2(stored_total() - cap)
-	if cap > 0.0 and over > 0.0:
-		for gid in _discard_order():
-			if over <= 0.0:
-				break
+	var total = stored_total()
+	if cap > 0.0 and total > cap:
+		var keep = cap / total
+		var after := 0.0
+		for gid in _pack()["goods"]:
 			var cur = float(s["goods"].get(gid, 0.0))
 			if cur <= 0.0:
 				continue
-			var take = SimUtil.r2(minf(cur, over))
-			s["goods"][gid] = SimUtil.r2(cur - take)
-			over = SimUtil.r2(over - take)
-			logs.append({"day": day, "kind": "storage",
-				"text": "仓储超限，丢弃 %s 单位 %s" % [_num_str(take), _good_name(gid)]})
+			var nxt = _floor2(cur * keep)
+			s["goods"][gid] = nxt
+			after += nxt
+		logs.append({"day": day, "kind": "storage",
+			"text": "仓储超限（%s / %s）：所有物资按 %s%% 削减，共丢弃 %s 单位" % [
+				_num_str(SimUtil.r2(total)), _num_str(SimUtil.r2(cap)),
+				_num_str(SimUtil.r2(keep * 100.0)), _num_str(SimUtil.r2(total - after))]})
 	return logs
 
 ## 数字转文本：对齐 JS 模板字符串里数字的呈现（整数不带 ".0"）。

@@ -518,7 +518,7 @@ want = max(0, min(shop.targetWorkers, slots))
 "start": {
   "population": 16,
   "techs": ["stonework", "digging", "construction"],   // 开局已研究完的科技
-  "shops": { ..., "town_center": 1 },                  // 开局自带城镇中心（仓储 1000）
+  "shops": { ..., "town_center": 1 },                  // 开局自带城镇中心（仓储 2000）
   ...
 }
 ```

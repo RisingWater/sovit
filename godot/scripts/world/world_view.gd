@@ -754,8 +754,8 @@ func showcase_village(seed_value: int) -> void:
 	s["government"]["money"] = 500000.0
 	s["government"]["populationCap"] = 100000.0
 	# 开局物资：**够撑过下面那 6 天快进**就行，不再一味堆 20000。
-	# 仓储上限是"全局总量"口径（城镇中心 1000 + 每座仓库 300，见 docs/town.md §三），
-	# 堆多了当晚就被丢掉 —— 以前没上限才敢写 20000。
+	# 仓储上限是"全局总量"口径（城镇中心 2000 + 每座仓库 300，见 docs/town.md §三），
+	# 堆多了当晚就被削减 —— 以前没上限才敢写 20000。
 	# 这份小清单合计 580，留了足够余量给快进期间的产出。
 	for g in (s["goods"] as Dictionary).keys():
 		s["goods"][g] = 0.0
@@ -768,8 +768,8 @@ func showcase_village(seed_value: int) -> void:
 	for gid in seed_goods.keys():
 		if (s["goods"] as Dictionary).has(gid):
 			s["goods"][gid] = float(seed_goods[gid])
-	# 补 3 座仓库把容量从 1000 撑到 1900：快进 6 天里村子会持续产出，
-	# 没有这几座的话产出会顶到 1000 上限被丢掉（而且仓库本身也是新建筑，正好展示）。
+	# 补 3 座仓库把容量从 2000 撑到 2900：快进 6 天里村子会持续产出，
+	# 没有这几座的话产出会顶到 2000 上限被削减（而且仓库本身也是新建筑，正好展示）。
 	# ⚠️ 仓库要**有在岗工人**才算容量（docs/town.md §3.2），所以 targetWorkers 给满 2。
 	for i in 3:
 		(s["shops"] as Array).append({

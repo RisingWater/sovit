@@ -79,18 +79,28 @@ cap_g = government.storageCaps[g]        # 缺项 = 不限
 ```
 容量 = Σ 仓储建筑的容量          # 见下
 总量 = Σ goods[g]  (本 pack 全部商品)
-若 容量 > 0 且 总量 > 容量  →  按**丢弃顺序**丢到等于容量为止，每种写一条 log
+若 容量 > 0 且 总量 > 容量:
+    keep = 容量 / 总量                       # 保留比例
+    对每种 goods[g] > 0:  goods[g] = floor2(goods[g] × keep)     # 向下取整到 2 位小数
+    写一条 log（含比例与共丢弃量）
 ```
 - 一座建筑的容量 = `storage.storage + storage.storagePerLevel × (等级 − 1)`
 - **`workers > 0` 的仓储建筑，`assignedWorkers < 1` 时不计容量**（仓库要有人看着）；
   `workers == 0` 的（城镇中心）直接计入
 - 容量 = 0 时**不丢弃**（没有仓储建筑 = 不受上限约束）
 
-**丢弃顺序（确定性）**：`baseValue` 升序；并列按 `goodId` 字典序。即"先扔烂菜，最后才扔丝绸"。
+**削减规则（确定性）**：**所有物资按同一比例削减** —— `keep = 容量 / 总量`，每种物资保留
+`floor2(原值 × keep)`。谁也不被单独针对，**食物不会被优先丢掉**；向下取整保证削减后总量 ≤ 容量。
+
+> ⚠️ 2026-10 改：原来是「按 `baseValue` 升序丢（先丢便宜的）」。那条规则有致命副作用 ——
+> **食物恰好是最便宜的**（蔬菜 1.2 / 粗面包 1.3 / 小麦 1.0），于是"开局资源 x2"
+> （1960 > 容量 1000）**第一晚就把 400 粗面包 + 174.6 蔬菜全丢了**，剩下的全是
+> 木材/石块/砖，接下来几天饿死一半人口。用户原话："怎么能先盯着食物丢弃，
+> 应该是各种物资平均丢弃吧。"
 
 | 常量 | 值 | 来源 |
 |---|---|---|
-| 城镇中心容量 | 1000 | `content/buildings.json` 的 `town_center.storage.storage` |
+| 城镇中心容量 | 2000 | `content/buildings.json` 的 `town_center.storage.storage` |
 | 仓库容量（1 级） | 300 | 同上 `warehouse` |
 | 仓库每级增量 | 150 | `warehouse.storage.storagePerLevel` |
 

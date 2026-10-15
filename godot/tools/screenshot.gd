@@ -286,6 +286,43 @@ func _run() -> void:
 			await process_frame
 			await process_frame
 
+	# 仓储超限（2026-10 用户报的 bug）：开局资源 x2 = 1960，城镇中心上限 2000。
+	# 再往里塞一批木材让它爆仓，跑满一天 → 夜里按**同一比例**削减，公告页出现那条 log。
+	#
+	# 这张图同时是"削减规则已生效"的证据：旧规则按 baseValue 升序丢，
+	# 粗面包 / 蔬菜会被丢光（接着饿死人），新规则下它们只按比例缩水。
+	if mode == "overflow":
+		world.start_new_game(20261014, 2.0, "爆仓")
+		if runner.sim != null and runner.db != null:
+			runner.sim.s["government"]["populationCap"] = 999.0
+			(runner.sim.s["goods"] as Dictionary)["wood"] = 1200.0
+		# 日志要自己并进 runner.recent_logs（面板读的是它，不是 sim.s["log"]）——
+		# 这里直接 tick 仿真，绕过了 SimRunner._process 里那段搬运代码。
+		for h in 24:
+			for e2 in runner.sim.tick_hour([]):
+				runner.recent_logs.append(e2)
+		if runner.recent_logs.size() > 60:
+			runner.recent_logs = runner.recent_logs.slice(runner.recent_logs.size() - 60)
+		await process_frame
+		var sim_o = runner.sim
+		var target_o := ""
+		for sh in sim_o.s["shops"]:
+			if String(sh["defId"]) == "town_center":
+				target_o = String(sh["id"])
+		if target_o != "" and node.has_method("_on_select_building"):
+			node._on_select_building(target_o)
+			await process_frame
+			var dlg_o = node.get_node_or_null("UI/Root/Civic")
+			if dlg_o != null:
+				dlg_o._select_tab(2)
+		print("SCREENSHOT overflow: 容量=", sim_o.storage_capacity(), " 总量=", sim_o.stored_total(),
+			" 木头=", float((sim_o.s["goods"] as Dictionary).get("wood", 0.0)),
+			" 面包=", float((sim_o.s["goods"] as Dictionary).get("coarse_bread", 0.0)))
+		for e3 in runner.recent_logs:
+			print("    ", String(e3.get("text", "")))
+		await process_frame
+		await process_frame
+
 	# 验证浮动对话框：城镇中心（人口）/ 仓库（资源 + 上限）/ 普通建筑（运营）
 	# 走 main 的真实分派路径，保证截到的就是玩家点出来的那个东西
 	if mode.begins_with("towncenter") or mode == "warehouse" or mode == "building":
