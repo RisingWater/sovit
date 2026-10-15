@@ -121,7 +121,6 @@ const RESEARCH_ORDER: string[] = [
 
   // ---- 纪元 5 ----
   'domestic_service',
-  'housing_works',
 ]
 
 /** "引擎"建筑：不产商品、只产每日产能（建造力 / 科研力）。它们优先于一切生产建筑。 */

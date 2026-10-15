@@ -823,35 +823,6 @@
       "buildWork": 24
     },
     {
-      "id": "housing_works",
-      "sector": "goods",
-      "nameZh": "住房坊",
-      "art": {
-        "arch": "workshop",
-        "roof": "red",
-        "wall": "wood",
-        "w": 4
-      },
-      "tier": 3,
-      "workers": 4,
-      "buildCost": {
-        "wood": 8,
-        "stone": 6,
-        "clay": 4
-      },
-      "recipe": {
-        "inputs": {
-          "wood": 6,
-          "brick": 3
-        },
-        "output": {
-          "hut": 1
-        },
-        "baseRate": 1
-      },
-      "buildWork": 48
-    },
-    {
       "id": "research_institute",
       "nameZh": "研究所",
       "art": {

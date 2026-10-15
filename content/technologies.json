@@ -258,15 +258,6 @@
       "unlocks": { "buildings": ["domestic_service"], "housing": [] }
     },
     {
-      "id": "housing_works",
-      "nameZh": "住房坊",
-      "era": 5,
-      "research": 120,
-      "cost": { "goods": { "wood": 80, "brick": 40 } },
-      "requires": ["carpentry", "brickmaking"],
-      "unlocks": { "buildings": ["housing_works"], "housing": [] }
-    },
-    {
       "id": "crop_rotation",
       "nameZh": "轮作",
       "era": 2,

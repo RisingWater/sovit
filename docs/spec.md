@@ -190,6 +190,10 @@ savings += gross − tax ;  government.money += (Σtax − Σgross)
 
 ### 5.3 买房 `runPrivateHousingMarket`（夜晚）
 遍历 `pack.housing`：`price = prices[gid] ?? salePrice ?? baseValue`；
+⚠️ 2026-10 起住房**不再是商品**（`goods.json` 里没有 `hut` 等），所以最后那级 `baseValue`
+实际退化成常量 **1**（`housing.json` 的 `salePrice` 三档都写了 10 / 25 / 50，永远命中第二级）。
+GDScript 侧要小心：`Dictionary.get(k, 默认值)` **不短路**，回退值必须先算出来
+（`sim_core.gd::_base_value_or()`）。
 当 `stateOwned>0 && soldTotal<privateHousingPerDay`，选**存款最高**的合格买家：
 非房主、`classLevel>=2`、`classLevel==def.quality`、`savings>=price+5`、`satisfaction>=privateHousingNeedThreshold`。
 成交：`savings-=price`、`homeowner=true, ownedQuality=quality`、`privateHousing[gid]++`、`government.money+=price`。

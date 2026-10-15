@@ -83,7 +83,11 @@ func new_game(pack_id: String, seed_value: int, resource_mult: float = 1.0) -> v
 		housing[gid] = float(start_housing.get(gid, 0.0))
 		private_housing[gid] = 0.0
 		var hd: Dictionary = db.housing[gid]
-		prices[gid] = float(hd.get("salePrice", db.goods[gid]["baseValue"]))
+		# ⚠️ GDScript 的 `Dictionary.get(k, 默认值)` **不短路** —— 默认值总会被求值。
+		# 所以这里不能写 `hd.get("salePrice", db.goods[gid]["baseValue"])`：
+		# 住房 2026-10 起**不再是商品**（`goods.json` 里没有 hut/wooden_house/brick_house），
+		# 那样写会在 `new_game` 里直接 KeyError。
+		prices[gid] = float(hd.get("salePrice", _base_value_or(gid)))
 
 	var shops := []
 	var start_shops: Dictionary = start["shops"]
@@ -642,6 +646,15 @@ func _good_value(gid: String, qty: float) -> float:
 	var g = db.goods.get(gid, null)
 	return (float(g["baseValue"]) if g != null else 0.0) * qty
 
+## 商品的基准价；该 id 不在 `db.goods` 里时返回 `fallback`。
+##
+## ⚠️ 存在的唯一理由：GDScript 的 `Dictionary.get(k, 默认值)` **不短路**（与 TS 的 `??` 不同），
+## 默认值总会被求值。住房 2026-10 起不再是商品，所以凡是"住房 id 取价格、缺项回退到商品基准价"
+## 的地方都必须先把这个回退值算出来 —— 写成 `db.goods[gid]["baseValue"]` 会当场 KeyError。
+func _base_value_or(gid: String, fallback: float = 1.0) -> float:
+	var g = db.goods.get(gid, null)
+	return float(g["baseValue"]) if g != null else fallback
+
 # ===========================================================================
 # 用工
 # ===========================================================================
@@ -977,7 +990,7 @@ func _run_private_housing_market(day: int) -> Array:
 
 	for gid in _pack()["housing"]:
 		var def: Dictionary = db.housing[gid]
-		var price = float(s["prices"].get(gid, def.get("salePrice", db.goods[gid]["baseValue"])))
+		var price = float(s["prices"].get(gid, def.get("salePrice", _base_value_or(gid))))
 		if price <= 0.0:
 			continue
 		var state_owned = int(floor(float(s["housing"].get(gid, 0.0)) - float(s["privateHousing"].get(gid, 0.0))))

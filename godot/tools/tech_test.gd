@@ -17,9 +17,11 @@ extends SceneTree
 ## 29 → 28：`research_institute` 那条科技已删除（研究所改成开局可建建筑，见 docs/town.md §6）。
 ## 28 → 43：新增 15 项**效率科技**（农业食品/工业商品/建材/研究速度/建造速度 各 3 级，
 ## 分布在 era2/3/4，逐级 +10%/+15%/+20%，加法叠加）。见 docs/technology.md。
+## 43 → 42：`housing_works`（住房坊）已删除 —— 它产的 `hut` 商品没有任何消费者，
+## 建房走的是 `build_housing` 动作。见 docs/technology.md。
 ## **刻意写死**而不是取 `db.tech_ids.size()`：这样"某项科技莫名消失/多出来"
 ## 才会被这条门抓住 —— 用 size 就等于把断言变成恒真式。
-const EXPECTED_TECHS := 43
+const EXPECTED_TECHS := 42
 
 func _init() -> void:
 	call_deferred("_run")
