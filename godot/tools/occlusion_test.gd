@@ -103,7 +103,7 @@ func _run() -> void:
 		var cell: Vector2i = c + nudge
 		if world._try_place(TEST_ID, cell):
 			placed = true
-			org = cell - Vector2i(1, 1)
+			org = cell - Vector2i(1, 0)     # "脚" = 底边那一行的最左格
 			break
 	if not placed:
 		_fail("摆不下 " + TEST_ID)
@@ -125,12 +125,12 @@ func _run() -> void:
 	if spr == null:
 		failed.append("建筑精灵没建出来：" + sid)
 	else:
-		var want_y := float(org.y * 16 + fp.y * 16)
+		var want_y := float((org.y + 1) * 16)     # org 是"脚"，节点 y = 它那一行的底边
 		if absf(spr.position.y - want_y) > 0.01:
 			failed.append("建筑节点 y 应为地面线 %.1f，实际 %.1f" % [want_y, spr.position.y])
 
 	# ---- 把居民沿一条竖线摆在建筑前后（每人脚底一档），并暂停仿真免得他们走开
-	var base_y := float(org.y * 16 + fp.y * 16)
+	var base_y := float((org.y + 1) * 16)     # 地面线 = "脚"那一行的底边
 	var mid_x := float(org.x * 16 + fp.x * 16 * 0.5)
 	runner.paused = true
 	var people: Array = world._agents

@@ -22,6 +22,13 @@ func _value_of(root: Node, key: String) -> String:
 				return (row.get_child(1) as Label).text
 	return "<未找到 %s>" % key
 
+## 在面板里按文案找按钮
+func _button(root: Node, text: String) -> Button:
+	for b in root.find_children("*", "Button", true, false):
+		if (b as Button).text == text:
+			return b
+	return null
+
 func _run() -> void:
 	var ps: PackedScene = load("res://scenes/main.tscn")
 	var node := ps.instantiate()
@@ -57,36 +64,43 @@ func _run() -> void:
 		_fail("弹了对话框，右侧常驻面板却不该同时显示")
 		return
 
-	# 点"全收"：当前允许必须**立刻**变成不限并标注已排队
-	panel._set_population_cap(1000000000)
+	var popn := (runner.sim.s["residents"] as Array).size()
+
+	# 「不限制移民迁入」：当前允许必须**立刻**变成不限并标注已排队
+	var b_all := _button(panel, "不限制移民迁入")
+	if b_all == null:
+		_fail("面板没有「不限制移民迁入」按钮")
+		return
+	b_all.pressed.emit()
 	await process_frame
 	var t_all := _value_of(panel, "人口上限（已排队）")
 	if t_all != "不限":
-		_fail("点全收后『人口上限（已排队）』应为 不限，实际 %s" % t_all)
+		_fail("点「不限制移民迁入」后『人口上限（已排队）』应为 不限，实际 %s" % t_all)
 		return
 
-	# 点"暂停"：立刻变成 0
-	panel._set_population_cap(0)
+	# 「停止移民迁入」：立刻钉在**当前人口**（不是 0 —— 停止增长，不是把人赶走）
+	var b_stop := _button(panel, "停止移民迁入")
+	if b_stop == null:
+		_fail("面板没有「停止移民迁入」按钮")
+		return
+	b_stop.pressed.emit()
 	await process_frame
-	var t_pause := _value_of(panel, "人口上限（已排队）")
-	if t_pause != "0":
-		_fail("点暂停后『人口上限（已排队）』应为 0，实际 %s" % t_pause)
+	var t_stop := _value_of(panel, "人口上限（已排队）")
+	if t_stop != str(popn):
+		_fail("点「停止移民迁入」后『人口上限（已排队）』应为当前人口 %d，实际 %s" % [popn, t_stop])
 		return
 
-	# 点"+10"：立刻变成 10
-	panel._set_population_cap(10)
-	await process_frame
-	var t_add := _value_of(panel, "人口上限（已排队）")
-	if t_add != "10":
-		_fail("点+10后『人口上限（已排队）』应为 10，实际 %s" % t_add)
+	# 老那个「+10」按钮已按用户要求删掉（"不明所以"）
+	if _button(panel, "+10") != null:
+		_fail("「+10」按钮应该已经删掉")
 		return
 
-	# 「次日会来」必须存在 —— 这才是真正会发生的事
-	var will := _value_of(panel, "次日会来")
+	# 「本回合迁入移民」必须存在 —— 这才是真正会发生的事
+	var will := _value_of(panel, "本回合迁入移民")
 	if will.begins_with("<未找到"):
-		_fail("面板没有『次日会来』这一行")
+		_fail("面板没有『本回合迁入移民』这一行")
 		return
 
-	print("IMM TEST 全收->%s 暂停->%s +10->%s 次日会来=%s" % [t_all, t_pause, t_add, will])
+	print("IMM TEST 不限->%s 停止(%d)->%s 本回合迁入=%s" % [t_all, popn, t_stop, will])
 	print("IMM TEST RESULT: PASS")
 	quit(0)

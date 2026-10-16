@@ -1,6 +1,6 @@
 import type { Construction, GameState, LogEntry, Shop } from '../types.ts'
 import type { ContentContext } from '../content/index.ts'
-import type { BuildingDef } from '../types.ts'
+import type { BuildingDef, HousingDef } from '../types.ts'
 import { DEFAULTS, ECONOMY, TUNING } from '../config.ts'
 import { round2, round4 } from '../util.ts'
 import { markConstructionWorkers } from './labor.ts'
@@ -53,15 +53,29 @@ export interface AffordResult {
 }
 
 /** 一个工程的开工成本：实物原料，或（无可用实物原料时）金钱。 */
-interface CostSpec {
+export interface CostSpec {
   mats: Array<[string, number]>
   money: number
 }
 
-/** 已占用的土地名额：建筑 + 在建(建店/建房) + 已建住房（升级不额外占地）。 */
+/**
+ * 查询某个工程的开工成本（门槛与 UI 用；真正下单走 `order()` 里那一份）。
+ * 对外暴露是为了让自检能验"引擎算出来的成本"，而不是只验公式助手。
+ */
+export function constructionCost(
+  c: Construction,
+  state: GameState,
+  ctx: ContentContext,
+): CostSpec | null {
+  return costOf(c, state, ctx)
+}
+
+/** 已占用的土地名额：建筑 + 在建(建店/建房) + 已建住房（升级/住房改建不额外占地）。 */
 export function usedSlots(state: GameState): number {
   let n = state.shops.length
-  for (const c of state.construction) if (c.kind !== 'upgrade') n += 1
+  // ⚠️ `housing_upgrade` 是"原地改建"：改完 housing[from]−1 / housing[to]+1，总栋数不变，
+  //    所以它**不能**算成一个新名额（否则改建一次就白白吃掉一格土地）。
+  for (const c of state.construction) if (c.kind !== 'upgrade' && c.kind !== 'housing_upgrade') n += 1
   for (const count of Object.values(state.housing)) n += Math.floor(count)
   return n
 }
@@ -88,6 +102,13 @@ function costOf(c: Construction, state: GameState, ctx: ContentContext): CostSpe
     const mats = presentCost(def, ctx)
     if (mats.length === 0) return { mats: [], money: moneyCostExpand(shop.level) }
     return { mats: mats.map(([g, q]) => [g, q * shop.level] as [string, number]), money: 0 }
+  }
+  if (c.kind === 'housing_upgrade') {
+    const from = c.housingId ? ctx.housing[c.housingId] : undefined
+    const to = c.toHousingId ? ctx.housing[c.toHousingId] : undefined
+    if (!from || !to) return null
+    const spec = housingUpgradeSpec(from, to, ctx)
+    return { mats: spec.mats, money: 0 }
   }
   if (c.kind === 'housing') {
     const def = c.housingId ? ctx.housing[c.housingId] : undefined
@@ -124,6 +145,11 @@ function payCost(state: GameState, spec: CostSpec): void {
 function labelOf(c: Construction, ctx: ContentContext): string {
   if (c.kind === 'shop' && c.buildingId) return ctx.buildings[c.buildingId]?.nameZh ?? c.buildingId
   if (c.kind === 'housing' && c.housingId) return ctx.housing[c.housingId]?.nameZh ?? c.housingId
+  if (c.kind === 'housing_upgrade' && c.housingId) {
+    const a = ctx.housing[c.housingId]?.nameZh ?? c.housingId
+    const b = c.toHousingId ? (ctx.housing[c.toHousingId]?.nameZh ?? c.toHousingId) : '?'
+    return `${a} 改建（→ ${b}）`
+  }
   if (c.kind === 'upgrade' && c.buildingId) {
     return `${ctx.buildings[c.buildingId]?.nameZh ?? c.buildingId} 升级`
   }
@@ -192,6 +218,75 @@ export function tryBuild(state: GameState, ctx: ContentContext, buildingId: stri
     buildingId,
     remaining: def.buildWork,
     totalRequired: def.buildWork,
+    started: false,
+  })
+}
+
+/**
+ * 住房**改建**（见 docs/spec.md §5.4）的材料与工期：**只算差价**。
+ *
+ * - 材料：对目标房型 `buildCost` 的每一项取 `max(0, 目标 − 原房型)`，只认当前包里的商品；
+ *   原房型要、目标不要的材料（砖房要石头、木屋不要）**不退**。
+ * - 工期：`max(1, 目标 buildWork − 原房型 buildWork)` —— 至少 1，免得出现"零工时秒改"。
+ *
+ * ⚠️ TS 与 GDScript 两份实现必须同口径（门槛 `housingupgrade` 拿真实数字对拍）。
+ */
+export function housingUpgradeSpec(
+  from: HousingDef,
+  to: HousingDef,
+  ctx: ContentContext,
+): { mats: Array<[string, number]>; work: number } {
+  const mats: Array<[string, number]> = []
+  for (const [gid, qty] of Object.entries(to.buildCost ?? {})) {
+    if (!qty || !ctx.goodSet.has(gid)) continue
+    const diff = round2(qty - (from.buildCost?.[gid] ?? 0))
+    if (diff > 0) mats.push([gid, diff])
+  }
+  return { mats, work: Math.max(1, round2(to.buildWork - from.buildWork)) }
+}
+
+/**
+ * 住房改建：下单进施工队列（材料在开工时才扣）。
+ *
+ * ⚠️ **只允许改建国有住房**：私有住房是居民买下的私产，改建会牵动 `privateHousing[gid]`
+ * 和房主的 `ownedQuality`，口径复杂且容易算乱（用户拍板：私有住房不能改建）。
+ * 在途的改建也算占用 —— 否则 2 栋茅屋能排 3 条改建，完工时凭空多出一栋木屋。
+ */
+export function tryUpgradeHousing(
+  state: GameState,
+  ctx: ContentContext,
+  goodId: string,
+): AffordResult {
+  if (!ctx.pack.housing.includes(goodId)) {
+    return { ok: false, reason: '该住房不在当前内容包内' }
+  }
+  const from = ctx.housing[goodId]
+  if (!from) return { ok: false, reason: '住房定义缺失' }
+  const toId = from.upgradeTo
+  if (!toId) return { ok: false, reason: '这档住房不能改建' }
+  const to = ctx.housing[toId]
+  if (!to) return { ok: false, reason: '改建目标缺失' }
+
+  const total = Math.floor(state.housing[goodId] ?? 0)
+  const priv = Math.floor(state.privateHousing[goodId] ?? 0)
+  const inFlight = state.construction.filter(
+    (c) => c.kind === 'housing_upgrade' && c.housingId === goodId,
+  ).length
+  if (total - priv - inFlight < 1) {
+    return {
+      ok: false,
+      reason: total - priv <= 0 ? '私有住房不能改建' : '没有空闲的国有住房可改建',
+    }
+  }
+
+  const spec = housingUpgradeSpec(from, to, ctx)
+  return order(state, ctx, {
+    id: nextConstructionId(state, `re-${goodId}`),
+    kind: 'housing_upgrade',
+    housingId: goodId,
+    toHousingId: toId,
+    remaining: spec.work,
+    totalRequired: spec.work,
     started: false,
   })
 }
@@ -432,8 +527,145 @@ export function activateCompleted(state: GameState, ctx: ContentContext, day: nu
       const def = ctx.housing[c.housingId]
       state.housing[c.housingId] = (state.housing[c.housingId] ?? 0) + 1
       logs.push({ day, kind: 'invest', text: `${def?.nameZh ?? c.housingId} 建成` })
+    } else if (c.kind === 'housing_upgrade' && c.housingId && c.toHousingId) {
+      // 原地改建：栋数不变，只是从 from 挪到 to（土地名额因此也不变，见 usedSlots）。
+      const from = ctx.housing[c.housingId]
+      const to = ctx.housing[c.toHousingId]
+      state.housing[c.housingId] = Math.max(0, (state.housing[c.housingId] ?? 0) - 1)
+      state.housing[c.toHousingId] = (state.housing[c.toHousingId] ?? 0) + 1
+      logs.push({
+        day,
+        kind: 'invest',
+        text: `${from?.nameZh ?? c.housingId} 改建为 ${to?.nameZh ?? c.toHousingId}`,
+      })
     }
   }
   state.construction = remaining
   return logs
+}
+
+// ---------------------------------------------------------------------------
+// 建造队列：调序 / 取消（见 docs/construction.md 六）
+//
+// 队列本来就是**先进先出**的一条 `state.construction`：队首（index 0）先开工、
+// 产能没用完才溢给下一条。以前玩家只能下单，**没法改顺序**；这两条动作把队列
+// 变成可管理的：往上 / 往下挪一位、以及取消。
+//
+// ⚠️ 调序只改"谁先吃到建造力"，不改任何口径：不重算 `remaining`、不改 `started`、
+//    也不退料。已经在建的工程被挪到后面时，它只是**暂停**（前面的工程先吃产能）。
+// ---------------------------------------------------------------------------
+
+/** 施工队列调序：把 `id` 这条按 `delta` 的方向挪**一位**（-1 上移 / +1 下移）。 */
+export function moveConstruction(state: GameState, id: string, delta: number): AffordResult {
+  const i = state.construction.findIndex((c) => c.id === id)
+  if (i < 0) return { ok: false, reason: '该工程已不在队列里' }
+  const step = Math.sign(delta)
+  if (step === 0) return { ok: false, reason: '没有移动' }
+  const j = i + step
+  if (j < 0) return { ok: false, reason: '已经是队首' }
+  if (j >= state.construction.length) return { ok: false, reason: '已经是队尾' }
+  const a = state.construction[i]!
+  state.construction[i] = state.construction[j]!
+  state.construction[j] = a
+  return { ok: true }
+}
+
+/** 取消建造的结果（给 `applyActions` 拼日志 / 给 UI 显示退料明细）。 */
+export interface CancelResult extends AffordResult {
+  /** 这一条开过工没有（**材料是开工那一刻才扣的**，没开过工就没什么可退）。 */
+  started: boolean
+  /** 已投入的建造力（= 总需求 − 还差的）。 */
+  used: number
+  /** 总建造力需求。 */
+  total: number
+  /** 该退回国库的实物（预览时**还没**并进 `state.goods`）。 */
+  refund: Array<[string, number]>
+  /** 该退回的金钱（预览时**还没**并进国库）。 */
+  money: number
+  /** 这一条的中文名。 */
+  label: string
+  /** 一句话摘要（公告用它；成功的 `reason` 也是它）。 */
+  text: string
+}
+
+/** `planCancel()` 的返回值：多一个队列下标，落地时要用。 */
+interface CancelPlan extends CancelResult {
+  index: number
+}
+
+/**
+ * 取消退料的**计算**部分（只算不改状态）。口径（见 docs/construction.md 六）：
+ * 材料是开工那一刻才扣的，所以
+ *   - 还没开工 → 一分钱都没扣过，退 0（材料原地不动，不需要"退回"）
+ *   - 已开工   → 按**还没干的那部分**退：退回量 = 已扣材料 × (remaining / totalRequired)
+ *
+ * 直觉：已经投进去的建造力对应的人工/料拿不回来，剩下的原样还给你。
+ * 建造力**本身**不退 —— 它是每日产能，不是库存（与 demolish 同口径）。
+ */
+function planCancel(state: GameState, ctx: ContentContext, id: string): CancelPlan {
+  const i = state.construction.findIndex((c) => c.id === id)
+  const miss: CancelPlan = {
+    ok: false, reason: '该工程已不在队列里', index: -1, started: false, used: 0, total: 0,
+    refund: [], money: 0, label: '', text: '',
+  }
+  if (i < 0) return miss
+  const c = state.construction[i]!
+  const spec = costOf(c, state, ctx)
+  const label = labelOf(c, ctx)
+  const total = c.totalRequired
+  const used = Math.max(0, total - c.remaining)
+  const ratio = c.started && total > 0 ? Math.max(0, Math.min(1, c.remaining / total)) : 0
+  const refund: Array<[string, number]> = []
+  let money = 0
+  if (spec) {
+    for (const [gid, qty] of spec.mats) {
+      const back = round2(qty * ratio)
+      if (back > 0) refund.push([gid, back])
+    }
+    if (spec.money > 0) money = round2(spec.money * ratio)
+  }
+  let text: string
+  if (!c.started) {
+    text = `取消「${label}」（还没开工，材料没扣过）`
+  } else {
+    const pct = total > 0 ? Math.round((used / total) * 100) : 0
+    const parts = refund.map(([gid, q]) => `${ctx.goods[gid]?.nameZh ?? gid}×${round2(q)}`)
+    if (money > 0) parts.push(`¥${round2(money)}`)
+    text = parts.length
+      ? `取消「${label}」（已投入 ${pct}%），退回 ${parts.join('、')}`
+      : `取消「${label}」（已投入 ${pct}%），没有可退的材料`
+  }
+  return { ok: true, index: i, started: c.started, used, total, refund, money, label, text }
+}
+
+/** 取消的**预览**（只算不改）：确认对话框拿它显示"点了会退回什么"。 */
+export function cancelRefundPreview(
+  state: GameState,
+  ctx: ContentContext,
+  id: string,
+): CancelResult {
+  const p = planCancel(state, ctx, id)
+  return {
+    ok: p.ok, reason: p.reason, started: p.started, used: p.used, total: p.total,
+    refund: p.refund, money: p.money, label: p.label, text: p.text,
+  }
+}
+
+/**
+ * 取消一个**还在队列里**的工程（已建成的建筑走 `demolish`，不走这条）。
+ * 退料口径见 `planCancel()`。
+ */
+export function cancelConstruction(
+  state: GameState,
+  ctx: ContentContext,
+  id: string,
+): CancelResult {
+  const plan = planCancel(state, ctx, id)
+  if (!plan.ok) return plan
+  for (const [gid, q] of plan.refund) {
+    state.goods[gid] = round2((state.goods[gid] ?? 0) + q)
+  }
+  if (plan.money > 0) state.government.money = round2(state.government.money + plan.money)
+  state.construction.splice(plan.index, 1)
+  return plan
 }

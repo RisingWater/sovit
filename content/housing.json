@@ -7,18 +7,19 @@
         "arch": "sprite",
         "foot": [
           4,
-          3
+          2
         ],
         "doors": [
           [
             1,
-            2
+            1
           ]
         ]
       },
       "quality": 1,
       "capacity": 4,
       "classId": "poor",
+      "upgradeTo": "wooden_house",
       "buildCost": {
         "wood": 4,
         "brick": 3
@@ -30,11 +31,16 @@
       "id": "wooden_house",
       "nameZh": "木屋",
       "art": {
-        "arch": "sprite"
+        "arch": "sprite",
+        "foot": [
+          3,
+          2
+        ]
       },
       "quality": 2,
       "capacity": 3,
       "classId": "middle",
+      "upgradeTo": "brick_house",
       "buildCost": {
         "wood": 6,
         "brick": 6
@@ -46,7 +52,11 @@
       "id": "brick_house",
       "nameZh": "砖房",
       "art": {
-        "arch": "sprite"
+        "arch": "sprite",
+        "foot": [
+          3,
+          2
+        ]
       },
       "quality": 3,
       "capacity": 2,

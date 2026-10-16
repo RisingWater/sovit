@@ -115,7 +115,9 @@ func _ready() -> void:
 	_spawn_agents()
 
 func _area_center(cell: Vector2i, fw: int, fh: int) -> Vector2:
-	return Vector2(cell.x * TILE + fw * TILE * 0.5, cell.y * TILE + fh * TILE * 0.5)
+	# cell 是"脚"（底边锚点）→ 先换算成左上角，再算矩形中心
+	var top := _foot_top(cell, Vector2i(fw, fh))
+	return Vector2(top.x * TILE + fw * TILE * 0.5, top.y * TILE + fh * TILE * 0.5)
 
 ## 建筑名标签：放在**屏幕空间**的 CanvasLayer 上，字号固定 24px（= 12px 像素字体的
 ## 整数 2 倍，实测每像素正好 2x2，不糊）。这样镜头缩放时文字大小不变。
@@ -133,8 +135,9 @@ func _add_label(text: String, cell: Vector2i, fw: int, fh: int) -> Label:
 	label_layer.add_child(l)
 	# 锚点取**屋顶中心**：最下一行是墙体，屋顶占上面 fh-1 行，
 	# 所以屋顶中心 = 占地顶边 + (fh-1)*TILE/2。牌子压在屋顶上而不是墙上。
+	var top := _foot_top(cell, Vector2i(fw, fh))
 	var cx := _area_center(cell, fw, fh).x
-	var roof_cy := float(cell.y * TILE) + float(fh - 1) * TILE * 0.5
+	var roof_cy := float(top.y * TILE) + float(fh - 1) * TILE * 0.5
 	_label_items.append({"node": l, "world": Vector2(cx, roof_cy)})
 	return l
 
@@ -398,9 +401,10 @@ func _cell_has_cover(c: Vector2i) -> bool:
 
 ## 恢复一块地面的自然装饰（树）。用于建筑挪走 / 拆除之后把地还原。
 func _restore_deco(cell: Vector2i, w: int, h: int) -> void:
+	var tl := _foot_top(cell, Vector2i(w, h))     # cell 是"脚"
 	for x in w:
 		for y in h:
-			var c := cell + Vector2i(x, y)
+			var c := tl + Vector2i(x, y)
 			if not map.in_bounds(c) or _cell_has_cover(c):
 				continue
 			if map.terrain[map.idx(c.x, c.y)] != GameMap.FOREST:
@@ -431,7 +435,10 @@ func _build_town_center() -> void:
 	# 门洞由 content 声明：`town_center.art.doors = [[3,5],[4,5]]` —— 贴图上画的是
 	# **双开门**，门口本来就占两格（用户明确要求"门口两格都必须是门洞"）。
 	# 两格门格 + 两格门前通行格全部预留，见 `_register_doors()`。
-	var tc_doors := _register_doors("town_center", map.town_center.position, fp)
+	# `_register_doors()` 收的是**锚点**（"脚"），而 `map.town_center` 是个左上角矩形
+	# —— 转一下再传（城镇中心自己仍是地图固定的那座，`map.occupy` 那边照旧用左上角）。
+	var tc_anchor := _foot_anchor(map.town_center.position, fp)
+	var tc_doors := _register_doors("town_center", tc_anchor, fp)
 	_town_center_door = (tc_doors[0] as Array)[0]
 	_town_center_goal = tc_doors[1]
 	# ⚠️ **把占地登记成一条 shop 占格**，否则这座楼是"点不动"的。
@@ -484,9 +491,9 @@ func _find_free_area(type: String, near: Vector2i, gap: int) -> Vector2i:
 				var c = base + Vector2i(dx, dy)
 				if gap > 0:
 					if map.terrain_ok(c - Vector2i(gap, gap), fp.x + gap * 2, fp.y + gap * 2, []):
-						return c
+						return _foot_anchor(c, fp)
 				elif map.terrain_ok(c, fp.x, fp.y, []):
-					return c
+					return _foot_anchor(c, fp)
 	return Vector2i(-1, -1)
 
 func _art_of(type: String) -> Dictionary:
@@ -510,17 +517,18 @@ func _footprint(type: String) -> Vector2i:
 			return Vector2i(int(foot[0]), int(foot[1]))
 		var tex := _texture_for(type)
 		if tex != null:
-			# ⚠️ 用 **floor**，不是 ceil。
+			# 宽：floor(贴图宽 / 16)；高：floor(贴图高 / 16) **再减 1 行**。
 			#
-			# `_place_sprite()` 把贴图**底边**对齐占地的**底边**，所以多算出来的行
-			# 全在占地顶部、**画面上什么都没有**，却实实在在占着格子挡建造 ——
-			# 玩家报过"画面上明明没有占到，但是实际上占到了"（茅屋 64×48：
-			# ceil(1.5)=2 格，顶部 16px 就是隐形的）。
-			# floor 之后，贴图高出来的那部分变成"往上伸出去的装饰"，
-			# 可以和后一格的建筑互相遮挡 —— 这正是本函数注释里写的设计本意。
-			# 至少留 1 格，别让矮贴图算出 0 占地。
-			return Vector2i(maxi(1, int(floor(tex.get_width() / float(TILE)))),
-				maxi(1, int(floor(tex.get_height() / float(TILE)))))
+			# 为什么减 1 行：贴图最上面那一行是**屋顶 / 塔尖**，画面上往上伸出去、
+			# **不占用地盘**（2026-10 用户定的规则："跟小人只有下半身占地、脑袋不占地一样"）。
+			# 所以不写 `art.foot` 时，缺省占地就已经是"脚踩的那几行"。
+			#
+			# ⚠️ 用 **floor**，不是 ceil：多算出来的行全在占地顶部、画面上什么都没有，
+			# 却实实在在占着格子挡建造（玩家报过"画面上明明没有占到，但实际上占到了"）。
+			# 至少留 1 行，别让矮贴图（或减掉屋顶之后）算出 0 占地。
+			var cols := maxi(1, int(floor(tex.get_width() / float(TILE))))
+			var rows := maxi(1, int(floor(tex.get_height() / float(TILE))) - 1)
+			return Vector2i(cols, rows)
 		return Vector2i(3, 3)
 	var w := int(a.get("w", 6 if arch == "field" else 3))
 	if arch == "field" or a.has("rows"):
@@ -529,22 +537,45 @@ func _footprint(type: String) -> Vector2i:
 	var roof_rows := 1 if String(a.get("roof", "")) == "green" else 2
 	return Vector2i(w, roof_rows + 1)
 
+## 占地锚点 = 建筑**底边那一行的最左格**（"脚踩的那格"）。
+##
+## 2026-10 换的口径：以前 `cell` 是**占地左上角**，于是"把 foot 高度减 1 行"会把整栋
+## 房子往上抬一行（贴图底边对齐占地底边，底边一动画就跟着动），空出来的是**脚下**
+## 那行、而不是屋顶那行 —— 跟直觉正好相反。换成底边锚点之后：**改 foot 高度只影响
+## 顶部**（屋顶往上伸出去），房子原地不动；玩家点的那一行就是它的脚。
+##
+## 所有内部函数一律走 `_foot_top()` / `_foot_anchor()` / `_foot_rect()` 换算，
+## 别自己写 `cell.y - fp.y + 1`。
+func _foot_top(cell: Vector2i, fp: Vector2i) -> Vector2i:
+	return Vector2i(cell.x, cell.y - fp.y + 1)
+
+## 反向：左上角 → 锚点。给"先按左上角搜、再回报锚点"的地方用。
+func _foot_anchor(top: Vector2i, fp: Vector2i) -> Vector2i:
+	return Vector2i(top.x, top.y + fp.y - 1)
+
+## 占地矩形（左上角 + 宽高）。`map.occupy()` / `terrain_ok()` / 调试画框这些低层接口要左上角。
+func _foot_rect(cell: Vector2i, fp: Vector2i) -> Rect2i:
+	return Rect2i(_foot_top(cell, fp), fp)
+
 ## 把成品整图摆进占地格：**横向居中、底边对齐**，并把节点自身的位置落在"地面线"
 ## （占地底边的中点）上 —— y 排序用的就是节点 y，所以必须让它等于地面线，
 ## 而不是贴图左上角（那样前排后排会排错）。
 ##
 ## **底部对齐**是正面平视图的关键：新素材是完全正面平视（无透视、看不到屋顶坡面），
 ## 建筑应该"站"在占地的底边上、向上生长；居中会让它一半陷进地里。
-## 占地比贴图矮时 offset.y 为负 —— 贴图就往**上**伸出占地，盖住身后的建筑，
-## 这正是 content 里 art.foot 想表达的东西。
+## `origin` 是**锚点**（"脚"那一格），贴图比占地高出来的部分往**上**伸出框外 ——
+## 这正是 content 里 `art.foot` 想表达的东西（"最上面一行不占地"）。
 func _place_sprite(spr: Sprite2D, type: String, origin: Vector2i, fp: Vector2i) -> void:
 	var a := _art_of(type)
 	if String(a.get("arch", "")) != "sprite" or spr.texture == null:
-		spr.position = Vector2(origin.x * TILE, origin.y * TILE)
+		# 程序化拼装：节点贴占地左上角（offset 归零，别继承上一次摆整图留下的偏移）
+		var tl := _foot_top(origin, fp)
+		spr.position = Vector2(tl.x * TILE, tl.y * TILE)
+		spr.offset = Vector2.ZERO
 		return
 	spr.position = Vector2(
 		origin.x * TILE + fp.x * TILE * 0.5,
-		origin.y * TILE + fp.y * TILE)
+		(origin.y + 1) * TILE)
 	spr.offset = Vector2(-spr.texture.get_width() * 0.5, -spr.texture.get_height())
 
 func _texture_for(type: String) -> Texture2D:
@@ -558,7 +589,7 @@ func _texture_for(type: String) -> Texture2D:
 func _place_housing_instance(type: String, cell: Vector2i) -> void:
 	var fp = _footprint(type)
 	var uid = "%s#%d" % [type, _housing_instances.size() + 1]
-	map.occupy(cell, fp.x, fp.y, "housing", uid)
+	map.occupy(_foot_top(cell, fp), fp.x, fp.y, "housing", uid)
 	_clear_deco(cell, fp.x, fp.y)
 	var spr := Sprite2D.new()
 	spr.texture = _texture_for(type)
@@ -583,15 +614,16 @@ func housing_instance(uid: String) -> Variant:
 ## 建筑占地范围内的装饰（树）要抹掉，否则房子四周会露出树。
 ## 道路/地板在 _rerender_terrain() 里抹过，建筑这条路径原本漏了。
 func _clear_deco(cell: Vector2i, w: int, h: int) -> void:
+	var tl := _foot_top(cell, Vector2i(w, h))     # cell 是"脚"
 	for x in w:
 		for y in h:
-			deco_layer.erase_cell(cell + Vector2i(x, y))
+			deco_layer.erase_cell(tl + Vector2i(x, y))
 
 func _create_shop_view(sid: String, def_id: String, cell: Vector2i) -> void:
 	if _shop_sprites.has(sid):
 		return
 	var fp = _footprint(def_id)
-	map.occupy(cell, fp.x, fp.y, "shop", sid)
+	map.occupy(_foot_top(cell, fp), fp.x, fp.y, "shop", sid)
 	_clear_deco(cell, fp.x, fp.y)
 	var spr := Sprite2D.new()
 	spr.texture = _texture_for(def_id)
@@ -673,7 +705,8 @@ func _cells_with(bitmap: PackedByteArray) -> Array:
 	return out
 
 # ---- 存档 / 读档（含地图与放置）-----------------------------------------
-const SAVE_VERSION := 2
+const SAVE_VERSION := 3
+	# v3：占格锚点从"左上角"改成"底边那一格"（见 `_foot_top()`），旧档不再兼容。
 
 func save_to(path: String) -> Error:
 	var data := {
@@ -874,9 +907,10 @@ func showcase_village(seed_value: int) -> void:
 	_prev_housing_n = -1
 
 func _area_free(cell: Vector2i, fp: Vector2i) -> bool:
+	var tl := _foot_top(cell, fp)                 # cell 是"脚"
 	for x in fp.x:
 		for y in fp.y:
-			var c := cell + Vector2i(x, y)
+			var c := tl + Vector2i(x, y)
 			if map.occupied.has(c) or map.reserved.has(c):
 				return false
 			# 别把房子盖在路中间
@@ -924,7 +958,6 @@ func start_new_game(seed_value: int, resource_mult: float, village_name: String)
 	if nm.length() > UIKit.NAME_MAX:
 		nm = nm.substr(0, UIKit.NAME_MAX)
 	runner.sim.s["villageName"] = nm
-	runner.recent_logs = []
 	_reset_buildings()
 	_map_seed = seed_value
 	map = GameMap.new()
@@ -944,7 +977,9 @@ func load_from(path: String) -> bool:
 	if data == null:
 		return false
 	var ver = int(data.get("saveVersion", 0))
-	if ver < 1 or ver > SAVE_VERSION:
+	# v3 起占格锚点从"左上角"改成"底边那一格"（见 `_foot_top()`）—— 旧档里的格子是
+	# 另一种含义，读进来会整村错位。这里**直接拒绝**，不猜（重存一次即可）。
+	if ver < 3 or ver > SAVE_VERSION:
 		return false
 
 	# 兼容 v1：旧格式把 sim 字段(pack/seed/rngState/state)放在顶层
@@ -959,7 +994,6 @@ func load_from(path: String) -> bool:
 	sim.rng = Rng.new(int(sp.get("rngState", 0)))
 	SaveManager._sanitize(sim.s, runner.db)
 	runner.sim = sim
-	runner.recent_logs = []
 
 	_reset_buildings()
 
@@ -1035,18 +1069,20 @@ func begin_move_housing(uid: String) -> void:
 
 func _own_cells(cell: Vector2i, fp: Vector2i) -> Dictionary:
 	var d := {}
+	var tl := _foot_top(cell, fp)                 # cell 是"脚"
 	for dy in fp.y:
 		for dx in fp.x:
-			d[cell + Vector2i(dx, dy)] = true
+			d[tl + Vector2i(dx, dy)] = true
 	return d
 
 func _move_ok(type: String, origin: Vector2i, fp: Vector2i, own: Dictionary) -> bool:
+	var tl := _foot_top(origin, fp)               # origin 是"脚"
 	var terrains := []
 	if runner.db.buildings.has(type) and runner.db.buildings[type].has("terrain"):
 		terrains = [String(runner.db.buildings[type]["terrain"])]
 	for dy in fp.y:
 		for dx in fp.x:
-			var c = origin + Vector2i(dx, dy)
+			var c = tl + Vector2i(dx, dy)
 			if not map.in_bounds(c) or map.is_water(c):
 				return false
 			if own.has(c):
@@ -1058,9 +1094,10 @@ func _move_ok(type: String, origin: Vector2i, fp: Vector2i, own: Dictionary) -> 
 	return true
 
 func _free_building_cells(cell: Vector2i, fp: Vector2i, doors: Array, interior: Vector2i) -> void:
+	var tl := _foot_top(cell, fp)                 # cell 是"脚"
 	for dy in fp.y:
 		for dx in fp.x:
-			map.occupied.erase(cell + Vector2i(dx, dy))
+			map.occupied.erase(tl + Vector2i(dx, dy))
 	for d in doors:
 		_doors.erase(d)
 		_walk_inside.erase(d)
@@ -1071,7 +1108,7 @@ func _free_building_cells(cell: Vector2i, fp: Vector2i, doors: Array, interior: 
 ## 占格 + 门洞（`_register_doors`）。`type` 是**内容定义 id**（如 `coarse_weaver`、
 ## `hut`），不是实例 id —— 门洞要从 `art.doors` 读，实例 id 查不到 art。
 func _occupy_building(kind: String, id: String, type: String, cell: Vector2i, fp: Vector2i) -> Array:
-	map.occupy(cell, fp.x, fp.y, kind, id)
+	map.occupy(_foot_top(cell, fp), fp.x, fp.y, kind, id)
 	_clear_deco(cell, fp.x, fp.y)
 	return _register_doors(type, cell, fp)
 
@@ -1197,6 +1234,9 @@ func _sync() -> void:
 		_prev_housing_n = _housing_instances.size()
 		_assign_homes()
 	_refresh_agents()
+	# 收尾：把"队列里已经没有主"的工地收掉（取消建造留下的孤儿，见 _prune_orphan_sites）。
+	# 必须放在绑定新建筑**之后** —— 完工的那一座正是从队首那处工地收走的。
+	_prune_orphan_sites()
 
 ## 收掉一座建筑的视图：精灵 + 地格占用 + 所有按 shop_id 索引的表。
 func _remove_shop_view(sid: String) -> void:
@@ -1234,6 +1274,47 @@ func _take_sites_for(type: String, n: int) -> Array:
 			break
 		out.append(c)
 	return out
+
+## 取消建造（sim 的 `cancel_construction`）之后：队列里已经没有这条了，但地图上那处
+## 工地精灵还在 —— 不收拾的话它会**永远留在图上**（灰精灵），地格也永远占着，
+## 看起来像"还在建、只是不动了"。
+##
+## ⚠️ 判据不能用"工地数 > 队列条数"那么简单：**刚放下的工地，它的命令要等次日 06:00
+##    才进队列**（那半天里队列里根本没有它，`_site_entry()` 会给「已下单」）。
+##    只看数量的话，刚放下的工地会被当场收掉 —— 门槛 `doortest` / `multisite` 就是
+##    这么红的（工地没了，建筑落到了别处、提示也空了）。
+##
+## 所以每个工地记一个 `seen_entry`：**曾经真的对上过队列里的一条**，才有资格当孤儿。
+## 取消留下的那处从队尾收回（同类型的工地长得一样，收哪一处视觉上等价）。
+func _prune_orphan_sites() -> void:
+	for type in _site_by_type.keys():
+		var t := String(type)
+		var list: Array = _site_by_type[type]
+		var want := _construction_entries(t).size()
+		var keep := []
+		var dropped := false
+		for i in list.size():
+			var site: Dictionary = list[i]
+			if i < want:
+				site["seen_entry"] = true      # 现在确实对应队列里的一条
+				keep.append(site)
+				continue
+			if bool(site.get("seen_entry", false)):
+				_free_site(site)               # 对不上了 → 取消建造留下的孤儿
+				dropped = true
+			else:
+				keep.append(site)              # 命令还没生效：队列里本来就还没有它
+		if dropped:
+			_site_by_type[t] = keep
+
+## 收掉一处工地：精灵 + 地格占用（`_register_site()` 的反操作）。
+func _free_site(site: Dictionary) -> void:
+	if is_instance_valid(site.get("node", null)):
+		(site["node"] as Node).queue_free()
+	var fp := Vector2i(int(site["fw"]), int(site["fh"]))
+	map.free_cells(_foot_top(site["cell"], fp), fp.x, fp.y)
+	_sites.erase(site)
+	_nav_dirty = true
 
 func _spawn_agents() -> void:
 	if not ring_layer.draw.is_connected(_draw_rings):
@@ -1514,7 +1595,7 @@ func _blocked(c: Vector2i) -> bool:
 # 哪几格（城镇中心贴图上画的是双开门，门口本来就占两格）。取门一律走
 # `_door_cells()`；这个函数只用来算缺省偏移（`_default_door_offset`）。
 func _door_cell(cell: Vector2i, fw: int, fh: int) -> Vector2i:
-	return cell + _default_door_offset(Vector2i(fw, fh))
+	return _foot_top(cell, Vector2i(fw, fh)) + _default_door_offset(Vector2i(fw, fh))
 
 ## 缺省门洞偏移（相对占地左上角）：底边、横向居中。
 ## 整数除法，所以宽 4 取第 2 列（0 起）——偏左的那一格，和改动前完全一致。
@@ -1528,6 +1609,7 @@ func _default_door_offset(fp: Vector2i) -> Vector2i:
 ## 声明非法（越界 / 格式错）时 `push_error` 喊一声再退回缺省：宁可门在缺省位置，
 ## 也不能让一栋建筑没有门（那等于居民进不了屋、也走不到门口）。
 func _door_cells(type: String, cell: Vector2i, fp: Vector2i) -> Array:
+	var top := _foot_top(cell, fp)                # cell 是"脚"
 	var art := _art_of(type)
 	var declared: Variant = art.get("doors", null)
 	var out: Array = []
@@ -1535,11 +1617,11 @@ func _door_cells(type: String, cell: Vector2i, fp: Vector2i) -> Array:
 		var errs := ContentDB.validate_doors(art, fp)
 		if errs.is_empty():
 			for d in (declared as Array):
-				out.append(cell + Vector2i(int(d[0]), int(d[1])))
+				out.append(top + Vector2i(int(d[0]), int(d[1])))
 		else:
 			push_error("建筑 %s 的 art.doors 非法：%s" % [type, "；".join(errs)])
 	if out.is_empty():
-		out.append(cell + _default_door_offset(fp))
+		out.append(top + _default_door_offset(fp))
 	return out
 
 ## 登记一栋建筑的门洞：**每个**门格 + 每扇门**正下方**那一格（门前通行格）都写进
@@ -1587,17 +1669,19 @@ func _pave_door_front(type: String, cell: Vector2i, fp: Vector2i) -> void:
 # 屋内落脚格：大建筑取中心，小建筑(2×2)取主门格本身。
 func _interior_cell(cell: Vector2i, fw: int, fh: int, doors: Array = []) -> Vector2i:
 	if fw >= 3 and fh >= 3:
-		return Vector2i(cell.x + fw / 2, cell.y + fh / 2)
+		var top := _foot_top(cell, Vector2i(fw, fh))
+		return Vector2i(top.x + fw / 2, top.y + fh / 2)
 	if not doors.is_empty():
 		return doors[0]
 	return _door_cell(cell, fw, fh)
 
 func _anchor_cell(cell: Vector2i, fw: int, fh: int) -> Vector2i:
+	var top := _foot_top(cell, Vector2i(fw, fh))  # cell 是"脚"
 	var cands := [
-		Vector2i(cell.x, cell.y + fh),
-		Vector2i(cell.x, cell.y - 1),
-		Vector2i(cell.x - 1, cell.y),
-		Vector2i(cell.x + fw, cell.y),
+		Vector2i(top.x, top.y + fh),
+		Vector2i(top.x, top.y - 1),
+		Vector2i(top.x - 1, top.y),
+		Vector2i(top.x + fw, top.y),
 	]
 	for d in cands:
 		if map.in_bounds(d) and not _blocked(d):
@@ -1605,7 +1689,7 @@ func _anchor_cell(cell: Vector2i, fw: int, fh: int) -> Vector2i:
 	for ring in range(1, 6):
 		for dy in range(-ring, fh + ring + 1):
 			for dx in range(-ring, fw + ring + 1):
-				var c = cell + Vector2i(dx, dy)
+				var c = top + Vector2i(dx, dy)
 				if map.in_bounds(c) and not _blocked(c):
 					return c
 	return cell
@@ -1749,7 +1833,7 @@ func _unhandled_input(event: InputEvent) -> void:
 
 func _on_left_click(cell: Vector2i) -> void:
 	if move_mode != "":
-		var origin = Vector2i(cell.x - 1, cell.y - 1)
+		var origin = Vector2i(cell.x - 1, cell.y)     # 点的那格是"脚"那一行
 		var parts = move_mode.split(":")
 		var ok = false
 		if parts[0] == "shop":
@@ -1773,6 +1857,16 @@ func _on_left_click(cell: Vector2i) -> void:
 			select_building.emit(String(occ["id"]))
 		elif occ["kind"] == "housing":
 			select_housing.emit(String(occ["id"]))
+		return
+	# 占格之外还有"贴图上画着、但不占地"的部分（屋顶 / 塔尖）—— 点它也应该选中这座
+	# 建筑（用户："点屋顶选不中房子，这个无法接受"）。命中区见 `_sprite_rect()`。
+	var pick = _pick_building_at(cell)
+	if pick != null:
+		selected_resident = ""
+		if String(pick["kind"]) == "housing":
+			select_housing.emit(String(pick["id"]))
+		else:
+			select_building.emit(String(pick["id"]))
 		return
 	var best = _nearest_agent(get_global_mouse_position())
 	if best != "":
@@ -1801,16 +1895,30 @@ func _mouse_cell() -> Vector2i:
 # ---- 在建工地的悬停提示 ---------------------------------------------------
 ## 这一格上的工地说明；不是工地就返回 ""（空串 = 不显示）。
 ##
-## 为什么按**类型**去 sim 那边找工程条目，而不是按格子：`build` 动作里不带坐标，
-## sim 也不认格子（它只知道"要建什么"），工地占格是表现层自己登记的。
-## 所以同类工地共用一份进度 —— 真有多处时在文字里写明有几处，不假装精确。
+## 工地 / 建筑升级的悬停提示。
+##
+## ⚠️ 工地与施工队列的对应关系是**"同类型里的第 i 个"**：`build` 动作里不带坐标、
+## sim 也不认格子（它只知道"要建什么"），工地占格是表现层自己登记的。而两侧都是
+## FIFO —— `_register_site()` 按放置顺序追加、`_take_site_for()` 从队首收走，
+## sim 的 `construction` 同理 —— 所以"第 i 个工地 ↔ 同类型的第 i 条条目"。
+##
+## 曾经写成"同类型一律取队首 / 那条 started 的"：同类型的 4 个工地会**共用一条进度**，
+## 4 条进度条一起涨、却只有队首那座真的建好（用户报的就是这个）。
+##
+## 升级中的建筑也走这里：它在占格里是 `"shop"`（升级没有工地实体），但同样有进度。
 func site_tip_at(cell: Vector2i) -> String:
 	if map == null or runner == null or runner.sim == null:
 		return ""
 	if not map.in_bounds(cell):
 		return ""
 	var occ = map.occupied_at(cell)
-	if occ == null or String(occ["kind"]) != "site":
+	if occ == null:
+		return ""
+	if String(occ["kind"]) == "shop":
+		return _upgrade_tip(String(occ["id"]))
+	if String(occ["kind"]) == "housing":
+		return _housing_upgrade_tip(String(occ["id"]))
+	if String(occ["kind"]) != "site":
 		return ""
 	var type := String(occ["id"])
 	var name_zh := type
@@ -1819,34 +1927,39 @@ func site_tip_at(cell: Vector2i) -> String:
 	elif runner.db.housing.has(type):
 		name_zh = String(runner.db.housing[type]["nameZh"])
 
+	var site := _site_at(cell, type)
+	var idx := _site_ordinal(site)
 	var list := _construction_entries(type)
-	if list.is_empty():
+	if idx < 0 or idx >= list.size():
 		# 刚放下时队列里还没有它：命令在黎明生效、施工要等入夜结算。
 		# 时刻从内容里读（别写死 06:00/18:00 —— 它们是 economy.json 的 time 块）。
 		return "%s · 已下单（%02d:00 开工，白天按小时累积）" % [
 			name_zh, int(db_time("dawnHour", 6))]
-	# 优先报正在施工的那处；都在排队就报排最前的
-	var best: Dictionary = list[0]
-	for c in list:
-		if bool(c.get("started", false)):
-			best = c
-			break
-	var need := float(best.get("totalRequired", 0.0))
-	var left := float(best.get("remaining", 0.0))
+	var best: Dictionary = list[idx]
+	var text := _entry_tip_text(name_zh, best)
+	if list.size() > 1:
+		text += "\n同类工地第 %d / %d 处" % [idx + 1, list.size()]
+	return text
+
+## 一条工程（工地 / 建筑升级）的悬停文案：名字 + 状态 + 建造力进度（+ 卡住的原因）。
+##
+## 工地与升级**共用这一支**：两者在 sim 里是同一条 `construction` 队列、同一套
+## `started` / `remaining` 字段，只有"名字从哪来"不同。
+func _entry_tip_text(label: String, c: Dictionary) -> String:
+	var need := float(c.get("totalRequired", 0.0))
+	var left := float(c.get("remaining", 0.0))
 	var done := maxf(0.0, need - left)
 	var pct := 0 if need <= 0.0 else int(roundf(done / need * 100.0))
-	var head := "建造中" if bool(best.get("started", false)) else _why_waiting(best)
+	var head := "建造中" if bool(c.get("started", false)) else _why_waiting(c)
 	var text := "%s · %s\n建造力 %d / %d（%d%%）" % [
-		name_zh, head, int(roundf(done)), int(roundf(need)), pct]
+		label, head, int(roundf(done)), int(roundf(need)), pct]
 	# ⚠️ 光说"等前面的工程"会骗人：**队首自己没开工时也是这句话**。
 	# 玩家在"命令次日 06:00 才生效"的窗口里、或游戏暂停着，会以为后面一堆工程
 	# 在抢产能，于是得出"12 个建造力一个都用不上"的结论。这里把队首的具体原因写出来。
-	if not bool(best.get("started", false)):
-		var ahead := _blocked_ahead(best)
+	if not bool(c.get("started", false)):
+		var ahead := _blocked_ahead(c)
 		if ahead != "":
 			text += "\n%s" % ahead
-	if list.size() > 1:
-		text += "\n同类工地共 %d 处" % list.size()
 	return text
 
 ## 读 `content/economy.json` 的 time 块（时刻别在代码里写死）。
@@ -1856,7 +1969,11 @@ func db_time(key: String, fallback: int) -> int:
 
 ## 这一条还没开工，到底在等什么 —— 给玩家能动手的答案，而不是"等前面的工程"。
 func _why_waiting(c: Dictionary) -> String:
-	var pos: int = (runner.sim.s["construction"] as Array).find(c)
+	return _why_waiting_at(c, (runner.sim.s["construction"] as Array).find(c))
+
+## 同上，但位置由调用方给：城镇中心的「建造队列」页画的是**显示副本**
+## （把还没生效的调序先算进去，不然点完 ↑ 屏幕上一动不动），位置得按那份算。
+func _why_waiting_at(c: Dictionary, pos: int) -> String:
 	if pos > 0:
 		return "排队中（前面还有 %d 处工程）" % pos
 	# 排在队首：要么在攒材料，要么就是还没到下一个 06:00
@@ -1896,6 +2013,12 @@ func _sim_label(c: Dictionary) -> String:
 		var up := String(c.get("buildingId", ""))
 		var base := String(runner.db.buildings[up]["nameZh"]) if runner.db.buildings.has(up) else up
 		return base + " 升级"
+	if kind == "housing_upgrade":
+		var hf := String(c.get("housingId", ""))
+		var ht := String(c.get("toHousingId", ""))
+		var n1 := String(runner.db.housing[hf]["nameZh"]) if runner.db.housing.has(hf) else hf
+		var n2 := String(runner.db.housing[ht]["nameZh"]) if runner.db.housing.has(ht) else ht
+		return "%s 改建（→ %s）" % [n1, n2]
 	return String(c.get("id", ""))
 
 ## 缺哪些材料 —— 说中文名（`_shortage_reason()` 报的是商品 id，玩家看不懂）。
@@ -1924,6 +2047,77 @@ func _construction_entries(type: String) -> Array:
 		elif k == "housing" and String(c.get("housingId", "")) == type:
 			out.append(c)
 	return out
+
+## 这一格上的工地（按占地矩形匹配 —— 同一个类型可能有好几处，得按格子认出是哪一处）。
+func _site_at(cell: Vector2i, type: String) -> Dictionary:
+	for s in _site_by_type.get(type, []):
+		var fp := Vector2i(int(s["fw"]), int(s["fh"]))
+		if _foot_rect(s["cell"], fp).has_point(cell):
+			return s
+	return {}
+
+## 这个工地是**同类型里的第几个**（0 起）。
+##
+## 工地与施工队列两侧都是 FIFO：`_register_site()` 按放置顺序追加、`_take_site_for()`
+## 从队首收走；sim 的 `construction` 也是先来先做。所以"第 i 个工地 ↔ 同类型的第 i 条
+## 条目"是稳定且**自纠正**的：队首那座建好被收走时，两边的队首同时前进，序号自动重新对齐。
+func _site_ordinal(s: Dictionary) -> int:
+	if s.is_empty():
+		return -1
+	var list: Array = _site_by_type.get(String(s["id"]), [])
+	for i in list.size():
+		if list[i] == s:
+			return i
+	return -1
+
+## 这个工地对应的施工队列条目（空 = 还没进队列，或队列里同类条目不够）。
+func _site_entry(s: Dictionary) -> Dictionary:
+	var idx := _site_ordinal(s)
+	if idx < 0:
+		return {}
+	var list := _construction_entries(String(s["id"]))
+	return list[idx] if idx < list.size() else {}
+
+## 这座建筑排着的**升级**条目（空 = 没在升级）。
+##
+## 升级与工地共用 sim 里那条 `construction` 队列（`kind == "upgrade"` + `shopId`），
+## 但**地图上没有工地实体** —— 它是从建筑面板点"升级"下单的，占格里仍是 `"shop"`。
+func _upgrade_entry(sid: String) -> Dictionary:
+	for c in (runner.sim.s["construction"] as Array):
+		if String(c.get("kind", "")) == "upgrade" and String(c.get("shopId", "")) == sid:
+			return c
+	return {}
+
+## 刚点了"升级"、命令还没到黎明生效（动作躺在 `pending` 里，队列里还看不见）。
+func _upgrade_pending(sid: String) -> bool:
+	for a in (runner.sim.s["pending"] as Array):
+		if String(a.get("type", "")) == "expand" and String(a.get("shopId", "")) == sid:
+			return true
+	return false
+
+## 升级进度条需要的两个数：状态 + 填充比例。空字典 = 这条不该画（没在升级）。
+##
+## 状态口径与工地 / 研究所完全一致：蓝 = 在建、黄 = 排队、红 = 缺料、灰 = 已下单未进队列。
+func _upgrade_state(sid: String) -> Dictionary:
+	var c := _upgrade_entry(sid)
+	if c.is_empty():
+		return {"state": "pending", "frac": 0.0} if _upgrade_pending(sid) else {}
+	return _entry_bar_state(c)
+
+## 升级中的那座建筑的悬停文案（没在升级 = 空串，让别的提示去处理）。
+func _upgrade_tip(sid: String) -> String:
+	var st := _upgrade_state(sid)
+	if st.is_empty():
+		return ""
+	var def_id := String(_shop_def.get(sid, ""))
+	var name_zh := def_id
+	if runner.db.buildings.has(def_id):
+		name_zh = String(runner.db.buildings[def_id]["nameZh"])
+	var c := _upgrade_entry(sid)
+	if c.is_empty():
+		return "%s 升级 · 已下单（%02d:00 开工，白天按小时累积）" % [
+			name_zh, int(db_time("dawnHour", 6))]
+	return _entry_tip_text(name_zh + " 升级", c)
 
 func _update_site_tip(screen_pos: Vector2) -> void:
 	if _tip == null:
@@ -1964,26 +2158,56 @@ const ST_BAR_COLOR := {
 	"idle": Color(0.72, 0.72, 0.72),
 }
 
+## 进度条的基线 y：**占地顶边往上 16px**。
+##
+## ⚠️ `cell` 是"脚"（底边锚点，见 `_foot_top()`），所以要先用 `_foot_top()` 换成占地
+## 左上角再往上抬 —— 直接写 `cell.y * TILE - 16` 的话，条会落在**建筑顶上那一行**里
+## （锚点改口径时踩过：条压在屋顶上）。
+func _bar_base_y(cell: Vector2i, fp: Vector2i) -> float:
+	return float(_foot_top(cell, fp).y) * TILE - 16.0
+
+## 画一条进度条：深色底衬 + 状态色填充（`frac == 0` 时只描一个同色空框，
+## 否则"一点没投入"会只剩一条黑杠）。工地 / 建筑升级 / 研究所三条共用这一支。
+func _draw_bar_at(cx: float, base_y: float, st: Dictionary) -> void:
+	var w := 30.0
+	var h := 6.0
+	var origin := Vector2(cx - w * 0.5, base_y)
+	site_layer.draw_rect(Rect2(origin + Vector2(-1, -1), Vector2(w + 2, h + 2)),
+		Color(0.10, 0.08, 0.07, 0.9))
+	var inner := Rect2(origin, Vector2(w, h))
+	var col: Color = ST_BAR_COLOR[String(st["state"])]
+	var frac := clampf(float(st["frac"]), 0.0, 1.0)
+	if frac > 0.0:
+		site_layer.draw_rect(Rect2(inner.position, Vector2(inner.size.x * frac, inner.size.y)), col)
+	else:
+		site_layer.draw_rect(inner, col, false, 1.0)
+
 func _draw_site_bars() -> void:
+	# 工地：占格在 `map.occupied` 里是 "site"
 	for s in _sites:
 		var fp := Vector2i(int(s["fw"]), int(s["fh"]))
 		var cell: Vector2i = s["cell"]
-		var st := _site_bar_state(String(s["id"]))
-		var w := 30.0
-		var h := 6.0
-		var origin := Vector2(_area_center(cell, fp.x, fp.y).x - w * 0.5,
-			float(cell.y) * TILE - 16.0)
-		# 底：深色描边，保证在草地/屋顶上都看得清
-		site_layer.draw_rect(Rect2(origin + Vector2(-1, -1), Vector2(w + 2, h + 2)),
-			Color(0.10, 0.08, 0.07, 0.9))
-		var inner := Rect2(origin, Vector2(w, h))
-		var col: Color = ST_BAR_COLOR[String(st["state"])]
-		var frac := clampf(float(st["frac"]), 0.0, 1.0)
-		if frac > 0.0:
-			site_layer.draw_rect(Rect2(inner.position, Vector2(inner.size.x * frac, inner.size.y)), col)
-		else:
-			# 一点都没投入时别只剩一条黑杠：用状态色描个空框
-			site_layer.draw_rect(inner, col, false, 1.0)
+		_draw_bar_at(_area_center(cell, fp.x, fp.y).x, _bar_base_y(cell, fp), _site_bar_state(s))
+	# 建筑升级：没有工地实体（占格里仍是 "shop"），条直接画在建筑头上。
+	#
+	# 升级是从建筑面板下单的，地图上原本**一点反馈都没有**：点完"升级"看不见进度、
+	# 也分不出是在建还是在排队（用户："建筑升级没有进度条？"）。
+	for sid in _shop_cell.keys():
+		var st := _upgrade_state(String(sid))
+		if st.is_empty():
+			continue
+		var fp2 := _footprint(String(_shop_def.get(sid, "")))
+		var cell2: Vector2i = _shop_cell[sid]
+		_draw_bar_at(_area_center(cell2, fp2.x, fp2.y).x, _bar_base_y(cell2, fp2), st)
+	# 住房改建：住房是**计数模型**、没有工地实体，条画在"第 i 座同类住房"头上
+	# （配对约定见 `_housing_ordinal()`）。
+	for inst in _housing_instances:
+		var hst := _housing_upgrade_state(inst)
+		if hst.is_empty():
+			continue
+		var hfp := Vector2i(int(inst["fw"]), int(inst["fh"]))
+		var hcell: Vector2i = inst["cell"]
+		_draw_bar_at(_area_center(hcell, hfp.x, hfp.y).x, _bar_base_y(hcell, hfp), hst)
 	_draw_research_bars()
 
 ## 研究所头顶的进度条（用户："科研也可以，以后研究所头上也放个进度条"）。
@@ -1995,27 +2219,20 @@ func _draw_site_bars() -> void:
 ## 画的是**当前研究项目**（`research.queue[0]`）的进度
 ## （`(totalRequired − remaining) / totalRequired`）；队列空 = 一条灰色空框
 ## （见 `_research_bar_state` 的理由）。
+##
+## ⚠️ 研究所自己也可能在升级（`expand`）：两者用的是**同一个** `_bar_base_y()`，会重叠。
+## 所以升级中时这里**跳过这座**，让"升级进度"优先 —— 升级没做完之前它也研究不了，
+## 画两条叠在一起只会互相盖住。
 func _draw_research_bars() -> void:
 	for sh in _research_shops():
 		var sid := String(sh["id"])
 		var cell: Vector2i = _shop_cell.get(sid, Vector2i(-1, -1))
 		if cell.x < 0:
 			continue	# 还没落到地图上（刚建成那一帧）
+		if not _upgrade_state(sid).is_empty():
+			continue	# 这座在升级：把条让给升级进度
 		var fp := _footprint(String(sh["defId"]))
-		var st := _research_bar_state()
-		var w := 30.0
-		var h := 6.0
-		var origin := Vector2(_area_center(cell, fp.x, fp.y).x - w * 0.5,
-			float(cell.y) * TILE - 16.0)
-		site_layer.draw_rect(Rect2(origin + Vector2(-1, -1), Vector2(w + 2, h + 2)),
-			Color(0.10, 0.08, 0.07, 0.9))
-		var inner := Rect2(origin, Vector2(w, h))
-		var col: Color = ST_BAR_COLOR[String(st["state"])]
-		var frac := clampf(float(st["frac"]), 0.0, 1.0)
-		if frac > 0.0:
-			site_layer.draw_rect(Rect2(inner.position, Vector2(inner.size.x * frac, inner.size.y)), col)
-		else:
-			site_layer.draw_rect(inner, col, false, 1.0)
+		_draw_bar_at(_area_center(cell, fp.x, fp.y).x, _bar_base_y(cell, fp), _research_bar_state())
 
 ## 场上的研究所（`capacity.kind == "research"` 且已启用）。
 func _research_shops() -> Array:
@@ -2052,22 +2269,95 @@ func _research_bar_state() -> Dictionary:
 	var done := maxf(0.0, need - float(p.get("remaining", 0.0)))
 	return {"state": "building", "frac": (0.0 if need <= 0.0 else done / need)}
 
-## 工地条需要的两个数：状态 + 填充比例。与悬停提示同一套判定口径。
-func _site_bar_state(type: String) -> Dictionary:
-	var list := _construction_entries(type)
-	if list.is_empty():
-		return {"state": "pending", "frac": 0.0}
-	var best: Dictionary = list[0]
-	for c in list:
-		if bool(c.get("started", false)):
-			best = c
-			break
-	var need := float(best.get("totalRequired", 0.0))
-	var done := maxf(0.0, need - float(best.get("remaining", 0.0)))
+## 一条施工条目的状态 + 填充比例。工地 / 建筑升级 / 住房改建**三条共用这一支**
+## （它们都是 sim `construction` 队列里的条目，字段同构）。
+func _entry_bar_state(c: Dictionary) -> Dictionary:
+	var need := float(c.get("totalRequired", 0.0))
+	var done := maxf(0.0, need - float(c.get("remaining", 0.0)))
 	var state := "building"
-	if not bool(best.get("started", false)):
-		state = _site_queued_state(best)
+	if not bool(c.get("started", false)):
+		state = _site_queued_state(c)
 	return {"state": state, "frac": (0.0 if need <= 0.0 else done / need)}
+
+## 这座住房在同类型实例里的序号（0 起）。
+##
+## 住房是**计数模型**：sim 只记"茅屋还剩几栋、有几条改建在途"，**不认地图上具体哪一座**。
+## 所以"第 i 条在途改建 ↔ 同类型第 i 座房子"是表现层的约定（和 `_site_ordinal()` 同思路），
+## 两侧都是 FIFO，条目被收走时序号自动重新对齐。
+func _housing_ordinal(inst: Dictionary) -> int:
+	var t := String(inst["type"])
+	var i := 0
+	for other in _housing_instances:
+		if String(other["type"]) != t:
+			continue
+		if other == inst:
+			return i
+		i += 1
+	return -1
+
+## 这个房型在途的改建条目（按队列顺序）。
+func _housing_upgrade_entries(type: String) -> Array:
+	var out := []
+	for c in (runner.sim.s["construction"] as Array):
+		if String(c.get("kind", "")) == "housing_upgrade" and String(c.get("housingId", "")) == type:
+			out.append(c)
+	return out
+
+## 这个房型"刚点完、还没到黎明生效"的改建下单数。
+func _housing_upgrade_pending(type: String) -> int:
+	var n := 0
+	for a in (runner.sim.s["pending"] as Array):
+		if String(a.get("type", "")) == "upgrade_housing" and String(a.get("goodId", "")) == type:
+			n += 1
+	return n
+
+## 这座住房头顶该画什么条（空字典 = 不画）。见 `_housing_ordinal()` 的配对约定。
+func _housing_upgrade_state(inst: Dictionary) -> Dictionary:
+	var ord := _housing_ordinal(inst)
+	if ord < 0:
+		return {}
+	var type := String(inst["type"])
+	var list := _housing_upgrade_entries(type)
+	if ord < list.size():
+		return _entry_bar_state(list[ord])
+	if ord < list.size() + _housing_upgrade_pending(type):
+		return {"state": "pending", "frac": 0.0}
+	return {}
+
+## 改建中的住房的悬停文案（没在改建 = 空串，让别的提示去处理）。
+func _housing_upgrade_tip(uid: String) -> String:
+	var inst = _housing_by_uid.get(uid, null)
+	if inst == null:
+		return ""
+	var ord := _housing_ordinal(inst)
+	if ord < 0:
+		return ""
+	var type := String(inst["type"])
+	var name_zh := type
+	if runner.db.housing.has(type):
+		name_zh = String(runner.db.housing[type]["nameZh"])
+	var list := _housing_upgrade_entries(type)
+	if ord < list.size():
+		var to := String(list[ord].get("toHousingId", ""))
+		var to_zh := to
+		if runner.db.housing.has(to):
+			to_zh = String(runner.db.housing[to]["nameZh"])
+		return _entry_tip_text("%s → %s 改建" % [name_zh, to_zh], list[ord])
+	if ord < list.size() + _housing_upgrade_pending(type):
+		return "%s 改建 · 已下单（%02d:00 开工，白天按小时累积）" % [
+			name_zh, int(db_time("dawnHour", 6))]
+	return ""
+
+## 工地条需要的两个数：状态 + 填充比例。与悬停提示同一套判定口径。
+##
+## ⚠️ 入参是**工地自己**，不是类型：同类型的多个工地各自对应队列里各自的条目
+## （见 `_site_ordinal()`）。按类型取"队首那条"会让同类型的 4 个工地共用一条进度 ——
+## 4 条进度条一起涨、却只有队首那座真的建好（用户报的就是这个）。
+func _site_bar_state(s: Dictionary) -> Dictionary:
+	var c := _site_entry(s)
+	if c.is_empty():
+		return {"state": "pending", "frac": 0.0}
+	return _entry_bar_state(c)
 
 ## 还没开工的那条：材料不够 → 红；否则 → 黄（在等前面的工程）。
 func _site_queued_state(c: Dictionary) -> String:
@@ -2111,8 +2401,9 @@ func set_brush(mode: String, size: int) -> void:
 func place_reason(id: String, cell: Vector2i, need_afford := true) -> String:
 	if runner == null or runner.sim == null or map == null:
 		return ""
-	var origin = Vector2i(cell.x - 1, cell.y - 1)
+	var anchor = Vector2i(cell.x - 1, cell.y)     # 点的那格是"脚"那一行；左边缘再往左一格
 	var fp = _footprint(id)
+	var origin := _foot_top(anchor, fp)           # terrain_ok 要左上角
 	if need_afford:
 		var reason = _can_afford(id)
 		if reason != "":
@@ -2145,25 +2436,25 @@ func move_reason(cell: Vector2i) -> String:
 	var parts := move_mode.split(":")
 	if parts.size() < 2:
 		return ""
-	var origin := Vector2i(cell.x - 1, cell.y - 1)
+	var anchor := Vector2i(cell.x - 1, cell.y)    # 点的那格是"脚"那一行
 	if parts[0] == "shop":
 		var sid := parts[1]
 		var def_id := String(_shop_def.get(sid, ""))
 		if def_id == "" or not _shop_cell.has(sid):
 			return ""
 		var fp := _footprint(def_id)
-		return "" if _move_ok(def_id, origin, fp, _own_cells(_shop_cell[sid], fp)) else "此处不能放置"
+		return "" if _move_ok(def_id, anchor, fp, _own_cells(_shop_cell[sid], fp)) else "此处不能放置"
 	if parts[0] == "housing":
 		var inst = _housing_by_uid.get(parts[1], null)
 		if inst == null:
 			return ""
 		var fp2 := Vector2i(int(inst["fw"]), int(inst["fh"]))
-		return "" if _move_ok(String(inst["type"]), origin, fp2,
+		return "" if _move_ok(String(inst["type"]), anchor, fp2,
 			_own_cells(inst["cell"], fp2)) else "此处不能放置"
 	return ""
 
 func _try_place(id: String, cell: Vector2i) -> bool:
-	var origin = Vector2i(cell.x - 1, cell.y - 1)
+	var origin = Vector2i(cell.x - 1, cell.y)     # 点的那格是"脚"那一行
 	var fp = _footprint(id)
 	var reason := place_reason(id, cell)
 	if reason != "":
@@ -2208,7 +2499,7 @@ func _can_afford(id: String) -> String:
 	return ""
 
 func _register_site(kind: String, type: String, cell: Vector2i, fp: Vector2i) -> void:
-	map.occupy(cell, fp.x, fp.y, "site", type)
+	map.occupy(_foot_top(cell, fp), fp.x, fp.y, "site", type)
 	_clear_deco(cell, fp.x, fp.y)
 	var node := Sprite2D.new()
 	node.texture = _texture_for(type)
@@ -2224,7 +2515,21 @@ func _register_site(kind: String, type: String, cell: Vector2i, fp: Vector2i) ->
 	_nav_dirty = true
 
 func _update_ghost(cell: Vector2i) -> void:
-	ghost.position = Vector2((cell.x - 1) * TILE, (cell.y - 1) * TILE)
+	var anchor := Vector2i(cell.x - 1, cell.y)    # 点的那格是"脚"那一行
+	# 幽灵图与真正摆法**走同一条路**（`_place_sprite`：横向居中、底边对齐"脚"那一行）。
+	# 以前是把贴图左上角钉在鼠标上，遇到"占地比贴图矮"的建筑（研究所 / 城镇中心），
+	# 幽灵图会和最终摆位差出一截。
+	var gtype := build_mode
+	if gtype == "" and move_mode.begins_with("shop:"):
+		gtype = String(_shop_def.get(move_mode.split(":")[1], ""))
+	elif gtype == "" and move_mode.begins_with("housing:"):
+		var minst = _housing_by_uid.get(move_mode.split(":")[1], null)
+		if minst != null:
+			gtype = String(minst["type"])
+	if gtype == "":
+		ghost.position = Vector2(anchor.x * TILE, anchor.y * TILE)
+	else:
+		_place_sprite(ghost, gtype, anchor, _footprint(gtype))
 	# 放不下就染红（用户："如果建房子的时候，建筑放不下去，要变成红色"）。
 	# 判定与真正下单共用 `place_reason()`，所以不会"看着能放、点下去被拒"。
 	var ok := true
@@ -2301,6 +2606,62 @@ func _debug_color(key: String) -> Color:
 		h = (h * 131 + key.unicode_at(i)) % 1000003
 	return Color.from_hsv(float(h % 360) / 360.0, 0.8, 0.95, 0.35)
 
+## 一座建筑的"命中区" = 占格 ∪ **贴图实际画到的格**（横向居中、底边与"脚"那一行对齐）。
+## 用途：点击 / 悬停命中 —— 屋顶、塔尖画在占格外，但玩家点它应该选中这座建筑。
+## **不写进 `map.occupied`**：那些格子照样能盖别的建筑，被屋顶挡住 = 层叠效果（用户要的）。
+func _sprite_rect(cell: Vector2i, fp: Vector2i, type: String) -> Rect2i:
+	var tex := _texture_for(type)
+	if tex == null:
+		return _foot_rect(cell, fp)
+	# 贴图是"横向居中在占地中线、底边落在锚点那一行的底边"上摆的，所以格数用 round。
+	var cols := maxi(1, int(round(tex.get_width() / float(TILE))))
+	var rows := maxi(1, int(round(tex.get_height() / float(TILE))))
+	var center_x := float(cell.x * TILE) + float(fp.x * TILE) * 0.5
+	var left := int(floor((center_x - tex.get_width() * 0.5) / float(TILE)))
+	var r := Rect2i(left, cell.y - rows + 1, cols, rows)
+	return r.merge(_foot_rect(cell, fp))
+
+## 场上每座建筑的命中区，附 `base` = 底边那一行（重叠时取最大者 = 画在最上面的那座）。
+func _hit_entries() -> Array:
+	var out: Array = []
+	for sid in _shop_cell.keys():
+		var def_id := String(_shop_def.get(sid, ""))
+		var cell: Vector2i = _shop_cell[sid]
+		out.append({
+			"rect": _sprite_rect(cell, _footprint(def_id), def_id),
+			"kind": "shop", "id": String(sid), "base": cell.y,
+		})
+	for inst in _housing_instances:
+		var cell2: Vector2i = inst["cell"]
+		var fp2 := Vector2i(int(inst["fw"]), int(inst["fh"]))
+		out.append({
+			"rect": _sprite_rect(cell2, fp2, String(inst["type"])),
+			"kind": "housing", "id": String(inst["uid"]), "base": cell2.y,
+		})
+	if map != null and map.town_center.size.x > 0:
+		var tcfp := Vector2i(map.town_center.size.x, map.town_center.size.y)
+		var tca := _foot_anchor(map.town_center.position, tcfp)
+		out.append({
+			"rect": _sprite_rect(tca, tcfp, "town_center"),
+			"kind": "shop", "id": _town_center_shop_id(), "base": tca.y,
+		})
+	return out
+
+## 这一格点到的是哪座建筑（`map.occupied_at()` 只认占格，认不到屋顶）。
+## 重叠时取**底边更靠下**的那座 —— 和遮挡顺序一致（画在上面的那座先被点到）。
+## 返回 null 或 {"kind": "shop"|"housing", "id": ...}。
+func _pick_building_at(cell: Vector2i) -> Variant:
+	var best: Variant = null
+	var best_base := -1000000
+	for e in _hit_entries():
+		var r: Rect2i = e["rect"]
+		if not r.has_point(cell):
+			continue
+		if int(e["base"]) > best_base:
+			best_base = int(e["base"])
+			best = {"kind": String(e["kind"]), "id": String(e["id"])}
+	return best
+
 func _draw_footprints() -> void:
 	if not debug_footprints or map == null:
 		return
@@ -2311,6 +2672,14 @@ func _draw_footprints() -> void:
 		var r := Rect2(Vector2(c.x * TILE, c.y * TILE), Vector2(TILE, TILE))
 		debug_layer.draw_rect(r, col)
 		debug_layer.draw_rect(r, col.lightened(0.55), false, 1.0)
+	# 命中区（贴图覆盖格，见 `_sprite_rect`）：**只描蓝框不填色** ——
+	# 这些格子"看着有房子、其实不占地"，能盖别的建筑（会被屋顶挡住）。
+	for e in _hit_entries():
+		var hr: Rect2i = e["rect"]
+		debug_layer.draw_rect(
+			Rect2(Vector2(hr.position.x * TILE, hr.position.y * TILE),
+				Vector2(hr.size.x * TILE, hr.size.y * TILE)),
+			Color(0.4, 0.85, 1.0, 0.9), false, 1.0)
 	# 城镇中心：固定建筑，占格单独一张表
 	if map.town_center.size.x > 0:
 		var tc := _debug_color("fixed:town_center")

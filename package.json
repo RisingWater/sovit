@@ -7,13 +7,16 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "check:content": "node --experimental-strip-types scripts/check-content.ts",
+    "check:footprint": "node --experimental-strip-types scripts/check-footprint.ts",
     "gen:art": "node --experimental-strip-types scripts/gen-art.ts",
     "sync:content": "node --experimental-strip-types scripts/sync-content.ts",
     "golden": "node --experimental-strip-types scripts/golden.ts",
     "sim": "node --experimental-strip-types scripts/simulate.ts",
     "check:demolish": "node --experimental-strip-types scripts/check-demolish.ts",
     "check:storage": "node --experimental-strip-types scripts/check-storage.ts",
-    "test": "tsc --noEmit && node --experimental-strip-types scripts/check-content.ts && node --experimental-strip-types scripts/check-demolish.ts && node --experimental-strip-types scripts/check-storage.ts && node --experimental-strip-types scripts/golden.ts && node --experimental-strip-types scripts/simulate.ts",
+    "check:housing-upgrade": "node --experimental-strip-types scripts/check-housing-upgrade.ts",
+    "check:queues": "node --experimental-strip-types scripts/check-queues.ts",
+    "test": "tsc --noEmit && node --experimental-strip-types scripts/check-content.ts && node --experimental-strip-types scripts/check-footprint.ts && node --experimental-strip-types scripts/check-demolish.ts && node --experimental-strip-types scripts/check-storage.ts && node --experimental-strip-types scripts/check-housing-upgrade.ts && node --experimental-strip-types scripts/check-queues.ts && node --experimental-strip-types scripts/golden.ts && node --experimental-strip-types scripts/simulate.ts",
     "regress": "npm run test",
     "api": "node --experimental-strip-types src/api/server.ts"
   },

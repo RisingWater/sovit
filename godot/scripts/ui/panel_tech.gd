@@ -39,14 +39,9 @@ const C_PENDING := Color(0.70, 0.58, 0.14)
 const C_READY := Color(0.62, 0.36, 0.16)
 const C_LOCKED := Color(0.55, 0.53, 0.50)
 
-## 效率科技的效果键 → 中文（面板顶部累计行 + 卡片 tooltip 共用一套说法）
-const EFFECT_NAMES := {
-	"agri": "农业食品",
-	"goods": "工业商品",
-	"material": "建材",
-	"research": "科研速度",
-	"build": "建造速度",
-}
+## 效率科技的效果键 → 中文。**唯一定义在 `UIKit.EFFECT_NAMES`**（科技面板顶部累计行、
+## 卡片 tooltip 与研究所面板的「研究队列」页共用一套说法），这里只留个别名免得改一片调用点。
+const EFFECT_NAMES := UIKit.EFFECT_NAMES
 
 var _top: VBoxContainer
 var _view: Control
@@ -376,7 +371,9 @@ func _refresh_top() -> void:
 		for i in range(1, q.size()):
 			var t2 = db.techs.get(String(q[i]["id"]), null)
 			rest.append(String(t2["nameZh"]) if t2 != null else String(q[i]["id"]))
-		_top.add_child(UIKit.label("排队中：" + "、".join(rest), UIKit.FG_DIM))
+		# 顺序可以改：研究所面板的「研究队列」页（queue_box.gd），这里只报名单
+		_top.add_child(UIKit.label("排队中：" + "、".join(rest)
+			+ "　（顺序在研究所面板的「研究队列」页里调）", UIKit.FG_DIM))
 
 
 func _refresh_states() -> void:
@@ -601,7 +598,7 @@ func build_tooltip(tid: String) -> Control:
 	var hint := ""
 	match String(st["key"]):
 		"ready": hint = "　（点卡片开始研究）"
-		"queued": hint = "　（点卡片取消研究）"
+		"queued": hint = "　（点卡片取消研究，退回还没干完的材料）"
 		"pending": hint = "　（点卡片撤销排队）"
 		"locked": hint = "　（点卡片看还缺什么）"
 		"done": hint = ""

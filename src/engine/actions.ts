@@ -1,12 +1,20 @@
-import type { Action, AppliedAction, GameState, GoodID, TaxBracket } from './types.ts'
+import type { Action, AppliedAction, GameState, GoodID, LogEntry, TaxBracket } from './types.ts'
 import type { ContentContext } from './content/index.ts'
 import { clamp, round2 } from './util.ts'
-import { tryBuild, tryBuildHousing, tryExpand } from './systems/investment.ts'
+import {
+  cancelConstruction,
+  moveConstruction,
+  tryBuild,
+  tryBuildHousing,
+  tryExpand,
+  tryUpgradeHousing,
+} from './systems/investment.ts'
 import { effectiveSlots } from './systems/labor.ts'
 import {
   cancelResearch,
   isBuildingUnlocked,
   isHousingUnlocked,
+  moveResearch,
   startResearch,
   techForBuilding,
   techForHousing,
@@ -32,12 +40,18 @@ function sanitizeBrackets(bs: TaxBracket[]): void {
 //
 // 在 draft state 上就地执行；end_turn 由 tick 处理（此处忽略）。
 // 预留动作（build 除外）：sell_shop / retake_shop / set_tax / subsidy → not_implemented。
+//
+// `logs`：可选的外部日志数组。绝大多数动作的结果由调用方（`runDawn`）在别处记账，
+// 但**取消建造**必须让玩家在公告里看见"退回了什么" —— 那是唯一一处"扣了又还"的
+// 动作，退料明细没有别的出口。写进这个数组就等于写进当小时的公告（`stepHour` 统一
+// 往 `state.log` 里并），不需要在这里碰 `state.log`。
 // ---------------------------------------------------------------------------
 
 export function applyActions(
   state: GameState,
   ctx: ContentContext,
   actions: Action[],
+  logs: LogEntry[] = [],
 ): AppliedAction[] {
   const applied: AppliedAction[] = []
 
@@ -140,6 +154,36 @@ export function applyActions(
         break
       }
 
+      case 'upgrade_housing': {
+        // 改建的**目标**房型要已解锁（原房型早就建出来了，不必再查）
+        const target = ctx.housing[action.goodId]?.upgradeTo
+        if (target && !isHousingUnlocked(state, ctx, target)) {
+          const t = techForHousing(ctx, target)
+          applied.push({
+            type: action.type,
+            ok: false,
+            reason: `需要科技：${t?.nameZh ?? '未知'}`,
+          })
+          break
+        }
+        const res = tryUpgradeHousing(state, ctx, action.goodId)
+        applied.push({ type: action.type, ok: res.ok, reason: res.reason })
+        break
+      }
+
+      case 'move_construction': {
+        const res = moveConstruction(state, action.id, action.delta)
+        applied.push({ type: action.type, ok: res.ok, reason: res.reason })
+        break
+      }
+
+      case 'cancel_construction': {
+        const res = cancelConstruction(state, ctx, action.id)
+        if (res.ok) logs.push({ day: state.day, kind: 'invest', text: res.text })
+        applied.push({ type: action.type, ok: res.ok, reason: res.ok ? res.text : res.reason })
+        break
+      }
+
       case 'research': {
         const res = startResearch(state, ctx, action.techId)
         applied.push({ type: action.type, ok: res.ok, reason: res.reason })
@@ -147,7 +191,14 @@ export function applyActions(
       }
 
       case 'cancel_research': {
-        const res = cancelResearch(state, action.techId)
+        const res = cancelResearch(state, ctx, action.techId)
+        if (res.ok) logs.push({ day: state.day, kind: 'invest', text: res.text })
+        applied.push({ type: action.type, ok: res.ok, reason: res.ok ? res.text : res.reason })
+        break
+      }
+
+      case 'move_research': {
+        const res = moveResearch(state, action.id, action.delta)
         applied.push({ type: action.type, ok: res.ok, reason: res.reason })
         break
       }

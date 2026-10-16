@@ -110,6 +110,14 @@ step "sitetip" "$GODOT_BIN" --headless --path . -s res://tools/sitetip_test.gd
 step "keys" "$GODOT_BIN" --headless --path . -s res://tools/keys_test.gd
 step "doortest" "$GODOT_BIN" --headless --path . -s res://tools/door_test.gd
 step "footprint" "$GODOT_BIN" --headless --path . -s res://tools/footprint_test.gd
+step "roofclick" "$GODOT_BIN" --headless --path . -s res://tools/roofclick_test.gd
+step "multisite" "$GODOT_BIN" --headless --path . -s res://tools/multisite_test.gd
+step "upgrade" "$GODOT_BIN" --headless --path . -s res://tools/upgrade_test.gd
+step "housingupgrade" "$GODOT_BIN" --headless --path . -s res://tools/housingupgrade_test.gd
+step "logsave" "$GODOT_BIN" --headless --path . -s res://tools/logsave_test.gd
+step "queue" "$GODOT_BIN" --headless --path . -s res://tools/queue_test.gd
+step "sitecancel" "$GODOT_BIN" --headless --path . -s res://tools/sitecancel_test.gd
+step "glyph" "$GODOT_BIN" --headless --path . -s res://tools/glyph_test.gd
 step "construction" "$GODOT_BIN" --headless --path . -s res://tools/construction_test.gd
 step "research" "$GODOT_BIN" --headless --path . -s res://tools/research_test.gd
 step "imm" "$GODOT_BIN" --headless --path . -s res://tools/imm_test.gd

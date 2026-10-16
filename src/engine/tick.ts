@@ -77,7 +77,8 @@ export function runDawn(state: GameState, ctx: ContentContext): { logs: LogEntry
   // 新的一天：台账清零（晚上结算时挂到当天快照）
   state.ledgerToday = emptyLedger(state.day)
 
-  const applied = applyActions(state, ctx, state.pending)
+  // 取消建造要往公告里写「退回了什么」，所以把 logs 传进去（见 applyActions 的说明）
+  const applied = applyActions(state, ctx, state.pending, logs)
   state.pending = []
 
   logs.push(...activateCompleted(state, ctx, state.day))
@@ -95,7 +96,12 @@ export function runDawn(state: GameState, ctx: ContentContext): { logs: LogEntry
   return { logs, applied }
 }
 
-/** 夜晚结算。 */
+/**
+ * 夜晚结算。
+ *
+ * ⚠️ 这里**不**往 `state.log` 写日志：公告的累积统一发生在 `stepHour()` 里
+ * （唯一入口，见那里的注释）。直接调本函数只会拿到返回值，不会进存档。
+ */
 export function runNight(state: GameState, ctx: ContentContext, rng: ReturnType<typeof createRng>): LogEntry[] {
   const day = state.day
   const logs: LogEntry[] = []
@@ -131,8 +137,6 @@ export function runNight(state: GameState, ctx: ContentContext, rng: ReturnType<
   state.history.push(makeSnapshot(state, consumption.hungry))
   if (state.history.length > 400) state.history = state.history.slice(-400)
   state.alerts = buildAlerts(state, ctx, consumption.hungry)
-  state.log = [...state.log, ...logs]
-  if (state.log.length > 500) state.log = state.log.slice(-500)
 
   return logs
 }
@@ -168,6 +172,15 @@ function stepHour(
   }
 
   state.hour = (h + 1) % TIME.hoursPerDay
+  // 公告（`state.log`）**逐小时累积当小时的日志**（黎明 / 白天 / 夜晚三批都算），上限 500。
+  //
+  // ⚠️ 这里必须管全部三批，不能只在这里补黎明那批：以前只有 `runNight()` 往里写，
+  //    于是「建成投产」「研究完成」「X 改建为 Y」这类**黎明**日志根本进不了存档
+  //    —— 玩家退出再进来，公告就基本是空的（2026-10 用户报的）。`state.log` 是公告的
+  //    **唯一真源**（表现层直接读它），所以它必须等于「玩家这一天见过的全部消息」。
+  state.log = [...state.log, ...logs]
+  if (state.log.length > 500) state.log = state.log.slice(-500)
+
   return { logs, applied }
 }
 

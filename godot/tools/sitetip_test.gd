@@ -100,8 +100,8 @@ func _run() -> void:
 		return
 	await process_frame
 	var name_zh := String(world.runner.db.buildings[bid]["nameZh"])
-	var origin := Vector2i(cell.x - 1, cell.y - 1)
-	var probe := origin + Vector2i(fp.x / 2, fp.y / 2)   # 工地中心
+	var origin := Vector2i(cell.x - 1, cell.y)          # "脚"（底边那一行的最左格）
+	var probe: Vector2i = world._foot_top(origin, fp) + Vector2i(fp.x / 2, fp.y / 2)   # 工地中心
 
 	# ---- 1. 刚放下：命令还没生效
 	var t1: String = world.site_tip_at(probe)

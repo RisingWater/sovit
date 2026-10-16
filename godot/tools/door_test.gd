@@ -43,8 +43,8 @@ func _ok(msg: String) -> void:
 func _road_at(map, c: Vector2i) -> int:
 	return int(map.road[map.idx(c.x, c.y)])
 
-## 找一块能放下 `id` 的空地（返回的是 `_try_place` 的入参：占地中心那一格）。
-##
+## 找一块能放下 `id` 的空地（返回的是 `_try_place` 的入参：**鼠标那一格**，
+## 系统内部换算成"脚" = 底边那一行的最左格；见 `world_view._foot_top()`）。
 ## 额外要求**门前格是图内的非水面、而且现在没有路**：
 ##   · 水面 / 越界时"自动铺路"会被合理地跳过，断言就变成假的了；
 ##   · 现在没路，才能证明"路是这次放置铺出来的"，而不是本来就有的。
@@ -55,11 +55,11 @@ func _find_spot(world, id: String, skip: Vector2i, from: Vector2i) -> Vector2i:
 			var c: Vector2i = from + Vector2i(dx, dy)
 			if c == skip:
 				continue
-			if not world.map.in_bounds(c + fp - Vector2i.ONE):
+			if not world.map.in_bounds(world._foot_top(c - Vector2i(1, 0), fp) + fp - Vector2i.ONE):
 				continue
 			if world.place_reason(id, c) != "":
 				continue
-			var origin2 := c - Vector2i.ONE
+			var origin2 := c - Vector2i(1, 0)      # 入参是"脚"（底边那一行的最左格）
 			var bad := false
 			for f in world._door_front_cells(id, origin2, fp):
 				var fc: Vector2i = f
@@ -104,7 +104,8 @@ func _run() -> void:
 	# ---- 1. 城镇中心：两格门洞 ------------------------------------------------
 	var tc: Rect2i = world.map.town_center
 	var tc_fp := Vector2i(tc.size.x, tc.size.y)
-	var tc_doors: Array = world._door_cells(TC, tc.position, tc_fp)
+	var tc_anchor: Vector2i = world._foot_anchor(tc.position, tc_fp)   # 门的偏移相对占地左上角
+	var tc_doors: Array = world._door_cells(TC, tc_anchor, tc_fp)
 	if tc_doors.size() != 2:
 		_fail("城镇中心的门洞是 %d 格，不是两格：%s（content 的 town_center.art.doors）"
 			% [tc_doors.size(), str(tc_doors)])
@@ -156,7 +157,7 @@ func _run() -> void:
 			if art.has("doors"):
 				declared_n += 1
 			# 走真实代码路径再验一遍：门格必须落在占地内
-			for off in world._door_cells(bid, Vector2i.ZERO, fp):
+			for off in world._door_cells(bid, Vector2i(0, fp.y - 1), fp):
 				var o: Vector2i = off
 				if o.x < 0 or o.y < 0 or o.x >= fp.x or o.y >= fp.y:
 					invalid.append("%s %s：门格偏移 %s 越界（占地 %dx%d）"
@@ -206,7 +207,7 @@ func _run() -> void:
 		_fail("随机挑出的 %d 座建筑一座都找不到能放的空地" % pool.size())
 		return
 	var fp: Vector2i = world._footprint(bid)
-	var origin := cell - Vector2i.ONE
+	var origin := cell - Vector2i(1, 0)
 	var front0: Vector2i = (world._door_front_cells(bid, origin, fp) as Array)[0]
 	_ok("随机挑中 %s（占地 %dx%d），打算放在 %s（门前格 %s）"
 		% [bid, fp.x, fp.y, str(origin), str(front0)])
@@ -282,8 +283,8 @@ func _run() -> void:
 		_fail("找不到第二块空地来测移动")
 		return
 	var old_front: Vector2i = front0
-	if not world.move_shop_to(sid, dst - Vector2i.ONE):
-		_fail("把 %s 移到 %s 失败" % [sid, str(dst - Vector2i.ONE)])
+	if not world.move_shop_to(sid, dst - Vector2i(1, 0)):
+		_fail("把 %s 移到 %s 失败" % [sid, str(dst - Vector2i(1, 0))])
 		return
 	await process_frame
 	var new_front: Vector2i = (world._shop_door[sid] as Array)[0] + Vector2i(0, 1)
@@ -307,7 +308,7 @@ func _run() -> void:
 	if hcell.x < 0:
 		_fail("找不到放 hut 的空地")
 		return
-	var horigin := hcell - Vector2i.ONE
+	var horigin := hcell - Vector2i(1, 0)
 	var hfp: Vector2i = world._footprint("hut")
 	var hfront0: Vector2i = (world._door_front_cells("hut", horigin, hfp) as Array)[0]
 	if not world._try_place("hut", hcell):
@@ -334,8 +335,8 @@ func _run() -> void:
 	if hdst.x < 0:
 		_fail("找不到第二块空地来测住房移动")
 		return
-	if not world.move_housing_to(uid, hdst - Vector2i.ONE):
-		_fail("把 %s 移到 %s 失败" % [uid, str(hdst - Vector2i.ONE)])
+	if not world.move_housing_to(uid, hdst - Vector2i(1, 0)):
+		_fail("把 %s 移到 %s 失败" % [uid, str(hdst - Vector2i(1, 0))])
 		return
 	await process_frame
 	if _road_at(world.map, hfront0) != 1:

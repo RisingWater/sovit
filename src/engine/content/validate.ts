@@ -531,6 +531,8 @@ function parseHousing(
   const list = asArr(asObj(raw, 'housing.json').housing, 'housing.json.housing')
   const housing: Record<GoodID, HousingDef> = {}
   const ids: GoodID[] = []
+  /** id → upgradeTo 的原始值；**全部读完再校验**（文件里的先后顺序不保证）。 */
+  const upgradeToOf: Record<string, string> = {}
 
   list.forEach((item, i) => {
     const p = `housing[${i}]`
@@ -555,8 +557,32 @@ function parseHousing(
       ...(salePrice !== undefined ? { salePrice } : {}),
       ...(art !== undefined ? { art } : {}),
     }
+    if (o.upgradeTo !== undefined) upgradeToOf[id] = asStr(o.upgradeTo, `${p}.upgradeTo`)
     ids.push(id)
   })
+
+  // 改建链（见 docs/spec.md §5.4）：目标必须存在、不能自指、不能成环。
+  // ⚠️ 必须**全部房间读完再校验**：housing.json 里谁在前谁在后不保证。
+  for (const [id, target] of Object.entries(upgradeToOf)) {
+    if (!housing[target]) {
+      fail(`housing[${id}].upgradeTo 引用了未定义的住房：${target}`)
+      continue
+    }
+    if (target === id) fail(`housing[${id}].upgradeTo 指向了自己`)
+    const seen = new Set<string>([id])
+    let cur: string | undefined = target
+    while (cur !== undefined) {
+      if (seen.has(cur)) {
+        fail(`housing[${id}].upgradeTo 成环：${[...seen, cur].join(' → ')}`)
+        break
+      }
+      seen.add(cur)
+      cur = upgradeToOf[cur]
+    }
+  }
+  for (const [id, target] of Object.entries(upgradeToOf)) {
+    if (housing[id] && housing[target]) housing[id]!.upgradeTo = target
+  }
 
   return { housing, ids }
 }

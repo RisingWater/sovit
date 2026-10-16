@@ -7,7 +7,10 @@ extends PanelContainer
 # 也就是点左侧圆钮（资源/人口/财政）出来的那种（`panel_stats.gd`）。
 #
 # 两种内容：
-#   - 城镇中心 → 人口（本回合想来 / 上限 / 当前人口 / 空房 / 次日会来）+ 公告
+#   - 城镇中心 → 四个页签：**基本信息**（城镇名字 / 人口上限 / 当前人口 / 空余房屋 /
+#                想要迁入移民 / 本回合迁入移民 + 两个移民开关）、**资源**（全村仓储 +
+#                每种资源数量与上限）、**建造队列**（谁先建 / 已用多少建造力 / 调序 / 撤单）、
+#                **公告**（全部日志，自动滚到最新）
 #   - 仓库     → 等级·用工·本座容量 / 全村仓储余量 / **每种资源（数量 / 上限）**
 #               上限就在这里设（留空 = 不限），命令次日 06:00 生效。
 #
@@ -24,11 +27,15 @@ const POP_W := 620.0
 const POP_H := 430.0
 const KEEP_VISIBLE := 80.0
 
-## 城镇中心的三页页签
-const TABS := ["人口", "资源", "公告"]
-## 每页各自的框高：人口矮（内容少）、资源高（33 种货三列）、公告中等。
+## 城镇中心的四个页签
+const TABS := ["基本信息", "资源", "建造队列", "公告"]
+## 每页各自的框高：基本信息矮（两段：6 行 + 2 个按钮）、资源中等（33 种货三列）、
+## 建造队列按"能看到四五条工程"定、公告高（是个滚动列表，固定高合适）。
 ## 一页一个高度，免得"为了装下最长的那页，短的那页底下空一大片"。
-const TAB_H := [430.0, 660.0, 520.0]
+## 四个数是按实际截图量出来的（内容高 + 标题栏/页签 + 内边距），改内容就回来量一次。
+const TAB_H := [360.0, 480.0, 460.0, 520.0]
+## 队列一行的高度（缩略图 34 + 上下留白）
+const QUEUE_ROW_H := 40.0
 
 enum Mode { NONE, TOWN_CENTER, WAREHOUSE }
 
@@ -37,10 +44,17 @@ var _id := ""
 var _title_lb: Label
 var _body: VBoxContainer
 var _sub: Label
+## 内容滚动区（公告页要"自动滚到最新一天"，得留着引用）
+var _scroll: ScrollContainer
+## 上次画公告时的日志条数：条数没变就不重建（公告最多 500 条，每小时重建一次太浪费，
+## 而且会把玩家正在看的位置顶掉）
+var _notice_size := -1
 ## 每种货的上限输入框（每次重建时重置）
 var _cap_inputs: Dictionary = {}
 ## 二次确认标记（"拆除"要点两次）
 var _confirm := ""
+## 建造队列控件的二次确认状态（`queue_box.gd` 读它 —— 记在**面板**上才能跨"每小时重建"）
+var _qstate := {"confirm": ""}
 
 var _dragging := false
 var _drag_off := Vector2.ZERO
@@ -111,6 +125,7 @@ func _ready() -> void:
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	root.add_child(scroll)
+	_scroll = scroll
 	_body = VBoxContainer.new()
 	_body.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_body.add_theme_constant_override("separation", 4)
@@ -126,8 +141,9 @@ func _ready() -> void:
 func open_town_center() -> void:
 	_mode = Mode.TOWN_CENTER
 	_title_lb.text = "城镇中心"
-	_sub.text = "人口 / 资源 / 公告 —— 全局数字（日期/就业/满意度/国库）在顶栏"
-	_tab = 0                      # 每次打开回到「人口」
+	# 不再写"人口 / 资源 / 公告 —— 全局数字在顶栏"那行（页签本身就是目录，顶栏也一眼能看到）
+	_set_sub("")
+	_tab = 0                      # 每次打开回到「基本信息」
 	_tab_row.visible = true
 	_show()
 
@@ -136,12 +152,18 @@ func open_warehouse(shop_id: String) -> void:
 	_mode = Mode.WAREHOUSE
 	_id = shop_id
 	_title_lb.text = "仓库 · 仓储"
-	_sub.text = "上限留空 = 不限；命令次日 06:00 生效"
+	_set_sub("上限留空 = 不限；命令次日 06:00 生效")
 	_tab_row.visible = false      # 仓库没有页签（它的内容本来就只有一屏）
 	_show()
 
+## 副标题：空字符串就整行收起（不然留一条空行 + 分隔线）
+func _set_sub(t: String) -> void:
+	_sub.text = t
+	_sub.visible = t != ""
+
 func _show() -> void:
 	_confirm = ""
+	_qstate["confirm"] = ""
 	visible = true
 	_mark_tabs()
 	_refresh()
@@ -151,6 +173,8 @@ func _show() -> void:
 ## 切页签：重画内容 + 换框高（每页内容多少差很多，一页一个高度）
 func _select_tab(i: int) -> void:
 	_tab = clampi(i, 0, TABS.size() - 1)
+	_confirm = ""           # 换页就把"等二次确认"的状态收掉（撤单是两步的）
+	_qstate["confirm"] = ""
 	UIKit.play_switch()
 	_mark_tabs()
 	_refresh()
@@ -164,11 +188,35 @@ func _mark_tabs() -> void:
 func _apply_size() -> void:
 	var want := Vector2(PANEL_W, PANEL_H)
 	if _mode == Mode.TOWN_CENTER:
-		want = Vector2(PANEL_W, float(TAB_H[clampi(_tab, 0, TAB_H.size() - 1)]))
+		want = Vector2(PANEL_W, _tab_height())
 	custom_minimum_size = want
 	reset_size()
 	var vp := get_viewport_rect().size
 	position = _clamp_pos(((vp - size) * 0.5).round())
+
+## 本页该多高。前三页内容多少是**固定**的，所以用 `TAB_H` 里量好的数；
+## 「建造队列」不行：行高 56、条数不定 —— 空队列时留一大片空白，排了 12 条又挤得只剩
+## 五行要滚。那一页改成**跟着内容走**（与建筑面板的 `_fit_height()` 同一套办法），
+## 上限 620：再长也不让对话框铺满整屏（其余条目滚动看）。
+func _tab_height() -> float:
+	if _tab != 2:
+		return float(TAB_H[clampi(_tab, 0, TAB_H.size() - 1)])
+	return clampf(_chrome_height() + _body.get_combined_minimum_size().y,
+		260.0, minf(620.0, get_viewport_rect().size.y - 2.0 * KEEP_VISIBLE))
+
+## 滚动区之外那些东西的高度（标题行 / 页签行 / 副标题 / 分隔线 / 面板内边距）。
+## 与 inspector 的 `_chrome_height()` 同一套算法，两处都别写死数字。
+func _chrome_height() -> float:
+	var h := 0.0
+	var root := get_child(0)
+	if root == null:
+		return h
+	for c in root.get_children():
+		if c is ScrollContainer or not (c as Control).visible:
+			continue
+		h += (c as Control).get_combined_minimum_size().y
+		h += 6.0                                   # root 的 separation
+	return h + 22.0                                # UIKit.pad(...) 的上下内边距 10 + 10（+2 余量）
 
 func close_panel() -> void:
 	visible = false
@@ -205,6 +253,10 @@ func _on_hour() -> void:
 	# （和右侧面板的用工拖动条是同一个坑）。
 	if _cap_input_focused():
 		return
+	# 公告页：日志条数没变就不重建（500 条 Label 每小时重建一次太浪费，
+	# 而且会把玩家正在看的滚动位置顶到最新）
+	if _mode == Mode.TOWN_CENTER and _tab == 3 and runner.sim.log_size() == _notice_size:
+		return
 	_refresh()
 
 func _cap_input_focused() -> bool:
@@ -214,14 +266,19 @@ func _cap_input_focused() -> bool:
 	return false
 
 func _refresh() -> void:
+	# ⚠️ 先 `remove_child` 再 `queue_free`：`queue_free()` 是**延迟**的，节点要到帧末才离开
+	# 树。而「建造队列」页的高度是按 `_body` 的内容算的（`_tab_height()`）—— 同一帧里去量，
+	# 量到的是"旧内容 + 新内容"（建筑面板就是这么被顶到上限、底下留空白的）。
 	for c in _body.get_children():
+		_body.remove_child(c)
 		c.queue_free()
 	_cap_inputs.clear()
 	match _mode:
 		Mode.TOWN_CENTER:
 			match _tab:
-				0: _build_population()
+				0: _build_basic()
 				1: _build_resources()
+				2: _build_queue()
 				_: _build_notice()
 		Mode.WAREHOUSE: _build_storage()
 		_: pass
@@ -288,9 +345,9 @@ func _buttons(items: Array) -> void:
 	_body.add_child(row)
 
 # ---------------------------------------------------------------------------
-# 城镇中心：人口 + 公告
+# 城镇中心「基本信息」页：村子是谁 / 住了多少人 / 还能来多少人
 # ---------------------------------------------------------------------------
-func _build_population() -> void:
+func _build_basic() -> void:
 	var s: Dictionary = runner.sim.s
 	var residents: Array = s["residents"]
 	var arrivals = int(s["arrivals"])
@@ -309,26 +366,29 @@ func _build_population() -> void:
 	var cap_room: int = (eff_cap - popn) if eff_cap < 100000000 else arrivals
 	var will_come: int = mini(arrivals, mini(cap_room, maxi(0, hcap - popn)))
 
+	_title("基础")
+	_kv("城镇名字", String(s.get("villageName", "sovit")))
 	_kv("人口上限" + ("（已排队）" if pending_cap >= 0 else ""),
 		"不限" if eff_cap >= 100000000 else str(eff_cap),
 		Color(0.72, 0.35, 0.15) if pending_cap >= 0 else UIKit.FG_DARK)
 	_kv("当前人口", "%d 人" % popn)
-	_kv("空房", "%d" % maxi(0, hcap - popn))
-	_kv("本回合想来", "%d 人" % arrivals, Color(0.55, 0.35, 0.15) if arrivals > 0 else UIKit.FG_DARK)
-	_kv("次日会来", "%d 人" % will_come,
+	_kv("空余房屋", "%d" % maxi(0, hcap - popn))
+	_kv("想要迁入移民", "%d 人" % arrivals, Color(0.55, 0.35, 0.15) if arrivals > 0 else UIKit.FG_DARK)
+	_kv("本回合迁入移民", "%d 人" % will_come,
 		Color(0.18, 0.45, 0.20) if will_come > 0 else UIKit.FG_DARK)
-	_buttons([["不限", func(): _set_population_cap(1000000000)],
-		["停", func(): _set_population_cap(popn)],
-		["+10", func(): _set_population_cap(popn + 10)]])
+
+	_title("操作")
+	_buttons([["不限制移民迁入", func(): _set_population_cap(1000000000)],
+		["停止移民迁入", func(): _set_population_cap(popn)]])
 	_gap(2)
+	# 想来却进不来时把原因写清楚（这行用户点名要留着）
 	if will_come <= 0 and arrivals > 0:
 		var why = "空房不足" if (hcap - popn) <= 0 else ("已到人口上限" if eff_cap < 100000000 else "名额不足")
 		_note("想来 %d 人，但%s，一个也进不来。" % [arrivals, why])
-	else:
-		_note("次日 06:00 生效。没人来通常是空房不足或已到人口上限；"
-			+ "空房靠多盖住房，上限就是上面那三个按钮。")
+	_gap(2)
+	_note("命令次日 06:00 生效。没人来通常是空房不足或已到人口上限：空房靠多盖住房，上限就是上面两个按钮。")
 
-	# 仓储容量与库存明细不再挤在这一页 —— 它们是「资源」页的事
+	# 仓储容量与库存明细不在这一页 —— 它们是「资源」页的事
 	# （开局不一定有仓库，所以那一页必须能独立看到库存与上限）。
 
 func _set_population_cap(value: int) -> void:
@@ -345,15 +405,48 @@ func _build_resources() -> void:
 	_gap()
 	_build_goods()
 
-## 城镇中心的「公告」页：最近日志。
+# ---------------------------------------------------------------------------
+# 城镇中心「建造队列」页
+#
+# 行怎么画、调序怎么生效、撤单为什么是两步 —— 全在**共用控件** `queue_box.gd` 里
+# （建筑工坊面板与研究所面板读的是同一个控件，施工 / 研究两条队列也共用一套行）。
+# 这里只负责把它挂进本面板的正文。
+# ---------------------------------------------------------------------------
+func _build_queue() -> void:
+	_title("建造队列")
+	var box := QueueBox.new()
+	_body.add_child(box)
+	box.setup(runner, world, QueueBox.Kind.BUILD, _qstate)
+
+## 城镇中心的「公告」页：**全部**日志（SimCore 自己封顶 500 条）。
+##
+## ⚠️ 日志读的是**仿真状态里的那一份**（`sim.s["log"]`，逐小时累积、上限 500，
+## 随存档保存）—— 表现层不再自己攒一份副本。以前读的是 `SimRunner.recent_logs`
+## （只在内存里的环形缓冲），**读档时被清空**，于是"退出再进来公告全没了"。
+##
+## 日期写「第 N 天」（日志里的 `day` 从 1 开始），不再写 `D37` 那种缩写。
 func _build_notice() -> void:
 	_title("公告")
-	var logs: Array = runner.recent_logs
+	if runner == null or runner.sim == null:
+		_note("（暂无）")
+		return
+	var total: int = runner.sim.log_size()
+	_notice_size = total
+	var logs: Array = runner.sim.log_tail(total)
 	if logs.is_empty():
 		_note("（暂无）")
-	for i in range(maxi(0, logs.size() - 24), logs.size()):
-		var e: Dictionary = logs[i]
-		_note("[D%d] %s" % [int(e.get("day", 0)), String(e.get("text", ""))])
+		return
+	for e in logs:
+		var d := int((e as Dictionary).get("day", 0))
+		_note("第%d天　%s" % [d, String((e as Dictionary).get("text", ""))])
+	_scroll_to_bottom()
+
+## 滚到最新一条（日志是"老的在上、新的在下"）。
+## 必须等一帧：内容刚加进去时 ScrollContainer 还没算出行高，这时设 scroll_vertical 无效。
+func _scroll_to_bottom() -> void:
+	await get_tree().process_frame
+	if _scroll != null and is_instance_valid(_scroll):
+		_scroll.scroll_vertical = int(_scroll.get_v_scroll_bar().max_value)
 
 ## 全村仓储余量（进度条）。城镇中心的「资源」页与仓库面板共用。
 func _build_capacity() -> void:
@@ -383,9 +476,8 @@ func _build_goods() -> void:
 	_body.add_child(grid)
 	for gid in (runner.db.packs[String(s["pack"])]["goods"] as Array):
 		_cap_cell(grid, String(gid), int(caps.get(String(gid), 0)), float(goods.get(String(gid), 0.0)))
-	_gap(2)
-	_note("数量 = 当前库存；上限留空 = 不限。超过上限的部分当天夜里按同一比例削减"
-		+ "（所有物资一起缩水，食物不会被优先丢掉，docs/spec.md §2.4）。数量标红＝这一项已经超了自己的上限。")
+	# 尾注删掉了（用户："数量= 当前库存；上限留空…"那一整段全部删掉）。
+	# 仓库面板的副标题仍写着"上限留空 = 不限"，够了。
 
 # ---------------------------------------------------------------------------
 # 仓库：容量 + 每种资源（数量 / 上限）

@@ -129,12 +129,127 @@ export function startResearch(state: GameState, ctx: ContentContext, techId: Tec
   return { ok: true }
 }
 
-/** 取消研究（从队列移除）。已扣的材料不退，与施工一致。 */
-export function cancelResearch(state: GameState, techId: TechID): ResearchCheck {
-  const i = state.research.queue.findIndex((p) => p.id === techId)
+/** 研究队列里 `id` 的下标（-1 = 不在队列里）。 */
+export function researchIndex(state: GameState, id: TechID): number {
+  return state.research.queue.findIndex((p) => p.id === id)
+}
+
+/**
+ * 研究队列调序：按 `delta` 的方向挪**一位**（-1 上移 / +1 下移）。
+ *
+ * 与施工队列（`investment.ts::moveConstruction`）**同一套语义**：只改顺序 ——
+ * 不重算 `remaining`、不改 `started`、不退料。已经开工的科技被挪到后面时只是**暂停**。
+ * 队首先吃到科研力（`applyResearchHours` 从队首往下投）。
+ */
+export function moveResearch(state: GameState, id: TechID, delta: number): ResearchCheck {
+  const i = researchIndex(state, id)
   if (i < 0) return { ok: false, reason: '不在研究队列中' }
-  state.research.queue.splice(i, 1)
+  const step = Math.sign(delta)
+  if (step === 0) return { ok: false, reason: '没有移动' }
+  const j = i + step
+  if (j < 0) return { ok: false, reason: '已经是队首' }
+  if (j >= state.research.queue.length) return { ok: false, reason: '已经是队尾' }
+  const a = state.research.queue[i]!
+  state.research.queue[i] = state.research.queue[j]!
+  state.research.queue[j] = a
   return { ok: true }
+}
+
+/** 取消研究的结果（拼公告 / 给 UI 显示退回明细）。 */
+export interface ResearchCancelResult extends ResearchCheck {
+  /** 开过工没有（**材料是开工那一刻才扣的**，没开过工就没什么可退）。 */
+  started: boolean
+  /** 已投入的科研力（= 总需求 − 还差的）。 */
+  used: number
+  /** 总科研力需求。 */
+  total: number
+  /** 该退回国库的实物（预览时**还没**并进 `state.goods`）。 */
+  refund: Array<[string, number]>
+  /** 科技中文名。 */
+  label: string
+  /** 一句话摘要（公告用它；成功的 `reason` 也是它）。 */
+  text: string
+}
+
+interface ResearchCancelPlan extends ResearchCancelResult {
+  index: number
+}
+
+/**
+ * 取消退料的**计算**部分（只算不改状态）—— 与施工的 `planCancel()` 同一口径：
+ *   还没开工 → 一分原料都没扣过，退 0
+ *   已开工   → 退回量 = 已扣原料 × (remaining / totalRequired)
+ * 科研力**本身**不退（它是每日产能，不是库存）。
+ */
+function planResearchCancel(
+  state: GameState,
+  ctx: ContentContext,
+  techId: TechID,
+): ResearchCancelPlan {
+  const i = researchIndex(state, techId)
+  const miss: ResearchCancelPlan = {
+    ok: false, reason: '不在研究队列中', index: -1, started: false, used: 0, total: 0,
+    refund: [], label: '', text: '',
+  }
+  if (i < 0) return miss
+  const p = state.research.queue[i]!
+  const tech = ctx.technologies[techId]
+  const label = tech?.nameZh ?? techId
+  const total = p.totalRequired
+  const used = Math.max(0, total - p.remaining)
+  const ratio = p.started && total > 0 ? Math.max(0, Math.min(1, p.remaining / total)) : 0
+  const refund: Array<[string, number]> = []
+  if (tech) {
+    for (const [gid, qty] of Object.entries(tech.cost.goods)) {
+      const back = round2((qty ?? 0) * ratio)
+      if (back > 0) refund.push([gid, back])
+    }
+  }
+  let text: string
+  if (!p.started) {
+    text = `取消研究「${label}」（还没开工，材料没扣过）`
+  } else {
+    const pct = total > 0 ? Math.round((used / total) * 100) : 0
+    const parts = refund.map(([gid, q]) => `${ctx.goods[gid]?.nameZh ?? gid}×${round2(q)}`)
+    text = parts.length
+      ? `取消研究「${label}」（已投入 ${pct}%），退回 ${parts.join('、')}`
+      : `取消研究「${label}」（已投入 ${pct}%），没有可退的材料`
+  }
+  return { ok: true, index: i, started: p.started, used, total, refund, label, text }
+}
+
+/** 取消研究的**预览**（只算不改）：二次确认拿它显示"点了会退回什么"。 */
+export function researchCancelPreview(
+  state: GameState,
+  ctx: ContentContext,
+  techId: TechID,
+): ResearchCancelResult {
+  const p = planResearchCancel(state, ctx, techId)
+  return {
+    ok: p.ok, reason: p.reason, started: p.started, used: p.used, total: p.total,
+    refund: p.refund, label: p.label, text: p.text,
+  }
+}
+
+/**
+ * 取消研究（从队列移除 + **按进度退回原料**）。
+ *
+ * ⚠️ 口径与施工一致（见 docs/spec.md §9.8）：材料是开工那一刻扣的，
+ * 所以没开工退 0，开工了按 `remaining / totalRequired` 退还没干完的那份。
+ * 以前这里写的是"已扣的材料不退"，那条口径在施工侧加了撤单之后就不一致了。
+ */
+export function cancelResearch(
+  state: GameState,
+  ctx: ContentContext,
+  techId: TechID,
+): ResearchCancelResult {
+  const plan = planResearchCancel(state, ctx, techId)
+  if (!plan.ok) return plan
+  for (const [gid, q] of plan.refund) {
+    state.goods[gid] = round2((state.goods[gid] ?? 0) + q)
+  }
+  state.research.queue.splice(plan.index, 1)
+  return plan
 }
 
 /**
@@ -272,14 +387,26 @@ export function settleResearch(state: GameState, ctx: ContentContext, day: numbe
   return logs
 }
 
-/** 黎明：跑完的科技生效（解锁建筑），其余留队。 */
+/**
+ * 黎明：跑完的科技生效（解锁建筑），其余留队。
+ *
+ * ⚠️ 这里是**扫全队列**取走 `remaining <= 0` 的（与施工的 `activateCompleted` 同形制），
+ * 不是老版本的"只看队首"：队列本身是先进先出，正常玩只有队首能跑完；但**调序**
+ * （§10.7）能把一条跑完的挪到后面 —— 只认队首的话它要等再次轮到才生效，
+ * 玩家会看到"研究完成了却没解锁"。扫全队列之后，谁跑完谁次日生效。
+ */
 export function activateResearch(state: GameState, ctx: ContentContext, day: number): LogEntry[] {
   const logs: LogEntry[] = []
-  while (state.research.queue.length > 0 && state.research.queue[0]!.remaining <= 0) {
-    const done = state.research.queue.shift()!
-    state.research.done.push(done.id)
-    const tech = ctx.technologies[done.id]
-    logs.push({ day, kind: 'invest', text: `研究完成：${tech?.nameZh ?? done.id}` })
+  const remaining: ResearchProject[] = []
+  for (const p of state.research.queue) {
+    if (p.remaining > 0) {
+      remaining.push(p)
+      continue
+    }
+    state.research.done.push(p.id)
+    const tech = ctx.technologies[p.id]
+    logs.push({ day, kind: 'invest', text: `研究完成：${tech?.nameZh ?? p.id}` })
   }
+  state.research.queue = remaining
   return logs
 }

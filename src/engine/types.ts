@@ -244,6 +244,13 @@ export interface HousingDef {
   buildCost?: Partial<Record<GoodID, number>>
   /** 私有化售价（玩家可调，默认取此值）。 */
   salePrice?: number
+  /**
+   * 可以**改建**成的下一个房型（见 docs/spec.md §5.4）。不写 = 不能改建。
+   *
+   * 显式指定、**不做"按 quality 自动推下一个"**：别墅同样是高档房，但它不在这条链里
+   * （用户明确要求"别墅要单独建造"）—— 谁指向谁全由这张表决定。
+   */
+  upgradeTo?: GoodID
   /** 外观规格。 */
   art?: BuildingArt
 }
@@ -387,14 +394,16 @@ export interface DayLedger {
 
 export interface Construction {
   id: string
-  /** 施工类型：建店 / 升级 / 建房。 */
-  kind: 'shop' | 'upgrade' | 'housing'
+  /** 施工类型：建店 / 升级 / 建房 / 住房改建。 */
+  kind: 'shop' | 'upgrade' | 'housing' | 'housing_upgrade'
   /** kind=shop 时的建筑；kind=upgrade 时用于查定义。 */
   buildingId?: BuildingID
   /** kind=upgrade 时目标建筑实例。 */
   shopId?: string
-  /** kind=housing 时的住房 id。 */
+  /** kind=housing 时的住房 id；kind=housing_upgrade 时是**改建前**的房型。 */
   housingId?: GoodID
+  /** kind=housing_upgrade 时**改建后**的房型。 */
+  toHousingId?: GoodID
   /** 还差的建造力（人·天）。开工时 = buildWork，逐日被产能扣减。 */
   remaining: number
   /** 总建造力需求（进度条用）。 */
@@ -620,6 +629,32 @@ export type Action =
   | { type: 'demolish'; shopId: string }
   | { type: 'build'; buildingId: BuildingID }
   | { type: 'build_housing'; goodId: GoodID }
+  /**
+   * 住房**改建**：把一栋**国有**住房（`goodId` = 改建前的房型）改成本房型
+   * `upgradeTo` 指定的下一档（见 docs/spec.md §5.4）。
+   *
+   * - 成本 = 目标房型 buildCost **减去**原房型 buildCost（只算差、旧料视为已回收）；
+   *   工期同理取差值。都只认当前内容包里存在的商品。
+   * - **只作用于国有住房**：私有（居民买下的）住房不能改建，条目会被拒。
+   * - 完工时 `housing[from] −1`、`housing[to] +1`，**不额外占地**。
+   */
+  | { type: 'upgrade_housing'; goodId: GoodID }
+  /**
+   * 建造队列调序：把 `id` 这条按 `delta` 的方向挪**一位**（-1 = 上移 / +1 = 下移）。
+   *
+   * 队列是**先进先出**的一条 `state.construction`，队首先吃到建造力，所以调序 =
+   * 决定谁先建（见 docs/construction.md 六）。只改顺序，不改投入量、不退料；
+   * 已经开工的工程被挪到后面时只是**暂停**。
+   */
+  | { type: 'move_construction'; id: string; delta: number }
+  /**
+   * 取消建造：把一个**还在队列里**的工程撤掉（已建成的建筑走 `demolish`）。
+   *
+   * 退料口径：材料是**开工那一刻**才扣的 ——
+   * - 还没开工 → 没扣过，退 0
+   * - 已开工   → 退回量 = 已扣材料 × (remaining / totalRequired)（只退没干完的那一份）
+   */
+  | { type: 'cancel_construction'; id: string }
   | { type: 'sell_shop'; shopId: string }
   | { type: 'retake_shop'; shopId: string }
   | { type: 'set_tax'; value: number }
@@ -630,7 +665,17 @@ export type Action =
   | { type: 'set_storage_caps'; caps: Partial<Record<GoodID, number>> }
   | { type: 'subsidy'; shopId?: string; amount: number }
   | { type: 'research'; techId: TechID }
+  /**
+   * 取消研究：把一项**还在研究队列里**的科技撤掉，并**按进度退回原料**
+   * （见 docs/spec.md §10.7）。材料是开工那一刻扣的，所以没开工退 0、
+   * 开工了按 `remaining / totalRequired` 退还没干完的那份；科研力本身不退。
+   */
   | { type: 'cancel_research'; techId: TechID }
+  /**
+   * 研究队列调序：按 `delta` 的方向挪**一位**（-1 上移 / +1 下移）。
+   * 与施工队列同一套语义（见 §9.8）：只改顺序，不重算进度、不退料。
+   */
+  | { type: 'move_research'; id: TechID; delta: number }
   | { type: 'end_turn' }
 
 export interface AppliedAction {

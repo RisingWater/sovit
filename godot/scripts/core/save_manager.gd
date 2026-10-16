@@ -79,6 +79,14 @@ static func _sanitize(s: Dictionary, db: ContentDB) -> void:
 		s["residents"] = []
 	if not (s.get("construction", null) is Array):
 		s["construction"] = []
+	# 公告日志（`s["log"]`，逐小时累积，见 sim_core.tick_hour）。缺了的话公告页会读空。
+	if not (s.get("log", null) is Array):
+		s["log"] = []
+	# JSON 把所有数字读成 float：`day` 还原成 int（否则公告页写出来是「[D3.0]」，两边实现也不一致）
+	for entry in s["log"]:
+		entry["day"] = int(entry.get("day", 0))
+		entry["kind"] = String(entry.get("kind", ""))
+		entry["text"] = String(entry.get("text", ""))
 	for shop in s["shops"]:
 		shop["level"] = int(shop.get("level", 1))
 		shop["targetWorkers"] = int(shop.get("targetWorkers", 0))

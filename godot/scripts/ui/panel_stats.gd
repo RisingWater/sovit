@@ -556,7 +556,7 @@ func _finance_tab() -> void:
 	for h in ["项目", "7 日均", "口径", "说明"]:
 		_cell(g2, h, HEAD_COL, 80.0)
 	var items := [
-		["工资支出", stats.avg(stats.wages), "公式", "∑ 居民 gross（工资×技能系数，封顶）"],
+		["工资支出", stats.avg(stats.wages), "公式", "Σ 居民 gross（工资×技能系数，封顶）"],
 		["所得税", stats.avg(stats.tax), "公式", "累进税表套在 gross 上"],
 		["租金收入", stats.avg(stats.rent), "公式", "国有租户实缴 + 私租抽税"],
 		["消费收入", stats.avg(stats.sales), "实际", "居民购买回款（读台账）"],

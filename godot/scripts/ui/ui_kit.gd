@@ -103,6 +103,16 @@ static func thumb(id: String) -> Texture2D:
 	return null
 const CORNER := 5       # 9-slice 角尺寸
 
+## 效率科技的效果键 → 中文。**唯一定义在这里**：科技面板顶部的累计行、卡片 tooltip、
+## 研究所面板的「研究队列」页都读它（三处各写一份迟早会不一致）。
+const EFFECT_NAMES := {
+	"agri": "农业食品",
+	"goods": "工业商品",
+	"material": "建材",
+	"research": "科研速度",
+	"build": "建造速度",
+}
+
 # 取件（来自清册核对）
 const T_PANEL_DARK := 36
 const T_PANEL_CREAM := 33

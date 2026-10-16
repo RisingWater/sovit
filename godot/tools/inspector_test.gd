@@ -98,15 +98,24 @@ func _run() -> void:
 		_fail("城镇中心弹了对话框，右侧面板不该同时显示")
 		return
 	var keys: Array = _labels(civic)
-	for need in ["城镇中心", "人口上限", "当前人口", "空房", "本回合想来", "次日会来"]:
+	for need in ["城镇中心", "城镇名字", "人口上限", "当前人口", "空余房屋",
+			"想要迁入移民", "本回合迁入移民"]:
 		if not keys.has(need):
-			_fail("城镇中心对话框（人口页）缺少「%s」，实际：%s" % [need, keys])
+			_fail("城镇中心对话框（基本信息页）缺少「%s」，实际：%s" % [need, keys])
 			return
-	# 三个页签：人口 / 资源 / 公告
-	for need in ["人口", "资源", "公告"]:
+	# 四个页签：基本信息 / 资源 / 建造队列 / 公告
+	for need in ["基本信息", "资源", "建造队列", "公告"]:
 		if not _has_button(civic, need):
 			_fail("城镇中心对话框缺少页签「%s」" % need)
 			return
+	# 移民开关只有两个（老那个「+10」按用户要求删了）
+	for need in ["不限制移民迁入", "停止移民迁入"]:
+		if not _has_button(civic, need):
+			_fail("城镇中心对话框缺少按钮「%s」" % need)
+			return
+	if _has_button(civic, "+10"):
+		_fail("「+10」按钮应该已经删掉")
+		return
 	# 「资源」页必须能看库存 + 设上限 —— 开局可能还没有仓库（用户明确要求）
 	civic._select_tab(1)
 	await process_frame
@@ -121,8 +130,28 @@ func _run() -> void:
 	if not _labels(civic).has("全村仓储"):
 		_fail("城镇中心的「资源」页没有仓储余量")
 		return
-	# 「公告」页
+	# 「建造队列」页（第 3 个页签）：调序 / 撤单 —— 布局要素按用户要求点齐
+	# （缩略图 + 已用/需要建造力 + 右侧三个按钮），空队列时也要有话说
 	civic._select_tab(2)
+	await process_frame
+	if not _labels(civic).has("建造队列"):
+		_fail("城镇中心的「建造队列」页没有标题")
+		return
+	# 三件套按用户要求是**上三角 / 下三角 / 取消两个汉字**（不是 ↑ ↓ ×）
+	var queue_btns := 0
+	for c in civic.find_children("*", "Button", true, false):
+		var bt := String((c as Button).text)
+		if bt == "▲" or bt == "▼" or bt == "取消":
+			queue_btns += 1
+	if queue_btns != 0 and (queue_btns % 3) != 0:
+		_fail("建造队列的三件套（▲ / ▼ / 取消）不成组：%d 个" % queue_btns)
+		return
+	var queue_labels: Array = _labels(civic)
+	if not queue_labels.any(func(t): return String(t).contains("队列")):
+		_fail("建造队列页既没有条目也没有「队列是空的」提示：%s" % str(queue_labels))
+		return
+	# 「公告」页
+	civic._select_tab(3)
 	await process_frame
 	if not _labels(civic).has("公告"):
 		_fail("城镇中心的「公告」页没有公告区")
@@ -216,6 +245,70 @@ func _run() -> void:
 		return
 	if ins.find_children("*", "HSlider", true, false).size() == 0:
 		_fail("普通建筑的对话框里没有用工拖动条")
+		return
+
+	# ---- 3b. 产能建筑（建筑工坊 / 研究所）→ 建筑面板多一个队列页签 ----------
+	# 用户："点击**建筑工坊**的面板也加这一个 tab"、"在**研究所**的面板加一个 tab，
+	# 里面是研究队列"。两条都锁住：页签名 + 切过去真的画出队列行（缩略图 / 已用·需要
+	# 产能 / ↑ ↓ × 三件套），普通建筑则**不该有**这一行。
+	(s["shops"] as Array).append({
+		"id": "works#t", "defId": "construction_works", "owner": "state",
+		"targetWorkers": 3, "wage": 3.0, "wageCap": 6.0, "level": 1,
+		"active": true, "profit": 0.0, "skill": 50.0, "planned": 0.0,
+	})
+	(s["shops"] as Array).append({
+		"id": "inst#t", "defId": "research_institute", "owner": "state",
+		"targetWorkers": 3, "wage": 3.0, "wageCap": 6.0, "level": 1,
+		"active": true, "profit": 0.0, "skill": 50.0, "planned": 0.0,
+	})
+	# 队列里得有东西才看得出这页画的是什么：解锁科技、给足材料，真下几单
+	s["research"]["done"] = runner.db.tech_ids.duplicate()
+	for gid in ["wood", "stone", "brick", "clay"]:
+		s["goods"][gid] = 900.0
+	runner.sim._try_build("lumberjack")
+	runner.sim._try_build("quarry")
+	for tid in ["stonework", "digging"]:
+		(s["research"]["done"] as Array).erase(String(tid))
+		runner.sim._start_research(String(tid))
+	node._on_select_building("works#t")
+	await process_frame
+	if str(ins._tabs) != str(["运营", "建造队列"]):
+		_fail("建筑工坊的页签应为 [运营, 建造队列]，实际 %s" % str(ins._tabs))
+		return
+	ins._select_tab(1)
+	await process_frame
+	await process_frame
+	if not _labels(ins).has("建造队列"):
+		_fail("建筑工坊的「建造队列」页没有队列区")
+		return
+	if not _has_button(ins, "▲") or not _has_button(ins, "▼") or not _has_button(ins, "取消"):
+		_fail("建筑工坊的「建造队列」页缺少 ▲ / ▼ / 取消 三件套")
+		return
+	node._on_select_building("inst#t")
+	await process_frame
+	if str(ins._tabs) != str(["运营", "研究队列"]):
+		_fail("研究所的页签应为 [运营, 研究队列]，实际 %s" % str(ins._tabs))
+		return
+	ins._select_tab(1)
+	await process_frame
+	await process_frame
+	if not _labels(ins).has("研究队列"):
+		_fail("研究所的「研究队列」页没有队列区")
+		return
+	if not _has_button(ins, "▲") or not _has_button(ins, "▼") or not _has_button(ins, "取消"):
+		_fail("研究所的「研究队列」页缺少 ▲ / ▼ / 取消 三件套")
+		return
+	if not _labels(ins).any(func(t): return String(t).contains("科研力")):
+		_fail("研究所的「研究队列」页没有「已用 / 需要 科研力」那行")
+		return
+	# 普通建筑**没有**第二页：页签行整行收起来
+	node._on_select_building("lumberjack#t")
+	await process_frame
+	if str(ins._tabs) != str(["运营"]):
+		_fail("普通建筑的页签应只有 [运营]，实际 %s" % str(ins._tabs))
+		return
+	if ins._tab_row.visible:
+		_fail("普通建筑不该显示页签行（只有一页）")
 		return
 
 	# ---- 4.「设置资源」不再管上限

@@ -11,6 +11,11 @@ func test_save_load_roundtrip() -> void:
 	for i in 72:
 		sim_a.tick_hour([])
 	var before := _summary(sim_a.s)
+	# 公告（`state.log`）是公告页的**唯一真源**，必须随存档原样回来。
+	# ⚠️ 要 `duplicate(true)`：`state.log` 在 500 条以内是**原地 append**，
+	#    不复制的话下面 sim_a 继续跑会把这份"存档前的快照"一起改掉。
+	var log_before: Array = (sim_a.s["log"] as Array).duplicate(true)
+	assert_that(log_before.size()).is_greater(0)
 
 	var err := SaveManager.save_to(PATH, sim_a)
 	assert_that(err).is_equal(OK)
@@ -19,6 +24,11 @@ func test_save_load_roundtrip() -> void:
 	assert_that(sim_b).is_not_null()
 	var after := _summary(sim_b.s)
 	assert_that(after).is_equal(before)
+	# 公告逐条比对（day / kind / text）。
+	# ⚠️ 不直接 `JSON.stringify` 对拍：存档是 JSON，读回来 `day` 是 float（1 → 1.0），
+	#    字符串会差一个 `.0`。`_sanitize()` 已经把 day 还原成 int，这里再用 int()/String()
+	#    比一遍 —— 哪天 _sanitize 漏了，这条会红。
+	assert_that(_log_lines(sim_b.s["log"])).is_equal(_log_lines(log_before))
 
 	# 载入后继续 24 小时，两边仍应一致
 	for i in 24:
@@ -42,3 +52,11 @@ func _summary(s: Dictionary) -> Dictionary:
 
 func _snap(v: float) -> float:
 	return round(v * 1000000.0) / 1000000.0
+
+## 公告日志的可比形式（`D3|finance|发放工资 ¥0.00`）。
+func _log_lines(log_arr: Array) -> Array:
+	var out := []
+	for e in log_arr:
+		var d: Dictionary = e
+		out.append("D%d|%s|%s" % [int(d.get("day", 0)), String(d.get("kind", "")), String(d.get("text", ""))])
+	return out

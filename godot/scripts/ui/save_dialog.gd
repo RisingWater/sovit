@@ -214,7 +214,7 @@ func _refresh() -> void:
 			String(s["village"]), int(s["day"]),
 			int(when["month"]), int(when["day"]), int(when["hour"]), int(when["minute"])]
 		if not bool(s["ok"]):
-			label = "⚠ 无法识别　·　" + String(s["file"])
+			label = "！无法识别　·　" + String(s["file"])
 		var b := UIKit.row_button(label)
 		b.tooltip_text = String(s["file"])
 		b.pressed.connect(_on_row.bind(path))

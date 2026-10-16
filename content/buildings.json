@@ -37,7 +37,11 @@
       "id": "warehouse",
       "nameZh": "仓库",
       "art": {
-        "arch": "sprite"
+        "arch": "sprite",
+        "foot": [
+          8,
+          2
+        ]
       },
       "tier": 2,
       "workers": 1,
@@ -207,7 +211,11 @@
       "sector": "material",
       "nameZh": "伐木场",
       "art": {
-        "arch": "sprite"
+        "arch": "sprite",
+        "foot": [
+          4,
+          1
+        ]
       },
       "tier": 1,
       "workers": 3,
@@ -230,7 +238,11 @@
       "sector": "material",
       "nameZh": "采石场",
       "art": {
-        "arch": "sprite"
+        "arch": "sprite",
+        "foot": [
+          4,
+          2
+        ]
       },
       "tier": 1,
       "workers": 3,
@@ -253,7 +265,11 @@
       "sector": "material",
       "nameZh": "粘土坑",
       "art": {
-        "arch": "sprite"
+        "arch": "sprite",
+        "foot": [
+          4,
+          1
+        ]
       },
       "tier": 1,
       "workers": 3,
@@ -276,7 +292,11 @@
       "sector": "agri",
       "nameZh": "狩猎营地",
       "art": {
-        "arch": "sprite"
+        "arch": "sprite",
+        "foot": [
+          4,
+          1
+        ]
       },
       "tier": 1,
       "workers": 3,
@@ -298,7 +318,11 @@
       "sector": "agri",
       "nameZh": "渔场",
       "art": {
-        "arch": "sprite"
+        "arch": "sprite",
+        "foot": [
+          4,
+          1
+        ]
       },
       "tier": 1,
       "workers": 4,
@@ -319,7 +343,11 @@
       "sector": "agri",
       "nameZh": "粗面粉磨坊",
       "art": {
-        "arch": "sprite"
+        "arch": "sprite",
+        "foot": [
+          4,
+          2
+        ]
       },
       "tier": 2,
       "workers": 2,
@@ -343,7 +371,11 @@
       "sector": "agri",
       "nameZh": "精面粉磨坊",
       "art": {
-        "arch": "sprite"
+        "arch": "sprite",
+        "foot": [
+          4,
+          2
+        ]
       },
       "tier": 2,
       "workers": 3,
@@ -367,7 +399,11 @@
       "sector": "agri",
       "nameZh": "粗面包房",
       "art": {
-        "arch": "sprite"
+        "arch": "sprite",
+        "foot": [
+          4,
+          2
+        ]
       },
       "tier": 2,
       "workers": 2,
@@ -391,7 +427,11 @@
       "sector": "agri",
       "nameZh": "白面包房",
       "art": {
-        "arch": "sprite"
+        "arch": "sprite",
+        "foot": [
+          4,
+          2
+        ]
       },
       "tier": 2,
       "workers": 3,
@@ -415,7 +455,11 @@
       "sector": "agri",
       "nameZh": "糕点房",
       "art": {
-        "arch": "sprite"
+        "arch": "sprite",
+        "foot": [
+          4,
+          2
+        ]
       },
       "tier": 2,
       "workers": 4,
@@ -440,7 +484,11 @@
       "sector": "agri",
       "nameZh": "糖坊",
       "art": {
-        "arch": "sprite"
+        "arch": "sprite",
+        "foot": [
+          4,
+          2
+        ]
       },
       "tier": 2,
       "workers": 2,
@@ -464,7 +512,11 @@
       "sector": "goods",
       "nameZh": "粗织坊",
       "art": {
-        "arch": "sprite"
+        "arch": "sprite",
+        "foot": [
+          4,
+          2
+        ]
       },
       "tier": 2,
       "workers": 3,
@@ -488,7 +540,11 @@
       "sector": "goods",
       "nameZh": "细织坊",
       "art": {
-        "arch": "sprite"
+        "arch": "sprite",
+        "foot": [
+          4,
+          2
+        ]
       },
       "tier": 2,
       "workers": 4,
@@ -512,7 +568,11 @@
       "sector": "goods",
       "nameZh": "粗布衣坊",
       "art": {
-        "arch": "sprite"
+        "arch": "sprite",
+        "foot": [
+          4,
+          2
+        ]
       },
       "tier": 2,
       "workers": 3,
@@ -536,7 +596,11 @@
       "sector": "goods",
       "nameZh": "常服坊",
       "art": {
-        "arch": "sprite"
+        "arch": "sprite",
+        "foot": [
+          4,
+          2
+        ]
       },
       "tier": 2,
       "workers": 3,
@@ -560,7 +624,11 @@
       "sector": "goods",
       "nameZh": "华服坊",
       "art": {
-        "arch": "sprite"
+        "arch": "sprite",
+        "foot": [
+          4,
+          2
+        ]
       },
       "tier": 2,
       "workers": 4,
@@ -585,7 +653,11 @@
       "sector": "goods",
       "nameZh": "皮衣坊",
       "art": {
-        "arch": "sprite"
+        "arch": "sprite",
+        "foot": [
+          4,
+          2
+        ]
       },
       "tier": 2,
       "workers": 3,
@@ -609,7 +681,11 @@
       "sector": "material",
       "nameZh": "木柴坊",
       "art": {
-        "arch": "sprite"
+        "arch": "sprite",
+        "foot": [
+          4,
+          1
+        ]
       },
       "tier": 2,
       "workers": 2,
@@ -633,7 +709,11 @@
       "sector": "material",
       "nameZh": "砖窑",
       "art": {
-        "arch": "sprite"
+        "arch": "sprite",
+        "foot": [
+          4,
+          1
+        ]
       },
       "tier": 2,
       "workers": 2,
@@ -658,7 +738,11 @@
       "sector": "goods",
       "nameZh": "陶器坊",
       "art": {
-        "arch": "sprite"
+        "arch": "sprite",
+        "foot": [
+          4,
+          1
+        ]
       },
       "tier": 2,
       "workers": 3,
@@ -683,7 +767,11 @@
       "sector": "goods",
       "nameZh": "瓷窑",
       "art": {
-        "arch": "sprite"
+        "arch": "sprite",
+        "foot": [
+          4,
+          2
+        ]
       },
       "tier": 2,
       "workers": 3,
@@ -734,7 +822,11 @@
       "sector": "goods",
       "nameZh": "剧院",
       "art": {
-        "arch": "sprite"
+        "arch": "sprite",
+        "foot": [
+          9,
+          9
+        ]
       },
       "tier": 3,
       "workers": 5,
@@ -757,7 +849,11 @@
       "sector": "agri",
       "nameZh": "熏鱼坊",
       "art": {
-        "arch": "sprite"
+        "arch": "sprite",
+        "foot": [
+          4,
+          1
+        ]
       },
       "tier": 2,
       "workers": 3,
@@ -782,7 +878,11 @@
       "sector": "agri",
       "nameZh": "肉干坊",
       "art": {
-        "arch": "sprite"
+        "arch": "sprite",
+        "foot": [
+          4,
+          1
+        ]
       },
       "tier": 2,
       "workers": 3,
@@ -806,7 +906,11 @@
       "id": "construction_works",
       "nameZh": "建筑工坊",
       "art": {
-        "arch": "sprite"
+        "arch": "sprite",
+        "foot": [
+          4,
+          1
+        ]
       },
       "tier": 3,
       "workers": 3,

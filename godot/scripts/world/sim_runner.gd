@@ -13,7 +13,6 @@ signal day_settled(snapshot: Dictionary)
 
 var db: ContentDB
 var sim: SimCore
-var recent_logs: Array = []
 var _accum := 0.0
 
 func _ready() -> void:
@@ -43,11 +42,9 @@ func _process(delta: float) -> void:
 		_accum -= tick_sec
 		guard += 1
 		var prev_day = int(sim.s["day"])
-		var logs: Array = sim.tick_hour([])
-		for entry in logs:
-			recent_logs.append(entry)
-		if recent_logs.size() > 60:
-			recent_logs = recent_logs.slice(recent_logs.size() - 60)
+		# 公告的日志由仿真自己攒（`sim.s["log"]`，进存档）—— 这里不再抄一份影子副本。
+		# 见 `SimCore.tick_hour()` / `SimCore.log_tail()`。
+		sim.tick_hour([])
 		hour_ticked.emit()
 		if int(sim.s["day"]) != prev_day:
 			var hist: Array = sim.s["history"]

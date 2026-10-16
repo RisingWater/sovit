@@ -17,6 +17,14 @@
   - `h == settleHour(18)`：**夜晚** `runNight`
   - 推进：`hour = (hour+1) % hoursPerDay`
 - `state.day` 在**黎明** +1。
+- **公告日志 `state.log`（2026-10 起）**：`stepHour` 在这一小时跑完后，把**当小时返回的全部
+  日志**（黎明 / 白天 / 夜晚三批）并进 `state.log`，超过 500 条截掉最旧的。
+  - `state.log` 是公告页的**唯一真源**，随存档保存 —— 表现层**不得**再自己攒一份副本
+    （曾经 Godot 侧读的是 `SimRunner.recent_logs` 这份内存环形缓冲，读档时被清空，
+    于是"退出再进来公告全没了"）。
+  - ⚠️ 以前只有 `runNight()` 往里写，所以「建成投产」「研究完成」「X 改建为 Y」这类
+    **黎明**日志从来没进过存档。直接调 `runDawn()` / `runNight()` 只拿到返回值，
+    不写 `state.log` —— 累积只发生在 `stepHour()` 这一处（两边实现都如此）。
 
 ## 1. 命令队列（次日生效）
 
@@ -198,6 +206,29 @@ GDScript 侧要小心：`Dictionary.get(k, 默认值)` **不短路**，回退值
 非房主、`classLevel>=2`、`classLevel==def.quality`、`savings>=price+5`、`satisfaction>=privateHousingNeedThreshold`。
 成交：`savings-=price`、`homeowner=true, ownedQuality=quality`、`privateHousing[gid]++`、`government.money+=price`。
 
+### 5.4 住房改建 `upgrade_housing`（2026-10）
+
+内容里 `housing.json` 的 `upgradeTo` 给出**显式**的改建链（当前：茅屋 → 木屋 → 砖房）。
+**不按 `quality` 自动推下一档** —— 别墅同样是高档房，但没人指向它，所以只能单独建造
+（用户："茅屋可以升级成木屋，木屋升级成砖房，但是别墅要单独建造"）。
+
+```
+动作    { type:'upgrade_housing', goodId }        # goodId = 改建**前**的房型
+前提    goodId ∈ pack.housing；有 upgradeTo；目标房型已解锁（同 build_housing）
+        国有栋数 = housing[goodId] − privateHousing[goodId] − 在途改建数 ≥ 1
+        # → 私有住房**不能**改建；在途的也算占用（否则完工时会凭空多出一栋）
+成本    mats = { g: max(0, to.buildCost[g] − from.buildCost[g]) }   # 只算差价，旧料视为回收
+        work = max(1, to.buildWork − from.buildWork)
+条目    construction 里 kind='housing_upgrade'，housingId=from、toHousingId=to
+        **不额外占土地名额**（`usedSlots()` 跳过它）
+完工    housing[from] -= 1（下限 0）；housing[to] += 1          # 栋数不变
+        日志：`<from> 改建为 <to>`
+```
+
+`available()`（开工时扣材料）与其它工程同一条路径；进度条与悬停提示由表现层负责
+（世界层按"同类型第 i 座住房 ↔ 第 i 条在途改建"配对，见 docs/town.md §14）。
+自检：`scripts/check-housing-upgrade.ts`（引擎）＋ `godot/tools/housingupgrade_test.gd`（镜像与世界层）。
+
 ## 6. 消费 `runConsumption`（夜晚）
 
 逐**阶层**、逐**居民**、逐 `need`：
@@ -270,6 +301,7 @@ rate = (Σ(失业居民) × construction.unemployedRate
 - 建筑工时 `buildWork` 见 `content/buildings.json`；住房见 `housing.json`。
 - 升级工时 = `construction.upgradePerLevel × 当前等级`。
 - `usedSlots = shops + 在建(非 upgrade) + housing`。
+- 下单之后**改顺序 / 撤单**走 §9.8 的两条动作（队列是先进先出的一条）。
 
 ### 9.3 黎明 `planConstructionDay` + 白天 `applyConstructionHours(fraction)`（**与 §2.2 同一条件**）
 
@@ -376,6 +408,43 @@ slots = (def.maxWorkers ?? def.workers) + (def.capacity?.slotsPerLevel ?? 0) × 
   按 shop_id 索引的表。不做这一步就会留下"鬼影"且那块地永远不能再建。
 - 面板点「拆除」要**弹二次确认窗**（不可撤销，得让玩家看清拆的是哪一座）。
 
+### 9.8 建造队列：调序 `move_construction` / 撤单 `cancel_construction`
+
+队列就是**先进先出**的一条 `state.construction`：队首（index 0）先开工、产能没用完才
+溢给下一条。这两条动作让玩家能改它（面板见 `docs/town.md` §十五）。
+
+```
+{ type: 'move_construction', id, delta }    # delta = -1 上移一位 / +1 下移一位
+{ type: 'cancel_construction', id }
+```
+
+**调序**（`moveConstruction`）：
+- 只按 `delta` 的**方向**挪**一位**（`sign(delta)`）；只改顺序，**不重算 `remaining`、
+  不改 `started`、不退料**。已经开工的工程被挪到后面时只是**暂停**（前面的先吃产能）。
+- `id` 不在队列里 → `该工程已不在队列里`；`delta = 0` → `没有移动`；
+  在队首再上移 → `已经是队首`；在队尾再下移 → `已经是队尾`。
+
+**撤单**（`cancelConstruction`）：只作用于**还在队列里**的（已建成的走 §9.7 `demolish`）。
+
+- 退料比例：`started && total > 0 ? clamp(remaining / totalRequired, 0, 1) : 0`
+  - **还没开工 → 退 0**：材料是**开工那一刻**才扣的（§9.2），没开过工就一分钱都没扣过
+  - **已开工 → 退回量 = 已扣材料 × 比例**（只退"还没干完"的那一份），
+    金钱口径同理（无实物材料的按 `moneyCostBuild` / `moneyCostExpand` 扣过钱的）
+- **不退建造力**：它是每日产能，不是库存（与 §9.7 同口径）。
+- 退回物按 `round2` 逐项并进 `state.goods` / `government.money`，然后从队列里移除。
+- 成功的返回值里带一句摘要（`text`），`applyActions` 把它**写进公告**
+  （`cancel_construction` 是唯一"扣了又还"的动作，退料明细没有别的出口）；
+  `reason` 也是它。GDScript 侧同形制：`_apply_actions()` 返回这些日志，
+  由 `_run_dawn()` 并进黎明那批（公告的累积仍只发生在 `tick_hour()` 一个入口）。
+- 预览：`cancelRefundPreview()`（TS）/ `construction_refund_preview()`（GD）**只算不改**，
+  面板的二次确认拿它显示"点了会退回什么"（同一份口径，不会和真退分叉）。
+- **取消在建工程要放回土地名额**（`usedSlots` 本来就把在建算作占用）——
+  表现层还要收掉地图上那处工地精灵（`world_view._prune_orphan_sites()`），
+  否则会留一个永远不完工的"鬼工地"且地格永远占着。
+
+**门槛**：`scripts/check-queues.ts`（TS）与 `godot/tools/queue_test.gd`（GD）
+—— 同口径、同数字（木 6/石 3、36 建造力、投 10 点后剩 26 → 退 4.33 / 2.17）。
+
 ## 10. 研究（科技解锁）
 
 > **科研力 = 每日产能（速率，不是库存）**，与建造力同构。完整设计见 `docs/technology.md`。
@@ -401,7 +470,10 @@ rate = (economy.research.baseRate
 `research.queue{id, remaining = tech.research, totalRequired, started = false}`。
 拒绝条件（按顺序）：科技不存在 / 已完成 / 已在队列 / **前置未完成** / 材料不足。
 
-`cancel_research { techId }` 从队列移除，**已扣材料不退**（与施工一致）。
+`cancel_research { techId }`：从队列移除 + **按进度退回原料**（见 §10.7；以前是"材料不退"，
+施工侧加了撤单之后两边口径必须统一）。
+
+`move_research { id, delta }`：调序（见 §10.7）。
 
 ### 10.3 黎明 `planResearchDay` + 白天 `applyResearchHours(fraction)`
 
@@ -453,7 +525,11 @@ for p in research.queue:                 # 队首 → 队尾
 > 与施工的 §9.4 同一套口径。
 
 ### 10.5 黎明 `activateResearch`
-`queue[0].remaining <= 0` 时出队并 push 进 `research.done`（解锁随之生效），可连出多项。
+`remaining <= 0` 的项目出队并 push 进 `research.done`（解锁随之生效），**扫全队列**、保持顺序。
+
+> 老版本只认 `queue[0]`（队列是先进先出，正常玩只有队首能跑完）。加了 §10.7 的**调序**
+> 之后，"跑完的那项被挪到后面"变成可达状态 —— 只认队首的话它会一直卡在队列里，
+> 玩家看到的是"研究完成了却没解锁"。现在与施工的 `activateCompleted` 同形制：谁跑完谁次日生效。
 
 ### 10.6 解锁判定
 ```
@@ -465,6 +541,31 @@ for p in research.queue:                 # 队首 → 队尾
 
 开局已研究的科技取 `pack.start.techs`（缺省空）。开局自带某建筑**实例**的 pack
 必须把解锁它的科技也列进去，否则会出现"有这座建筑但建造栏里是锁的"。
+
+### 10.7 研究队列：调序 `move_research` / 撤单 `cancel_research`
+
+与施工队列（§9.8）**同一套契约**：队列是先进先出的一条 `research.queue`，队首先吃到
+科研力，所以调序 = 决定谁先研究。
+
+```
+{ type: 'move_research', id, delta }     # delta = -1 上移一位 / +1 下移一位
+{ type: 'cancel_research', techId }
+```
+
+**调序**（`moveResearch`）：只按 `sign(delta)` 挪一位；只改顺序，**不重算 `remaining`、
+不改 `started`、不退料**。已开工的被挪到后面时只是**暂停**。
+`id` 不在队列里 → `不在研究队列中`；`delta = 0` → `没有移动`；队首上移 → `已经是队首`；
+队尾下移 → `已经是队尾`。
+
+**撤单**（`cancelResearch`）：退料比例 `started && total > 0 ? clamp(remaining/total, 0, 1) : 0`
+- **还没开工 → 退 0**：原料是开工那一刻扣的（§10.2/§10.3），没开过工就一分没扣
+- **已开工 → 退回量 = 已扣原料 × 比例**，逐项 `round2` 并进 `state.goods`
+- **科研力不退**（它是每日产能，不是库存）
+- 成功时返回一句摘要（`text`），`applyActions` 把它**写进公告**；`reason` 也是它
+- 预览 `researchCancelPreview()`（TS）/ `research_cancel_preview()`（GD）**只算不改**
+
+**门槛**：`scripts/check-queues.ts`（TS）与 `godot/tools/queue_test.gd`（GD），同口径同数字
+（木 15 / 20 科研力，投 8 点后剩 12 → 退 9）。
 
 ## 11. 工具（工坊耗材与产出加成）
 

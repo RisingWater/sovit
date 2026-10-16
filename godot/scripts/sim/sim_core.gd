@@ -213,14 +213,40 @@ func tick_hour(pending_actions: Array = []) -> Array:
 	if h == int(db.time["settleHour"]):
 		logs.append_array(_run_night())
 	s["hour"] = (h + 1) % int(db.time["hoursPerDay"])
+	# 公告（`s["log"]`）**逐小时累积当小时的日志**（黎明 / 白天 / 夜晚三批都算），上限 500。
+	#
+	# ⚠️ 这里必须管全部三批：以前只有 `_run_night()` 往里写，于是「建成投产」「研究完成」
+	#    「X 改建为 Y」这类**黎明**日志根本进不了存档 —— 玩家退出再进来，公告就基本是空的
+	#    （2026-10 用户报的）。`s["log"]` 是公告的**唯一真源**（UI 直接读它，见 log_tail()），
+	#    所以它必须等于「玩家这一天见过的全部消息」。TS 侧同口径（src/engine/tick.ts）。
+	var all_logs: Array = s["log"]
+	all_logs.append_array(logs)
+	if all_logs.size() > 500:
+		s["log"] = all_logs.slice(all_logs.size() - 500)
 	return logs
+
+## 公告：最近 `n` 条日志（给表现层读）。
+##
+## 日志的真源是 `s["log"]`（进存档），这里只是取尾巴 —— 表现层**不要**再自己攒一份副本
+## （曾经 `SimRunner.recent_logs` 就是这么一份影子副本，读档时被清空，公告于是全没了）。
+func log_tail(n: int = 24) -> Array:
+	var all_logs: Array = s.get("log", [])
+	if n <= 0 or all_logs.size() <= n:
+		return all_logs
+	return all_logs.slice(all_logs.size() - n)
+
+## 公告总条数（面板用来显示"共 N 条，显示最近 24 条"）。
+func log_size() -> int:
+	return (s.get("log", []) as Array).size()
 
 func _run_dawn() -> Array:
 	var logs := []
 	s["day"] = int(s["day"]) + 1
 	# 新的一天：台账清零（晚上结算时挂到当天快照）
 	s["ledgerToday"] = _empty_ledger(int(s["day"]))
-	_apply_actions(s["pending"])
+	# 取消建造的日志就在这一批里（见 _apply_actions）—— 必须并进黎明这批日志，
+	# 否则"退回了什么"既不在公告里、也不进存档。
+	logs.append_array(_apply_actions(s["pending"]))
 	s["pending"] = []
 	logs.append_array(_activate_completed())
 	logs.append_array(_activate_research())
@@ -267,14 +293,7 @@ func _run_night() -> Array:
 	if s["history"].size() > 400:
 		s["history"] = s["history"].slice(s["history"].size() - 400)
 	s["alerts"] = _build_alerts(cons["hungry"])
-	# 日志也要落进 state（TS 侧 `state.log = [...state.log, ...logs]` 并截断 500）。
-	# ⚠️ 这是历史遗留的 parity 缺口：GDScript 以前只把日志**返回**给调用方，
-	# 从不写进存档 —— 于是"仓储超限丢弃 X 单位 Y"这类日志在 Godot 侧的
-	# `sim.s["log"]` 里看不到（UI 读的是 runner.recent_logs，所以之前没暴露）。
-	var all_logs: Array = (s["log"] as Array)
-	all_logs.append_array(logs)
-	if all_logs.size() > 500:
-		s["log"] = all_logs.slice(all_logs.size() - 500)
+	# ⚠️ 这里**不**往 s["log"] 写：公告的累积统一发生在 tick_hour()（唯一入口，见那里的注释）。
 	return logs
 
 # ===========================================================================
@@ -301,7 +320,11 @@ func _class_level(cid: String) -> int:
 # ===========================================================================
 # 动作
 # ===========================================================================
-func _apply_actions(actions: Array) -> void:
+func _apply_actions(actions: Array) -> Array:
+	## 返回**这些命令产生的日志**（目前只有取消建造会写一条：退料明细没有别的出口）。
+	## 调用方 `_run_dawn()` 把它们并进黎明那批日志 —— 公告的累积统一发生在 tick_hour()
+	## 这一个入口，所以这里**不直接**碰 `s["log"]`（与 TS 的 applyActions(logs) 同形制）。
+	var logs := []
 	for action in actions:
 		var t = String(action["type"])
 		match t:
@@ -350,6 +373,14 @@ func _apply_actions(actions: Array) -> void:
 				_try_build(String(action["buildingId"]))
 			"build_housing":
 				_try_build_housing(String(action["goodId"]))
+			"upgrade_housing":
+				_try_upgrade_housing(String(action["goodId"]))
+			"move_construction":
+				_move_construction(String(action["id"]), int(action.get("delta", 0)))
+			"cancel_construction":
+				var cres := _cancel_construction(String(action["id"]))
+				if bool(cres["ok"]):
+					logs.append({"day": int(s["day"]), "kind": "invest", "text": String(cres["text"])})
 			"set_tax":
 				s["government"]["taxBrackets"] = [{"upTo": null, "rate": clampf(float(action["value"]), 0.0, 0.95)}]
 			"set_tax_bracket":
@@ -363,9 +394,14 @@ func _apply_actions(actions: Array) -> void:
 			"research":
 				_start_research(String(action["techId"]))
 			"cancel_research":
-				_cancel_research(String(action["techId"]))
+				var rres := _cancel_research(String(action["techId"]))
+				if bool(rres["ok"]):
+					logs.append({"day": int(s["day"]), "kind": "invest", "text": String(rres["text"])})
+			"move_research":
+				_move_research(String(action["id"]), int(action.get("delta", 0)))
 			_:
 				pass
+	return logs
 
 func _set_tax_bracket(action: Dictionary) -> void:
 	var bs: Array = s["government"]["taxBrackets"]
@@ -665,6 +701,27 @@ func _assigned_workers(shop_id: String) -> int:
 			n += 1
 	return n
 
+## 在岗工人明细，供检视面板的「员工」段显示：
+##   `[{ "id": "res#7", "skill": 62.0, "wage": 2.74 }, ...]`
+##
+## `wage` = 这个人**当日从本店拿到的毛工资**（含熟练度加成与工资上限），走的就是
+## `_worker_gross_wage()` —— 与 `_pay_wages()` 共用同一个函数，所以面板上写的数
+## 和晚上实际发的钱**不可能对不上**。名字由表现层用 `Names.for_id(id)` 生成（视图层的事）。
+func shop_workers(shop_id: String) -> Array:
+	var out := []
+	var shop = _find_shop(shop_id)
+	if shop == null:
+		return out
+	for r in s["residents"]:
+		if String(r.get("jobShopId", "")) != shop_id:
+			continue
+		out.append({
+			"id": String(r["id"]),
+			"skill": float(r["skill"]),
+			"wage": SimUtil.r2(_worker_gross_wage(shop, r)),
+		})
+	return out
+
 func _food_chain_goods() -> Dictionary:
 	var setd := {}
 	var seed_class = db.classes.get(String(db.tuning["foodChainSeedClass"]), null)
@@ -825,15 +882,21 @@ func _progressive_tax(income: float, brackets: Array) -> float:
 			break
 	return SimUtil.r2(tax)
 
+## 一个在岗工人当日的**毛工资**：
+##   工资 × (skillIncomeBase + min(skillMax, 熟练度) / 100)，再夹到本店工资上限。
+##
+## ⚠️ `_pay_wages()` 与检视面板的「员工」段**必须共用这一个函数** —— 否则面板上写的
+## 工资和晚上实际发出去的钱会悄悄分叉（熟练度那一段最容易写歪）。
+func _worker_gross_wage(shop: Dictionary, r: Dictionary) -> float:
+	var base = float(db.economy["skillIncomeBase"]) + minf(float(db.economy["skillMax"]), float(r["skill"])) / 100.0
+	var gross = float(shop["wage"]) * base
+	var cap = float(shop["wageCap"])
+	if cap > 0.0:
+		gross = minf(gross, cap)
+	return gross
+
 func _pay_wages(day: int) -> Array:
-	var wage_by_shop := {}
-	var cap_by_shop := {}
-	for shop in s["shops"]:
-		wage_by_shop[shop["id"]] = float(shop["wage"])
-		cap_by_shop[shop["id"]] = float(shop["wageCap"])
 	var brackets: Array = s["government"]["taxBrackets"]
-	var skill_base = float(db.economy["skillIncomeBase"])
-	var skill_max = float(db.economy["skillMax"])
 
 	var gross_total = 0.0
 	var tax_total = 0.0
@@ -845,11 +908,9 @@ func _pay_wages(day: int) -> Array:
 			# 非熟练临时工，不吃熟练度加成、也不受工坊工资上限约束。
 			gross = build_pay
 		elif bool(r["employed"]) and r.get("jobShopId", null) != null:
-			var wage_base = float(wage_by_shop.get(r.get("jobShopId", ""), 0.0))
-			gross = wage_base * (skill_base + minf(skill_max, float(r["skill"])) / 100.0)
-			var cap = float(cap_by_shop.get(r.get("jobShopId", ""), 0.0))
-			if cap > 0.0:
-				gross = minf(gross, cap)
+			var shop = _find_shop(String(r["jobShopId"]))
+			if shop != null:
+				gross = _worker_gross_wage(shop, r)
 		# else: 失业且没有工程可做 → 无收入（失业保障金已取消，见 docs/construction.md 五）
 		var tax = _progressive_tax(gross, brackets)
 		r["savings"] = SimUtil.r2(float(r["savings"]) + gross - tax)
@@ -1344,12 +1405,33 @@ func _max_slots() -> float:
 
 func _used_slots() -> int:
 	var n = s["shops"].size()
+	# ⚠️ `housing_upgrade` 是"原地改建"：改完 housing[from]−1 / housing[to]+1，总栋数不变，
+	#    所以它**不能**算成一个新名额（否则改建一次就白白吃掉一格土地）。
 	for c in s["construction"]:
-		if String(c["kind"]) != "upgrade":
+		if String(c["kind"]) != "upgrade" and String(c["kind"]) != "housing_upgrade":
 			n += 1
 	for gid in s["housing"].keys():
 		n += int(floor(float(s["housing"][gid])))
 	return n
+
+## 住房**改建**（见 docs/spec.md §5.4）的差价材料与工期。与 TS 的 `housingUpgradeSpec()`
+## 必须同口径（门槛 `housingupgrade` 会拿真实数字对拍）：
+##   材料 = 对目标房型 buildCost 的每一项取 max(0, 目标 − 原房型)，只认当前包里的商品；
+##   工期 = max(1, 目标 buildWork − 原房型 buildWork)。
+func _housing_upgrade_spec(from_def: Dictionary, to_def: Dictionary) -> Dictionary:
+	var mats := []
+	var good_set = _good_set()
+	var to_cost: Dictionary = to_def.get("buildCost", {})
+	var from_cost: Dictionary = from_def.get("buildCost", {})
+	for gid in to_cost.keys():
+		var q = float(to_cost[gid])
+		if q <= 0.0 or not good_set.has(gid):
+			continue
+		var diff = SimUtil.r2(q - float(from_cost.get(gid, 0.0)))
+		if diff > 0.0:
+			mats.append([gid, diff])
+	var work = maxf(1.0, SimUtil.r2(float(to_def["buildWork"]) - float(from_def["buildWork"])))
+	return {"mats": mats, "money": 0.0, "work": work}
 
 func _present_cost(def: Dictionary) -> Array:
 	var out := []
@@ -1393,6 +1475,13 @@ func _cost_of(c: Dictionary) -> Dictionary:
 		if not db.housing.has(hid):
 			return {}
 		return {"mats": _present_cost(db.housing[hid]), "money": 0.0}
+	if kind == "housing_upgrade":
+		var f = String(c.get("housingId", ""))
+		var t = String(c.get("toHousingId", ""))
+		if not db.housing.has(f) or not db.housing.has(t):
+			return {}
+		var spec: Dictionary = _housing_upgrade_spec(db.housing[f], db.housing[t])
+		return {"mats": spec["mats"], "money": 0.0}
 	return {}
 
 func _shortage_reason(spec: Dictionary) -> String:
@@ -1427,6 +1516,12 @@ func _label_of(c: Dictionary) -> String:
 	if kind == "upgrade":
 		var d2 = db.buildings.get(String(c.get("buildingId", "")), null)
 		return "%s 升级" % (String(d2["nameZh"]) if d2 != null else String(c.get("buildingId", "")))
+	if kind == "housing_upgrade":
+		var hf = String(c.get("housingId", ""))
+		var ht = String(c.get("toHousingId", ""))
+		var n1 = String(db.housing[hf]["nameZh"]) if db.housing.has(hf) else hf
+		var n2 = String(db.housing[ht]["nameZh"]) if db.housing.has(ht) else ht
+		return "%s 改建（→ %s）" % [n1, n2]
 	return String(c["id"])
 
 func _order(c: Dictionary) -> void:
@@ -1482,6 +1577,41 @@ func _try_build_housing(good_id: String) -> void:
 	_order({
 		"id": "c#%d-house-%s" % [s["construction"].size() + 1, good_id],
 		"kind": "housing", "buildingId": "", "shopId": "", "housingId": good_id,
+		"remaining": work, "totalRequired": work, "started": false,
+	})
+
+## 住房改建：下单进施工队列（材料在开工时才扣）。见 docs/spec.md §5.4。
+##
+## ⚠️ 三条规矩（与 TS 的 `tryUpgradeHousing()` 一致）：
+##   · **只允许国有住房**：私有住房是居民买下的私产（`privateHousing` + 房主 ownedQuality），
+##     改建的口径复杂且容易算乱（用户拍板：私有住房不能改建）；
+##   · **在途的改建也算占用**：2 栋茅屋只能排 2 条改建 —— 否则完工时会凭空多出一栋木屋；
+##   · **目标房型要已解锁**（和 `build_housing` 同一条规矩）。
+func _try_upgrade_housing(good_id: String) -> void:
+	if not _pack()["housing"].has(good_id):
+		return
+	if not db.housing.has(good_id):
+		return
+	var from_def: Dictionary = db.housing[good_id]
+	var to_id = String(from_def.get("upgradeTo", ""))
+	if to_id == "" or not db.housing.has(to_id):
+		return	# 链尾（砖房）/ 别墅：不能改建
+	if not is_housing_unlocked(to_id):
+		return
+	var total = int(floor(float(s["housing"].get(good_id, 0.0))))
+	var priv = int(floor(float(s["privateHousing"].get(good_id, 0.0))))
+	var in_flight = 0
+	for c in s["construction"]:
+		if String(c["kind"]) == "housing_upgrade" and String(c.get("housingId", "")) == good_id:
+			in_flight += 1
+	if total - priv - in_flight < 1:
+		return
+	var spec: Dictionary = _housing_upgrade_spec(from_def, db.housing[to_id])
+	var work = float(spec["work"])
+	_order({
+		"id": "c#%d-re-%s" % [s["construction"].size() + 1, good_id],
+		"kind": "housing_upgrade", "buildingId": "", "shopId": "",
+		"housingId": good_id, "toHousingId": to_id,
 		"remaining": work, "totalRequired": work, "started": false,
 	})
 
@@ -1561,12 +1691,85 @@ func _start_research(tid: String) -> void:
 		"waiting": false,
 	})
 
-func _cancel_research(tid: String) -> void:
+## 研究队列里 `id` 的下标（-1 = 不在队列里）。
+func research_index(id: String) -> int:
 	var q: Array = s["research"]["queue"]
-	for i in range(q.size()):
-		if String(q[i]["id"]) == tid:
-			q.remove_at(i)
-			return
+	for i in q.size():
+		if String(q[i]["id"]) == id:
+			return i
+	return -1
+
+## 研究队列调序：按 `delta` 的方向挪**一位**（-1 上移 / +1 下移）。
+## 与施工队列的 `_move_construction()` **同一套语义**：只改顺序 —— 不重算 `remaining`、
+## 不改 `started`、不退料。已开工的被挪到后面时只是**暂停**（队首先吃到科研力）。
+func _move_research(id: String, delta: int) -> Dictionary:
+	var q: Array = s["research"]["queue"]
+	var i := research_index(id)
+	if i < 0:
+		return {"ok": false, "reason": "不在研究队列中"}
+	var step := signi(delta)
+	if step == 0:
+		return {"ok": false, "reason": "没有移动"}
+	var j := i + step
+	if j < 0:
+		return {"ok": false, "reason": "已经是队首"}
+	if j >= q.size():
+		return {"ok": false, "reason": "已经是队尾"}
+	var a = q[i]
+	q[i] = q[j]
+	q[j] = a
+	return {"ok": true}
+
+## 取消退料的**计算**部分（**只算不改状态**）—— 与施工的
+## `construction_refund_preview()` 同一口径：
+##   还没开工 → 一分原料都没扣过，退 0
+##   已开工   → 退回量 = 已扣原料 × (remaining / totalRequired)
+## 科研力**本身**不退（它是每日产能，不是库存）。
+func research_cancel_preview(id: String) -> Dictionary:
+	var q: Array = s["research"]["queue"]
+	var i := research_index(id)
+	if i < 0:
+		return {"ok": false, "reason": "不在研究队列中", "index": -1, "started": false,
+			"used": 0.0, "total": 0.0, "refund": [], "label": "", "text": ""}
+	var p: Dictionary = q[i]
+	var tech = db.techs.get(id, null)
+	var label := String(tech["nameZh"]) if tech != null else id
+	var total := float(p["totalRequired"])
+	var used := maxf(0.0, total - float(p["remaining"]))
+	var ratio := 0.0
+	if bool(p["started"]) and total > 0.0:
+		ratio = clampf(float(p["remaining"]) / total, 0.0, 1.0)
+	var refund := []
+	if tech != null:
+		for gid in (tech["cost"]["goods"] as Dictionary).keys():
+			var back := SimUtil.r2(float(tech["cost"]["goods"][gid]) * ratio)
+			if back > 0.0:
+				refund.append([gid, back])
+	var text := ""
+	if not bool(p["started"]):
+		text = "取消研究「%s」（还没开工，材料没扣过）" % label
+	else:
+		var pct := 0 if total <= 0.0 else int(round(used / total * 100.0))
+		var parts := []
+		for r in refund:
+			parts.append("%s×%s" % [_good_name(String(r[0])), SimUtil.r2(float(r[1]))])
+		if parts.is_empty():
+			text = "取消研究「%s」（已投入 %d%%），没有可退的材料" % [label, pct]
+		else:
+			text = "取消研究「%s」（已投入 %d%%），退回 %s" % [label, pct, "、".join(parts)]
+	return {"ok": true, "index": i, "started": bool(p["started"]), "used": used,
+		"total": total, "refund": refund, "label": label, "text": text}
+
+## 取消研究（从队列移除 + **按进度退回原料**）。
+## ⚠️ 口径与施工的撤单一致：材料是开工那一刻扣的 → 没开工退 0；开工了退还没干完的那份。
+func _cancel_research(tid: String) -> Dictionary:
+	var plan := research_cancel_preview(tid)
+	if not bool(plan["ok"]):
+		return plan
+	for r in plan["refund"]:
+		s["goods"][r[0]] = SimUtil.r2(float(s["goods"].get(r[0], 0.0)) + float(r[1]))
+	(s["research"]["queue"] as Array).remove_at(int(plan["index"]))
+	return plan
 
 func _plan_research_day() -> void:
 	## 黎明：钉死**当日科研力预算**。
@@ -1668,13 +1871,20 @@ func _settle_research(day: int) -> Array:
 	return logs
 
 func _activate_research() -> Array:
+	## ⚠️ 这里是**扫全队列**取走 `remaining <= 0` 的（与施工的 `_activate_completed` 同形制），
+	## 不是老版本的"只看队首"：队列本身先进先出，正常玩只有队首能跑完；但**调序**能把一条
+	## 跑完的挪到后面 —— 只认队首的话它要等再次轮到才生效，玩家会看到"完成了却没解锁"。
 	var logs := []
-	while (s["research"]["queue"] as Array).size() > 0 and float(s["research"]["queue"][0]["remaining"]) <= 0.0:
-		var done_item: Dictionary = s["research"]["queue"].pop_front()
-		s["research"]["done"].append(String(done_item["id"]))
-		var tech = db.techs.get(String(done_item["id"]), null)
+	var remaining := []
+	for item in (s["research"]["queue"] as Array):
+		if float(item["remaining"]) > 0.0:
+			remaining.append(item)
+			continue
+		s["research"]["done"].append(String(item["id"]))
+		var tech = db.techs.get(String(item["id"]), null)
 		logs.append({"day": int(s["day"]), "kind": "invest",
-			"text": "研究完成：%s" % (String(tech["nameZh"]) if tech != null else String(done_item["id"]))})
+			"text": "研究完成：%s" % (String(tech["nameZh"]) if tech != null else String(item["id"]))})
+	s["research"]["queue"] = remaining
 	return logs
 
 # ===========================================================================
@@ -1756,6 +1966,21 @@ func _sector_output_boost(shop: Dictionary) -> float:
 	if sec == "":
 		return 1.0
 	return 1.0 + float(tech_bonuses().get(sec, 0.0))
+
+## 本店今日的**制造加成**，拆成两项给检视面板显示：
+##   `{ "total": 1.78, "tool": 1.25, "tech": 1.42 }`（`total = tool × tech`）
+##
+## 两项的来源：`tool` = 黎明分配的工具（`shop.toolBoost`，见 `_allocate_tools`），
+## `tech` = 本产业效率科技（见 `_sector_output_boost`）。它**只放大产出**、不放大投入
+## （docs/spec.md §2.2 的"虚空产量"）。只读入口 —— 公式本体仍在这两个私有函数里，
+## 表现层不许自己算（见 godot/AGENTS.md 分层）。
+func shop_output_boost(shop_id: String) -> Dictionary:
+	var shop = _find_shop(shop_id)
+	if shop == null:
+		return {"total": 1.0, "tool": 1.0, "tech": 1.0}
+	var tool = _shop_tool_boost(shop)
+	var tech = _sector_output_boost(shop)
+	return {"total": tool * tech, "tool": tool, "tech": tech}
 
 func _capacity_kind(def: Dictionary, kind: String) -> bool:	## 该建筑是否是某种产能来源（不产商品、只产每日产能）。见 docs/technology.md §6.2。
 	if not def.has("capacity"):
@@ -1948,8 +2173,114 @@ func _activate_completed() -> Array:
 			var hid = String(c["housingId"])
 			s["housing"][hid] = float(s["housing"].get(hid, 0.0)) + 1.0
 			logs.append({"day": int(s["day"]), "kind": "invest", "text": "建成住房"})
+		elif kind == "housing_upgrade":
+			# 原地改建：栋数不变，只是从 from 挪到 to（土地名额因此也不变，见 _used_slots）。
+			var hfrom = String(c.get("housingId", ""))
+			var hto = String(c.get("toHousingId", ""))
+			if hfrom != "" and hto != "":
+				s["housing"][hfrom] = maxf(0.0, float(s["housing"].get(hfrom, 0.0)) - 1.0)
+				s["housing"][hto] = float(s["housing"].get(hto, 0.0)) + 1.0
+				var nf = String(db.housing[hfrom]["nameZh"]) if db.housing.has(hfrom) else hfrom
+				var nt = String(db.housing[hto]["nameZh"]) if db.housing.has(hto) else hto
+				logs.append({"day": int(s["day"]), "kind": "invest",
+					"text": "%s 改建为 %s" % [nf, nt]})
 	s["construction"] = remaining
 	return logs
+
+# ---------------------------------------------------------------------------
+# 建造队列：调序 / 取消（与 TS 的 `moveConstruction()` / `cancelConstruction()` 同口径）
+#
+# 队列本来就是**先进先出**的一条 `s["construction"]`：队首（index 0）先开工、产能没用完
+# 才溢给下一条。以前玩家只能下单、**没法改顺序**；这两条把队列变成可管理的。
+#
+# ⚠️ 调序只改"谁先吃到建造力"：不重算 `remaining`、不改 `started`、不退料。已经在建的
+#    工程被挪到后面时只是**暂停**（前面的工程先吃产能）。见 docs/construction.md 六。
+# ---------------------------------------------------------------------------
+
+## 施工队列里 `id` 这条的下标（-1 = 不在队列里）。
+func construction_index(id: String) -> int:
+	var list: Array = s["construction"]
+	for k in list.size():
+		if String(list[k]["id"]) == id:
+			return k
+	return -1
+
+## 调序：把 `id` 这条按 `delta` 的方向挪**一位**（-1 上移 / +1 下移）。
+func _move_construction(id: String, delta: int) -> Dictionary:
+	var list: Array = s["construction"]
+	var i := construction_index(id)
+	if i < 0:
+		return {"ok": false, "reason": "该工程已不在队列里"}
+	var step := signi(delta)
+	if step == 0:
+		return {"ok": false, "reason": "没有移动"}
+	var j := i + step
+	if j < 0:
+		return {"ok": false, "reason": "已经是队首"}
+	if j >= list.size():
+		return {"ok": false, "reason": "已经是队尾"}
+	var a = list[i]
+	list[i] = list[j]
+	list[j] = a
+	return {"ok": true}
+
+## 取消退料的**计算**部分（**只算不改状态**）—— 口径与 TS 的 `planCancel()` 逐字一致：
+##   还没开工 → 一分钱都没扣过，退 0（材料原地不动）
+##   已开工   → 退回量 = 已扣材料 × (remaining / totalRequired)（只退没干完的那一份）
+## 建造力**本身**不退 —— 它是每日产能，不是库存（与 demolish 同口径）。
+##
+## 拆成"算"与"落地"两半是为了 UI 的二次确认：点第一下要先看到"会退回什么"。
+func construction_refund_preview(id: String) -> Dictionary:
+	var list: Array = s["construction"]
+	var i := construction_index(id)
+	if i < 0:
+		return {"ok": false, "reason": "该工程已不在队列里", "index": -1, "started": false,
+			"used": 0.0, "total": 0.0, "refund": [], "money": 0.0, "label": "", "text": ""}
+	var c: Dictionary = list[i]
+	var spec: Dictionary = _cost_of(c)
+	var label := _label_of(c)
+	var total := float(c["totalRequired"])
+	var used := maxf(0.0, total - float(c["remaining"]))
+	var ratio := 0.0
+	if bool(c["started"]) and total > 0.0:
+		ratio = clampf(float(c["remaining"]) / total, 0.0, 1.0)
+	var refund := []
+	var money := 0.0
+	if not spec.is_empty():
+		for m in spec["mats"]:
+			var back := SimUtil.r2(float(m[1]) * ratio)
+			if back > 0.0:
+				refund.append([m[0], back])
+		if float(spec["money"]) > 0.0:
+			money = SimUtil.r2(float(spec["money"]) * ratio)
+	var text := ""
+	if not bool(c["started"]):
+		text = "取消「%s」（还没开工，材料没扣过）" % label
+	else:
+		var pct := 0 if total <= 0.0 else int(round(used / total * 100.0))
+		var parts := []
+		for r in refund:
+			parts.append("%s×%s" % [_good_name(String(r[0])), SimUtil.r2(float(r[1]))])
+		if money > 0.0:
+			parts.append("¥%s" % SimUtil.r2(money))
+		if parts.is_empty():
+			text = "取消「%s」（已投入 %d%%），没有可退的材料" % [label, pct]
+		else:
+			text = "取消「%s」（已投入 %d%%），退回 %s" % [label, pct, "、".join(parts)]
+	return {"ok": true, "index": i, "started": bool(c["started"]), "used": used,
+		"total": total, "refund": refund, "money": money, "label": label, "text": text}
+
+## 落地：把预览里算出来的退料并进国库，再把这条从队列里摘掉。
+func _cancel_construction(id: String) -> Dictionary:
+	var plan := construction_refund_preview(id)
+	if not bool(plan["ok"]):
+		return plan
+	for r in plan["refund"]:
+		s["goods"][r[0]] = SimUtil.r2(float(s["goods"].get(r[0], 0.0)) + float(r[1]))
+	if float(plan["money"]) > 0.0:
+		s["government"]["money"] = SimUtil.r2(float(s["government"]["money"]) + float(plan["money"]))
+	(s["construction"] as Array).remove_at(int(plan["index"]))
+	return plan
 
 # ===========================================================================
 # 快照 / 提示

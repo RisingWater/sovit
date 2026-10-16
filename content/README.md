@@ -54,7 +54,7 @@
 | `sector` | **有 `recipe` 就必填**：`"agri"` \| `"goods"` \| `"material"`。效率科技按它给该产业加成（见下）。**无配方建筑不许写** —— 它不产商品，写了也不会被读到，校验器直接报错 |
 | `capacity` | **可选**。只产"每日产能"的建筑写它：`{kind:"build"\|"research", perWorker, levelBonus, slotsPerLevel}`（建筑工坊 / 研究所） |
 | `storage` | **可选**。仓储建筑的容量：`{storage, storagePerLevel}`（城镇中心 / 仓库）。写了它就可以**既不写 `recipe` 也不写 `capacity`** —— 两者必有其一，校验器会拦 |
-| `art.foot` | **可选**（`arch:"sprite"` 专用）。占地 `[宽,高]`（格）；缺省按贴图尺寸算。贴图**可以比占地高**，往上伸出去和身后的建筑按地面线互相遮挡，见 `docs/town.md` §3 与 `world_view._place_sprite()` |
+| `art.foot` | 占地 `[宽,高]`（格，宽 **2–12** / 高 **1–12**）。**2026-10 起每一座 `arch:"sprite"` 建筑/住房都显式写了它**，值等于缺省规则。缺省规则：`floor(贴图宽/16) × (floor(贴图高/16) − 1)` —— **最上面那一行是屋顶/塔尖，不占用地盘**（跟小人只有下半身占地、脑袋不占地同理）。⚠️ **锚点是"脚"**：写的是**底边那一行的最左格**，占格**往上**长；改高度只影响顶部，房子不会上下跳。贴图比占地高是常态（往上伸出去遮挡身后的建筑），但**不能比占地矮**（顶部会留出隐形占格挡建造）。改完跑 `npm run check:footprint`。见 [docs/town.md](../docs/town.md) §13.9–13.11 |
 | `art.doors` | **可选**，门洞：`[[dx, dy], ...]`，偏移相对**占地左上角**（不是贴图左上角）。**第一项是主门** —— 居民从这一格进出、屋内落脚格由它推出来。所有门格 + 每扇门**正下方**那一格（门前通行格）都写进 `map.reserved`（别的建筑永远盖不上去，否则门就被堵死了）。缺省 = 占地底边横向居中那一格；`arch:"sprite"` 声明它时必须同时写 `art.foot`（否则校验器算不出占地、没法判越界）。见 `docs/town.md` §十三 |
 | `recipe.inputs` | 每批次投入（`{}` = 一级产业，不耗料） |
 | `recipe.output` | 每批次产出（不能为空） |
@@ -93,7 +93,7 @@
 
 - **阶层** `classes.json`：`needs` 是该阶层的人均日需求；`fallbacks` 是缺货时按序替代。引用的商品必须在 `goods.json` 里存在。
   每个阶层还有：`satBonus`（满意度加成）、`housingLevel`（要求的最低住房等级 1/2/3，≥2 才会买房）、`wealthThreshold`（存款达到多少升入本阶层）。
-- **住房** `housing.json`：`quality` 1–3，`capacity` 每单位住几人，`classId` 对应能买它的阶层，`buildCost` 是材料，`salePrice` 是售价。
+- **住房** `housing.json`：`quality` 1–3，`capacity` 每单位住几人，`classId` 对应能买它的阶层，`buildCost` 是材料，`salePrice` 是售价，`upgradeTo`（可选）是**改建**的下一个房型：当前写成 茅屋 → 木屋 → 砖房；**别墅不写、也没人指向它，所以只能单独建造**。改建只花**差价**（目标 buildCost − 原 buildCost）与**差价工期**，且**只能改建国有住房**（私有住房不能改建）。见 `docs/spec.md` §5.4。
 
 ## 6. 调参数（`economy.json`）
 

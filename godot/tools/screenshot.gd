@@ -296,13 +296,10 @@ func _run() -> void:
 		if runner.sim != null and runner.db != null:
 			runner.sim.s["government"]["populationCap"] = 999.0
 			(runner.sim.s["goods"] as Dictionary)["wood"] = 1200.0
-		# 日志要自己并进 runner.recent_logs（面板读的是它，不是 sim.s["log"]）——
-		# 这里直接 tick 仿真，绕过了 SimRunner._process 里那段搬运代码。
+		# 日志由仿真自己攒（`sim.s["log"]`，面板读的就是它）—— 这里直接 tick 就行，
+		# 不需要再手工往哪儿搬（以前要往 runner.recent_logs 抄一份）。
 		for h in 24:
-			for e2 in runner.sim.tick_hour([]):
-				runner.recent_logs.append(e2)
-		if runner.recent_logs.size() > 60:
-			runner.recent_logs = runner.recent_logs.slice(runner.recent_logs.size() - 60)
+			runner.sim.tick_hour([])
 		await process_frame
 		var sim_o = runner.sim
 		var target_o := ""
@@ -318,14 +315,15 @@ func _run() -> void:
 		print("SCREENSHOT overflow: 容量=", sim_o.storage_capacity(), " 总量=", sim_o.stored_total(),
 			" 木头=", float((sim_o.s["goods"] as Dictionary).get("wood", 0.0)),
 			" 面包=", float((sim_o.s["goods"] as Dictionary).get("coarse_bread", 0.0)))
-		for e3 in runner.recent_logs:
-			print("    ", String(e3.get("text", "")))
+		for e3 in runner.sim.log_tail(60):
+			print("    ", String((e3 as Dictionary).get("text", "")))
 		await process_frame
 		await process_frame
 
 	# 验证浮动对话框：城镇中心（人口）/ 仓库（资源 + 上限）/ 普通建筑（运营）
 	# 走 main 的真实分派路径，保证截到的就是玩家点出来的那个东西
-	if mode.begins_with("towncenter") or mode == "warehouse" or mode == "building":
+	if mode.begins_with("towncenter") or mode == "warehouse" or mode.begins_with("building") \
+			or mode == "works" or mode == "institute":
 		var sim = runner.sim
 		var target := ""
 		if mode.begins_with("towncenter"):
@@ -343,21 +341,132 @@ func _run() -> void:
 			(runner.sim.s["government"] as Dictionary)["storageCaps"] = {"wood": 150, "coarse_bread": 200}
 			target = "warehouse#shot"
 		else:
+			# 普通建筑面板（基础 / 员工 / 操作 三段）。
+			# ⚠️ 这里**不塞假数据**（以前写过 planned=0.6、profit=12.5）：面板现在要显示
+			# 「日产量 / 制造加成 / 员工工资」，假值只会截出一份自相矛盾的面板。
+			# 所以走真实流程：塞一座伐木场 → 跑满一天让黎明排产算 planned/profit 并派工
+			# （在岗人熟练度不同 → 工资不同，正好看「员工」那一段）。
+			#
+			# `works` / `institute` = **产能建筑的第二个页签**（建筑工坊 → 建造队列、
+			# 研究所 → 研究队列）：塞对应的那一座、派人、钉一次当日预算、真推一两个
+			# 工作小时（走 `_apply_*_hours()`，不伪造进度），再切到第 2 页。
+			var shot_def := "lumberjack"
+			if mode == "works":
+				shot_def = "construction_works"
+			elif mode == "institute":
+				shot_def = "research_institute"
+			var shot_id := "%s#shot" % shot_def
 			(sim.s["shops"] as Array).append({
-				"id": "lumberjack#shot", "defId": "lumberjack", "owner": "state",
-				"targetWorkers": 3, "wage": 3.0, "wageCap": 6.0, "level": 2,
-				"active": true, "profit": 12.5, "skill": 60.0, "planned": 0.6,
+				"id": shot_id, "defId": shot_def, "owner": "state",
+				"targetWorkers": 3, "wage": 3.0, "wageCap": 6.0, "level": 3,
+				"active": true, "profit": 0.0, "skill": 60.0, "planned": 0.0,
 			})
-			target = "lumberjack#shot"
+			# 手动派 3 个人（熟练度各不相同 → 工资不同，正好看「员工」段的那一列）。
+			# 为什么不靠引擎派工：演示存档只有 12 个人、却有 30+ 座建筑，黎明分完经常一个人都不剩。
+			# 这里不推进时间，所以不会被 `_assign_labor()` 覆盖。
+			var shot_skills := [88.0, 62.0, 41.0]
+			var shot_k := 0
+			for r in (sim.s["residents"] as Array):
+				if shot_k >= 3:
+					break
+				if r.get("jobShopId", null) == null:
+					r["employed"] = true
+					r["jobShopId"] = shot_id
+					r["skill"] = shot_skills[shot_k]
+					shot_k += 1
+			# 现场重算当日排产，让 planned / profit 与上面这份用工一致
+			# （正常是黎明算的；截图工具调内部函数，和 world._try_place 一个性质）
+			sim._plan_production()
+			target = shot_id
+			var shot_shop = sim._find_shop(shot_id)
+			print("SCREENSHOT building: 在岗=", sim._assigned_workers(shot_id),
+				" 等级=", int(shot_shop["level"]), " planned=", float(shot_shop["planned"]),
+				" profit=", float(shot_shop["profit"]),
+				" boost=", sim.shop_output_boost(shot_id))
+			if mode == "works":
+				# 建造队列：钉一次当日建造力，推两个工作小时（队首会开工扣料、进度往前爬）。
+				# ⚠️ fraction 要按**工作小时**给（1/12），给 1.0 等于"一整天的产能一次性投进去"，
+				#    队首几秒就完工，截图里就只剩「已完成」了。
+				sim._plan_construction_day()
+				sim._apply_construction_hours(1.0 / 12.0)
+				sim._apply_construction_hours(1.0 / 12.0)
+				print("SCREENSHOT works: 建造力=", sim.construction_rate(),
+					" 队列=", (sim.s["construction"] as Array).size())
+			elif mode == "institute":
+				# 研究队列：先排几项研究，再钉当日科研力、推两个工作小时
+				# ⚠️ 本工具开头把**所有科技**都解锁了（不然建筑放不下），所以要先把这
+				#    三项退回"未研究"才排得进队列 —— 与开头那句同样是"只为截图"的改动。
+				for tid in ["stonework", "digging", "firewood"]:
+					(sim.s["research"]["done"] as Array).erase(String(tid))
+				for gid in ["wood", "stone", "clay"]:
+					(sim.s["goods"] as Dictionary)[gid] = 900.0
+				for tid in ["stonework", "digging", "firewood"]:
+					sim._start_research(String(tid))
+				sim._plan_research_day()
+				sim._apply_research_hours(1.0 / 12.0)
+				sim._apply_research_hours(1.0 / 12.0)
+				print("SCREENSHOT institute: 科研力=", sim.research_rate(),
+					" 队列=", (sim.s["research"]["queue"] as Array).size())
 		if target != "" and node.has_method("_on_select_building"):
 			node._on_select_building(target)
 			await process_frame
-			# `towncenter2` / `towncenter3` = 打开后切到第 2 / 3 个页签（资源 / 公告）
+			# `building_fold` = 折起「基础」与「操作」，只留「员工」展开：
+			# 一条命验三件事 —— 段落能折叠、字形翻成 ＋、面板高度跟着缩（不留空白）
+			if mode == "building_fold":
+				var ins3 = node.get_node_or_null("UI/Root/Inspector")
+				if ins3 != null:
+					ins3._toggle_section("基础")
+					ins3._toggle_section("操作")
+					await process_frame
+					await process_frame
+					print("SCREENSHOT fold: 面板高=", ins3.size.y,
+						" 基础可见=", (ins3._sections["基础"] as Control).visible,
+						" 员工可见=", (ins3._sections["员工"] as Control).visible,
+						" 操作可见=", (ins3._sections["操作"] as Control).visible)
+			# `works` / `institute` = 切到第二页（建造队列 / 研究队列）
+			if mode == "works" or mode == "institute":
+				var ins4 = node.get_node_or_null("UI/Root/Inspector")
+				if ins4 != null:
+					ins4._select_tab(1)
+					await process_frame
+					await process_frame
+					print("SCREENSHOT tabs: ", str(ins4._tabs), " 当前页=", ins4._tab,
+						" 面板高=", ins4.size.y)
+			# `towncenter2` / `towncenter3` / `towncenter4` = 打开后切到第 2/3/4 个页签
+			# （资源 / 建造队列 / 公告）
 			if mode.begins_with("towncenter") and mode.length() > 10:
 				var dlg = node.get_node_or_null("UI/Root/Civic")
 				var tab := int(mode.substr(10, 1)) - 1
 				if dlg != null and tab > 0:
 					dlg._select_tab(tab)
+			# `towncenterq` = 建造队列页（第 3 个页签）：**先真下几单**再切过去 ——
+			# 空队列看不出名堂，要能同时看到"建造中 / 排队中"两种状态。
+			# `towncenterqc` = 再加一步：把某一条的撤单**点到第一次**（二次确认态，
+			# 那一行会亮出"会退回什么"）。
+			if mode == "towncenterq" or mode == "towncenterqc":
+				for gid in ["wood", "stone", "clay", "brick"]:
+					(sim.s["goods"] as Dictionary)[gid] = 900.0
+				for bid in ["pastry_shop", "porcelain_works", "theater", "smokehouse"]:
+					sim._try_build(String(bid))
+				sim._try_build_housing("hut")
+				# 走 3 个小时：黎明那一小时会开工扣料，白天逐小时往队首投产能
+				# （⏱ 别走太多：队首 12 建造力的工程几小时就完工了，截图里就看不到"建造中"）
+				for h in 3:
+					sim.tick_hour([])
+				var dlgq = node.get_node_or_null("UI/Root/Civic")
+				if dlgq != null:
+					dlgq._select_tab(2)
+					if mode == "towncenterqc":
+						# 二次确认态：把面板持有的队列状态袋点亮（`queue_box.gd` 读它，
+						# 控件每个小时都会重建，所以状态不能记在控件上），再重画一次。
+						for cc in (sim.s["construction"] as Array):
+							if float(cc["remaining"]) > 0.0 and bool(cc["started"]):
+								dlgq._qstate["confirm"] = "q:" + String(cc["id"])
+								dlgq._refresh()
+								break
+				var q: Array = sim.s["construction"]
+				print("SCREENSHOT queue: 队列=", q.size(), " 队首=",
+					str(q[0]) if q.size() > 0 else "（空）")
 			await process_frame
 			await process_frame
 
