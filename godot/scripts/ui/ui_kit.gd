@@ -505,6 +505,38 @@ static func spacer() -> Control:
 	return c
 
 
+## 全屏面板共用的两件小事：藏掉地图那一侧的常驻件（小地图 + 左侧圆钮）、
+## 以及"还有没有别的全屏面板开着"。
+##
+## 为什么要有它：Stats / Tech / QuestPanel / AiPanel 都是铺满视口的**兄弟节点**，
+## 小地图的上沿本来就压在顶栏里 —— 光靠"面板盖住"会把它切成半个卡在左上角
+## （用户报过："你没有隐藏地图，所以全屏 panel 出来的时候左上角很奇怪"）；
+## 而**谁最后关**都得把常驻件还回来，所以"还开着没有"要问全体，不能只问自己。
+##
+## `host` 传面板自己（它必须是 `root_ui` 的子节点，常驻件是它的兄弟）。
+const FULLSCREEN_PANELS := ["Stats", "Tech", "QuestPanel", "AiPanel"]
+
+static func any_panel_open(host: Control, self_open: bool) -> bool:
+	if self_open:
+		return true
+	var parent: Node = host.get_parent() if host != null else null
+	if parent == null:
+		return false
+	for n in FULLSCREEN_PANELS:
+		var c: Node = parent.get_node_or_null(n)
+		if c != null and (c as CanvasItem).visible:
+			return true
+	return false
+
+static func show_map_chrome(host: Control, on: bool) -> void:
+	var parent: Node = host.get_parent() if host != null else null
+	if parent == null:
+		return
+	for n in ["Minimap", "NavCol"]:
+		var c: Node = parent.get_node_or_null(n)
+		if c != null:
+			(c as CanvasItem).visible = on
+
 ## 建造卡片：上方建筑缩略图，下方名称。点整张卡即触发。
 static func card(text: String, thumb: Texture2D) -> Button:
 	var b := Button.new()

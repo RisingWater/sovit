@@ -11,7 +11,9 @@ extends SceneTree
 #   3. 不可移动：拖动把手 / 拖动函数 / 位置夹取都该消失；
 #   4. 面板吃掉滚轮，关闭后地图滚轮照常生效（别把正常功能一起锁死）。
 #
-# 后半段（页签选中出曲线、无新数据不重建）是原来就有的，保留。
+# 后半段（页签选中、无新数据不重建）是原来就有的，保留。
+# ⚠️ 2026-10 用户把资源页的「全局产出」整段和详情里的两张折线删了，
+#    所以"选中商品后出曲线"这条**反过来了**：现在要求一个 Chart 都没有。
 
 const CFG := "user://hud.cfg"
 
@@ -160,7 +162,9 @@ func _run() -> void:
 	for i in 3:
 		await process_frame
 
-	# ---- 资源 Tab：直接在列表里点商品名选中并出曲线（不再有底部那排选择按钮）
+	# ---- 资源 Tab：直接在列表里点商品名选中（不再有底部那排选择按钮），
+	#      而且详情里**不再画折线图**（用户 2026-10："库存+日产两个折线图删掉"）。
+	#      所以这里反过来断言：选中之后一个 Chart 都不该有。
 	panel._select_tab(0)
 	await process_frame
 	var pick_buttons := 0
@@ -179,10 +183,11 @@ func _run() -> void:
 	var charts := 0
 	for c in panel.find_children("*", "Chart", true, false):
 		charts += 1
-	if charts < 2:
-		_fail("选中商品后没有出曲线图（找到 %d 个）" % charts)
+	if charts != 0:
+		_fail("资源详情里不该再有折线图（用户要求删掉），实际找到 %d 个" % charts)
 		return
-	print("PANEL TEST 列表可选商品=%d 选中=%s 选中后图表=%d" % [pick_buttons, panel._sel_good, charts])
+	print("PANEL TEST 列表可选商品=%d 选中=%s 折线=%d（应为 0）"
+		% [pick_buttons, panel._sel_good, charts])
 
 	# ---- 没有新数据时不能重建面板
 	#    曾经 main.gd 写成"只要面板可见就 refresh()"，于是每帧把所有子节点

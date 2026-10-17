@@ -37,6 +37,7 @@ const ARROW_SHUT := "▶"
 var _title_lb: Label
 var _body: HBoxContainer
 var _tree: VBoxContainer
+var _portrait: PanelPortrait
 var _detail: VBoxContainer
 ## 展开的章（章节 id 的字符串 -> true）。默认只有"选中那条所在的章"是展开的。
 var _open: Dictionary = {}
@@ -113,6 +114,12 @@ func _ready() -> void:
 	_detail.add_theme_constant_override("separation", 4)
 	_detail.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	right.add_child(_detail)
+
+	# 右下角的顾问立绘（雷纳德 —— 任务是他带来的）。**最后加** = 画在最上层。
+	_portrait = PanelPortrait.new()
+	_portrait.name = "Portrait"
+	add_child(_portrait)
+	_portrait.setup("reynard")
 
 	visible = false
 	if runner != null:
@@ -296,11 +303,15 @@ func _build_detail(j: Array) -> void:
 	_detail.add_child(_wrapped("奖励 %d 金%s" % [int(q["reward"]),
 		"（已入国库）" if bool(q["done"]) else "（黎明结算时入国库）"], UIKit.FG_DIM))
 
-## 右栏文字宽度：窗口宽 - 左树 - 两边的边距与滚动条。
+## 右栏文字宽度：窗口宽 - 左树 - 右边的立绘 - 两边的边距与滚动条。
 ## 全屏之后窗口宽是运行时才知道的（1280/1600/1920 都可能），所以现算。
+## ⚠️ 那个 `PORTRAIT_GAP` 是右下角雷诺德那张立绘占的宽度：不给它留位，
+## 文字会一直排到脸上（立绘画在最上层）。
+const PORTRAIT_GAP := 300.0
+
 func _detail_w() -> float:
 	var vp := get_viewport_rect().size.x
-	return clampf(vp - TREE_W - 92.0, 320.0, 1200.0)
+	return clampf(vp - TREE_W - 92.0 - PORTRAIT_GAP, 320.0, 1200.0)
 
 func _wrapped(text: String, color: Color = UIKit.FG_DARK) -> Label:
 	var l := UIKit.label(text, color)

@@ -46,6 +46,7 @@ const EFFECT_NAMES := UIKit.EFFECT_NAMES
 var _top: VBoxContainer
 var _view: Control
 var _canvas: Control
+var _portrait: PanelPortrait
 var _lines: Control
 var _cards: Dictionary = {}       # techId -> TechCard
 var _pos: Dictionary = {}         # techId -> Vector2（画布坐标）
@@ -136,6 +137,12 @@ func _ready() -> void:
 	_canvas.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_view.add_child(_canvas)
 
+	# 右下角的顾问立绘（阿尔文 —— 科技树的引路人）。**最后加** = 画在最上层。
+	_portrait = PanelPortrait.new()
+	_portrait.name = "Portrait"
+	add_child(_portrait)
+	_portrait.setup("alvin")
+
 	visible = false
 	visibility_changed.connect(_on_visibility_changed)
 	# ⚠️ 这里**不**建树：29 张卡片 + 37 条连线不算便宜，而面板默认是隐藏的。
@@ -179,27 +186,7 @@ func open() -> void:
 # 卡在左上角。真隐藏掉才干净。与 `panel_stats.gd` 同一套做法（共用可见性开关）。
 # ---------------------------------------------------------------------------
 func _on_visibility_changed() -> void:
-	_set_map_chrome(not _any_fullscreen_open())
-
-func _any_fullscreen_open() -> bool:
-	if visible:
-		return true
-	for n in ["Stats", "Tech"]:
-		var s := get_parent().get_node_or_null(n) if get_parent() != null else null
-		if s != null and (s as CanvasItem).visible:
-			return true
-	return false
-
-func _set_map_chrome(on: bool) -> void:
-	if get_parent() == null:
-		return
-	# 小地图挂件**整块**藏掉（含它顶上那个日期框）。
-	# 用户："日期框不要留，留着很奇怪" —— 只藏地图本体、把日期留在顶栏那一行，
-	# 会让左上角变成一个孤零零的日期框。做法与 panel_stats.gd 一致。
-	for n in ["Minimap", "NavCol"]:
-		var c := get_parent().get_node_or_null(n)
-		if c != null:
-			(c as CanvasItem).visible = on
+	UIKit.show_map_chrome(self, not UIKit.any_panel_open(self, visible))
 
 
 # ===========================================================================
