@@ -13,6 +13,9 @@ var packs: Dictionary = {}      # id -> ContentPack
 var techs: Dictionary = {}      # id -> TechDef
 var tech_ids: Array = []
 var eras: Array = []            # [{id, nameZh}]
+var quests: Dictionary = {}     # id -> QuestDef（任务/引导系统，见 docs/quests.md）
+var quest_ids: Array = []
+var chapters: Array = []        # [{id, title, reward}]
 var economy: Dictionary = {}
 var defaults: Dictionary = {}
 var tuning: Dictionary = {}
@@ -124,6 +127,32 @@ func _load() -> void:
 		}
 		tech_ids.append(tid)
 
+	# 任务（引导系统）：字段原样保留（goal 的 type/id/min 由 sim_core 解释），
+	# 只把 id 顺序与章节表拉出来。契约见 docs/quests.md。
+	var q: Dictionary = _read_json("quests.json")
+	for ch in q.get("chapters", []):
+		chapters.append({
+			"id": int(ch["id"]),
+			"title": String(ch["title"]),
+			"reward": float(ch["reward"]),
+		})
+	for it in q.get("quests", []):
+		var qid := String(it["id"])
+		quests[qid] = {
+			"id": qid,
+			"chapter": int(it["chapter"]),
+			"title": String(it["title"]),
+			"hint": String(it["hint"]),
+			# 「为什么要做这一条」——任务面板右侧的描述（镇长智囊口吻）。
+			# 与 `hint` 分工：`hint` 说怎么点，`brief` 说为什么值当。
+			"brief": String(it.get("brief", "")),
+			"reward": float(it["reward"]),
+			"requires": it.get("requires", []),
+			"goals": it["goals"],
+			"side": bool(it.get("side", false)),
+		}
+		quest_ids.append(qid)
+
 	var e: Dictionary = _read_json("economy.json")
 	schema_version = int(e.get("schemaVersion", 0))
 	economy = e["economy"]
@@ -155,6 +184,71 @@ func category_zh(cat: String) -> String:
 func is_luxury(gid: String) -> bool:
 	var g = goods.get(gid, null)
 	return g != null and bool(g.get("luxury", false))
+
+# ---- 建造栏分组 -------------------------------------------------------------
+# ⚠️ **唯一定义在这里**（原先是 `build_bar.gd::_category_of` 的私有实现）。
+# 为什么搬过来：AI 辅助（`scripts/sim/advisor.gd`）要说出"在建造栏哪一页建"，
+# 而它是 sim 层、**不许**引用 UI。同一套分组写两份必然漂 —— 于是把它做成
+# 内容层的纯函数，`build_bar` 与 `advisor` 都调它。
+#
+# 分组规则（按顺序判，先中先得）：
+#   · 住房 → 「住宅」
+#   · 白名单 → 「娱乐」/「矿场」/「市政」（这三个靠 id，推不出来）
+#   · `art.arch` = field → 「农场」，= extract → 「矿场」
+#   · 主产出属于 food 类 → 「食品加工」
+#   · 其余 → 「工业」
+
+## 「娱乐」页：产出不是食物，但归到娱乐。
+const CAT_ENTERTAINMENT := ["theater", "domestic_service"]
+## 「矿场」页里的采集业（产出是原料，按 arch 也推得出来，但狩猎/捕鱼要显式归位）。
+const CAT_MINING := ["lumberjack", "quarry", "clay_pit", "hunting_camp", "fishery"]
+## 「市政」页：仓库 / 建筑工坊 / 研究所 —— 别让它们掉进「工业」。
+const CAT_CIVIC := ["warehouse", "construction_works", "research_institute"]
+
+## 地图上**固定存在**的建筑，不进建造列表。
+##
+## 城镇中心是开局就在地图中央的那一座（`world_view._build_town_center()` 画的），
+## 它的 shop 实例在 world_view 的同步里被**专门跳过**（不然会多画一张精灵）。
+## 于是"再建一座"会得到：材料照扣、精灵不画 —— 一个**看不见的建筑**。
+## 所以建造栏把它挡掉；AI 辅助的"可建清单"也照这份挡
+## （不然模型会建议"再建一座城镇中心"）。
+const MAP_FIXED := ["town_center"]
+
+func build_category(id: String) -> String:
+	if housing.has(id):
+		return "住宅"
+	if CAT_ENTERTAINMENT.has(id):
+		return "娱乐"
+	if CAT_MINING.has(id):
+		return "矿场"
+	if CAT_CIVIC.has(id):
+		return "市政"
+	var b: Dictionary = buildings.get(id, {})
+	var a: Dictionary = b.get("art", {})
+	var arch := String(a.get("arch", ""))
+	if arch == "field":
+		return "农场"
+	if arch == "extract":
+		return "矿场"
+	if primary_output_is_food(b):
+		return "食品加工"
+	return "工业"
+
+## 主产出（产出量最大的那个商品）是不是食物类。
+## 按产出商品判类，而不是靠建筑 id 白名单 —— 新增建筑只要配方对就自动归位。
+func primary_output_is_food(b: Dictionary) -> bool:
+	var rec: Dictionary = recipes.get(String(b.get("recipe", "")), {})
+	var out: Dictionary = rec.get("output", {})
+	var best := ""
+	var best_q := 0.0
+	for g in out.keys():
+		if float(out[g]) > best_q:
+			best_q = float(out[g])
+			best = String(g)
+	if best == "":
+		return false
+	var gd: Dictionary = goods.get(best, {})
+	return String(gd.get("category", "")) == "food"
 
 ## 解锁某建筑的科技 id；返回 "" 表示没有科技锁（开局即可建）。
 func tech_for_building(bid: String) -> String:

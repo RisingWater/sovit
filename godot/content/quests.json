@@ -1,0 +1,377 @@
+{
+  "schemaVersion": 1,
+
+  "chapters": [
+    { "id": 1, "title": "先吃饱", "reward": 1000 },
+    { "id": 2, "title": "把人养住", "reward": 1000 },
+    { "id": 3, "title": "科技与材料", "reward": 1000 },
+    { "id": 4, "title": "加工与舒适", "reward": 1000 },
+    { "id": 5, "title": "分层与市场", "reward": 1000 },
+    { "id": 6, "title": "千人之村", "reward": 1000 }
+  ],
+
+  "quests": [
+    {
+      "id": "q01_bread_chain",
+      "chapter": 1,
+      "title": "粗面包链",
+      "hint": "底部建造栏：小麦农场、粗面粉磨坊、粗面包房，各放一座（磨坊吃小麦，面包房吃粗面粉）",
+      "brief": "大人，仓里那点存粮是死数：十二口人，一天就要吃掉十二个粗面包、六筐菜。靠余粮过日子的村子，熬不过一次歉收。属下请从麦田起手 —— 麦子进磨坊、磨坊出面、面包房出炉，一条链自己闭环，往后吃饭就不再看天。",
+      "reward": 500,
+      "requires": [],
+      "goals": [
+        { "type": "building", "id": "wheat_farm", "min": 1 },
+        { "type": "building", "id": "coarse_mill", "min": 1 },
+        { "type": "building", "id": "coarse_bakery", "min": 1 }
+      ]
+    },
+    {
+      "id": "q02_vegetable",
+      "chapter": 1,
+      "title": "蔬菜农场",
+      "hint": "再放一座蔬菜农场（4 个工人，每天 12 筐菜；蔬菜不耐放，别囤）",
+      "brief": "只有面包的饭桌是要出事的：面食顶饱，却不养人。菜园子占地不多、人手也少，却是村里唯一能在青黄不接时救急的东西。趁眼下还宽裕，把它先立起来。",
+      "reward": 500,
+      "requires": [],
+      "goals": [
+        { "type": "building", "id": "vegetable_farm", "min": 1 }
+      ]
+    },
+
+    {
+      "id": "q03a_housing_capacity",
+      "chapter": 2,
+      "title": "住得下",
+      "hint": "造茅屋（木材 4 + 砖 3），把住房容量撑到 32（开局 6 座茅屋 = 24）",
+      "brief": "有人愿意来，是这村子还活着的最好证据 —— 可来的人得先有屋顶。六间茅屋眼下只住了一半人，看着宽裕，其实是在把送上门的人手往外推。先把住处备出来，人自然会到。",
+      "reward": 500,
+      "requires": ["q01_bread_chain", "q02_vegetable"],
+      "goals": [
+        { "type": "housing_capacity", "min": 32 }
+      ]
+    },
+    {
+      "id": "q03b_output",
+      "chapter": 2,
+      "title": "按人口配产能",
+      "hint": "单日产量要够：粗面包 30、蔬菜 15。再造一条链，或者选中建筑点「升级」（产量随等级翻倍）",
+      "brief": "属下担心的不是今天饿不饿，是下个月。人有嘴，还会越来越多；产能要是停在原地，等来的就是排队领饭。炉子多开一座，比事后赈济便宜得多。",
+      "reward": 500,
+      "requires": ["q01_bread_chain", "q02_vegetable"],
+      "goals": [
+        { "type": "produced", "id": "coarse_bread", "min": 30 },
+        { "type": "produced", "id": "vegetable", "min": 15 }
+      ]
+    },
+    {
+      "id": "q03c_satisfaction",
+      "chapter": 2,
+      "title": "让人愿意来",
+      "hint": "平均满意度到 65、人口到 18（食物、工资、就业都算分，顶栏有数字）",
+      "brief": "外村人不会看我们的账本，他们只看两件事：这里的日子过得下去吗，来了有没有活干。满意度就是这两件事的合账。抬上去，人才会自己走过来。",
+      "reward": 500,
+      "requires": ["q01_bread_chain", "q02_vegetable"],
+      "goals": [
+        { "type": "avg_satisfaction", "min": 65 },
+        { "type": "population", "min": 18 }
+      ]
+    },
+
+    {
+      "id": "q04_institute",
+      "chapter": 3,
+      "title": "研究所",
+      "hint": "造研究所（木材 12）并派人进去 —— 研究力只在这里产；随便研究完一项科技",
+      "brief": "大人，我们什么都在学，却学得太慢 —— 石怎么砌、土怎么烧，全靠手艺人一代代口传。属下想要一间屋子、几张长桌，把摸索出来的东西记成册子。别的村子凭经验，我们凭册子。",
+      "reward": 500,
+      "requires": ["q03a_housing_capacity", "q03b_output", "q03c_satisfaction"],
+      "goals": [
+        { "type": "building", "id": "research_institute", "min": 1 },
+        { "type": "tech_count", "min": 1 }
+      ]
+    },
+    {
+      "id": "q05a_stone",
+      "chapter": 3,
+      "title": "石作",
+      "hint": "研究「石作」→ 造采石场（要石头地块，石料是建筑的通用料）",
+      "brief": "木头盖得出房子，盖不出仓库。石料是往后所有体面建筑的底子，也是眼下最缺的那样东西。石作一开，采石场就能立在石滩上，往后谁也不必再抠着石头用。",
+      "reward": 500,
+      "requires": ["q04_institute"],
+      "goals": [
+        { "type": "tech", "id": "stonework" },
+        { "type": "building", "id": "quarry", "min": 1 }
+      ]
+    },
+    {
+      "id": "q05b_clay",
+      "chapter": 3,
+      "title": "掘土",
+      "hint": "研究「掘土」→ 造粘土坑（粘土是砖与陶器的上游）",
+      "brief": "粘土地就在河边，一直没人正经去挖。砖、陶、瓦都从它起头 —— 这是最便宜、最不起眼、却最挡不住的一样原料。掘土的手艺学到手，等于把半个建材库挖进自家院里。",
+      "reward": 500,
+      "requires": ["q04_institute"],
+      "goals": [
+        { "type": "tech", "id": "digging" },
+        { "type": "building", "id": "clay_pit", "min": 1 }
+      ]
+    },
+    {
+      "id": "q05c_firewood",
+      "chapter": 3,
+      "title": "薪柴",
+      "hint": "研究「薪柴」→ 造木柴坊（木柴是砖窑、陶器坊、熏鱼坊的燃料）",
+      "brief": "砖窑要烧、陶窑要烧、熏鱼的灶也要烧。眼下烧的是砍来的柴，砍多少用多少，窑一多就得停。薪柴坊能把山柴烧成耐得住的好炭，这是让所有炉子一起开工的前提。",
+      "reward": 500,
+      "requires": ["q04_institute"],
+      "goals": [
+        { "type": "tech", "id": "firewood" },
+        { "type": "building", "id": "firewood_works", "min": 1 }
+      ]
+    },
+    {
+      "id": "q05d_brick",
+      "chapter": 3,
+      "title": "烧砖",
+      "hint": "研究「烧砖」→ 造砖窑，仓库里攒到 60 块砖（砖是住房的料）",
+      "brief": "茅屋挡不了几场雨，也留不住想留下来的人。砖是体面日子的开始 —— 有了砖窑，才盖得起砖房、撑得起更大的村子。攒下第一批砖，就是攒下第一批正经房子。",
+      "reward": 500,
+      "requires": ["q05b_clay", "q05c_firewood"],
+      "goals": [
+        { "type": "tech", "id": "brickmaking" },
+        { "type": "building", "id": "brick_kiln", "min": 1 },
+        { "type": "good", "id": "brick", "min": 60 }
+      ]
+    },
+    {
+      "id": "q06_pop50",
+      "chapter": 3,
+      "title": "五十人的村子",
+      "hint": "人口到 50 —— 住房容量与食物都要跟上（约 50 面包 + 25 蔬菜 / 天）",
+      "brief": "热闹起来，是村子从「活着」变成「过日子」的分界。五十个人意味着有富余的手、有能分工的活计。属下请以五十口为目标 —— 到那一步，这村子才算真正站住。",
+      "reward": 500,
+      "requires": ["q05a_stone", "q05b_clay", "q05c_firewood", "q05d_brick"],
+      "goals": [
+        { "type": "population", "min": 50 }
+      ]
+    },
+    {
+      "id": "q07_construction_works",
+      "chapter": 3,
+      "title": "建筑工坊",
+      "hint": "研究「营造」→ 造建筑工坊并派人：每个在岗工人每天多 2.5 建造力",
+      "brief": "大人，我们最大的瓶颈不是料，是手。全靠闲散人力出工，队伍凑不齐，工程就停着。建筑工坊能把人固定下来当建造队 —— 往后每一座新建筑，都从这里开始快起来。",
+      "reward": 500,
+      "requires": ["q05a_stone"],
+      "goals": [
+        { "type": "tech", "id": "construction" },
+        { "type": "building", "id": "construction_works", "min": 1 }
+      ]
+    },
+    {
+      "id": "q08_tools",
+      "chapter": 3,
+      "side": true,
+      "title": "石制工具",
+      "hint": "研究「石制工具」→ 造工具坊，产 4 件石制工具（有工具的工坊产出更高）",
+      "brief": "斧子快一分，伐木的每天就多砍几捆；凿子好一点，石头就少碎几块。石制工具是桩小事，可它向所有工坊同时要好处。属下建议顺手办掉。",
+      "reward": 500,
+      "requires": ["q05a_stone"],
+      "goals": [
+        { "type": "tech", "id": "toolmaking" },
+        { "type": "building", "id": "tool_works", "min": 1 },
+        { "type": "produced", "id": "stone_tools", "min": 4 }
+      ]
+    },
+
+    {
+      "id": "q09_pop100",
+      "chapter": 4,
+      "title": "一百人的村子",
+      "hint": "人口到 100 —— 只靠面包和蔬菜，满意度会开始顶不上去",
+      "brief": "一百个人，就不再是一村老小各干各的了 —— 有人种地，有人烧窑，有人记账。这一步跨过去，村子的增长就靠自己转，不必大人一件件盯着。只是人一多，面包和菜也得跟着多。",
+      "reward": 500,
+      "requires": ["q06_pop50", "q07_construction_works"],
+      "goals": [
+        { "type": "population", "min": 100 }
+      ]
+    },
+    {
+      "id": "q10a_white_bread",
+      "chapter": 4,
+      "title": "白面包",
+      "hint": "研究「精磨」「白面包烘焙」→ 精面粉磨坊 + 白面包房（中产吃白面包）",
+      "brief": "穷人吃粗面包，中产不肯。等村里攒下第一批有余钱的人，饭桌就是身份：白面、细点，才是他们愿意留下过的日子。精磨与白烤两道工序一起上，我们才留得住这些人。",
+      "reward": 500,
+      "requires": ["q09_pop100"],
+      "goals": [
+        { "type": "tech", "id": "fine_milling" },
+        { "type": "tech", "id": "white_baking" },
+        { "type": "building", "id": "fine_mill", "min": 1 },
+        { "type": "building", "id": "white_bakery", "min": 1 }
+      ]
+    },
+    {
+      "id": "q10b_cloth",
+      "chapter": 4,
+      "title": "布与衣",
+      "hint": "研究「纤维作物」「粗织」「粗布裁衣」→ 亚麻农场 + 粗织坊 + 粗布衣坊",
+      "brief": "光着身子的村子不会兴旺。人有衣穿，才肯在冬天继续上工，也才肯在此安家。亚麻、织布、裁衣，三步缺一不可 —— 属下把这条链排在一起，是想让它一次走通。",
+      "reward": 500,
+      "requires": ["q09_pop100"],
+      "goals": [
+        { "type": "tech", "id": "fiber_crops" },
+        { "type": "tech", "id": "coarse_weaving" },
+        { "type": "tech", "id": "coarse_tailoring" },
+        { "type": "building", "id": "flax_farm", "min": 1 },
+        { "type": "building", "id": "coarse_weaver", "min": 1 },
+        { "type": "building", "id": "coarse_clothes_shop", "min": 1 }
+      ]
+    },
+    {
+      "id": "q10c_fish_meat",
+      "chapter": 4,
+      "title": "肉与鱼",
+      "hint": "研究「渔捞」「田猎」→ 渔场 + 狩猎营地（中产要吃肉，鱼和肉会烂，得随产随吃）",
+      "brief": "面包和菜能养穷人，养不住有积蓄的人。他们的饭桌上要有荤腥，这是肯长住的条件。河里有鱼、林里有兽，只是我们一直没去正经捕来。",
+      "reward": 500,
+      "requires": ["q09_pop100"],
+      "goals": [
+        { "type": "tech", "id": "fishing" },
+        { "type": "tech", "id": "hunting" },
+        { "type": "building", "id": "fishery", "min": 1 },
+        { "type": "building", "id": "hunting_camp", "min": 1 }
+      ]
+    },
+    {
+      "id": "q10d_pottery",
+      "chapter": 4,
+      "title": "陶器",
+      "hint": "研究「制陶」→ 陶器坊，仓库里攒 20 件陶器（耐放的奢侈品）",
+      "brief": "陶器耐放、不腐，不会像粮菜那样一夜糟蹋。各家灶上都要用它，攒得住，也经得起囤。属下看中的正是这一点：它是这村子第一样能放心存着的家当。",
+      "reward": 500,
+      "requires": ["q09_pop100"],
+      "goals": [
+        { "type": "tech", "id": "pottery" },
+        { "type": "building", "id": "pottery_works", "min": 1 },
+        { "type": "good", "id": "pottery", "min": 20 }
+      ]
+    },
+    {
+      "id": "q10e_theater",
+      "chapter": 4,
+      "title": "娱乐",
+      "hint": "研究「娱乐」→ 造剧院（中产与富人都要娱乐，这是舒适度的大头）",
+      "brief": "大人，只让人吃饱、穿暖，日子还是闷的。人有闲钱之后第一件事就是找乐子 —— 找不到，就搬到找得到的地方去。一座剧院，抵得上几条产线留住的人。",
+      "reward": 500,
+      "requires": ["q09_pop100"],
+      "goals": [
+        { "type": "tech", "id": "entertainment" },
+        { "type": "building", "id": "theater", "min": 1 }
+      ]
+    },
+
+    {
+      "id": "q11_middle",
+      "chapter": 5,
+      "title": "中产",
+      "hint": "让 5 个居民升到中产（存款到 40），并造一座木屋（研究「木作住房」）",
+      "brief": "一个村子只有穷人和村长，是长不大的。中间那层人：有积蓄、有手艺、交得起税，也最能闹事 —— 前提是让他们看到指望。木屋与升阶，属下请一并备齐。",
+      "reward": 500,
+      "requires": ["q10a_white_bread", "q10b_cloth", "q10c_fish_meat", "q10d_pottery", "q10e_theater"],
+      "goals": [
+        { "type": "class", "id": "middle", "min": 5 },
+        { "type": "housing", "id": "wooden_house", "min": 1 }
+      ]
+    },
+    {
+      "id": "q12_pop250",
+      "chapter": 5,
+      "title": "二百五十人的村子",
+      "hint": "人口到 250 —— 该用「升级」把产能翻倍了，别一直铺新建筑",
+      "brief": "到这个份上，靠一座座新建筑往上堆已经慢了：地要占、料要耗、人手也要摊薄。属下建议换个法子 —— 把已经在跑的作坊升上去，产量翻倍，地还是那块地。",
+      "reward": 500,
+      "requires": ["q11_middle"],
+      "goals": [
+        { "type": "population", "min": 250 }
+      ]
+    },
+    {
+      "id": "q13_rich",
+      "chapter": 5,
+      "title": "富人",
+      "hint": "让 1 个居民升到富人（存款 120），并造一座砖房（研究「砖石住房」）",
+      "brief": "总要有人先富起来，村子才有本金、有税源、有体面。他们挑剔：砖房、细布、好酒，一样不到位就走。大人若肯把砖房先备出来，属下有信心留住第一批。",
+      "reward": 500,
+      "requires": ["q11_middle"],
+      "goals": [
+        { "type": "class", "id": "rich", "min": 1 },
+        { "type": "housing", "id": "brick_house", "min": 1 }
+      ]
+    },
+    {
+      "id": "q14_domestic",
+      "chapter": 5,
+      "title": "家政",
+      "hint": "研究「家政」→ 造家政工坊（富人的需求里有家政服务）",
+      "brief": "富人的需求里有一项最特别：伺候人的活。这不是奢侈，是行当 —— 一户人家能养几个帮工，钱就在村里转，不流到外头去。家政这一行，越早开越好。",
+      "reward": 500,
+      "requires": ["q13_rich"],
+      "goals": [
+        { "type": "tech", "id": "domestic_service" },
+        { "type": "building", "id": "domestic_service", "min": 1 }
+      ]
+    },
+    {
+      "id": "q15_private_housing",
+      "chapter": 5,
+      "side": true,
+      "title": "自己的房子",
+      "hint": "让 5 户居民买下国有住房（存款够、满意度 80 以上时会自己买；房款进国库）",
+      "brief": "国有房住得再安稳，人心里还是觉得是借的。肯自己掏钱买下屋子的人，才真把根扎在这。此事不必催 —— 满意度上去了，他们会自己来买。",
+      "reward": 500,
+      "requires": ["q11_middle"],
+      "goals": [
+        { "type": "private_housing", "min": 5 }
+      ]
+    },
+
+    {
+      "id": "q16_pop500",
+      "chapter": 6,
+      "title": "五百人的村子",
+      "hint": "人口到 500 —— 食物、材料、就业、满意度，一个都不能掉",
+      "brief": "五百人，已经是一个镇了。到这一步，粮食、材料、就业、满意，四条腿哪条断了都会塌。属下请以五百口为界，把家底再盘一遍。",
+      "reward": 500,
+      "requires": ["q12_pop250"],
+      "goals": [
+        { "type": "population", "min": 500 }
+      ]
+    },
+    {
+      "id": "q17_output_mid",
+      "chapter": 6,
+      "title": "产能体检",
+      "hint": "单日产量：粗面包 500、蔬菜 250（差不多是 1000 人的一半）",
+      "brief": "人多不算本事，养得住才算。属下想先看一眼账：等村子到了千人，一天要五百个粗面包、二百五十筐菜。趁现在把产能练到这个数，往后再翻一倍就不难了。",
+      "reward": 500,
+      "requires": ["q12_pop250"],
+      "goals": [
+        { "type": "produced", "id": "coarse_bread", "min": 500 },
+        { "type": "produced", "id": "vegetable", "min": 250 }
+      ]
+    },
+    {
+      "id": "q18_pop1000",
+      "chapter": 6,
+      "title": "千人之村",
+      "hint": "人口到 1000 —— 这就是这个村子的终点",
+      "brief": "大人，属下跟着您从十二个人干到今天。一千口人 —— 到那时候，这村子就不靠哪一个人撑着，它自己会活。这是属下能想到的、最好的收梢。",
+      "reward": 500,
+      "requires": ["q16_pop500", "q17_output_mid"],
+      "goals": [
+        { "type": "population", "min": 1000 }
+      ]
+    }
+  ]
+}

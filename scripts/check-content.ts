@@ -1,11 +1,14 @@
 import {
   ALL_HOUSING,
+  ALL_QUESTS,
   BUILDING_IDS,
   CLASS_IDS,
   ECONOMY,
   GOOD_IDS,
   PACKS,
   PACK_IDS,
+  QUEST_CHAPTERS,
+  QUEST_IDS,
   TUNING,
 } from '../src/engine/index.ts'
 
@@ -20,6 +23,9 @@ console.log(
 )
 console.log(
   `参数：refWage ${ECONOMY.refWage} · 税表 ${ECONOMY.defaultTaxBrackets.length} 档 · 失业人口建造力 ${ECONOMY.construction.unemployedRate}/日 · 基础食物 ${TUNING.basicFoods.join('、')} · 口粮链种子 ${TUNING.foodChainSeedClass}`,
+)
+console.log(
+  `任务（引导系统）：${QUEST_IDS.length} 条 / ${QUEST_CHAPTERS.length} 章 · 合计奖励 ¥${QUEST_IDS.reduce((n, id) => n + ALL_QUESTS[id]!.reward, 0) + QUEST_CHAPTERS.reduce((n, c) => n + c.reward, 0)}（见 docs/quests.md）`,
 )
 for (const id of PACK_IDS) {
   const p = PACKS[id]

@@ -17,6 +17,7 @@ import { updatePopulation, applyAdmission, computeArrivals } from './systems/pop
 import { applyConstructionHours, planConstructionDay, settleConstruction, activateCompleted } from './systems/investment.ts'
 import { applyResearchHours, planResearchDay, settleResearch, activateResearch } from './systems/research.ts'
 import { allocateTools } from './systems/tools.ts'
+import { checkQuests } from './systems/quests.ts'
 
 // ---------------------------------------------------------------------------
 // 每日结算（小时制）
@@ -93,6 +94,10 @@ export function runDawn(state: GameState, ctx: ContentContext): { logs: LogEntry
   // 当日科研力预算：同样在**用工之后**、第一个工作小时之前 —— 全天按这个数投入
   // （见 planResearchDay）。顺序固定为**先施工、后科研**，与白天、夜晚两处一致。
   planResearchDay(state, ctx)
+  // 任务（引导系统）放在**最后**：完工的建筑、生效的科技、刚放行的人口都已经写进 state，
+  // 判定就是"看眼前这个村子有没有"，所以玩家先干了、任务后出现也照样算完成。
+  // 见 docs/quests.md。
+  logs.push(...checkQuests(state, ctx, state.day))
   return { logs, applied }
 }
 

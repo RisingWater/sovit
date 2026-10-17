@@ -29,7 +29,7 @@ npm run api         # 启动 AI HTTP 接口（http://localhost:8787）
 > 只测试**最新内容包**（当前 `v0.3`）。要跑其它包或时长：`npm run sim -- [天数] [种子] [内容包]`。
 
 **跑游戏**：用 Godot **4.7.2** 打开 `godot/`，或命令行 `godot --path godot`。
-门槛：`cd godot && bash verify.sh`（12 项，见下文）。
+门槛：`cd godot && bash verify.sh`（36 条命令，见下文）。
 
 ---
 
@@ -54,21 +54,22 @@ src/
 │  ├─ tick.ts              # advanceHour / advanceDay 主入口（小时制）
 │  ├─ actions.ts           # 动作应用
 │  └─ observe.ts           # 观测 JSON
-├─ ai/heuristic.ts         # 启发式基线 AI
-└─ api/server.ts           # AI HTTP 接口
+├─ ai/heuristic.ts         # 启发式基线 AI（**替玩家自动玩**，与本功能无关）
+└─ api/server.ts           # 引擎的 HTTP 接口（给上面那个 AI 下棋用）
 godot/                     # Godot 4.7.2 实时游戏（GDScript）
-├─ scripts/core/           # ContentDB / Rng / SaveManager / SimUtil
-├─ scripts/sim/            # SimCore（纯仿真，无 Node 依赖）+ 逐人账目/每日台账
+├─ scripts/core/           # ContentDB / Rng / SaveManager / SimUtil / AiConfig
+├─ scripts/sim/            # SimCore（纯仿真，无 Node 依赖）+ Advisor（AI 辅助的程序计算层）
 ├─ scripts/world/          # SimRunner / main / world_view / game_map / daylight
 ├─ scripts/ui/             # 见下方「UI 层」
 ├─ assets/                 # 像素美术 / 字体 / 音乐 / 音效（授权见 assets/CREDITS.md）
 ├─ content/                # 同步自 content/ 的副本
 ├─ tests/                  # gdUnit4（golden 回放 + 存档往返 + 逐人账目）+ golden/
-├─ tools/                  # 11 个门槛脚本 + 截图工具
+├─ tools/                  # 门槛脚本 + 截图工具
 ├─ verify.sh               # headless 门槛
 └─ AGENTS.md
 docs/spec.md               # 跨语言仿真契约（TS ↔ GDScript）
-scripts/                   # check-content / golden / simulate / gen-art
+docs/ai-assist.md          # AI 辅助（程序计算 + 提示词 + 配置 + 门槛）
+scripts/                   # check-content / golden / simulate / gen-art / ai-mock-server
 ```
 
 引擎与表现分离：`advanceHour` 是不修改入参的纯函数，带种子随机，TS / GDScript 共用同一套逻辑并以 golden 轨迹对拍。
@@ -240,7 +241,20 @@ curl -X POST http://localhost:8787/act \
   见 [docs/town.md](docs/town.md) §十五–§十六。
 - **研究**：科技面板点卡片排队；**研究所**面板的「研究队列」页同样能调序与撤单
   （退料口径与建造一致），见 [docs/technology.md](docs/technology.md) §十。
+- **任务（引导）**：右侧顶栏下面有一条**任务追踪条**（WoW 风格），只显示**当前**任务、
+  进度实时跟手；判定与发钱都在**黎明**自动完成（不用提交），每条 500 金、每章全绿再 1000 金。
+  **一次只露出一层**（后面的任务是藏着的，前置完成才会出现），见 [docs/quests.md](docs/quests.md)。
+  左侧圆钮第 5 个（**F5**）打开**任务面板**：左边是按章分组、可展开收起的任务树（做过的一直留着），
+  右边是选中那条的**描述**（镇长的智囊讲"为什么做这一条"）/ 要求 / 完成情况 / 第几天完成。
 - **笔刷**：道路 / 地板 / **清除**（把路面地板抹回草地），笔刷尺寸可调。
+- **AI 辅助**：顶栏暂停按钮左侧那个「AI 辅助」按钮（ESC 菜单里也有入口）。
+  它先**用程序把局势算一遍**（缺什么料、还够几天粮、满意度卡在哪一项、任务下一步差几座建筑），
+  再把「游戏规则 + 局势数据 + 这份候选」发给任意 **OpenAI 兼容**的大模型 ——
+  让它以**住在村外山坡上的隐居预言家**的口吻（"我看见了……征兆……应对……"）排出先做什么，
+  并且只许引用程序算好的数字。`base_url` / `api_key` / `model_name` 在面板的「设置」页填
+  （存 `user://ai.cfg`，**不进仓库**；本地推理可以留空 key）。
+  没配、断网、模型抽风时，上半那块「本地分析」（账房口吻）照样能用。
+  见 [docs/ai-assist.md](docs/ai-assist.md)。
 - **查看**：点击建筑或居民看详情；统计面板有资源 / 人口 / 财务三 Tab 与折线图。
 - **小地图**：左上角，跟随镜头位置与缩放；红巾显示村名，点击可改名。
 - **存档**：顶栏「快存 / 快读」走默认存档位（快捷键 **F7 / F8**）；ESC 菜单里是文件对话框，可选路径。
@@ -298,9 +312,16 @@ curl -X POST http://localhost:8787/act \
 | `logsave` | **公告随存档保存**：`state.log` 逐小时累积**全部**日志（黎明/白天/夜晚三批，上限 500）；公告页读的就是它（表现层不再自攒副本）；存 → 跑脏 → 读，公告与页面原样回来 |
 | `queue` | **两条队列的调序 / 撤单**（建造 + 研究）：调序只改"谁先吃到产能"（不重算工期、不退料、产能只投队首）；撤单退料 = 已扣材料 × `remaining / totalRequired`（没开工过就退 0）—— 与 TS 的 `check-queues.ts` 同口径同数字 |
 | `sitecancel` | 撤单后**地图上那处工地要消失、地格要放回**；并且**命令还没生效（次日 06:00）的工地不许被当孤儿收掉** |
-| `glyph` | UI 字符串里不许出现像素字体没有的字（`−` `∑` `≈` `✗` `⚠` 都没有，画出来是**空**且不报错）；扫 `scripts/**/*.gd` 的字符串字面量 + `content/*.json` 全文 |
+| `glyph` | UI 字符串里不许出现像素字体没有的字（`−` `∑` `≈` `✗` `⚠` `√` 都没有，画出来是**空**且不报错）；扫 `scripts/**/*.gd` 的字符串字面量 + `content/*.json` 全文（含 `quests.json` —— 任务标题是直接画在追踪条上的） |
+| `quest` | **任务系统**：渐进显示（未解锁的不下发）、黎明自动结算（达成即完成 + 发钱，不用提交）、连锁可追溯（先干了后出任务也当场算完成）、支线不挡章节奖励、完成不回退 —— 与 TS 的 `check-quests.ts` 同口径同数字 |
+| `questpanel` | **任务面板**（左侧圆钮第 5 个 / F5）：圆钮接对了、点得开、**打开时默认选中第一个未完成的任务**、左树分章且可展开收起、右栏四块齐全（描述 `brief` / 要求 / 完成情况 / 第几天完成）、**已完成的任务留在树里**（追踪条那时已经收掉了） |
+| `ai` | **AI 辅助**（[docs/ai-assist.md](docs/ai-assist.md)）：**跑完全套顾问之后 `sim.s` 逐字节不变**（顾问只读，偷偷改状态就会让黄金轨迹漂）、建议里只出现已解锁任务（不剧透）、新开局的每个数字跟引擎对拍（容量 24 / 岗位 0 / 日需 18 / 库存 300 / 还够 16.7 天）、`KNOWN_GOAL_TYPES` 覆盖内容里全部 `goal.type`（内容加了新类型而顾问没跟上 → 那条引导会静默消失）、配置往返 + `api_key` 不进请求体 + 各种响应形状的解析 + 模型回答里的缺字形被收拾掉 |
 
 - **数据源**是仓库根 `content/`；改完跑 `npm run sync:content` 同步到 `godot/content/`。
+- **不改钱验 AI 接入**：`npm run ai:mock` 起一个假的 OpenAI 兼容服务端（端口 8765），
+  游戏里把 `base_url` 指向 `http://127.0.0.1:8765/v1` 就能把「拼提示词 → 发 HTTP → 解析 → 排版」
+  整条路走一遍；假服务端会把收到的提示词字节数与里面的数字打出来，甚至**拿这些数字组成回答**，
+  所以截图里的每个数字都能对回提示词。想留下一整份提示词：`AI_MOCK_DUMP=shots/last-prompt.txt npm run ai:mock`。
 - **改建筑占地**：改 `content/*.json` 里那座建筑的 `art.foot`（每座 sprite 建筑都显式写了）→ `npm run check:footprint` 秒验（不起引擎、<1 秒，顺带查副本有没有同步）→ 要眼见为实就 `bash godot/verify.sh` + ESC「建筑占地」。见 [docs/town.md](docs/town.md) §13.9–13.11。
 
 ---
@@ -317,7 +338,7 @@ curl -X POST http://localhost:8787/act \
 | 字体 | Fusion Pixel Font | OFL-1.1 |
 | 菜单音效 | Kenney UI SFX Set | CC0 |
 | **36 个商品图标** | 像素图标包（**doubao**） | **MIT** |
-| **面板 / 顶栏图标**（财政·科技·人口·就业·金币·建造力…） | **workbuddy** | **MIT** |
+| **面板 / 顶栏图标**（财政·科技·人口·就业·金币·建造力…；含任务面板与 AI 辅助两张） | **workbuddy** | **MIT** |
 | **科技树图标**（29 个，文件名 = 科技 id） | **workbuddy** | **MIT** |
 | **34 张建筑整图**（v3 一批 + v5 重绘的 6 座营地） | **workbuddy** | 随本项目 |
 | 背景音乐 | RPG Town Pack（Talon Trueblood） | 免费 + **需署名** |

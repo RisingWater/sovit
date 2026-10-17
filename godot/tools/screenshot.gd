@@ -611,6 +611,115 @@ func _run() -> void:
 					await process_frame
 				print("SCREENSHOT techtip for ", tid)
 
+	# 任务追踪条（引导系统，见 docs/quests.md）：顶栏下面的右侧，只显示"当前任务"。
+	#   `quest`     —— 开局那两条并行任务在跑（进度 0/1）
+	#   `questdone` —— 跑一次黎明：任务 1、2 与第 1 章当场结算（标题变绿 + 「已完成」），
+	#                  同时第 2 章的三条被"顶"出来（渐进显示）
+	if mode == "quest" or mode == "questdone":
+		if mode == "questdone" and runner.sim != null:
+			for def_id in ["wheat_farm", "coarse_mill", "coarse_bakery", "vegetable_farm"]:
+				var d: Dictionary = runner.db.buildings[def_id]
+				runner.sim.s["shops"].append({
+					"id": "%s#shot" % def_id, "defId": def_id, "owner": "state",
+					"targetWorkers": int(d["workers"]),
+					"wage": float(runner.db.economy["refWage"]),
+					"wageCap": float(runner.db.economy["defaultWageCap"]),
+					"level": 1, "active": true, "profit": 0.0, "skill": 50.0, "planned": 0.0,
+				})
+			runner.sim._run_dawn()
+			runner.hour_ticked.emit()
+		for _qf in 4:
+			await process_frame
+		print("SCREENSHOT quest view=", str(runner.sim.quest_view().size()), " 条当前任务")
+
+	# AI 辅助（见 docs/ai-assist.md）：
+	#   `ai`    —— 面板的「建议」页：上半是引擎算的本地分析（不联网），下半是 AI 回答区
+	#   `aiset` —— 「设置」页：base_url / api_key / model_name
+	#   `aiask` —— **真发一次请求**给本地假模型 `scripts/ai-mock-server.ts`，
+	#              等回答回来再截 —— 这张图是端到端联调的证据（提示词真的出去了、回来了、画上了）
+	if mode.begins_with("ai"):
+		var panel = node.get_node_or_null("UI/Root/AiPanel")
+		if panel != null:
+			# ⚠️ 顺序要紧：`open()` 会**重新读盘**覆盖 `_cfg`，所以必须 open 之后再灌假配置，
+			# 不然配置会被读回空的、`ask()` 直接判定"没配好"（第一次就这么踩了：等了 0 帧）。
+			panel.open()
+			panel._cfg = AiConfig.load_cfg()
+			panel._cfg["base_url"] = "http://127.0.0.1:8765/v1"
+			panel._cfg["model"] = "mock-advisor"
+			panel._cfg["api_key"] = "sk-mock-not-a-real-key"
+			panel._cfg["pause_on_ask"] = true
+			# 顶栏的数字要在打开面板**之前**刷一次：上面那 72 小时是直接调
+			# `sim.tick_hour()` 推的，没有发 `hour_ticked`，顶栏还停在旧值 ——
+			# 于是"面板说 66 人、顶栏说 12 人"（小地图的时钟是每帧读的，所以它是对的，
+			# 更容易让人以为谁算错了）。发一次信号，两边就一致了。
+			runner.hour_ticked.emit()
+			await process_frame
+			if mode == "aiset":
+				panel.select_tab(1)
+			else:
+				panel.select_tab(0)
+				panel._refresh_status()
+				if mode == "aiask":
+					panel.ask()
+					var waited := 0
+					while panel._client.is_busy() and waited < 1200:
+						await process_frame
+						waited += 1
+					print("SCREENSHOT aiask 等了 ", waited, " 帧")
+			for _af in 4:
+				await process_frame
+			print("SCREENSHOT ai panel mode=", mode)
+
+	# 任务面板（见 docs/town.md §十九）：左侧圆钮列第 5 个打开。
+	#   `questpanel`     —— 打开面板（默认选中**第一个未完成**的任务）
+	#   `questpaneldone` —— 再选中一条**已完成**的任务，看"第几天完成"那一栏
+	#   `questpanelmid`  —— 先把第 1~3 章的主线摆成"干完了"的样子，看**多章**的任务树
+	if mode.begins_with("questpanel"):
+		if mode == "questpanelmid" and runner.sim != null:
+			# 和 tools/quest_test.gd 的 `_stage3()` 同一个摆法：直接塞建筑 / 科技 /
+			# 住房 / 人口 / 台账，"单日产量"看的是 history 里的台账所以也得塞一天。
+			for bid in ["wheat_farm", "coarse_mill", "coarse_bakery", "vegetable_farm",
+					"research_institute", "quarry", "clay_pit", "firewood_works",
+					"brick_kiln", "construction_works"]:
+				var d: Dictionary = runner.db.buildings[bid]
+				runner.sim.s["shops"].append({
+					"id": "%s#qp" % bid, "defId": bid, "owner": "state",
+					"targetWorkers": int(d["workers"]),
+					"wage": float(runner.db.economy["refWage"]),
+					"wageCap": float(runner.db.economy["defaultWageCap"]),
+					"level": 1, "active": true, "profit": 0.0, "skill": 50.0, "planned": 0.0,
+				})
+			runner.sim.s["housing"]["hut"] = 8
+			var residents: Array = runner.sim.s["residents"]
+			for k in 48:
+				residents.append({"id": "res#shot%d" % (k + 100), "classId": "poor",
+					"savings": 10.0, "satisfaction": 70.0, "skill": 50.0,
+					"employed": false, "account": {}})
+			runner.sim.s["research"]["done"] = ["stonework", "digging", "firewood",
+				"brickmaking", "construction"]
+			runner.sim.s["goods"]["brick"] = 100.0
+			(runner.sim.s["history"] as Array).append({
+				"day": 1, "population": residents.size(), "avgSatisfaction": 70.0,
+				"money": 0.0, "hungry": 0, "employed": 0,
+				"ledger": {"day": 1, "wages": 0.0, "tax": 0.0, "rent": 0.0, "sales": 0.0,
+					"produced": {"coarse_bread": 40.0, "vegetable": 20.0},
+					"consumed": {}, "bought": {}},
+			})
+			runner.sim._run_dawn()
+			runner.hour_ticked.emit()
+			await process_frame
+		var qp = node.get_node_or_null("UI/Root/QuestPanel")
+		if qp != null:
+			qp.open()
+			if mode == "questpaneldone":
+				for q in runner.sim.quest_journal():
+					if bool(q["done"]):
+						qp._select(String(q["id"]))
+						break
+			await process_frame
+			print("SCREENSHOT questpanel 选中=", qp._sel,
+				" 已知任务=", runner.sim.quest_journal().size())
+
 	# 可选：切到指定建造 Tab（0=住宅 1=农业 2=矿场 3=工业 4=娱乐 5=其它）
 	if args.size() > 2:
 		var bar = node.get_node_or_null("UI/Root/BuildBar")

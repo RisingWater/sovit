@@ -25,6 +25,9 @@ export {
   ALL_TECHS,
   TECH_IDS,
   ERA_IDS,
+  ALL_QUESTS,
+  QUEST_IDS,
+  QUEST_CHAPTERS,
   isLuxuryGood,
 } from './content/index.ts'
 export type { ContentContext } from './content/index.ts'
@@ -55,3 +58,12 @@ export {
 export { allocateTools, shopToolBoost } from './systems/tools.ts'
 export { techBonuses, sectorOutputBoost, buildingSectorBoost } from './systems/tech_bonus.ts'
 export type { TechBonuses } from './systems/tech_bonus.ts'
+export {
+  avgSatisfaction,
+  goalProgress,
+  questProgress,
+  questView,
+  questJournal,
+  isUnlocked as isQuestUnlocked,
+  checkQuests,
+} from './systems/quests.ts'

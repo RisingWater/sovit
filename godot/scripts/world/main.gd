@@ -19,6 +19,8 @@ var _esc_menu
 var _new_game
 var _save_dialog
 var _panel_civic
+var _panel_quest
+var _ai_panel
 var _dlg_layer: CanvasLayer
 var _title
 var _title_layer
@@ -88,6 +90,13 @@ func _ready() -> void:
 	root_ui.add_child(hud)
 	_hud = hud
 
+	# 任务追踪条（引导系统）：**顶栏下面的右侧**，只显示当前任务。
+	# 判定与发钱都在仿真的黎明完成，这里只负责画（见 docs/quests.md）。
+	var tracker = load("res://scripts/ui/quest_tracker.gd").new()
+	tracker.name = "QuestTracker"
+	tracker.setup(runner)
+	root_ui.add_child(tracker)
+
 	var bar = load("res://scripts/ui/build_bar.gd").new()
 	bar.name = "BuildBar"
 	bar.runner = runner
@@ -120,6 +129,25 @@ func _ready() -> void:
 	_panel_civic.setup(runner, world)
 	root_ui.add_child(_panel_civic)
 
+	# 任务面板（见 docs/town.md §十九）：左侧圆钮列第 5 个（F5）打开。
+	# 读的是 `SimCore.quest_journal()`（全部已知任务：已完成 + 已解锁），
+	# 所以做过的历史都能回头翻。
+	_panel_quest = load("res://scripts/ui/panel_quest.gd").new()
+	_panel_quest.name = "QuestPanel"
+	_panel_quest.setup(runner, world)
+	root_ui.add_child(_panel_quest)
+	hud.quest_panel = _panel_quest
+
+	# AI 辅助（见 docs/ai-assist.md）：ESC 菜单与顶栏按钮共用一个浮动对话框。
+	# **必须建在 `_bar` 之后**并注入它 —— 建议里要写"在建造栏哪一页建"，
+	# 而分组规则在 `build_bar` 那边（现在转发到 `ContentDB.build_category()`）。
+	_ai_panel = load("res://scripts/ui/ai_panel.gd").new()
+	_ai_panel.name = "AiPanel"
+	_ai_panel.setup(runner, world, _bar)
+	_ai_panel.hud = hud
+	root_ui.add_child(_ai_panel)
+	hud.ai_panel = _ai_panel
+
 	world.select_building.connect(_on_select_building)
 	world.select_housing.connect(_inspector.show_housing)
 	world.select_resident.connect(_inspector.show_resident)
@@ -138,6 +166,7 @@ func _ready() -> void:
 	_esc_menu.setup(runner, world, hud)
 	root_ui.add_child(_esc_menu)
 	hud.esc_menu = _esc_menu
+	_esc_menu.ai_panel = _ai_panel
 
 	# 新游戏对话框（标题页与 ESC 菜单都会用它）
 	_new_game = load("res://scripts/ui/new_game_dialog.gd").new()

@@ -122,6 +122,19 @@ static func _sanitize(s: Dictionary, db: ContentDB) -> void:
 	gov.erase("immigrationAllowance")
 	if not (gov.get("taxBrackets", null) is Array):
 		gov["taxBrackets"] = []
+	# 任务（引导系统，见 docs/quests.md）：2026-10 之前的存档没有这个字段。
+	# `done` / `chapters` 的键是 id（字符串）、值是完成日（JSON 读回来是 float → 还原 int）。
+	if not (s.get("quests", null) is Dictionary):
+		s["quests"] = {"done": {}, "chapters": {}}
+	var qst: Dictionary = s["quests"]
+	if not (qst.get("done", null) is Dictionary):
+		qst["done"] = {}
+	if not (qst.get("chapters", null) is Dictionary):
+		qst["chapters"] = {}
+	for qid in (qst["done"] as Dictionary).keys():
+		qst["done"][qid] = int(qst["done"][qid])
+	for cid in (qst["chapters"] as Dictionary).keys():
+		qst["chapters"][cid] = int(qst["chapters"][cid])
 	# 每种物资的软上限（见 docs/town.md §3.6）：老存档没有这个字段。
 	if not (gov.get("storageCaps", null) is Dictionary):
 		gov["storageCaps"] = {}

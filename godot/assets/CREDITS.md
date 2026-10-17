@@ -16,7 +16,7 @@
 | `buildings/*.png` | 本项目由 `content/*.json` 的 `art` 字段生成 | — | 同项目授权 |
 | `thumbs/*.png` | 同上（含自绘的道路/地板笔刷卡） | — | 同项目授权 |
 | `icons/*.png` | 用户提供的像素图标包，由 `scripts/import-icons.py` 导入 | **doubao** | **MIT**（见 `icons/LICENSE.txt`） |
-| `ui/panel/*.png` | 面板 / 顶栏 / 圆钮图标（财政·科技·人口·就业·金币·建造力·研究力·移民·资源工业），由 `scripts/import-panel-icons.py` 与 `scripts/import-stat-icons.py` 导入 | **workbuddy** | **MIT**（见 `ui/panel/LICENSE.txt`） |
+| `ui/panel/*.png` | 面板 / 顶栏 / 圆钮图标（财政·科技·人口·就业·金币·建造力·研究力·移民·资源工业），由 `scripts/import-panel-icons.py` 与 `scripts/import-stat-icons.py` 导入；其中 `quest_panel.png`（剪贴板 + 星）与 `ai_assist.png`（金色问号）是同一套里后加的两张 | **workbuddy** | **MIT**（见 `ui/panel/LICENSE.txt`） |
 | `ui/tech/*.png` | 科技树卡片图标（29 个，文件名 = 科技 id），由 `scripts/import-tech-icons.py` 导入 | **workbuddy** | **MIT**（见 `ui/tech/LICENSE.txt`） |
 | `goods/*.png` | 本项目自绘（36 个商品图标的**程序化兜底**，16×16） | — | 同项目授权 |
 | `tiny/extra.png` | 本项目自绘（道路 / 水面 / 桥 / 矿脉 / 砖石地板） | — | 同项目授权 |
@@ -43,7 +43,23 @@
 ## ui/panel/ 与 ui/tech/ —— MIT（workbuddy）
 
 `ui/panel/`：面板 / 顶栏数值 / 左侧圆钮用的小图标（人口·就业·金钱·满意度·建造力·
-研究力·移民·资源工业·财政·科技）。
+研究力·移民·资源工业·财政·科技）。**全部 32×32**，用的时候只按整数分之一缩
+（顶栏 / 按钮 16 = 一半；面板标题 32 = 原件；顶栏数值 24）。
+
+其中两张是**后加**的（2026-10，同为 **workbuddy 自绘**、同一个素材包），
+已在 `scripts/import-stat-icons.py` 的 `WANT` 表里按素材包里的原名登记：
+
+| 文件 | 素材包里的名字 | 用在哪 |
+|---|---|---|
+| `quest_panel.png` | `09_task_panel_32x32` | 任务追踪条标题（16）/ 任务面板标题（32）/ 左侧圆钮第 5 个（32） |
+| `ai_assist.png` | `08_question_mark_gold_32x32` | AI 辅助三处同图：顶栏按钮（16）/ ESC 菜单那一行（16）/ 面板标题（32） |
+
+两张都是 32×32 透明底、**没有外圈毛边**，所以 `dematt()` 对它们是空操作。
+⚠️ 素材包不入库：本地没有源包时，重跑 `import-stat-icons.py` 对这两个条目只会就地把
+已有的图再过一遍去毛边（`dematt` 幂等），不会把它们换成别的东西。
+
+门槛 `quest_test` / `ai_test` 各有一条"这张图还在不在、尺寸对不对"的断言 ——
+贴图被删或改名时 Godot **不报错**，只是界面上空一块。
 
 `ui/tech/`：科技树卡片图标，29 个，**文件名 = 科技 id**。
 UI 通过 `UIKit.tech_icon(id)` 取用。

@@ -8,6 +8,9 @@ import type {
   GoodID,
   HousingDef,
   PackID,
+  QuestChapterDef,
+  QuestDef,
+  QuestID,
   RecipeDef,
   RecipeID,
   TechDef,
@@ -44,6 +47,10 @@ export const ALL_TECHS: Record<TechID, TechDef> = CONTENT.technologies
 export const TECH_IDS: TechID[] = CONTENT.techIds
 export const ERA_IDS: number[] = CONTENT.eraIds
 
+export const ALL_QUESTS: Record<QuestID, QuestDef> = CONTENT.quests
+export const QUEST_IDS: QuestID[] = CONTENT.questIds
+export const QUEST_CHAPTERS: QuestChapterDef[] = CONTENT.chapters
+
 /** 某建筑由哪项科技解锁；返回 undefined 表示「开局即可建」（没有科技锁）。 */
 export function techUnlockingBuilding(buildingId: BuildingID): TechID | undefined {
   for (const id of TECH_IDS) {
@@ -79,6 +86,10 @@ export interface ContentContext {
   classes: Record<ClassID, ClassDef>
   housing: Record<GoodID, HousingDef>
   technologies: Record<TechID, TechDef>
+  /** 任务定义（与 pack 无关：所有 pack 共用一套引导任务，见 docs/quests.md）。 */
+  quests: Record<QuestID, QuestDef>
+  questIds: QuestID[]
+  chapters: QuestChapterDef[]
   goodSet: Set<GoodID>
   buildingSet: Set<BuildingID>
   classSet: Set<ClassID>
@@ -95,6 +106,9 @@ export function buildContext(packId: PackID): ContentContext {
     classes: ALL_CLASSES,
     housing: ALL_HOUSING,
     technologies: ALL_TECHS,
+    quests: ALL_QUESTS,
+    questIds: QUEST_IDS,
+    chapters: QUEST_CHAPTERS,
     goodSet: new Set(pack.goods),
     buildingSet: new Set(pack.buildings),
     classSet: new Set(pack.classes),

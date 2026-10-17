@@ -34,6 +34,12 @@ WANT = {
     '满意度': 'satisfaction',
     '04_finance_64x64': 'finance',
     '05_research_64x64': 'research_panel',
+    # 2026-10 后加的两张（同一套、workbuddy 自绘）：
+    #   任务追踪条标题 / 任务面板标题 / 左侧圆钮第 5 个 = 剪贴板 + 星
+    #   AI 辅助三处（顶栏按钮 / ESC 菜单那一行 / 面板标题）= 金色问号
+    # 两张都是 32x32 透明底、没有外圈毛边，所以 dematt 对它们是空操作。
+    '09_task_panel_32x32': 'quest_panel',
+    '08_question_mark_gold_32x32': 'ai_assist',
 }
 
 

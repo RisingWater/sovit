@@ -161,6 +161,57 @@ static func pixel_font() -> FontFile:
 	return f
 
 
+## 缺字形 → 能画的替身。**只收"意思不变"的换法**：
+## 数学符号换 ASCII、弯引号换「」、全角空格换半角。
+## 表里没有的缺字直接**丢掉** —— 画成空/方块比少一个字更糟。
+##
+## ⚠️ 两条规矩：
+##   ① 替身本身也必须是字体里**有**的字。`✓` 和 `√`(U+221A) 都缺，所以对勾只能退到 `·`；
+##      `×`(U+00D7) 是有的，叉号照用。加条目之前先用 `Font.has_char()` 问一下引擎。
+##   ② **键写成码点（int），不要写成字符字面量**：这张表的键按定义就是"字体里没有的字"，
+##      写进字符串字面量会被门槛 `glyph_test` 抓个正着（它扫的就是字面量里的字）。
+##      码点只出现在注释里 —— 注释不进画面，门槛不看。
+##
+## 为什么需要它：这条约束对**代码里写的字**靠门槛 `glyph_test` 兜
+## （UI 里不许出现缺字形），但**模型的回答是运行时来的**，门槛管不着。
+## 于是运行期再过一道这个函数（`AiClient.clean_reply()` 会调）。
+const GLYPH_FIX := {
+	0x2212: "-",        # − 减号 → ASCII 减号
+	0x2211: "Σ",        # ∑ 求和 → 希腊 Sigma（字体里有）
+	0x2248: "约",        # ≈ 约等于
+	0x2260: "!=",       # ≠
+	0x2264: "<=",       # ≤
+	0x2265: ">=",       # ≥
+	0x2717: "×",        # ✗
+	0x2718: "×",        # ✘
+	0x2713: "·",        # ✓（√ 也是缺的，只能退到点）
+	0x2714: "·",        # ✔
+	0x26A0: "！",        # ⚠
+	0x2757: "！",        # ❗
+	0x274C: "×",        # ❌
+	0x201C: "「", 0x201D: "」",   # 弯双引号 → 直角引号
+	0x2018: "「", 0x2019: "」",   # 弯单引号 → 直角引号
+	0x3000: " ",        # 全角空格 → 半角
+}
+
+## 把一段文本收拾成"像素字体画得出来"的样子。
+static func sanitize_text(s: String) -> String:
+	var f := pixel_font()
+	if f == null:
+		return s
+	var out := ""
+	for i in s.length():
+		var ch := s[i]
+		if f.has_char(ch.unicode_at(0)):
+			out += ch
+			continue
+		var fix: Variant = GLYPH_FIX.get(ch.unicode_at(0), null)
+		if fix != null:
+			out += String(fix)
+		# 表里没有的：丢掉
+	return out
+
+
 static func tile(idx: int) -> Texture2D:
 	if _tex_cache.has(idx):
 		return _tex_cache[idx]
@@ -334,6 +385,47 @@ static func icon_button(icon_path: String, tip: String) -> Button:
 	b.add_theme_font_size_override("font_size", FS)
 	b.custom_minimum_size = Vector2(BTN_H_SM + 8, BTN_H_SM)
 	_wire_sfx(b)
+	return b
+
+
+## 「图标 + 文字」按钮：两者作为**一组**居中。
+##
+## ⚠️ 为什么不能用 Button 自带的 `icon` 属性：
+##   Godot 把图标按 `icon_alignment` 定位、文字按 `alignment` 定位 —— **两者互不知情**。
+##   窄按钮（宽度 = 内容宽，比如顶栏那个）刚好重合，看着是对的；
+##   一旦按钮比内容宽（ESC 菜单里面板固定 240 宽），就变成
+##   **"图标钉在最左、文字在正中间"两截**（实测）。两个都设 CENTER 更糟：
+##   图标直接压在文字上（问号压在「辅」字上）。
+##   所以这里跟 `card()` 一个办法：把内容当子节点塞进去，自己排。
+##
+## 宽度：先带着文字建一遍按钮（Godot 才会算出含内边距的正确宽度），量完再清掉文字、
+## 把宽度钉成"原宽 + 图标 + 间隔"。宁可略宽也不要窄 —— 窄了内容会溢出按钮。
+static func icon_text_button(text: String, icon: Texture2D, small: bool = false) -> Button:
+	var b := button(text, small)
+	var want := b.get_combined_minimum_size()
+	b.text = ""
+	var row := HBoxContainer.new()
+	row.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	row.alignment = BoxContainer.ALIGNMENT_CENTER
+	row.add_theme_constant_override("separation", 5)
+	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	b.add_child(row)
+	var extra := 0.0
+	if icon != null:
+		var tr := TextureRect.new()
+		tr.texture = icon
+		tr.custom_minimum_size = Vector2(PANEL_ICON_BTN, PANEL_ICON_BTN)
+		tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		tr.stretch_mode = TextureRect.STRETCH_KEEP_CENTERED
+		tr.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		tr.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		row.add_child(tr)
+		extra = PANEL_ICON_BTN + 5.0
+	var l := label(text)
+	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	l.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	row.add_child(l)
+	b.custom_minimum_size = Vector2(want.x + extra, want.y)
 	return b
 
 

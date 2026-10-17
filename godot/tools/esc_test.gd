@@ -87,8 +87,16 @@ func _run() -> void:
 	for c in nav.get_children():
 		if c is Button:
 			nav_btns.append(c)
-	if nav_btns.size() != 4:
-		_fail("圆钮列应有 4 个按钮（资源/人口/财政/科技），实际 %d" % nav_btns.size())
+	# 圆钮列的**个数与 HUD 的 NAV_ITEMS 对齐**（别在这里硬编码数字：加一个圆钮
+	# 就要回来改这一条 —— 2026-10 加「任务」时就是这么红的）。
+	# 这里仍然要判断表本身是"资源 / 人口 / 财政 / 科技 / 任务"这五个。
+	if nav_btns.size() != hud.NAV_ITEMS.size():
+		_fail("圆钮列应有 %d 个按钮（%s），实际 %d" % [hud.NAV_ITEMS.size(),
+			" / ".join((hud.NAV_ITEMS as Array).map(func(it): return String(it[0]))),
+			nav_btns.size()])
+		return
+	if nav_btns.size() != 5:
+		_fail("圆钮列现在是 5 个（资源/人口/财政/科技/任务），实际 %d" % nav_btns.size())
 		return
 	for b in nav_btns:
 		if (b as Button).icon == null:

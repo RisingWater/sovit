@@ -13,17 +13,10 @@ var runner: SimRunner
 var world: Node
 
 const TABS := ["住宅", "农场", "食品加工", "矿场", "工业", "娱乐", "市政", "其它"]
-# 这两个虽然产出不是食物，但归到「娱乐」
-const ENTERTAINMENT := ["theater", "domestic_service"]
-# 采掘业白名单（现在与 art.arch == "extract" 重合，留作显式覆盖的口子）
-const MINING := ["lumberjack", "quarry", "clay_pit", "hunting_camp", "fishery"]
-## 市政（用户："建筑菜单加一个 tab 是市政，把仓库/建造中心/研究中心放进去"）。
-##
-## 这三座都是**没有 `recipe` 的服务建筑**：仓库给仓储容量、建筑工坊给建造力、
-## 研究所给科研力 —— 按 `art.arch` 推导只会掉进「工业」，而它们跟工坊不是一类东西
-## （`docs/technology.md` §614 早就记过这个"无配方建筑该怎么归类"的口子）。
-## 顺序与用户点名的顺序一致：仓库 → 建筑工坊 → 研究所。
-const CIVIC := ["warehouse", "construction_works", "research_institute"]
+# ⚠️ 分组规则的**唯一定义已经搬到 `ContentDB.build_category()`**（`scripts/core/content_db.gd`）：
+# AI 辅助（`scripts/sim/advisor.gd`，sim 层、不许引用 UI）也要说"在建造栏哪一页建"，
+# 同一套分组写两份必然漂。这里只保留一个转发，`ENTERTAINMENT/MINING/CIVIC`
+# 三个白名单常量也跟着搬过去了。
 
 var _tab: int = 0
 var _page: int = 0
@@ -139,61 +132,24 @@ func _turn_page(d: int) -> void:
 	_rebuild()
 
 # ---------------------------------------------------------------------------
+## 建造栏分组。**规则本体在 `ContentDB.build_category()`**（唯一来源），
+## 这里只是转发 + 一个"早期还没拿到 db"的兜底（历史行为：兜「工业」）。
 func _category_of(id: String) -> String:
 	if runner == null or runner.db == null:
 		return "工业"
-	if runner.db.housing.has(id):
-		return "住宅"
-	if ENTERTAINMENT.has(id):
-		return "娱乐"
-	if MINING.has(id):
-		return "矿场"
-	# 市政（仓库 / 建筑工坊 / 研究所）：白名单，别让它们掉进「工业」
-	if CIVIC.has(id):
-		return "市政"
-	var b: Dictionary = runner.db.buildings.get(id, {})
-	var a: Dictionary = b.get("art", {})
-	var arch := String(a.get("arch", ""))
-	if arch == "field":
-		return "农场"
-	if arch == "extract":
-		return "矿场"
-	# 食品加工 = 主产出属于 food 类，且不是采集业（渔场/狩猎营地走矿场）
-	if _primary_output_is_food(b):
-		return "食品加工"
-	return "工业"
-
-## 主产出（产出量最大的那个商品）是不是食物类。
-## 按产出商品判类，而不是靠建筑 id 白名单 —— 新增建筑只要配方对就自动归位。
-func _primary_output_is_food(b: Dictionary) -> bool:
-	var rec: Dictionary = runner.db.recipes.get(String(b.get("recipe", "")), {})
-	var out: Dictionary = rec.get("output", {})
-	var best := ""
-	var best_q := 0.0
-	for g in out.keys():
-		if float(out[g]) > best_q:
-			best_q = float(out[g])
-			best = String(g)
-	if best == "":
-		return false
-	var gd: Dictionary = runner.db.goods.get(best, {})
-	return String(gd.get("category", "")) == "food"
+	return runner.db.build_category(id)
 
 ## 地图上**固定存在**的建筑，不进建造列表。
 ##
-## 城镇中心是开局就在地图中央的那一座（`world_view._build_town_center()` 画的），
-## 它的 shop 实例在 `_sync()` 里被**专门跳过**（不然会多画一张精灵）。
-## 于是"再建一座"会得到：材料照扣、精灵不画 —— 一个**看不见的建筑**，
-## 玩家只会以为卡了。所以这里把它挡掉（AI 本来也不建它）。
-const MAP_FIXED := ["town_center"]
-
+## 规则本体搬到了 `ContentDB.MAP_FIXED`（AI 辅助的"可建清单"也要用同一份，
+## 不然模型会建议"再建一座城镇中心"）。
 func _ids_of(cat: String) -> Array:
 	var out := []
 	if runner == null or runner.db == null:
 		return out
 	var pack: Dictionary = runner.db.packs[String(runner.sim.s["pack"])]
 	for id in pack["buildings"]:
-		if MAP_FIXED.has(String(id)):
+		if ContentDB.MAP_FIXED.has(String(id)):
 			continue
 		if runner.db.buildings.has(id) and _category_of(String(id)) == cat:
 			out.append(String(id))

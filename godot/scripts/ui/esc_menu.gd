@@ -15,6 +15,8 @@ var world: Node
 var hud: Node
 var new_game_dialog: Node = null
 var save_dialog: Node = null
+## AI 辅助面板（由 main 注入）。这里只放一个入口 —— 配置界面在它自己的对话框里。
+var ai_panel: Node = null
 
 var _panel: PanelContainer
 var _music_btn: Button
@@ -81,6 +83,17 @@ func _ready() -> void:
 	b_res.tooltip_text = "选择顶栏显示哪些资源"
 	b_res.pressed.connect(_open_resources)
 	vb.add_child(b_res)
+
+	# AI 辅助：配置 base_url / api_key / model_name，并让 AI 告诉你下一步做什么。
+	# 放在「设置资源」下面：同为"接入类"设置，且和存档 / 音效分开一组。
+	# 图标是 workbuddy 那套面板图标里的（金色问号）—— 和顶栏那个按钮、面板标题上是同一张。
+	# 这一行比别的宽（面板固定 240），Button 自带的 icon 属性会分成两截，
+	# 所以走 `UIKit.icon_text_button()`（把图标与文字当成一组居中）。
+	var b_ai := UIKit.icon_text_button("AI 辅助…", UIKit.panel_icon("ai_assist"))
+	b_ai.tooltip_text = "接入大模型（OpenAI 兼容接口）：配置 base_url / api_key / model_name，" \
+		+ "让它根据当前任务与资源告诉你下一步做什么。\n顶栏「AI 辅助」按钮也是这个面板。"
+	b_ai.pressed.connect(_open_ai)
+	vb.add_child(b_ai)
 
 	var b_dbg := UIKit.button("建筑占地：关", false)
 	b_dbg.tooltip_text = "调试：画出每座建筑的占格（同一座同色）。橙框＝门洞与门前通行格 —— 它们被永久保留，所以看着是空地、实际不能建"
@@ -168,6 +181,15 @@ func _toggle_debug_footprint(btn: Button) -> void:
 func _open_resources() -> void:
 	if hud != null and hud.has_method("_open_picker"):
 		hud._open_picker()
+
+## ESC 菜单 → AI 辅助：**只打开面板、不问**（从菜单进来多半是来配 key 的；
+## 想直接问就点顶栏那个按钮，或者面板里的「问 AI」）。
+func _open_ai() -> void:
+	if ai_panel == null:
+		return
+	close()
+	if ai_panel.has_method("open"):
+		ai_panel.open()
 
 func _quit() -> void:
 	get_tree().quit()

@@ -151,6 +151,9 @@ func new_game(pack_id: String, seed_value: int, resource_mult: float = 1.0) -> v
 		"shops": shops, "residents": residents, "construction": [],
 		# 科技：开局已研究的来自 pack.start.techs（见 docs/technology.md）
 		"research": {"done": _start_techs(pack_id), "queue": []},
+		# 任务（引导系统）：完成记录 + 章节奖励记录。判定与发钱都在黎明，
+		# 见 docs/quests.md 与下面的 _check_quests()。
+		"quests": {"done": {}, "chapters": {}},
 		"ledgerToday": _empty_ledger(0),
 		# 当日建造力预算（人·天）：黎明 _plan_construction_day 钉死，全天不变；
 		# 以及当日已投入施工的建造力累加器（工作小时里逐小时累加，
@@ -260,6 +263,10 @@ func _run_dawn() -> Array:
 	# 当日科研力预算：同样在**用工之后**、第一个工作小时之前 —— 全天按这个数投入
 	# （见 _plan_research_day）。顺序固定为**先施工、后科研**，与白天、夜晚两处一致。
 	_plan_research_day()
+	# 任务（引导系统）放在**最后**：完工的建筑、生效的科技、刚放行的人口都已经写进 state，
+	# 判定就是"看眼前这个村子有没有"，所以玩家先干了、任务后出现也照样算完成。
+	# 契约见 docs/quests.md（TS 侧 src/engine/systems/quests.ts::checkQuests）。
+	logs.append_array(_check_quests())
 	return logs
 
 func _run_night() -> Array:
@@ -1362,6 +1369,22 @@ func _job_capacity() -> int:
 			total += int(minf(float(shop["targetWorkers"]), float(def["maxWorkers"])))
 	return total
 
+# ---------------------------------------------------------------------------
+# 只读访问器（给 AI 辅助 `scripts/sim/advisor.gd` 与表现层用）
+#
+# 这三个数本来就有私有实现，这里只是**开个门**：AI 辅助要拿它们去算"缺不缺"，
+# 与其让 advisor 去戳 `_housing_capacity()` 这种下划线函数，不如明写一行。
+# **它们不改状态**，加进来对黄金轨迹零影响（迁移契约不变）。
+# ---------------------------------------------------------------------------
+func housing_capacity() -> int:
+	return _housing_capacity()
+
+func private_capacity() -> int:
+	return _private_capacity()
+
+func job_capacity() -> int:
+	return _job_capacity()
+
 func _apply_admission(day: int) -> Array:
 	## admit = min(想来人数, 住房余量, 人口上限 − 人口)
 	## **不看岗位数**：岗位可以后补，卡它会让村子永远长不大。见 docs/spec.md §8。
@@ -2342,3 +2365,276 @@ func _build_alerts(hungry: int) -> Array:
 		alerts.append({"type": "low_satisfaction", "count": int(round(avg_sat)),
 			"text": "平均满意度偏低"})
 	return alerts
+
+# ===========================================================================
+# 任务（引导系统）—— 契约见 docs/quests.md；TS 侧 src/engine/systems/quests.ts
+#
+# 四条要点（与 TS 逐条同口径）：
+#   1. 任务 = 一组对**当前状态**的只读谓词（goals 全为真 = 完成），不接"提交"
+#   2. 判定 + 发钱都在**黎明**（_run_dawn 末尾）—— 玩家先干了、任务后出现照样算完成
+#   3. 渐进显示：requires 没全完成的任务**看不见**（quest_view() 不返回它）
+#   4. 显示文案由**引擎**拼（quest_view 里的 text），UI 不要自己拼 —— 两边必须一模一样
+# ===========================================================================
+
+## 进度数字一律向下取整（对齐 TS `quests.ts::shown` 的 Math.floor）。
+func _quest_shown(x: float) -> int:
+	return int(floor(x + 1e-9))
+
+## 历史上（含今天）某商品的单日产量峰值（"看产能，不看库存"就靠它）。
+func _quest_produced_peak(gid: String) -> float:
+	var today: Dictionary = s.get("ledgerToday", {})
+	var peak := float((today.get("produced", {}) as Dictionary).get(gid, 0.0))
+	for snap in (s.get("history", []) as Array):
+		var led: Dictionary = (snap as Dictionary).get("ledger", {})
+		var v := float((led.get("produced", {}) as Dictionary).get(gid, 0.0))
+		if v > peak:
+			peak = v
+	return peak
+
+## 平均满意度（与 TS `quests.ts::avgSatisfaction` 同口径：算术平均，没人时为 0）。
+func quest_avg_satisfaction() -> float:
+	var residents: Array = s.get("residents", [])
+	if residents.is_empty():
+		return 0.0
+	var acc := 0.0
+	for r in residents:
+		acc += float(r["satisfaction"])
+	return acc / float(residents.size())
+
+func _quest_name(kind: String, id: String) -> String:
+	if kind == "building":
+		return String((db.buildings.get(id, {}) as Dictionary).get("nameZh", id))
+	if kind == "housing":
+		return String((db.housing.get(id, {}) as Dictionary).get("nameZh", id))
+	if kind == "class":
+		return String((db.classes.get(id, {}) as Dictionary).get("nameZh", id))
+	if kind == "tech":
+		return String((db.techs.get(id, {}) as Dictionary).get("nameZh", id))
+	return String((db.goods.get(id, {}) as Dictionary).get("nameZh", id))
+
+## 单个目标的进度（只读）：{have, need, met, text}。文案必须与 TS 逐字一致。
+func _quest_goal_progress(goal: Dictionary) -> Dictionary:
+	var type := String(goal.get("type", ""))
+	var gid := String(goal.get("id", ""))
+	var need := float(goal.get("min", 1))
+	var have := 0.0
+	var text := ""
+	if type == "building":
+		var n := 0
+		for shop in (s["shops"] as Array):
+			if String(shop["defId"]) == gid:
+				n += 1
+		have = float(n)
+		text = "%s %d/%d" % [_quest_name("building", gid), _quest_shown(have), int(need)]
+	elif type == "housing":
+		have = float((s["housing"] as Dictionary).get(gid, 0))
+		text = "%s %d/%d" % [_quest_name("housing", gid), _quest_shown(have), int(need)]
+	elif type == "housing_capacity":
+		have = float(_housing_capacity())
+		text = "住房容量 %d/%d" % [_quest_shown(have), int(need)]
+	elif type == "population":
+		have = float((s["residents"] as Array).size())
+		text = "人口 %d/%d" % [_quest_shown(have), int(need)]
+	elif type == "class":
+		var n2 := 0
+		for r in (s["residents"] as Array):
+			if String(r["classId"]) == gid:
+				n2 += 1
+		have = float(n2)
+		text = "%s %d/%d" % [_quest_name("class", gid), _quest_shown(have), int(need)]
+	elif type == "tech":
+		have = 1.0 if (s["research"]["done"] as Array).has(gid) else 0.0
+		need = 1.0
+		text = "研究「%s」" % _quest_name("tech", gid)
+	elif type == "tech_count":
+		have = float((s["research"]["done"] as Array).size())
+		text = "完成科技 %d/%d" % [_quest_shown(have), int(need)]
+	elif type == "good":
+		have = float((s["goods"] as Dictionary).get(gid, 0.0))
+		text = "%s %d/%d" % [_quest_name("good", gid), _quest_shown(have), int(need)]
+	elif type == "produced":
+		have = _quest_produced_peak(gid)
+		text = "%s单日产量 %d/%d" % [_quest_name("good", gid), _quest_shown(have), int(need)]
+	elif type == "avg_satisfaction":
+		have = quest_avg_satisfaction()
+		text = "平均满意度 %d/%d" % [_quest_shown(have), int(need)]
+	elif type == "private_housing":
+		var n3 := 0
+		for v in (s["privateHousing"] as Dictionary).values():
+			n3 += int(floor(float(v)))
+		have = float(n3)
+		text = "私有住房 %d/%d 户" % [_quest_shown(have), int(need)]
+	return {"have": have, "need": need, "met": have + 1e-9 >= need, "text": text}
+
+## 前置是否都完成过。
+func _quest_unlocked(def: Dictionary) -> bool:
+	var done: Dictionary = s["quests"]["done"]
+	for r in (def.get("requires", []) as Array):
+		if not done.has(String(r)):
+			return false
+	return true
+
+## 一条任务的进度（只读）。引擎判定与 UI 显示共用这一份。
+func quest_progress(qid: String) -> Dictionary:
+	var def: Dictionary = db.quests.get(qid, {})
+	if def.is_empty():
+		return {}
+	var goals := []
+	var met := true
+	for g in (def.get("goals", []) as Array):
+		var p := _quest_goal_progress(g)
+		goals.append(p)
+		if not bool(p["met"]):
+			met = false
+	var done: Dictionary = s["quests"]["done"]
+	var is_done := done.has(qid)
+	var out := {
+		"id": qid,
+		"chapter": int(def["chapter"]),
+		"title": String(def["title"]),
+		"hint": String(def["hint"]),
+		# 任务面板右侧要的两项：描述（智囊口吻）与奖励金额。
+		# TS 那边 `QuestProgress` 直接带着整个 `def`，所以这两项本来就在；
+		# GDScript 这边是把 def 摊平的，**摊平就要摊全** —— 少一项 UI 就得
+		# 自己回去翻 `db`，那就等于把内容细节漏进表现层了。
+		"brief": String(def.get("brief", "")),
+		"reward": float(def["reward"]),
+		"side": bool(def.get("side", false)),
+		"goals": goals,
+		"met": met,
+		"done": is_done,
+		"day": -1,
+	}
+	if is_done:
+		out["day"] = int(done[qid])
+	return out
+
+## 追踪条要显示的东西：**当前可见**的任务（未完成的 + 今天刚完成的）。
+## ⚠️ 没解锁的任务**不返回** —— 玩家不该知道后面还有什么（用户要求）。
+func quest_view() -> Array:
+	var out := []
+	var day := int(s["day"])
+	var done: Dictionary = s["quests"]["done"]
+	for qid in db.quest_ids:
+		var def: Dictionary = db.quests[qid]
+		if not done.has(qid):
+			if not _quest_unlocked(def):
+				continue
+			out.append(quest_progress(qid))
+		elif int(done[qid]) >= day:
+			out.append(quest_progress(qid))
+	return out
+
+## 任务**面板**要的东西：所有"玩家已经知道"的任务 —— 已完成的 + 已解锁未完成的。
+##
+## 与 `quest_view()` 的分工：
+##   · quest_view()    = 追踪条用，只给"当前该做 / 今天刚做完"的几条
+##   · quest_journal() = 面板用，做过的历史要留着（玩家回头能翻），所以**已完成的
+##                       不论第几天都返回**
+##
+## ⚠️ 渐进显示这条契约两边都守：`requires` 没全完成、且自己也没完成的，**一律不返回**
+## —— 面板上连"有个锁着的任务"都不该看得出来。
+## 返回顺序 = 内容定义顺序（面板左树按 chapter 分组后就是章节内顺序）。
+func quest_journal() -> Array:
+	var out := []
+	var done: Dictionary = s["quests"]["done"]
+	for qid in db.quest_ids:
+		if not done.has(qid) and not _quest_unlocked(db.quests[qid]):
+			continue
+		out.append(quest_progress(qid))
+	return out
+
+## 黎明结算：把已经达成的任务记账、发钱、写公告（不用玩家"提交"）。
+##
+## 用 `while`/`sweep` 反复扫：同一次黎明里可能**连锁**完成（刚建好的研究所让一条
+## 早就达成、只差它当前置的任务当场结算）。顺序固定为 db.quest_ids（内容定义顺序）。
+func _check_quests() -> Array:
+	var logs := []
+	var day := int(s["day"])
+	var done: Dictionary = s["quests"]["done"]
+	var finished := []
+	for _sweep in range(db.quest_ids.size() + 1):
+		var progressed := false
+		for qid in db.quest_ids:
+			if done.has(qid):
+				continue
+			var def: Dictionary = db.quests[qid]
+			if not _quest_unlocked(def):
+				continue
+			if not bool(quest_progress(qid)["met"]):
+				continue
+			done[qid] = day
+			s["government"]["money"] = SimUtil.r2(
+				float(s["government"]["money"]) + float(def["reward"]))
+			finished.append(def)
+			progressed = true
+		if not progressed:
+			break
+
+	# 章节奖励：本章"算数"的任务全绿（支线不影响）
+	var chapters: Dictionary = s["quests"]["chapters"]
+	var chapter_done := []
+	for ch in db.chapters:
+		var cid := str(int(ch["id"]))
+		if chapters.has(cid):
+			continue
+		var list := []
+		for qid in db.quest_ids:
+			var def2: Dictionary = db.quests[qid]
+			if int(def2["chapter"]) != int(ch["id"]) or bool(def2.get("side", false)):
+				continue
+			list.append(qid)
+		if list.is_empty():
+			continue
+		var all_done := true
+		for qid in list:
+			if not done.has(qid):
+				all_done = false
+				break
+		if not all_done:
+			continue
+		chapters[cid] = day
+		s["government"]["money"] = SimUtil.r2(
+			float(s["government"]["money"]) + float(ch["reward"]))
+		chapter_done.append(ch)
+
+	if not finished.is_empty():
+		if finished.size() == 1:
+			var only: Dictionary = finished[0]
+			logs.append(_quest_log(day, "完成任务：%s（+%d 金）" % [String(only["title"]), int(only["reward"])]))
+		else:
+			var total := 0
+			var titles := PackedStringArray()
+			for q in finished:
+				total += int(q["reward"])
+				titles.append(String(q["title"]))
+			logs.append(_quest_log(day, "完成 %d 项任务（+%d 金）：%s"
+				% [finished.size(), total, "、".join(titles)]))
+
+		# 这次结算把哪些任务"顶"了出来 —— 只报这些，别把早就可见的再报一遍
+		var just_done := {}
+		for q in finished:
+			just_done[String(q["id"])] = true
+		var opened := PackedStringArray()
+		for qid in db.quest_ids:
+			if done.has(qid):
+				continue
+			var def3: Dictionary = db.quests[qid]
+			var hit := false
+			for r in (def3.get("requires", []) as Array):
+				if just_done.has(String(r)):
+					hit = true
+					break
+			if not hit or not _quest_unlocked(def3):
+				continue
+			opened.append(String(def3["title"]))
+		if not opened.is_empty():
+			logs.append(_quest_log(day, "新任务：%s" % "、".join(opened)))
+
+	for ch in chapter_done:
+		logs.append(_quest_log(day, "章节「%s」全部完成（+%d 金）"
+			% [String(ch["title"]), int(ch["reward"])]))
+	return logs
+
+func _quest_log(day: int, text: String) -> Dictionary:
+	return {"day": day, "kind": "info", "text": text}

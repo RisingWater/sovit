@@ -6,7 +6,8 @@ extends SceneTree
 # 实测踩过的（fusion-pixel-12px-zh_hans 里**没有**）：
 #   U+2212 "−"（建筑面板的折叠按钮就是它 → 展开状态下按钮上什么都没有）
 #   U+2211 "∑"、U+2248 "≈"、U+2717 "✗"、U+26A0 "⚠"
-# 有的：+ - × – — … ↑ ↓ → ▲ ▼ Σ － ± ÷ ·
+#   U+221A "√"（2026-10 拿它当对勾的替身，结果替身自己也是缺的）
+# 有的：+ - × – — … ↑ ↓ → ▲ ▼ Σ － ± ÷ · 【】《》√以外的 CJK 标点
 #
 # 扫两处（都只扫**会画到屏幕上的字**）：
 #   · `res://scripts/**/*.gd` 里**字符串字面量内**的字符（注释不进画面，不算）
@@ -26,6 +27,9 @@ const DATA_FILES := [
 	"res://content/classes.json",
 	"res://content/economy.json",
 	"res://content/packs.json",
+	# 任务的标题与 hint 是**直接画在任务追踪条上**的（docs/quests.md），
+	# 漏了它就等于漏了一整块 UI 文案 —— 2026-10 补上。
+	"res://content/quests.json",
 ]
 
 var _font: FontFile = null
@@ -142,6 +146,6 @@ func _run() -> void:
 	keys.sort_custom(func(a, b): return a.unicode_at(0) < b.unicode_at(0))
 	for ch in keys:
 		print("  U+%04X  %s   出现于 %s" % [ch.unicode_at(0), ch, "、".join(_bad[ch])])
-	print("  替换建议：− → –（U+2013）；∑ → Σ（U+03A3）；≈ → 约/～；✗ → ×（U+00D7）；⚠ → ！（只影响注释时可直接改字）")
+	print("  替换建议：− → -（ASCII）；∑ → Σ（U+03A3）；≈ → 约；✗ → ×（U+00D7）；⚠ → ！（U+FF01）；√ → · 或「完成」")
 	print("GLYPH TEST RESULT: FAIL")
 	quit(1)

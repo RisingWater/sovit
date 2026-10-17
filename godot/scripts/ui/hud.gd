@@ -14,6 +14,10 @@ var _sfx_btn: Button = null
 var _music_btn: Button = null
 ## ESC 菜单（由 main 注入）。顶栏的「菜单」按钮要能打开它。
 var esc_menu: Node = null
+## AI 辅助面板（由 main 注入）。顶栏那个「AI 辅助」按钮就是它的入口。
+var ai_panel: Node = null
+## 任务面板（由 main 注入）。左侧圆钮列的第 5 个（F5）就是它的入口。
+var quest_panel: Node = null
 ## 左上角小地图占掉的宽度。顶栏整体右移，文字从小地图右侧开始。
 var left_inset := 0.0
 
@@ -88,6 +92,20 @@ func _ready() -> void:
 		"2x 速度（+ 加速 / - 减速）",
 		"4x 速度（+ 加速，最快）",
 	]
+	# AI 辅助：**问 AI 的那个按钮就放在暂停按钮左侧**（用户要求）。
+	# 点它 = 打开面板 + 立刻问一次（没配好则跳到「设置」页并提示）。
+	# 放在速度排前面而不是后面：它是"看一眼现在该干什么"的入口，
+	# 和时间控制是一组（都属于"看/控局势"），和右边的存读档不是一类。
+	# 图标是 workbuddy 那套面板图标里的（金色问号）；顶栏这一行只有 21px 高，所以用 16
+	# （源图 32 的一半，整数倍不糊）。
+	# 走 `icon_text_button()`：这个按钮宽度就是内容宽，其实 Button 自带的 `icon` 也够用，
+	# 但统一走同一个helper —— 以后谁把这个按钮调宽了，不会突然裂成"图标 + 字"两截。
+	var ai_btn := UIKit.icon_text_button("AI 辅助", UIKit.panel_icon("ai_assist"), true)
+	ai_btn.tooltip_text = "让 AI 看当前局势（任务 / 资源 / 产能 / 缺料），告诉你下一步做什么。" \
+		+ "\n接入地址 / 密钥 / 模型在 ESC 菜单 →「AI 辅助…」→「设置」里填。"
+	ai_btn.pressed.connect(_open_ai)
+	row.add_child(ai_btn)
+
 	var speeds := [["pause", "暂停", true, 0.0], ["1x", "1x 速度", false, 1.0],
 		["2x", "2x 速度", false, 2.0], ["4x", "4x 速度", false, 4.0]]
 	for i in speeds.size():
@@ -153,6 +171,20 @@ func _open_stats_tab(i: int) -> void:
 func _open_tech() -> void:
 	if tech_panel != null:
 		tech_panel.open()
+
+## 左侧圆钮「任务」：打开任务面板（浮动对话框，见 docs/town.md §十九）。
+func _open_quest() -> void:
+	if quest_panel != null and quest_panel.has_method("open"):
+		quest_panel.open()
+
+## 顶栏「AI 辅助」：打开面板并立刻问一次（面板自己处理"没配好"的情况）。
+func _open_ai() -> void:
+	if ai_panel == null:
+		return
+	if ai_panel.has_method("open_and_ask"):
+		ai_panel.open_and_ask()
+	elif ai_panel.has_method("open"):
+		ai_panel.open()
 
 # ---------------------------------------------------------------------------
 # 顶栏数值行：**只有图标 + 数字，不打中文标签**
@@ -237,11 +269,17 @@ const NAV_TOP := 140.0
 ## 圆钮里的图标尺寸。**必须是图标原生尺寸(32)的整数倍**：
 ## 32 = 原生 1 倍。非整数倍会把像素拉得大小不一（项目用 Nearest 过滤，肉眼可见）。
 const NAV_ICON := 32
+## 圆钮的动作码：`-1` = 科技面板，`-2` = 任务面板，`>= 0` = 统计面板的第 N 个页签。
+## ⚠️ 任务面板是**浮动对话框**（可拖可关），不是统计那种全屏面板 ——
+## 但入口一样是左侧这一列（用户："任务面板放在左侧圆形菜单按钮"）。
+const NAV_TECH := -1
+const NAV_QUEST := -2
 const NAV_ITEMS := [
 	["资源", "resource", 0],
 	["人口", "population", 1],
 	["财政", "finance", 2],
-	["科技", "research", -1],
+	["科技", "research", NAV_TECH],
+	["任务", "quest_panel", NAV_QUEST],
 ]
 
 func _build_nav() -> void:
@@ -285,8 +323,10 @@ func _build_nav() -> void:
 		else:
 			b.text = label
 		_style_round(b)
-		if tab < 0:
+		if tab == NAV_TECH:
 			b.pressed.connect(_open_tech)
+		elif tab == NAV_QUEST:
+			b.pressed.connect(_open_quest)
 		else:
 			b.pressed.connect(_open_stats_tab.bind(tab))
 		col.add_child(b)
@@ -512,6 +552,14 @@ func toggle_pause() -> void:
 	if runner == null:
 		return
 	_on_speed(not runner.paused, runner.speed)
+
+## 外部（AI 辅助面板）改暂停状态：**走和点按钮同一条路**，
+## 否则顶栏那几个速度钮的高亮会和真实状态对不上（"按着暂停，字却是亮的"）。
+## 已经是目标状态就什么都不做（不发音效、不重画）。
+func set_paused_external(paused: bool) -> void:
+	if runner == null or runner.paused == paused:
+		return
+	_on_speed(paused, runner.speed)
 
 ## `+` / `-`：换速度档。到 4x 再按 `+` 不动，到 1x 再按 `-` 不动
 ## （用户："加速最快 4x、减速最慢 1x"）。暂停时按一下会以该档恢复。

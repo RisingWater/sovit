@@ -625,3 +625,64 @@ out = ((t ^ (t >> 14)) & 0xFFFFFFFF) / 2^32
 - `scripts/golden.ts`：固定 `pack/seed/脚本`，逐日输出 `godot/tests/golden/<pack>-<seed>.json`。
 - Godot 侧 `tests/` 用 gdUnit4 回放同一脚本，逐日比对摘要（数值容差 ~1e-3）。
 - 脚本只在指定 tick 入队命令；不含 AI，保证纯仿真可跨语言复现。
+
+## 16. 任务（引导系统）
+
+> 完整设计（任务树、每条任务为什么存在、UI）见 `docs/quests.md`；内容在 `content/quests.json`。
+> 两份实现：`src/engine/systems/quests.ts` 与 `godot/scripts/sim/sim_core.gd`（同口径、同数字）。
+
+### 16.1 判定 `checkQuests`（黎明，`runDawn` 末尾）
+
+```
+for sweep in range(questIds.size() + 1):          # 反复扫，直到这一轮没有新完成
+  for q in questIds:                              # 内容定义顺序（确定性）
+    未完成 && requires 全部完成过 && goals 全为真:
+        quests.done[q] = day ; government.money += q.reward ; 记一条公告
+        若同一次黎明完成多条 → 合并成一条「完成 N 项任务（+M 金）：A、B」
+        并报出被这次结算"顶"出来的新任务：「新任务：…」
+章节奖励：某一章的**非支线**任务全绿 → quests.chapters[chapter] = day ; money += chapter.reward
+日志：「章节「X」全部完成（+1000 金）」
+```
+
+- 判定**只看当前状态**（`shops` / `housing` / `residents` / `research.done` / `goods` /
+  `history` 台账 / `privateHousing`）—— 所以玩家先干了、任务后出现也**当场算完成**
+- 一次黎明里会**连锁**（反复扫）：刚建好的研究所可以把一条"只差它当前置"的任务一起结算
+- 完成**不回退**（人口掉回去也不算未完成）、**不重复发钱**
+- 显示文案由**引擎**拼（`goalProgress().text` / `quest_progress()`），数字一律向下取整；
+  UI 不许自己拼 —— 否则 TS 与 GDScript 会显示出两种样子
+
+### 16.2 可见性 `questView`（渐进显示）
+
+```
+返回   未完成但 requires 全完成过的  +  今天刚完成的（done[q] >= day，留一天打勾）
+不返回 还没解锁的（玩家不该知道后面还有什么）、以及昨天以前完成的
+```
+
+### 16.3 goal 类型（摘要，细节见 docs/quests.md §四）
+
+| type | 判什么 |
+|---|---|
+| `building` / `housing` / `housing_capacity` | 建成 N 座建筑（在途不算）/ N 栋住房（含私有）/ 住房总容量不低于 N |
+| `population` / `class` / `private_housing` | 人口 / 某阶层人数 / 私有住房户数 |
+| `tech` / `tech_count` | 某科技已完成 / 已完成科技数 |
+| `good` / `produced` | 仓库库存不低于 N / **历史单日产量**曾达到 N（看产能不看库存） |
+| `avg_satisfaction` | 全体居民满意度的算术平均 |
+
+### 16.4 面板数据源 `questJournal`（全部**已知**任务）
+
+```
+返回   已完成的不论第几天  +  未完成但 requires 全完成过的
+不返回 还没解锁、且自己也没完成的（与 questView 同一条渐进显示契约）
+顺序   内容定义顺序（`questIds`）
+```
+
+与 `questView` 的分工是**用途**不同，不是判定不同：追踪条要"现在做什么"（已完成的最多留一天），
+面板要"这一路做过什么、第几天做的"（全部留着）。**两条都只读 `GameState`**，
+所以不影响黄金轨迹。
+
+> ⚠️ 任务的显示文案（`goal.text`）与 `brief`（面板右侧的描述）都由**内容 + 引擎**给，
+> 表现层一个字都不自己拼 —— 两份实现必须给出同一个字符串。
+
+> ⚠️ 发钱会改 `government.money`，因此会改黄金轨迹：动 `content/quests.json` 之后要
+> `npm run golden` 重生成，并让 GDScript 侧回放通过（`npm run check:quests` +
+> `godot verify.sh` 的 `quest` / `questpanel` 步骤）。

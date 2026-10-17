@@ -466,6 +466,97 @@ export interface ResearchState {
   queue: ResearchProject[]
 }
 
+// ---------------------------------------------------------------------------
+// 任务（引导系统）
+//
+// 契约见 docs/quests.md。要点：
+//   - 任务 = 一组**对当前状态的只读谓词**（`goals` 全为真 = 完成）
+//   - 判定与发钱都发生在**黎明**（`runDawn` 末尾）——所以「玩家先干了、任务后出现」
+//     当场就算完成（可追溯）；判定与奖励都进仿真，golden 可复现
+//   - 渐进显示：只有 `requires` 全部完成过的任务才可见（玩家看不到后面还有什么）
+// ---------------------------------------------------------------------------
+
+export type QuestID = string
+
+/** 任务目标：每种都能算出「当前 / 需要」，用于追踪条上的进度。 */
+export type QuestGoal =
+  /** 建成 N 座某建筑（在途工地不算）。 */
+  | { type: 'building'; id: BuildingID; min: number }
+  /** 拥有 N 栋某住房（国有 + 私有）。 */
+  | { type: 'housing'; id: GoodID; min: number }
+  /** 住房总容量不低于 N。 */
+  | { type: 'housing_capacity'; min: number }
+  /** 人口不低于 N。 */
+  | { type: 'population'; min: number }
+  /** 某阶层人数不低于 N。 */
+  | { type: 'class'; id: ClassID; min: number }
+  /** 已完成某科技。 */
+  | { type: 'tech'; id: TechID }
+  /** 已完成的科技数不低于 N。 */
+  | { type: 'tech_count'; min: number }
+  /** 仓库里某商品不低于 N。 */
+  | { type: 'good'; id: GoodID; min: number }
+  /** 历史上有过某商品**单日产量**不低于 N（看产能，不看库存）。 */
+  | { type: 'produced'; id: GoodID; min: number }
+  /** 平均满意度不低于 N。 */
+  | { type: 'avg_satisfaction'; min: number }
+  /** 私有住房不低于 N 户。 */
+  | { type: 'private_housing'; min: number }
+
+export interface QuestDef {
+  id: QuestID
+  /** 章节号：整章全绿（不含 `side` 支线）另有一次性奖励。 */
+  chapter: number
+  title: string
+  /** 一句「怎么做」，直接显示在追踪条上。 */
+  hint: string
+  /**
+   * 「为什么要做这一条」——任务面板右侧的描述，用**镇长智囊**的口吻写给玩家。
+   * 与 `hint` 分工明确：`hint` 说怎么点，`brief` 说为什么值当。
+   */
+  brief: string
+  reward: number
+  /** 前置任务：全部完成过之后，这条才可见、才可能完成。 */
+  requires: QuestID[]
+  goals: QuestGoal[]
+  /** 支线：不挡任何后续任务，也不影响章节奖励。 */
+  side?: boolean
+}
+
+export interface QuestChapterDef {
+  id: number
+  title: string
+  reward: number
+}
+
+/** 单个目标的进度（只读）。`text` 由引擎拼好，保证 TS 与 GDScript 显示一致。 */
+export interface QuestGoalProgress {
+  goal: QuestGoal
+  have: number
+  need: number
+  met: boolean
+  text: string
+}
+
+/** 一条任务的进度（只读，引擎判定与 UI 显示共用同一份）。 */
+export interface QuestProgress {
+  def: QuestDef
+  goals: QuestGoalProgress[]
+  /** 目标已全绿（但可能还没到黎明结算 —— 见 `done`）。 */
+  met: boolean
+  /** 已经结算过（`done` 里有它）。 */
+  done: boolean
+  /** 完成那一天（`done` 时才有）。 */
+  day?: number
+}
+
+export interface QuestState {
+  /** questId → 完成那一天。 */
+  done: Record<QuestID, number>
+  /** chapterId → 领到章节奖励那一天。 */
+  chapters: Record<string, number>
+}
+
 export interface Government {  money: number
   /** 累进所得税税表（可运行时调整）。最后一段 upTo 为 null 表示无上限。 */
   taxBrackets: TaxBracket[]
@@ -565,6 +656,8 @@ export interface GameState {
   construction: Construction[]
   /** 科技：已完成的 + 在研队列。见 docs/technology.md。 */
   research: ResearchState
+  /** 任务（引导系统）：完成记录 + 章节奖励记录。见 docs/quests.md。 */
+  quests: QuestState
 
   /** 当日台账累加器：黎明清零，夜间结算时挂到当天快照上。 */
   ledgerToday: DayLedger

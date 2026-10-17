@@ -15,6 +15,10 @@ import type {
   NeedDef,
   PackID,
   PackStart,
+  QuestChapterDef,
+  QuestDef,
+  QuestGoal,
+  QuestID,
   RecipeDef,
   RecipeID,
   Sector,
@@ -54,6 +58,9 @@ export interface ParsedContent {
   technologies: Record<TechID, TechDef>
   techIds: TechID[]
   eraIds: number[]
+  quests: Record<QuestID, QuestDef>
+  questIds: QuestID[]
+  chapters: QuestChapterDef[]
 }
 
 const SCHEMA_VERSION = 1
@@ -951,8 +958,146 @@ function parseTechnologies(
   return { technologies, techIds, eraIds }
 }
 
-/** 校验并组装全部内容表。 */
-export function parseContent(files: RawContent): ParsedContent {  const { goods, ids: goodIds } = parseGoods(files.goods)
+// ---------------------------------------------------------------------------
+// 任务（content/quests.json）
+//
+// 契约见 docs/quests.md。校验盯三件事：
+//   1. 引用的东西必须存在（建筑 / 商品 / 住房 / 阶层 / 科技）
+//   2. `requires` 不能有环、不能指向不存在的任务、不能依赖支线
+//   3. 每条任务的 `chapter` 必须在 chapters 里
+// ---------------------------------------------------------------------------
+
+interface QuestSets {
+  goodSet: Set<string>
+  buildingSet: Set<string>
+  classSet: Set<string>
+  housingSet: Set<string>
+  techIds: Set<string>
+}
+
+function asRef(v: unknown, set: Set<string>, p: string, what: string): string {
+  const id = asStr(v, p)
+  if (!set.has(id)) fail(`${p} 引用了不存在的${what}：${id}`)
+  return id
+}
+
+function parseQuestGoal(v: unknown, p: string, sets: QuestSets): QuestGoal {
+  const g = asObj(v, p)
+  const type = asStr(g.type, `${p}.type`)
+  const need = (): number => asPos(g.min, `${p}.min`)
+  switch (type) {
+    case 'building':
+      return { type, id: asRef(g.id, sets.buildingSet, `${p}.id`, '建筑'), min: need() }
+    case 'housing':
+      return { type, id: asRef(g.id, sets.housingSet, `${p}.id`, '住房'), min: need() }
+    case 'housing_capacity':
+      return { type, min: need() }
+    case 'population':
+      return { type, min: need() }
+    case 'class':
+      return { type, id: asRef(g.id, sets.classSet, `${p}.id`, '阶层'), min: need() }
+    case 'tech':
+      return { type, id: asRef(g.id, sets.techIds, `${p}.id`, '科技') }
+    case 'tech_count':
+      return { type, min: need() }
+    case 'good':
+      return { type, id: asRef(g.id, sets.goodSet, `${p}.id`, '商品'), min: need() }
+    case 'produced':
+      return { type, id: asRef(g.id, sets.goodSet, `${p}.id`, '商品'), min: need() }
+    case 'avg_satisfaction':
+      return { type, min: need() }
+    case 'private_housing':
+      return { type, min: need() }
+    default:
+      fail(`${p}.type 取值非法：${type}`)
+  }
+}
+
+function parseQuests(
+  raw: unknown,
+  sets: QuestSets,
+): { quests: Record<QuestID, QuestDef>; questIds: QuestID[]; chapters: QuestChapterDef[] } {
+  const root = asObj(raw, 'quests.json')
+  if (root.schemaVersion !== SCHEMA_VERSION) {
+    fail(`quests.json.schemaVersion 必须是 ${SCHEMA_VERSION}（实际 ${String(root.schemaVersion)}）`)
+  }
+
+  const chapters: QuestChapterDef[] = []
+  const chapterIds = new Set<number>()
+  for (const [i, v] of asArr(root.chapters, 'quests.json.chapters').entries()) {
+    const p = `quests.json.chapters[${i}]`
+    const c = asObj(v, p)
+    const id = asNum(c.id, `${p}.id`)
+    if (chapterIds.has(id)) fail(`${p}.id 重复：${id}`)
+    chapterIds.add(id)
+    chapters.push({ id, title: asStr(c.title, `${p}.title`), reward: asNonNeg(c.reward, `${p}.reward`) })
+  }
+  if (chapters.length === 0) fail('quests.json.chapters 不能为空')
+
+  const quests: Record<QuestID, QuestDef> = {}
+  const questIds: QuestID[] = []
+  for (const [i, v] of asArr(root.quests, 'quests.json.quests').entries()) {
+    const p = `quests.json.quests[${i}]`
+    const q = asObj(v, p)
+    const id = asStr(q.id, `${p}.id`)
+    if (quests[id]) fail(`${p}.id 重复：${id}`)
+    const chapter = asNum(q.chapter, `${p}.chapter`)
+    if (!chapterIds.has(chapter)) fail(`${p}.chapter 指向不存在的章节：${chapter}`)
+    const rawGoals = asArr(q.goals, `${p}.goals`)
+    if (rawGoals.length === 0) fail(`${p}.goals 不能为空`)
+    quests[id] = {
+      id,
+      chapter,
+      title: asStr(q.title, `${p}.title`),
+      hint: asStr(q.hint, `${p}.hint`),
+      // 任务面板右侧的描述（智囊口吻）。**必填**：漏了的话面板上会空一块，
+      // 而那是"没人会注意到"的一类问题 —— 所以让内容校验器直接拦下来。
+      brief: asStr(q.brief, `${p}.brief`),
+      reward: asNonNeg(q.reward, `${p}.reward`),
+      requires: asArr(q.requires ?? [], `${p}.requires`).map((r, j) =>
+        asStr(r, `${p}.requires[${j}]`),
+      ),
+      goals: rawGoals.map((g, j) => parseQuestGoal(g, `${p}.goals[${j}]`, sets)),
+      side: q.side === true ? true : undefined,
+    }
+    questIds.push(id)
+  }
+  if (questIds.length === 0) fail('quests.json.quests 不能为空')
+
+  // requires：必须指向存在的任务，且不能有环（顺带把定义顺序固定下来）
+  const mark = new Map<string, 1 | 2>()
+  const visit = (id: string, path: string[]): void => {
+    const m = mark.get(id)
+    if (m === 2) return
+    if (m === 1) fail(`quests.json 的 requires 存在环：${[...path, id].join(' -> ')}`)
+    mark.set(id, 1)
+    for (const pre of quests[id]!.requires) {
+      if (pre === id) fail(`quests.${id}.requires 不能指向自己`)
+      if (!quests[pre]) fail(`quests.${id}.requires 指向不存在的任务：${pre}`)
+      visit(pre, [...path, id])
+    }
+    mark.set(id, 2)
+  }
+  for (const id of questIds) visit(id, [])
+
+  // 支线不挡任何东西：别人不能依赖它，否则「章节全绿」的语义会被支线拖死
+  for (const id of questIds) {
+    if (quests[id]!.side !== true) continue
+    for (const other of questIds) {
+      if (quests[other]!.requires.includes(id)) {
+        fail(`quests.${other}.requires 依赖了支线任务 ${id}（支线不能挡主线）`)
+      }
+    }
+  }
+
+  return { quests, questIds, chapters }
+}
+
+/**
+ * 校验并组装全部内容表。
+ */
+export function parseContent(files: RawContent): ParsedContent {
+  const { goods, ids: goodIds } = parseGoods(files.goods)
   const goodSet = new Set(goodIds)
 
   const { buildings, ids: buildingIds, recipes, recipeByBuilding } = parseBuildings(files.buildings, goodSet)
@@ -984,6 +1129,14 @@ export function parseContent(files: RawContent): ParsedContent {  const { goods,
   )
   const { economy, defaults, tuning, time } = parseEconomy(files.economy, goodSet, classSet)
 
+  const { quests, questIds, chapters } = parseQuests(files.quests, {
+    goodSet,
+    buildingSet,
+    classSet,
+    housingSet,
+    techIds: new Set(techIds),
+  })
+
   if (packIds.length === 0) fail('packs.json 至少要有一个内容包')
 
   return {
@@ -995,5 +1148,6 @@ export function parseContent(files: RawContent): ParsedContent {  const { goods,
     packs, packIds,
     economy, defaults, tuning, time,
     technologies, techIds, eraIds,
+    quests, questIds, chapters,
   }
 }
