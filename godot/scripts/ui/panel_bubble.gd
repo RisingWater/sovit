@@ -31,9 +31,20 @@ func _ready() -> void:
 	row.add_theme_constant_override("separation", 0)
 	_box.add_child(row)
 	row.add_child(UIKit.spacer())
+	# 「×」**不要框**（用户 2026-10："那个 x，不要有框行不行？"）——
+	# 所以不走 `UIKit.button()` 那套像素边框，自己铺空的 StyleBox 上去，
+	# 只剩一个字，鼠标移上去颜色变深一点。
 	var x := UIKit.button("×", true)
 	x.tooltip_text = "知道了"
-	x.custom_minimum_size = Vector2(22, UIKit.BTN_H_SM)
+	x.custom_minimum_size = Vector2(14, 0)
+	x.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	var empty := StyleBoxEmpty.new()
+	for st in ["normal", "hover", "pressed", "focus", "disabled"]:
+		x.add_theme_stylebox_override(st, empty)
+	x.add_theme_color_override("font_color", Color(0.62, 0.48, 0.34, 0.85))
+	x.add_theme_color_override("font_hover_color", UIKit.FG_HEAD)
+	x.add_theme_color_override("font_pressed_color", UIKit.FG_HEAD)
+	x.add_theme_color_override("font_hover_pressed_color", UIKit.FG_HEAD)
 	x.pressed.connect(func():
 		visible = false
 		closed.emit())
