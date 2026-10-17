@@ -179,8 +179,8 @@ func _open_quest() -> void:
 	if quest_panel != null and quest_panel.has_method("open"):
 		quest_panel.open()
 
-## 顶栏「预言家」（那个问号）：打开面板的**建议页**并把光标放进问话栏
-## （**不自动发问**，让玩家先写一行字 —— 见 docs/ai-assist.md §六）。
+## 「预言」的两个入口（顶栏那个水晶球、左侧圆钮第 6 个）：都进**全屏预言页**
+## 并把光标放进问话栏（**不自动发问**，让玩家先写一行字 —— 见 docs/ai-assist.md §六）。
 func _open_ai() -> void:
 	if ai_panel == null:
 		return
@@ -294,12 +294,15 @@ const NAV_ICON := 32
 ## 但入口一样是左侧这一列（用户："任务面板放在左侧圆形菜单按钮"）。
 const NAV_TECH := -1
 const NAV_QUEST := -2
+## 预言（瑟拉菲娜，全屏面板）。顶栏那个水晶球按钮走的是同一个入口。
+const NAV_PROPHECY := -3
 const NAV_ITEMS := [
 	["资源", "resource", 0],
 	["人口", "population", 1],
 	["财政", "finance", 2],
 	["科技", "research", NAV_TECH],
 	["任务", "quest_panel", NAV_QUEST],
+	["预言", "ai_assist", NAV_PROPHECY],
 ]
 
 func _build_nav() -> void:
@@ -347,6 +350,8 @@ func _build_nav() -> void:
 			b.pressed.connect(_open_tech)
 		elif tab == NAV_QUEST:
 			b.pressed.connect(_open_quest)
+		elif tab == NAV_PROPHECY:
+			b.pressed.connect(_open_ai)
 		else:
 			b.pressed.connect(_open_stats_tab.bind(tab))
 		col.add_child(b)

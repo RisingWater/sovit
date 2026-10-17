@@ -281,20 +281,10 @@ func _run() -> void:
 			await process_frame
 			await process_frame
 
-	# 验证全屏面板：统计（资源/人口/财务）与科技 —— 顶栏保留、地图与建造栏被盖住
-	if mode == "stats" or mode == "stats_people" or mode == "stats_finance" or mode == "tech":
-		var s_panel = node.get_node_or_null("UI/Root/Stats")
+	# 科技树（统计面板在下面另一段 —— 那边要多跑 24 天让折线有内容）
+	if mode == "tech":
 		var t_panel = node.get_node_or_null("UI/Root/Tech")
-		if mode.begins_with("stats") and s_panel != null:
-			var tab := 0
-			if mode == "stats_people":
-				tab = 1
-			elif mode == "stats_finance":
-				tab = 2
-			s_panel.open_tab(tab)
-			await process_frame
-			await process_frame
-		elif mode == "tech" and t_panel != null:
+		if t_panel != null:
 			t_panel.open()
 			await process_frame
 			await process_frame
@@ -524,7 +514,11 @@ func _run() -> void:
 			ng.open()
 		await process_frame
 
-	# 统计面板：stats0 资源 / stats1 人口 / stats2 财务
+	# 统计面板：stats / stats0 资源 / stats1（或 stats_people）人口 / stats2（或 stats_finance）财务
+	#
+	# ⚠️ 这一段是**唯一**处理统计面板的地方。上面原来还有一段"打开面板验证全屏"的，
+	# 也按 `stats_people` 判过一次 —— 两段都跑，后一段 `open()` 会把页签重置回 0，
+	# 结果"截 stats_people 出来的是资源页"。已把那一段合并掉，只留这里。
 	if mode.begins_with("stats"):
 		# 多跑几天让曲线有内容
 		for h in 24 * 24:
@@ -534,9 +528,16 @@ func _run() -> void:
 		if panel != null:
 			panel.open()
 			await process_frame
-			panel._select_tab(int(mode.substr(5)) if mode.length() > 5 else 0)
+			var tab := 0
+			if mode == "stats_people":
+				tab = 1
+			elif mode == "stats_finance":
+				tab = 2
+			elif mode.length() > 5:
+				tab = int(mode.substr(5))
+			panel._select_tab(tab)
 			await process_frame
-			print("SCREENSHOT stats tab -> ", mode)
+			print("SCREENSHOT stats tab -> ", tab)
 
 	# 顶栏资源 chip 的 tooltip：合成一个鼠标移动事件悬停到第一条 chip 上，
 	# 等过 tooltip 延迟再截图（headless 下没法真悬停，只能这样验证 tip 弹不弹）
@@ -699,11 +700,12 @@ func _run() -> void:
 					print("SCREENSHOT ", mode, " 等了 ", waited, " 秒；问话=「",
 						panel._ask_input.text, "」试了 ", panel.trials_shown(), " 个方案，冷却剩 ",
 						runner.sim.prophet_days_left(), " 天")
-					# 结论在滚动区最下面，等比例撑开之后滚到底 —— 不然截到的只有沙盘小表
+					# 全屏预言页里回答是从右栏**顶部**开始排的（历史在左边）。
+					# 原来那个"滚到底"是给老的建议页写的（结论接在下面）。
 					await process_frame
 					await process_frame
 					if panel._scroll != null:
-						panel._scroll.scroll_vertical = 100000
+						panel._scroll.scroll_vertical = 0
 			for _af in 4:
 				await process_frame
 			print("SCREENSHOT ai panel mode=", mode)

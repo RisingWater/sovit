@@ -588,15 +588,15 @@ func _prompt_section() -> bool:
 			"引擎侧的结构化渲染 / 局势包 / 规则摘要里不许有像素字体画不出的字"):
 		return false
 	if not _chk(ad.system_prompt().length() > 200
-			and not ad.user_prompt().contains("【村民的问话】"),
-			"没写问话时不该出现「【村民的问话】」那一段（也不能空着什么都不说）"):
+			and not ad.user_prompt().contains("【殿下的问话】"),
+			"没写问话时不该出现「【殿下的问话】」那一段（也不能空着什么都不说）"):
 		return false
 	ad.question = "我的食物不够了怎么办"
 	var p1 := ad.user_prompt()
-	if not _chk(p1.contains("【村民的问话】\n我的食物不够了怎么办"),
+	if not _chk(p1.contains("【殿下的问话】\n我的食物不够了怎么办"),
 			"写了问话就要原样带上那一段：%s" % p1.substr(p1.length() - 160)):
 		return false
-	if not _chk(ad.system_prompt().contains("村民的问话"),
+	if not _chk(ad.system_prompt().contains("殿下的问话"),
 			"系统提示要交代「先答他那句话，再给该做的事」"):
 		return false
 	if not _chk(ad.system_prompt().contains("为什么") and ad.system_prompt().contains("我看见了"),
@@ -661,6 +661,46 @@ func _cooldown_section() -> bool:
 			"2026-10 之前的存档（没有 prophet 段）迁移后应当是「没问过」"):
 		return false
 	_ok("冷却：5 天一次、问过才起算、跨天递减、进存档、老存档能迁移")
+
+	# 历史预言：**发在 `prophet.log` 里**，跟存档一起走（面板左栏读的就是它）。
+	# ⚠️ 只有真拿到回答（`answer` 非空）才写键 —— 新开局的状态里没有这个键，
+	#    所以黄金摘要不会因为这一条功能而漂。
+	var psim: SimCore = SimCore.new(sim.db)
+	psim.s = sim.s.duplicate(true)
+	psim.s["prophet"] = {"lastAskDay": -1}
+	if not _chk((psim.prophecy_log() as Array).is_empty(),
+			"新开局的历史应当是空的（连 log 键都不该有）"):
+		return false
+	psim.mark_prophet_asked("我下一步要做什么", "我看见了，你应该先把菜种上")
+	var plog: Array = psim.prophecy_log()
+	if not _chk(plog.size() == 1
+			and String(plog[0]["q"]) == "我下一步要做什么"
+			and String(plog[0]["t"]).contains("我看见了")
+			and int(plog[0]["d"]) == int(psim.s["day"]),
+			"记一次问答之后，历史里应当正好一条（天数 / 问话 / 原文）：%s" % str(plog)):
+		return false
+	# 空回答只记冷却、不进历史（门槛与截图工具会这么调）
+	psim.mark_prophet_asked("", "")
+	if not _chk((psim.prophecy_log() as Array).size() == 1,
+			"没拿到回答时不该往历史里塞空条目"):
+		return false
+	# 上限 30 条，超出丢最旧的
+	for i in 40:
+		psim.mark_prophet_asked("问 %d" % i, "答 %d" % i)
+	if not _chk((psim.prophecy_log() as Array).size() == SimCore.PROPHECY_LOG_MAX,
+			"历史应当封顶 %d 条（实际 %d）" % [SimCore.PROPHECY_LOG_MAX,
+				(psim.prophecy_log() as Array).size()]):
+		return false
+	# 历史必须**跟着存档走**：`prophet` 整段是原样过 `SaveManager._sanitize()` 的
+	# （它只把 `lastAskDay` 修成 int），所以 log 不会被吞。这里直接验这一点 ——
+	# 比真写一个文件更稳（写文件那条在 headless 下要碰 user:// 的时序）。
+	var raw: Dictionary = psim.s.duplicate(true)
+	SaveManager._sanitize(raw, psim.db)
+	if not _chk((raw.get("prophet", {}) as Dictionary).has("log")
+			and ((raw["prophet"] as Dictionary)["log"] as Array).size() == SimCore.PROPHECY_LOG_MAX,
+			"存档净化不许吞掉 prophet.log（预言页左栏的历史靠它）"):
+		return false
+	_ok("历史预言：真回答才记、空回答不记、封顶 30 条、进存档")
 	return true
 
 # ---------------------------------------------------------------------------

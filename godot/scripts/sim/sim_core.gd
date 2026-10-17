@@ -1413,10 +1413,31 @@ func prophet_days_left() -> int:
 func can_ask_prophet() -> bool:
 	return prophet_days_left() <= 0
 
-## 记一次"问到了"（冷却从**这一天**起算）。
+## 记一次"问到了"（冷却从**这一天**起算），并把这回的问答存进历史。
 ## ⚠️ 由表现层在**拿到回答之后**调（失败 / 正在问都不算），并且只作用于这一条账。
-func mark_prophet_asked() -> void:
-	s["prophet"] = {"lastAskDay": int(s["day"])}
+##
+## `answer` 为空 = 只记冷却、不记历史（门槛与截图工具会这么调）。
+## ⚠️ 历史**只在真的有回答时才写键** —— 新开局的状态里没有 `log`，
+## 这样黄金轨迹的摘要素一个字节都不会变（见 `prophecy_log()` 的注释）。
+func mark_prophet_asked(q: String = "", answer: String = "") -> void:
+	var p: Dictionary = s.get("prophet", {})
+	p["lastAskDay"] = int(s["day"])
+	if answer.strip_edges() != "":
+		var log: Array = p.get("log", [])
+		log.append({"d": int(s["day"]), "q": q, "t": answer})
+		# 上限 30 条：够玩家翻回去看，又不至于让存档无限长
+		while log.size() > PROPHECY_LOG_MAX:
+			log.pop_front()
+		p["log"] = log
+	s["prophet"] = p
+
+## 历史预言的上限（条）
+const PROPHECY_LOG_MAX := 30
+
+## 历史预言（只读）。每条 = `{d: 第几天, q: 问话, t: 她说的原文}`，旧的在前面。
+## ⚠️ 没问过时**连这个键都没有** —— 返回空数组，但状态本身保持"和黄金轨迹一致"。
+func prophecy_log() -> Array:
+	return (s.get("prophet", {}) as Dictionary).get("log", [])
 
 func _apply_admission(day: int) -> Array:
 	## admit = min(想来人数, 住房余量, 人口上限 − 人口)
