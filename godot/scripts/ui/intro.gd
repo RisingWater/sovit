@@ -22,6 +22,9 @@ const PORTRAIT_H := 0.78
 const CORNER_H := 300.0
 ## 文字框宽度
 const BOX_W := 900.0
+## 黑屏旁白**自动翻页**的间隔（用户 2026-10："黑屏的字母要带自动跳过，比如 3 秒自动下一句"）。
+## 只有第 1 幕（黑屏）自动走；后面有立绘的几幕还是点一下翻 —— 那是"对话"，玩家要自己控节奏。
+const NARR_AUTO_SEC := 3.0
 
 ## 每一幕：`bg` = black / village / game，`who` = 立绘 id（空 = 旁白），
 ## `pages` = 一页一组字（每页里一行一个字符串）。
@@ -87,6 +90,8 @@ const SPEAKER_NAME := {
 
 var _act := 0
 var _page := 0
+## 当前这一页已经停了多久（黑屏旁白到点自动翻）
+var _wait := 0.0
 ## 每一幕的立绘换过没有（换人时上一个滑出去、新的滑进来）
 var _shown_who := ""
 var _done := false
@@ -310,12 +315,15 @@ func _render_page() -> void:
 	_name_lb.text = String(SPEAKER_NAME.get(who, ""))
 	_text_lb.text = _page_text()
 	_arrow.visible = bg != "black"
+	# 每翻一页就从 0 重新计时（手动翻页也重置）
+	_wait = 0.0
 	_layout()
 
 ## 下一页；这一幕翻完了就进下一幕。
 func _advance() -> void:
 	if _done:
 		return
+	_wait = 0.0
 	var pages: Array = _act_data()["pages"]
 	if _page + 1 < pages.size():
 		_page += 1
@@ -345,6 +353,12 @@ func _process(delta: float) -> void:
 	_blink += delta
 	if _arrow != null and _arrow.visible:
 		_arrow.modulate.a = 0.35 + 0.65 * absf(sin(_blink * 2.2))
+	# 黑屏旁白到点自己翻（用户 2026-10："3 秒自动下一句"）；手动点会重置计时
+	if String(_act_data()["bg"]) == "black" and _box != null and not _box.visible:
+		_wait += delta
+		if _wait >= NARR_AUTO_SEC:
+			_wait = 0.0
+			_advance()
 
 func _gui_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton:

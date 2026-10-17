@@ -111,6 +111,9 @@ func _ready() -> void:
 	_camera_setup()
 	_sync()
 	_build_astar()
+	# 城镇中心的贴图是"破旧 / 修好"两张，修缮在黎明生效 → 跨天时换一次贴图
+	if runner != null:
+		runner.hour_ticked.connect(refresh_town_center_sprite)
 	_assign_homes()
 	_spawn_agents()
 
@@ -417,7 +420,9 @@ func _build_town_center() -> void:
 	var fp := map.town_center.size
 	var spr := Sprite2D.new()
 	town_center_sprite = spr
-	spr.texture = load("res://assets/buildings/town_center.png")
+	# ⚠️ 走 `_texture_for()`：城镇中心开局是**破旧**的那张（用户 2026-10），
+	# 直接 load 好图就永远修不好了 —— 这个节点是**单独建的**，不在 `_shop_sprites` 里。
+	spr.texture = _texture_for("town_center")
 	spr.centered = false
 	# 和普通建筑同一条规则：横向居中、底边对齐，节点位置 = 地面线（供 y 排序）。
 	# 城镇中心是 3 层楼（121x160），占地由 content 声明成 8x6 —— 贴图比占地高
@@ -579,12 +584,30 @@ func _place_sprite(spr: Sprite2D, type: String, origin: Vector2i, fp: Vector2i) 
 	spr.offset = Vector2(-spr.texture.get_width() * 0.5, -spr.texture.get_height())
 
 func _texture_for(type: String) -> Texture2D:
+	# 城镇中心分两张：开局是**破旧**的（用户 2026-10），修好之后换回好图。
+	# 所以这一项**不进缓存**（按状态现取，`load()` 自己会缓存资源）。
+	if type == "town_center":
+		var ruined := false
+		if runner != null and runner.sim != null:
+			ruined = bool((runner.sim.s.get("townCenter", {}) as Dictionary).get("ruined", false))
+		return load("res://assets/buildings/town_center_ruined.png" if ruined
+			else "res://assets/buildings/town_center.png")
 	if _tex_cache.has(type):
 		return _tex_cache[type]
 	# 成品整图与程序化拼装都落在 assets/buildings/<id>.png，取法一致
 	var tex: Texture2D = load("res://assets/buildings/%s.png" % type)
 	_tex_cache[type] = tex
 	return tex
+
+## 修缮完成之后把地图上那座城镇中心的贴图换掉（黎明调一次，很便宜）。
+## ⚠️ 城镇中心是 `_build_town_center()` 单独建的节点（不在 `_shop_sprites` 里），
+## 两边都刷一下：万一以后它真变成普通 shop 也不会漏。
+func refresh_town_center_sprite() -> void:
+	if town_center_sprite != null:
+		town_center_sprite.texture = _texture_for("town_center")
+	for sid in _shop_sprites.keys():
+		if String(_shop_def.get(sid, "")) == "town_center":
+			(_shop_sprites[sid] as Sprite2D).texture = _texture_for("town_center")
 
 func _place_housing_instance(type: String, cell: Vector2i) -> void:
 	var fp = _footprint(type)

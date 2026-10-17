@@ -149,6 +149,10 @@ func new_game(pack_id: String, seed_value: int, resource_mult: float = 1.0) -> v
 		},
 		"goods": goods, "housing": housing, "privateHousing": private_housing, "prices": prices,
 		"shops": shops, "residents": residents, "construction": [],
+		# 城镇中心是不是**破旧**的（用户 2026-10：一开局是废墟，修好才换回好图）。
+		# ⚠️ 这是**表现层要用的一个开关**，仿真的任何数字都不读它 ——
+		# 和 `prophet` 一样"只记事、不演化"，所以黄金摘要（按字段取的）不受影响。
+		"townCenter": {"ruined": true},
 		# 科技：开局已研究的来自 pack.start.techs（见 docs/technology.md）
 		"research": {"done": _start_techs(pack_id), "queue": []},
 		# 任务（引导系统）：完成记录 + 章节奖励记录。判定与发钱都在黎明，
@@ -375,6 +379,21 @@ func _apply_actions(actions: Array) -> Array:
 					break
 			"set_price":
 				s["prices"][String(action["goodId"])] = SimUtil.r2(maxf(0.01, float(action["value"])))
+			"repair_town_center":
+				# 修缮城镇中心（用户 2026-10：一开局是废墟）。和别的命令一样**次日黎明生效**。
+				# 材料不够就白下这一单（不发钱也不扣东西），面板上写清楚了价。
+				# ⚠️ match 分支里不要用 `:=`（GDScript 会报 "Expected end of statement"）。
+				if bool((s.get("townCenter", {}) as Dictionary).get("ruined", false)):
+					var cost: Dictionary = {"wood": 40.0, "stone": 20.0}
+					var afford: bool = true
+					for gid in cost.keys():
+						if float(s["goods"].get(gid, 0.0)) < float(cost[gid]):
+							afford = false
+					if afford:
+						for gid in cost.keys():
+							s["goods"][gid] = SimUtil.r2(
+								float(s["goods"].get(gid, 0.0)) - float(cost[gid]))
+						s["townCenter"] = {"ruined": false}
 			"toggle":
 				var shop = _find_shop(String(action["shopId"]))
 				if shop != null:

@@ -2159,18 +2159,28 @@ bash godot/verify.sh       # 最后一行要是 ALL CHECKS PASSED
 ⚠️ 圆钮的**下标不变**（只是 `visible = false`）：`activate_nav(3)`、F4、`esc_test` 里
 "圆钮有几个"那些断言都不受影响。
 
-## 二十六、待做：破旧的城镇中心（第 1 幕的收尾）
+## 二十六、破旧的城镇中心（开局是废墟，修好才换回好图）
 
-用户 2026-10 还要一条：一开局地图上那座城镇中心用**破旧的**图（`town_center_ruined.png`
-已经放进 `assets/buildings/`，121×160，和 `town_center.png` 同尺寸），
-加一个「修复城镇中心」的任务，修好之后换回原来的图。
+用户 2026-10："初始城镇中心是破旧的"。
 
-**这条没做**，因为它不是纯界面活：需要
-1. 仿真层一个"修缮"动作（扣材料、若干天后完成）—— TS 与 GDScript 两边都要写；
-2. 一个任务目标类型（现有 `building/housing/population/tech/good/...` 都表达不了"修好了"），
-   要加 `flag` 之类，内容 `content/quests.json` 也要加一条；
-3. 世界层按这个状态换贴图（`_texture_for("town_center")` 分叉）；
-4. 门槛：`quest_test` / `ai_test`（`KNOWN_GOAL_TYPES`）/ golden 可能要重新生成。
-
-这是"改引擎"的量级，和上面几条纯界面的活不一样，所以单独留着。
+- **两张图**：`assets/buildings/town_center.png`（好）与 `town_center_ruined.png`（破旧，
+  121×160，同一个 121×160 画布、**底边对齐**同一条基线）。破旧那张是从用户给的
+  大图（白底 1024×1024）抠出来缩的：白底→透明、按内容 bbox 裁、按比例缩到 121×160、
+  **底边对齐**再贴回画布（不然房子会浮起来）。
+- **状态**：`s["townCenter"] = {"ruined": true}`（`new_game` 写）。它是**给表现层用的一个开关**，
+  仿真的任何数字都不读 —— 和 `prophet` 一样"只记事、不演化"，黄金摘要（按字段取）不受影响。
+- **换图**：`world_view._texture_for("town_center")` 按这个标记取两张之一（**不进缓存**）。
+  ⚠️ 城镇中心是 `_build_town_center()` **单独建**的节点（不在 `_shop_sprites` 里），
+  原来那里写死了 `load(...town_center.png)` —— 第一版就是这么"改了没生效"的。
+- **修缮**：城镇中心面板（「基本信息」页）最上面一块 —— 用料 木 40 · 石 20，
+  按下就是 `runner.enqueue([{"type": "repair_town_center"}])`，**次日黎明**生效
+  （和别的建造一致），材料不够当场说明白、不排队。
+  动作实现在 `SimCore._apply_actions`（TS 侧没有这个动作 —— TS 没有 UI，黄金也不取这一项）。
+- **换完之后**：`runner.hour_ticked` → `world.refresh_town_center_sprite()` 把贴图刷成好的。
+- 老存档（这条功能之前）按**已修好**迁移（`SaveManager._sanitize` 补 `{"ruined": false}`）——
+  那时候地图上本来就是好图。
+- 门槛 `intro`：新开局是破旧 → 下修缮命令 → 过一个黎明修好、材料扣了。
+- ⚠️ **还差一个"任务"**：用户原话是"加一个任务，修复城镇中心"。现在修是能修，
+  但任务树里没有这一条 —— 因为现有 goal 类型表达不了"修好了"，要加一个 `flag` 之类的新类型，
+  而 `scripts/check-quests.ts` 是 TS 侧的镜像，得一起改并重跑内容门槛。
 

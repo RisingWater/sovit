@@ -143,6 +143,10 @@ static func _sanitize(s: Dictionary, db: ContentDB) -> void:
 		var pr: Dictionary = s["prophet"]
 		pr["lastAskDay"] = int(pr.get("lastAskDay", -1))
 		s["prophet"] = pr
+	# 城镇中心"破旧"标记（用户 2026-10）：**这条功能之前**的存档按"已经修好"处理 ——
+	# 那时候的城镇中心本来就是好图，不该读进来突然变废墟。
+	if not (s.get("townCenter", null) is Dictionary):
+		s["townCenter"] = {"ruined": false}
 	# 每种物资的软上限（见 docs/town.md §3.6）：老存档没有这个字段。
 	if not (gov.get("storageCaps", null) is Dictionary):
 		gov["storageCaps"] = {}

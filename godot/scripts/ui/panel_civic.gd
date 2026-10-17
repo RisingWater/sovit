@@ -276,7 +276,11 @@ func _refresh() -> void:
 	match _mode:
 		Mode.TOWN_CENTER:
 			match _tab:
-				0: _build_basic()
+				0:
+					# 修缮放在**最上面**：破旧时这是玩家第一件该做的事，
+					# 塞在「基础」下面就得滚动才看得见（实测就是这样）。
+					_build_repair()
+					_build_basic()
 				1: _build_resources()
 				2: _build_queue()
 				_: _build_notice()
@@ -284,8 +288,40 @@ func _refresh() -> void:
 		_: pass
 
 # ---------------------------------------------------------------------------
-# 排版小件（和 inspector 同款：区块标题 + 左标签右数值 + 进度条）
+# 修缮城镇中心（用户 2026-10：一开局那座是废墟，修好才换回好图）
+#
+# 只在「破旧」时出现；命令进 `runner.enqueue()`，和别的建造一样**次日黎明生效**。
+# 材料不够就当场说明白（不排队、不扣东西）—— 免得玩家排了单又白等一天。
 # ---------------------------------------------------------------------------
+const TOWN_CENTER_REPAIR_COST := {"wood": 40.0, "stone": 20.0}
+
+func _build_repair() -> void:
+	var tc: Dictionary = runner.sim.s.get("townCenter", {})
+	if not bool(tc.get("ruined", false)):
+		return
+	_body.add_child(UIKit.hsep())
+	_title("修缮城镇中心")
+	var need := "木 %d · 石 %d" % [int(TOWN_CENTER_REPAIR_COST["wood"]),
+		int(TOWN_CENTER_REPAIR_COST["stone"])]
+	_kv("用料", need)
+	_body.add_child(UIKit.label("明日 06:00 完工，之后城镇中心就修好了", UIKit.FG_DIM))
+	var b := UIKit.button("修缮", false)
+	b.tooltip_text = "花 %s，次日黎明完工" % need
+	b.pressed.connect(func():
+		var ok := true
+		for gid in TOWN_CENTER_REPAIR_COST.keys():
+			if float(runner.sim.s["goods"].get(gid, 0.0)) < float(TOWN_CENTER_REPAIR_COST[gid]):
+				ok = false
+		if not ok:
+			_set_sub("材料不够：还差一些" + need)
+			return
+		runner.enqueue([{"type": "repair_town_center"}])
+		_set_sub("已下令修缮 —— 次日 06:00 完工")
+		_refresh())
+	_body.add_child(b)
+
+# ---------------------------------------------------------------------------
+# 排版小件（和 inspector 同款：区块标题 + 左标签右数值 + 进度条）# ---------------------------------------------------------------------------
 func _title(text: String) -> void:
 	var p := UIKit.panel(true)
 	var l := UIKit.label(text, UIKit.FG_LABEL)

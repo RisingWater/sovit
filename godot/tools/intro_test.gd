@@ -123,5 +123,26 @@ func _run() -> void:
 			_fail("研究所建起来之后「科技」圆钮没有出现")
 			return
 	print("INTRO TEST 科技圆钮：研究所之前藏着、之后出现 ✅")
+
+	# ---- 城镇中心：一开局是**破旧**的；「修缮」命令在黎明生效、换回好图（用户 2026-10）
+	var sim = node.get("runner").sim
+	if not bool((sim.s.get("townCenter", {}) as Dictionary).get("ruined", false)):
+		_fail("新开局的城镇中心应当是破旧的（用户：初始城镇中心是破旧的）")
+		return
+	sim.s["goods"]["wood"] = 200.0
+	sim.s["goods"]["stone"] = 200.0
+	var wood0 := float(sim.s["goods"]["wood"])
+	sim.enqueue([{"type": "repair_town_center"}])
+	sim._run_dawn()
+	if bool((sim.s.get("townCenter", {}) as Dictionary).get("ruined", true)):
+		_fail("下了修缮命令、过一个黎明之后城镇中心还是破旧的")
+		return
+	if float(sim.s["goods"]["wood"]) >= wood0:
+		_fail("修缮没有扣材料（木 %.0f → %.0f）" % [wood0, float(sim.s["goods"]["wood"])])
+		return
+	if (node.get_node("World").town_center_sprite as Sprite2D).texture == null:
+		_fail("城镇中心的贴图没了")
+		return
+	print("INTRO TEST 城镇中心：开局破旧 → 修缮扣料 → 黎明后修好 ✅")
 	print("INTRO TEST RESULT: PASS")
 	quit(0)
