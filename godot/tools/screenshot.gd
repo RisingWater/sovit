@@ -45,6 +45,34 @@ func _run() -> void:
 		quit(1)
 		return
 
+	# 开场剧情（见 scripts/ui/intro.gd）：intro = 第 1 幕，intro2..intro5 = 对应那一幕。
+	# 走的是**真入口** `main._begin_intro()`（开新局时才会走那条），再 `jump_to_act()` 跳幕。
+	# 这个模式自己出图就退（和 `title` 一样）—— 后面那些"摆建筑/跑天数"会让画面变掉。
+	if mode.begins_with("intro"):
+		if node.has_method("_begin_intro"):
+			# 先收起标题页（真实流程里点「开始游戏」的时候就已经收了），
+			# 否则截出来背景是标题页的 logo + 菜单
+			if node.has_method("_end_title"):
+				node._end_title()
+				await process_frame
+			node._begin_intro()
+			await process_frame
+			var act := 0
+			if mode.length() > 5:
+				act = maxi(0, int(mode.substr(5)) - 1)
+			var intro = node.get("_intro")
+			if intro != null:
+				intro.jump_to_act(act)
+			for f in 8:
+				await process_frame
+			await RenderingServer.frame_post_draw
+			var iimg: Image = root.get_texture().get_image()
+			if iimg != null:
+				iimg.save_png(out_path)
+			print("SCREENSHOT intro act=", act + 1, " -> ", out_path)
+		quit(0)
+		return
+
 	# 标题页模式：**不要**关标题页，等展示村庄铺好（铺路/摆建筑/快进几天要几秒）
 	# 再出图。logo 的排版、上下压暗的渐变、居中菜单都在这张图上验。
 	if mode == "title":

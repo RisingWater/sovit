@@ -12,6 +12,9 @@ const TRACKS := [
 	"res://assets/music/shimmer_sill_dawn.ogg",
 	"res://assets/music/shimmer_sill_dusk.ogg",
 ]
+## 开场剧情那首（同一套 RPG Town Pack 的第 6 首 "Follow Through"）。
+## 播完由 `_play_next()` 接回常规轮播 —— 不用显式恢复。
+const INTRO_TRACK := "res://assets/music/opening_fallow.ogg"
 const CFG_PATH := "user://hud.cfg"
 const DEFAULT_VOLUME := 0.55   # 0..1
 
@@ -19,6 +22,8 @@ var _player: AudioStreamPlayer
 var _idx := -1
 var _volume := DEFAULT_VOLUME
 var _muted := false
+## 现在放的是不是开场曲（`current_track_name()` 要如实报）
+var _intro := false
 
 func _ready() -> void:
 	_load_cfg()
@@ -42,6 +47,7 @@ func _apply_volume() -> void:
 		_player.volume_db = _db(0.0 if _muted else _volume)
 
 func _play_next() -> void:
+	_intro = false
 	_idx = (_idx + 1) % TRACKS.size()
 	var st: AudioStream = load(TRACKS[_idx])
 	if st == null:
@@ -50,6 +56,19 @@ func _play_next() -> void:
 	# 单曲不循环，播完切下一首
 	if st is AudioStreamOggVorbis:
 		st.loop = false
+	_player.stream = st
+	_player.play()
+
+## 放开场剧情那首（用户 2026-10 指定）。播完 `finished` 会接到 `_play_next()`，
+## 自动回到常规轮播 —— 所以调用方不需要"恢复"。
+func play_intro() -> void:
+	var st: AudioStream = load(INTRO_TRACK)
+	if st == null:
+		push_error("Music: 无法加载 " + INTRO_TRACK)
+		return
+	if st is AudioStreamOggVorbis:
+		st.loop = false
+	_intro = true
 	_player.stream = st
 	_player.play()
 
@@ -86,6 +105,8 @@ func get_volume() -> float:
 	return _volume
 
 func current_track_name() -> String:
+	if _intro:
+		return "Follow Through"
 	if _idx < 0:
 		return ""
 	var base: String = TRACKS[_idx].get_file().get_basename()

@@ -40,6 +40,8 @@ var _speed_btns: Array[Button] = []
 ## 左侧圆钮列（顺序 = NAV_ITEMS）。快捷键 F1..F8 按这个顺序取，
 ## 所以以后 `NAV_ITEMS` 里加一项，就自动多一个 F 键，不用改快捷键代码。
 var _nav_btns: Array[Button] = []
+## 「科技」那个圆钮（研究所建起来之前藏着，见 `refresh_nav_buttons()`）
+var _tech_nav_btn: Button = null
 
 ## 速度档位。`+` / `-` 按它步进；**1x 就是最慢**（用户："减速最快 1x"），
 ## 4x 是最快。与顶栏那排按钮一一对应。
@@ -156,6 +158,8 @@ func _ready() -> void:
 		runner.hour_ticked.connect(_refresh)
 		# 预言家的冷却按"天"算：每跨过黎明就要把顶栏那个问号从灰的换回金色
 		runner.hour_ticked.connect(refresh_ai_btn)
+		# 研究所在黎明落成 → 那一刻「科技」圆钮才该冒出来
+		runner.hour_ticked.connect(refresh_nav_buttons)
 	_refresh()
 
 func _open_stats() -> void:
@@ -362,8 +366,26 @@ func _build_nav() -> void:
 			b.pressed.connect(_open_ai)
 		else:
 			b.pressed.connect(_open_stats_tab.bind(tab))
+		if tab == NAV_TECH:
+			_tech_nav_btn = b
 		col.add_child(b)
 		_nav_btns.append(b)
+	refresh_nav_buttons()
+
+## 「科技」那个圆钮**研究所建起来之前不出现**（用户 2026-10）。
+##
+## 没有研究所就一点都不出科研力，点进去只有一片"需要先研究"，纯属误导 ——
+## 所以第一次开出研究所之前，左侧圆钮列只有 5 个。
+## 建筑都在黎明落成，所以挂在 `hour_ticked` 上刷一次就够（按钮可见性变一下，很便宜）。
+func refresh_nav_buttons() -> void:
+	if _tech_nav_btn == null or runner == null or runner.sim == null:
+		return
+	var has_inst := false
+	for sh in (runner.sim.s["shops"] as Array):
+		if String((sh as Dictionary)["defId"]) == "research_institute":
+			has_inst = true
+			break
+	_tech_nav_btn.visible = has_inst
 
 ## 圆钮外观：**手绘像素贴图**（不是代码画的几何圆）。
 ##

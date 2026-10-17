@@ -18,6 +18,9 @@ const DIFFICULTIES := [
 var runner: SimRunner
 var world: Node
 
+## 开新局之后发一次（main 接住它去放开场剧情，见 intro.gd）
+signal started
+
 var _name_edit: LineEdit
 var _diff_btns: Array = []
 var _diff_idx := 1
@@ -135,3 +138,5 @@ func _start() -> void:
 	var seed_value := int(Time.get_unix_time_from_system()) % 2147483647
 	world.start_new_game(seed_value, resource_mult(), nm)
 	close()
+	# 开新局之后要放开场剧情（第 1~5 幕，见 intro.gd）—— 由 main 接
+	started.emit()

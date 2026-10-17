@@ -87,6 +87,7 @@ UI 通过 `UIKit.tech_icon(id)` 取用。
 `godot/assets/music/shimmer_sill_dawn.ogg` 与 `shimmer_sill_dusk.ogg` 来自
 **RPG Town Pack**（Talon 目录，第 1 首 + Bonus）。原始授权文本见
 [`music/Read Me (RPG Town Pack).txt`](music/Read%20Me%20(RPG%20Town%20Pack).txt)：
+**`music/opening_fallow.ogg`（开场剧情曲，同一套包的第 6 首 "Follow Through"）授权同上。**
 
 > Free to use in any Godot project with attribution.
 > Credit "Music: Talon Trueblood" in your game credits or itch.io page.

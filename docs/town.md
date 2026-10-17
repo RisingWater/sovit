@@ -2121,7 +2121,56 @@ bash godot/verify.sh       # 最后一行要是 ALL CHECKS PASSED
   （字体按 12px 网格设计，非整数倍落不到整像素）—— 这也是当初 18 看着"有点怪"的原因。
 - 资源面板那几个 24px 的数（库存 / 日产量 / 净变化）**保持原样**：它们是"大字"，不是正文数字。
 
+## 二十四、开场剧情（第 1~5 幕）
 
+用户 2026-10 给了完整分幕脚本。实现：`godot/scripts/ui/intro.gd`，由 `main` 挂在
+`IntroLayer`（CanvasLayer 40，压在标题页之上）。
 
+- **只在新开局播**（`new_game_dialog` 的 `started` 信号 → `main._begin_intro()`）。
+  读档不重播。
+- 形式：
+  - 第 1 幕 —— **黑屏白字**，居中（`_narr`），一页一组字，点一下翻页
+  - 第 2~4 幕 —— 村庄地图**压暗**（`_dim`）、立绘从**右侧滑入**（Tween 0.35s）、
+    文字框在**下中**（米黄纸框，说话人名 24px + 正文 12px），框右下角一个闪动的「▼」
+  - 第 5 幕 —— 收尾：压暗撤掉、露出游戏 UI，智囊的**头像**落在**左下角**。
+    头像是 `AtlasTexture` 只取立绘上面 36%（整张半身像缩到 300 高会挤成一团）。
+- **剧情期间时间暂停**（走 `hud.set_paused_external(true)`，和 AI 问话同一条路），
+  结束/跳过时 `runner.set_paused(false)`。
+- **配乐**：`music.play_intro()` 放 `assets/music/opening_fallow.ogg`（RPG Town Pack 第 6 首
+  "Follow Through"，授权同其它两首）。播完 `finished` 自动接回常规轮播，不需要调用方恢复。
+- **推进**：点一下 / 空格 / 回车 → 下一页；`Esc` 或右上角「跳过」→ 直接进游戏
+  （不给跳过太狠了，一段剧情不该关住玩家）。
+- 文本里的 `{money}` / `{pop}` 在建场时换成**开局真实数字**（`begin(sim)`）。
+- ⚠️ 剧本是**常量表** `SCRIPT`，加一幕就多一条；门槛 `intro_test` 会查：
+  5 幕、每幕有台词、说话人有立绘和中文名、**逐字查像素字体**（缺字 = 屏幕上空一块）、
+  翻到底和点「跳过」都会收尾。
+- 截图：`shots/intro.png` ~ `shots/intro5.png`，模式 `intro` / `intro2` … `intro5`
+  （`screenshot.gd`；这几个模式自己出图就退，和 `title` 一样）。
 
+## 二十五、「科技」圆钮研究所之前不出现
+
+用户 2026-10："研究所建立之前，研究圆圈按钮不要出现。"
+
+没有研究所就一点都不出科研力，点进去只有一片"需要先研究"，纯属误导。
+`hud.refresh_nav_buttons()` 看 `shops` 里有没有 `research_institute`，有才显示那个圆钮；
+挂在 `hour_ticked` 上（建筑都在黎明落成）。所以**开局左侧圆钮只有 5 个**，
+第一次开出研究所之后才变回 6 个。
+
+⚠️ 圆钮的**下标不变**（只是 `visible = false`）：`activate_nav(3)`、F4、`esc_test` 里
+"圆钮有几个"那些断言都不受影响。
+
+## 二十六、待做：破旧的城镇中心（第 1 幕的收尾）
+
+用户 2026-10 还要一条：一开局地图上那座城镇中心用**破旧的**图（`town_center_ruined.png`
+已经放进 `assets/buildings/`，121×160，和 `town_center.png` 同尺寸），
+加一个「修复城镇中心」的任务，修好之后换回原来的图。
+
+**这条没做**，因为它不是纯界面活：需要
+1. 仿真层一个"修缮"动作（扣材料、若干天后完成）—— TS 与 GDScript 两边都要写；
+2. 一个任务目标类型（现有 `building/housing/population/tech/good/...` 都表达不了"修好了"），
+   要加 `flag` 之类，内容 `content/quests.json` 也要加一条；
+3. 世界层按这个状态换贴图（`_texture_for("town_center")` 分叉）；
+4. 门槛：`quest_test` / `ai_test`（`KNOWN_GOAL_TYPES`）/ golden 可能要重新生成。
+
+这是"改引擎"的量级，和上面几条纯界面的活不一样，所以单独留着。
 

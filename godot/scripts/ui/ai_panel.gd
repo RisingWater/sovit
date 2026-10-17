@@ -744,9 +744,11 @@ func _sync_ask_button() -> void:
 			int(SimCore.PROPHET_COOLDOWN_DAYS)
 	else:
 		_ask_btn.text = "获取瑟拉菲娜的新预言"
-		_ask_btn.tooltip_text = "让瑟拉菲娜拨一次水晶球（一场问话最多 %d 轮，" % \
-			ProphetAgent.MAX_ROUNDS + "一次问话要隔 %d 天）" % [
-				ProphetAgent.MAX_ROUNDS, int(SimCore.PROPHET_COOLDOWN_DAYS)]
+		# ⚠️ 这里原来分成「前半段 % 轮数」+「后半段 % [轮数, 天数]」两段拼，
+		# 后半段只有一个 %d 却给了两个参数 —— 每次建面板都报
+		# "String formatting error: not all arguments converted"（而且不红、只是日志里刷）。
+		_ask_btn.tooltip_text = "让瑟拉菲娜拨一次水晶球（一场问话最多 %d 轮，一次问话要隔 %d 天）" % [
+			ProphetAgent.MAX_ROUNDS, int(SimCore.PROPHET_COOLDOWN_DAYS)]
 	_refresh_status()
 
 func _on_replied(reply: Dictionary) -> void:

@@ -24,6 +24,8 @@ var _ai_panel
 var _dlg_layer: CanvasLayer
 var _title
 var _title_layer
+var _intro
+var _intro_layer: CanvasLayer
 var root_ui: Control
 
 func _ready() -> void:
@@ -237,6 +239,50 @@ func _ready() -> void:
 	# 标题页是展示，屏幕上不该有"能操作地图"的错觉。
 	world.set_process_unhandled_input(false)
 	_title.begin_showcase()
+
+	# 开场剧情（第 1~5 幕，见 scripts/ui/intro.gd）。独立 CanvasLayer，压在标题页之上。
+	# 只有**开新局**会触发（读档不该再放一遍）。
+	_intro_layer = CanvasLayer.new()
+	_intro_layer.name = "IntroLayer"
+	_intro_layer.layer = 40
+	add_child(_intro_layer)
+	_intro = load("res://scripts/ui/intro.gd").new()
+	_intro.name = "Intro"
+	_intro.theme = theme
+	_intro_layer.add_child(_intro)
+	_intro.finished.connect(_end_intro)
+	_new_game.started.connect(_begin_intro)
+
+## 开新局 → 放开场剧情：藏起游戏 UI、暂停时间、换开场曲。
+func _begin_intro() -> void:
+	if _intro == null:
+		return
+	root_ui.visible = false
+	if world.label_layer != null:
+		world.label_layer.visible = false
+	# 剧情期间时间暂停（用户："剧情中时间暂停"）—— 走 HUD 那条路，
+	# 这样顶栏的暂停按钮和真实状态一致（虽然这时 UI 是藏着的）
+	if _hud != null and _hud.has_method("set_paused_external"):
+		_hud.set_paused_external(true)
+	else:
+		runner.set_paused(true)
+	if _music != null:
+		_music.play_intro()
+	_intro.begin(runner.sim)
+
+## 剧情结束（或玩家跳过）→ 露出游戏 UI、恢复时间。
+func _end_intro() -> void:
+	if _intro_layer != null:
+		_intro_layer.visible = false
+	root_ui.visible = true
+	if world.label_layer != null:
+		world.label_layer.visible = true
+	if _intro != null:
+		_intro.queue_free()
+		_intro = null
+	runner.set_paused(false)
+	if _hud != null and _hud.has_method("refresh_now"):
+		_hud.refresh_now()
 
 ## 点地图上的建筑：城镇中心 / 仓库 弹浮动对话框，其余走右侧建筑面板。
 func _on_select_building(id: String) -> void:

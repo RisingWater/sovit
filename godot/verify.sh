@@ -130,6 +130,7 @@ step "savedlg" "$GODOT_BIN" --headless --path . -s res://tools/save_dialog_test.
 step "inspector" "$GODOT_BIN" --headless --path . -s res://tools/inspector_test.gd
 step "newgame" "$GODOT_BIN" --headless --path . -s res://tools/newgame_test.gd
 step "title" "$GODOT_BIN" --headless --path . -s res://tools/title_test.gd
+step "intro" "$GODOT_BIN" --headless --path . -s res://tools/intro_test.gd
 step "occlusion" "$GODOT_BIN" --headless --path . -s res://tools/occlusion_test.gd
 
 if [ "$FAIL" -ne 0 ]; then
