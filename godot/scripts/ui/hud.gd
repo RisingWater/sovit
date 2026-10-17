@@ -257,10 +257,9 @@ func _build_stat_row(row: HBoxContainer) -> void:
 			tr.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 			tr.mouse_filter = Control.MOUSE_FILTER_IGNORE
 			cell.add_child(tr)
-		# 数字用**数字专用字号**（18）—— 见 UIKit.NUM_FS 的注释：
-		# 用户在资源面板看中"大号像素数字"那个样子，要求全游戏的数字都按它来。
-		var l := UIKit.num_label("0", Color(0.89, 0.91, 0.94))
-		l.custom_minimum_size = Vector2(44, 0)
+		# 数字和正文同档（12）—— 2026-10 试过放大到 18，用户否了，见 UIKit.label() 的注释。
+		var l := UIKit.label("0", Color(0.89, 0.91, 0.94))
+		l.custom_minimum_size = Vector2(34, 0)
 		l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 		l.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		l.mouse_filter = Control.MOUSE_FILTER_IGNORE

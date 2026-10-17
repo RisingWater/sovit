@@ -202,11 +202,10 @@ func _grid_in(parent: Control, cols: int) -> GridContainer:
 	return g
 
 ## 表格单元格。
-## `num` = 这是**数字**单元格 → 用数字专用字号（`UIKit.NUM_FS`，18），
-## 用户 2026-10："把整个游戏的所有数字都用这个字体（但是大小可以小一点）"。
-func _cell(g: GridContainer, text: String, color: Color, min_w := 0.0, right := false,
-		num := false) -> Label:
-	var l: Label = UIKit.num_label(text, color) if num else UIKit.label(text, color)
+## 数值和正文**同字号**（12）—— 2026-10 试过给数字单独放大到 18，用户看完否了
+## （"算了，数字改回来吧，不好看"），见 `UIKit.label()` 上面的注释。
+func _cell(g: GridContainer, text: String, color: Color, min_w := 0.0, right := false) -> Label:
+	var l := UIKit.label(text, color)
 	if min_w > 0.0:
 		l.custom_minimum_size = Vector2(min_w, 0)
 	if right:
@@ -279,9 +278,9 @@ func _resources_tab() -> void:
 			nb.add_theme_color_override("font_color", UIKit.FG_LIGHT)
 		nb.pressed.connect(_on_pick_good.bind(gid2))
 		row.add_child(nb)
-		var st := UIKit.num_label("%.0f" % float(stats.good_row(gid2)["stock"]),
+		var st := UIKit.label("%.0f" % float(stats.good_row(gid2)["stock"]),
 			Color(0.62, 0.48, 0.34))
-		st.custom_minimum_size = Vector2(56, 0)
+		st.custom_minimum_size = Vector2(44, 0)
 		st.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 		row.add_child(st)
 		var pad := Control.new()          # 给纵向滚动条留位置，否则数字被压住
@@ -424,10 +423,10 @@ func _people_tab() -> void:
 		var i := g.get_child_count()
 		var right := i % 2 == 1
 		_cell(g, h, HEAD_COL, 90.0 if not right else 60.0, right)
-	_cell(g, "人口", UIKit.FG_HEAD, 90.0); _cell(g, "%d" % (s["residents"] as Array).size(), UIKit.FG_DARK, 60.0, true, true)
-	_cell(g, "就业", UIKit.FG_HEAD, 90.0); _cell(g, "%d" % employed, UIKit.FG_DARK, 60.0, true, true)
-	_cell(g, "岗位总量", UIKit.FG_HEAD, 90.0); _cell(g, "%d" % total_slots, UIKit.FG_DARK, 60.0, true, true)
-	_cell(g, "用工目标", UIKit.FG_HEAD, 90.0); _cell(g, "%d" % total_workers, UIKit.FG_DARK, 60.0, true, true)
+	_cell(g, "人口", UIKit.FG_HEAD, 90.0); _cell(g, "%d" % (s["residents"] as Array).size(), UIKit.FG_DARK, 60.0, true)
+	_cell(g, "就业", UIKit.FG_HEAD, 90.0); _cell(g, "%d" % employed, UIKit.FG_DARK, 60.0, true)
+	_cell(g, "岗位总量", UIKit.FG_HEAD, 90.0); _cell(g, "%d" % total_slots, UIKit.FG_DARK, 60.0, true)
+	_cell(g, "用工目标", UIKit.FG_HEAD, 90.0); _cell(g, "%d" % total_workers, UIKit.FG_DARK, 60.0, true)
 
 	# 左：名单；右：详情。
 	# 用户 2026-10："点名字看详情好像并没有实现，是不是弹到后面去了？"
@@ -488,8 +487,8 @@ func _people_tab() -> void:
 		_cell(gg, "%s·%s" % [tenure, _house_name(int(r.get("housingQuality", 0)))],
 			UIKit.FG_DARK, 76.0, true)
 		_cell(gg, job, UIKit.FG_DARK, 76.0, true)
-		_cell(gg, "%.0f" % float(r["skill"]), UIKit.FG_DARK, 56.0, true, true)
-		_cell(gg, "%.0f" % float(r["satisfaction"]), UIKit.FG_DARK, 56.0, true, true)
+		_cell(gg, "%.0f" % float(r["skill"]), UIKit.FG_DARK, 56.0, true)
+		_cell(gg, "%.0f" % float(r["satisfaction"]), UIKit.FG_DARK, 56.0, true)
 	if rows >= 60:
 		_note("（只列出前 60 位）")
 
@@ -563,11 +562,11 @@ func _resident_detail(pane: VBoxContainer, rid: String, s: Dictionary) -> void:
 	_cell(g, "阶层", UIKit.FG_HEAD, 82.0)
 	_cell(g, _class_name_zh(String(r["classId"])), UIKit.FG_DARK, 82.0)
 	_cell(g, "熟练度", UIKit.FG_HEAD, 82.0)
-	_cell(g, "%.1f" % float(r["skill"]), UIKit.FG_DARK, 82.0, true, true)
+	_cell(g, "%.1f" % float(r["skill"]), UIKit.FG_DARK, 82.0, true)
 	_cell(g, "满意度", UIKit.FG_HEAD, 82.0)
-	_cell(g, "%.1f" % float(r["satisfaction"]), UIKit.FG_DARK, 82.0, true, true)
+	_cell(g, "%.1f" % float(r["satisfaction"]), UIKit.FG_DARK, 82.0, true)
 	_cell(g, "存款", UIKit.FG_HEAD, 82.0)
-	_cell(g, "¥%.1f" % float(r["savings"]), UIKit.FG_DARK, 82.0, true, true)
+	_cell(g, "¥%.1f" % float(r["savings"]), UIKit.FG_DARK, 82.0, true)
 	_cell(g, "住房", UIKit.FG_HEAD, 82.0)
 	_cell(g, "%s·%s" % [tenure, _house_name(int(r.get("housingQuality", 0)))], UIKit.FG_DARK, 82.0)
 	_cell(g, "工作", UIKit.FG_HEAD, 82.0)
@@ -583,23 +582,23 @@ func _resident_detail(pane: VBoxContainer, rid: String, s: Dictionary) -> void:
 		Color(0.72, 0.22, 0.18) if is_hungry else Color(0.18, 0.45, 0.20), 82.0)
 	_cell(g, "食物满足", UIKit.FG_HEAD, 82.0)
 	_cell(g, "%.0f%%" % (float(acc.get("foodScore", 1.0)) * 100.0),
-		Color(0.72, 0.22, 0.18) if is_hungry else UIKit.FG_DARK, 82.0, true, true)
+		Color(0.72, 0.22, 0.18) if is_hungry else UIKit.FG_DARK, 82.0, true)
 	_cell(g, "舒适满足", UIKit.FG_HEAD, 82.0)
-	_cell(g, "%.0f%%" % (float(acc.get("comfortScore", 1.0)) * 100.0), UIKit.FG_DARK, 82.0, true, true)
+	_cell(g, "%.0f%%" % (float(acc.get("comfortScore", 1.0)) * 100.0), UIKit.FG_DARK, 82.0, true)
 	_cell(g, "价格满意", UIKit.FG_HEAD, 82.0)
-	_cell(g, "%.0f%%" % (float(acc.get("priceScore", 1.0)) * 100.0), UIKit.FG_DARK, 82.0, true, true)
+	_cell(g, "%.0f%%" % (float(acc.get("priceScore", 1.0)) * 100.0), UIKit.FG_DARK, 82.0, true)
 	_cell(g, "今日工资", UIKit.FG_HEAD, 82.0)
-	_cell(g, "¥%.2f" % float(acc.get("wage", 0.0)), UIKit.FG_DARK, 82.0, true, true)
+	_cell(g, "¥%.2f" % float(acc.get("wage", 0.0)), UIKit.FG_DARK, 82.0, true)
 	_cell(g, "今日所得税", UIKit.FG_HEAD, 82.0)
-	_cell(g, "¥%.2f" % float(acc.get("tax", 0.0)), UIKit.FG_DARK, 82.0, true, true)
+	_cell(g, "¥%.2f" % float(acc.get("tax", 0.0)), UIKit.FG_DARK, 82.0, true)
 	_cell(g, "今日租金", UIKit.FG_HEAD, 82.0)
-	_cell(g, "¥%.2f" % float(acc.get("rent", 0.0)), UIKit.FG_DARK, 82.0, true, true)
+	_cell(g, "¥%.2f" % float(acc.get("rent", 0.0)), UIKit.FG_DARK, 82.0, true)
 	_cell(g, "今日消费", UIKit.FG_HEAD, 82.0)
-	_cell(g, "¥%.2f" % float(acc.get("spent", 0.0)), UIKit.FG_DARK, 82.0, true, true)
+	_cell(g, "¥%.2f" % float(acc.get("spent", 0.0)), UIKit.FG_DARK, 82.0, true)
 	var net := float(acc.get("wage", 0.0)) - float(acc.get("tax", 0.0)) - float(acc.get("rent", 0.0)) - float(acc.get("spent", 0.0))
 	_cell(g, "今日净额", UIKit.FG_HEAD, 82.0)
 	_cell(g, "¥%+.2f" % net,
-		Color(0.18, 0.45, 0.20) if net >= 0.0 else Color(0.65, 0.22, 0.18), 82.0, true, true)
+		Color(0.18, 0.45, 0.20) if net >= 0.0 else Color(0.65, 0.22, 0.18), 82.0, true)
 
 	# 逐人每日消耗（bought）：目前按阶层均分，所以同阶层人人相同
 	var bought: Dictionary = acc.get("bought", {})
@@ -618,7 +617,7 @@ func _resident_detail(pane: VBoxContainer, rid: String, s: Dictionary) -> void:
 		for k in keys:
 			var gid := String(k)
 			_cell(gb, _good_name(gid), UIKit.FG_HEAD, 96.0)
-			_cell(gb, "%.2f" % float(bought[gid]), UIKit.FG_DARK, 60.0, true, true)
+			_cell(gb, "%.2f" % float(bought[gid]), UIKit.FG_DARK, 60.0, true)
 
 # ---------------------------------------------------------------------------
 # 财务

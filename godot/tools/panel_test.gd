@@ -189,17 +189,18 @@ func _run() -> void:
 	print("PANEL TEST 列表可选商品=%d 选中=%s 折线=%d（应为 0）"
 		% [pick_buttons, panel._sel_good, charts])
 
-	# ---- 数字用**数字专用字号**（UIKit.NUM_FS=18）
-	#    用户 2026-10："把整个游戏的所有数字都用这个字体（但是大小可以小一点）"。
-	#    这里只锁"统计面板里确实有一批 NUM_FS 的标签" —— 有人把它改回 12 就会红。
-	var numfs := 0
+	# ---- 数值和正文**同字号**（12）
+	#     2026-10 试过给数字单独放大到 18，用户看完否了（"算了，数字改回来吧，不好看"）。
+	#     这条反过来锁住：统计面板里不许出现比 FS 更大的普通标签
+	#     （`_big()` 那几格是 BIG_FS，它们是真标题，所以只查"非 BIG_FS 却大于 FS"的）。
+	var odd := 0
 	for l in panel.find_children("*", "Label", true, false):
-		if (l as Label).get_theme_font_size("font_size") == UIKit.NUM_FS:
-			numfs += 1
-	if numfs < 4:
-		_fail("统计面板里的数值应当用 NUM_FS(%d) 画，实际只有 %d 个" % [UIKit.NUM_FS, numfs])
+		var fs: int = (l as Label).get_theme_font_size("font_size")
+		if fs > UIKit.FS and fs != UIKit.BIG_FS:
+			odd += 1
+	if odd > 0:
+		_fail("统计面板里出现了 %d 个非 12 / 非 24 的字号（数字不要单独放大）" % odd)
 		return
-	print("PANEL TEST 数字字号=%d 的标签 %d 个" % [UIKit.NUM_FS, numfs])
 
 	# ---- 没有新数据时不能重建面板
 	#    曾经 main.gd 写成"只要面板可见就 refresh()"，于是每帧把所有子节点
