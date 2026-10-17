@@ -15,8 +15,10 @@ const PAN_RADIUS := 240.0       # 镜头绕村庄中心缓慢环绕的半径（�
 const PAN_SPEED := 0.09         # 弧度/秒，很慢
 ## 展示用的固定种子。轮流用，切换时换下一个。
 const SHOWCASE_SEEDS := [20240101, 777, 90210]
-const LOGO_MARGIN := 24.0
-const LOGO_W := 900.0
+const LOGO_MARGIN := 28.0       # 四周留白
+const LOGO_MAX_W := 960.0       # logo 最宽（1600 宽的视口下约 60%，高度靠宽高比反推）
+const LOGO_FALLBACK_AR := 1.62  # 贴图读不到宽高比时的兜底（1277x786）
+const MENU_BTN_H := 72.0
 
 var runner: SimRunner
 var world: Node
@@ -28,6 +30,9 @@ signal start_requested
 
 var _logo: TextureRect
 var _fade: ColorRect
+var _top_scrim: TextureRect
+var _bot_scrim: TextureRect
+var _ar := LOGO_FALLBACK_AR
 var _seed_idx := 0
 var _t := 0.0
 var _angle := 0.0
@@ -51,15 +56,26 @@ func _ready() -> void:
 	_fade.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_fade)
 
-	# 右上 logo
+	# 上下两条压暗的渐变（兄弟顺序 = 绘制顺序，所以必须在 logo / 菜单之前加）：
+	#   · 上：木刻 logo 是深底暖色，直接压在亮色的田地/屋顶上会糊成一片
+	#   · 下：米黄纸框的菜单也要有底才读得清
+	_top_scrim = _scrim(true)
+	_bot_scrim = _scrim(false)
+
+	# 正中 logo
 	_logo = TextureRect.new()
+	_logo.name = "Logo"
 	_logo.texture = load("res://assets/ui/logo_title.png")
+	if _logo.texture != null:
+		var ts: Vector2 = _logo.texture.get_size()
+		if ts.y > 0.0:
+			_ar = ts.x / ts.y
 	_logo.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	_logo.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	_logo.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_logo)
 
-	# 左下选项
+	# 底部选项
 	# 用与其它面板同款的像素米黄纸框（原来是半透明纯色块，和 UI 不是一套）。
 	var wrap := PanelContainer.new()
 	wrap.name = "MenuWrap"
@@ -89,18 +105,54 @@ func _ready() -> void:
 ## 标题页的按钮比游戏内大一倍：字号提到 BIG_FS(24)，尺寸跟着翻倍
 func _big_button(b: Button) -> void:
 	b.add_theme_font_size_override("font_size", UIKit.BIG_FS)
-	b.custom_minimum_size = Vector2(400, 72)
+	b.custom_minimum_size = Vector2(400, MENU_BTN_H)
+
+## 一条上下压暗的渐变。返回的 TextureRect 由 `_layout()` 定尺寸位置。
+func _scrim(top: bool) -> TextureRect:
+	var g := Gradient.new()
+	# 上面那条要盖住整个 logo（木刻字是暖色深底，直接压在亮色屋顶上会糊）
+	g.set_color(0, Color(0, 0, 0, 0.58) if top else Color(0, 0, 0, 0.0))
+	g.set_color(1, Color(0, 0, 0, 0.0) if top else Color(0, 0, 0, 0.80))
+	var t := GradientTexture2D.new()
+	t.gradient = g
+	t.width = 8
+	t.height = 512          # 竖着拉满也要够平滑，64 会看到色阶
+	t.fill_from = Vector2(0.5, 0.0)
+	t.fill_to = Vector2(0.5, 1.0)
+	var r := TextureRect.new()
+	r.name = "TopScrim" if top else "BotScrim"
+	r.texture = t
+	r.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	r.stretch_mode = TextureRect.STRETCH_SCALE
+	r.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(r)
+	return r
 
 func _layout() -> void:
 	var vp := get_viewport_rect().size
-	# 右上角
-	_logo.size = Vector2(LOGO_W, LOGO_W * 581.0 / 1294.0)
-	_logo.position = Vector2(vp.x - LOGO_W - LOGO_MARGIN, LOGO_MARGIN)
-	# 左下角
 	var wrap := get_node_or_null("MenuWrap")
+	var menu_h := MENU_BTN_H * 3.0 + 8.0 * 2.0 + 32.0
 	if wrap != null:
 		wrap.size = wrap.get_combined_minimum_size()
-		wrap.position = Vector2(LOGO_MARGIN, vp.y - wrap.size.y - LOGO_MARGIN)
+		menu_h = wrap.size.y
+	# logo 拿走菜单上面那一整块，按**可用高度**反推宽度 —— 窗口再矮也不会压到菜单上
+	var avail_h := maxf(120.0, vp.y - menu_h - LOGO_MARGIN * 3.0)
+	var w := minf(minf(LOGO_MAX_W, vp.x - LOGO_MARGIN * 2.0), avail_h * _ar)
+	var h := w / _ar
+	_logo.size = Vector2(w, h)
+	_logo.position = Vector2((vp.x - w) * 0.5, LOGO_MARGIN + (avail_h - h) * 0.5)
+	# 菜单居中贴底
+	if wrap != null:
+		wrap.position = Vector2((vp.x - wrap.size.x) * 0.5, vp.y - menu_h - LOGO_MARGIN)
+	# 渐变：上面压到 55%（logo 整个落在这一段里），下面 48%（菜单）
+	var sh := vp.y * 0.55
+	if _top_scrim != null:
+		_top_scrim.position = Vector2.ZERO
+		_top_scrim.size = Vector2(vp.x, sh)
+	var bh := vp.y * 0.48
+	if _bot_scrim != null:
+		_bot_scrim.position = Vector2(0.0, vp.y - bh)
+		_bot_scrim.size = Vector2(vp.x, bh)
 
 ## 开始展示：切到第一个村子并把镜头归位
 func begin_showcase() -> void:

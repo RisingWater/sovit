@@ -27,6 +27,13 @@ var _title_layer
 var root_ui: Control
 
 func _ready() -> void:
+	# 窗口标题 = 游戏名（2026-10 换成 Harvest of Heirs）。
+	# ⚠️ 故意**不改** `project.godot` 的 `config/name`：Godot 用它拼 `user://`
+	# （Windows 下是 `%APPDATA%\Godot\app_userdata\<name>`），一改存档和
+	# `user://ai.cfg`（API key）就全留在旧目录里、看起来像"丢了"。
+	# 所以只改标题栏这一个显示位。
+	get_window().title = "Harvest of Heirs"
+
 	runner = SimRunner.new()
 	runner.name = "SimRunner"
 	add_child(runner)
@@ -216,6 +223,10 @@ func _ready() -> void:
 	_title_layer.add_child(_title)
 	_title.start_requested.connect(_end_title)
 	root_ui.visible = false
+	# 世界里的建筑名标签挂在 world 自己的 CanvasLayer 上（layer=1），不归 root_ui 管
+	# —— 不单独藏的话，标题页上会有一堆「茅屋 / 砖房 / 仓库」飘在 logo 上。
+	if world.label_layer != null:
+		world.label_layer.visible = false
 	# 标题页期间关掉世界的鼠标输入。
 	# 标题页挂在独立 CanvasLayer 上、不是 root_ui 的子节点，所以 world_view 里
 	# 那个"鼠标在 UI 上就不碰镜头"的守卫认不出它 —— 结果在标题页滚轮照样能缩放。
@@ -246,6 +257,8 @@ func _on_select_building(id: String) -> void:
 func _end_title() -> void:
 	root_ui.visible = true
 	_title_layer.visible = false
+	if world.label_layer != null:
+		world.label_layer.visible = true
 	# 必须停掉 _process —— 它每帧都在改 camera.position，
 	# 不停的话开局/读档之后镜头还会被标题页的环绕拉走。
 	_title.set_process(false)

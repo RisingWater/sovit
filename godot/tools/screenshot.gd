@@ -45,6 +45,19 @@ func _run() -> void:
 		quit(1)
 		return
 
+	# 标题页模式：**不要**关标题页，等展示村庄铺好（铺路/摆建筑/快进几天要几秒）
+	# 再出图。logo 的排版、上下压暗的渐变、居中菜单都在这张图上验。
+	if mode == "title":
+		for f in 40:
+			await process_frame
+		await RenderingServer.frame_post_draw
+		var timg: Image = root.get_texture().get_image()
+		if timg != null:
+			timg.save_png(out_path)
+		print("SCREENSHOT title -> ", out_path)
+		quit(0)
+		return
+
 	# 标题页会盖住整个游戏 UI 并接管镜头 —— 不关掉的话截出来的永远是标题页。
 	if node.has_method("_end_title"):
 		node._end_title()

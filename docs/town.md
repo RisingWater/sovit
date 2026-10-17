@@ -1957,6 +1957,34 @@ bash godot/verify.sh       # 最后一行要是 ALL CHECKS PASSED
 - ⚠️ 左树里的**章节计数只数"已知任务"**：锁着的任务连总数都不该参与
   （不然 `0/6` 就把后面还有几条泄露了 —— 渐进显示这条契约在面板上同样要守）。
 
+## 二十、标题页（Harvest of Heirs）
+
+2026-10 换掉了 logo（旧的是「The Village」木牌），标题页排版也跟着改成**居中**。
+
+- **游戏名**：`Harvest of Heirs`。⚠️ 只改**窗口标题栏**（`main.gd::_ready` 里
+  `get_window().title`），**没有**改 `project.godot` 的 `config/name` ——
+  Godot 用它拼 `user://`（Windows 上是 `%APPDATA%\Godot\app_userdata\<name>`），
+  一改存档和 `user://ai.cfg`（API key）就全留在旧目录里、看起来像"丢了"。
+- **logo**：`assets/ui/logo_title.png`，1277×786（2:3 略宽），透明底，木刻字 + 麦穗 + 王冠。
+  原图右下角带生成工具的水印，入库前已经清掉并裁到画面边界。
+- **排版**（`title_screen.gd::_layout()`）：
+  - logo **水平居中**，宽度 = `min(960, 视口宽 - 56, 可用高 × 宽高比)`，
+    **可用高 = 视口高 - 菜单高 - 84** —— 按高度反推宽度，窗口一矮就不会压到菜单上。
+    宽度上限 960（1600 宽的视口下约 60%）。
+  - 菜单（米黄纸框 + 三个大按钮）**水平居中、贴底 28px**。
+  - 上下各一条**压暗渐变**（`GradientTexture2D`，上 55% 视口高 0.58→0、下 48% 0→0.80）：
+    上为木刻 logo 垫底，下为米黄菜单垫底。中间留一条不变，村庄还是看得见。
+- **标题页期间不显示世界的建筑名标签**（那些「茅屋 / 砖房」挂在 world 自己的
+  CanvasLayer 上，`root_ui.visible=false` 管不到 —— 见 §7.7 同一条坑的不同后果）。
+  `main.gd` 里起标题页时 `world.label_layer.visible=false`，`_end_title()` 里还回来。
+- 实现：`godot/scripts/ui/title_screen.gd`（背景仍是"只读展示村庄 + 缓慢环绕 + 每 14 秒换村"）。
+- 截图：`shots/title2.png`，模式 `title`（`screenshot.gd`；**这个模式不关标题页**，
+  和其它模式相反）。
+- 门槛 `title`（`tools/title_test.gd`）：贴图尺寸必须等于磁盘上 PNG 的尺寸（**换了图
+  忘了 `--import` 会静默显示旧图**，就是这么抓的）、logo 居中且不压菜单（1600×900 与
+  1280×600 / 1024×640 三个尺寸）、两条渐变铺满宽、标题页期间标签藏着且
+  `_end_title()` 后还回来、窗口标题是 `Harvest of Heirs`。
+
 
 
 
