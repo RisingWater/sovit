@@ -320,6 +320,38 @@ export function isCapacityKind(def: BuildingDef, kind: 'build' | 'research'): bo
   return def.capacity?.kind === kind
 }
 
+// ---------------------------------------------------------------------------
+// 修缮城镇中心（用户 2026-10：一开局那座城镇中心是废墟）
+// ---------------------------------------------------------------------------
+
+/**
+ * 修缮价：木 30 + 石 20 + 砖 15。
+ *
+ * ⚠️ 这是**唯一一份**价格：判定够不够、面板上列材料都走它。
+ * 内容里 `q10f_townhall_repair.hint` 那句「消耗木材 30 + 石块 20 + 砖 15」是**文字**，
+ * 改价时只能人肉对齐（`check-quests.ts` 里有一条把两边对上的断言）。
+ */
+export const TOWN_CENTER_REPAIR_COST: Record<string, number> = { wood: 30, stone: 20, brick: 15 }
+
+/**
+ * 修缮城镇中心：扣料 + 把 `townCenter.ruined` 翻成 `false`。
+ *
+ * 材料不够就白下这一单（不扣东西、不发钱）—— 面板上把价写清楚了。
+ * ⚠️ 真正的"看上去修好了"要等**黎明**：任务 `q10f_townhall_repair` 黎明结算、
+ * 表现层认的是那条任务，不是这个标记（见 `docs/quests.md` §六）。
+ */
+export function repairTownCenter(state: GameState): AffordResult {
+  if (!state.townCenter.ruined) return { ok: false, reason: '城镇中心已经修好了' }
+  for (const [gid, qty] of Object.entries(TOWN_CENTER_REPAIR_COST)) {
+    if ((state.goods[gid] ?? 0) + 1e-9 < qty) return { ok: false, reason: '材料不够' }
+  }
+  for (const [gid, qty] of Object.entries(TOWN_CENTER_REPAIR_COST)) {
+    state.goods[gid] = round2((state.goods[gid] ?? 0) - qty)
+  }
+  state.townCenter.ruined = false
+  return { ok: true }
+}
+
 /**
  * 当日施工产能（建造力 / 人·天）。
  *

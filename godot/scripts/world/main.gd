@@ -26,6 +26,15 @@ var _title
 var _title_layer
 var _intro
 var _intro_layer: CanvasLayer
+## 任务 / 章节的剧情对话（galgame 形式，见 scripts/ui/quest_talk.gd）
+var _quest_talk
+var _quest_talk_layer: CanvasLayer
+## 正在播一段剧情对话（这段时间不许再弹下一段）
+var _talking := false
+## 这段对话的记账键（`q:<任务>` / `c:<章节>`）：播完要回引擎记一笔
+var _talk_key := ""
+## 是不是**我们**把时间暂停的（玩家本来按着暂停，播完就别动它）
+var _talk_paused := false
 var root_ui: Control
 
 func _ready() -> void:
@@ -209,7 +218,9 @@ func _ready() -> void:
 		if _hud != null and _hud.has_method("refresh_now"):
 			_hud.refresh_now()
 		if _title_layer != null and _title_layer.visible:
-			_end_title())
+			_end_title()
+		# 读进来的这一局可能还有没播过的对话（比如存档是刚结算完黎明就退出的）
+		call_deferred("_poll_quest_talks"))
 
 	# 标题页：独立 CanvasLayer，压在整个游戏 UI 之上。
 	# 展示期间把 root_ui 整个藏掉 —— 玩家看不到 HUD、点不到建造栏、也够不着 ESC 菜单，
@@ -253,6 +264,31 @@ func _ready() -> void:
 	_intro.finished.connect(_end_intro)
 	_new_game.started.connect(_begin_intro)
 
+	# 任务 / 章节的剧情对话（用户 2026-10）：任务一出现、或者一章全绿，就弹一段。
+	# 独立 CanvasLayer（layer 35）：压在所有面板之上、但**在开场剧情之下**（40）。
+	_quest_talk_layer = CanvasLayer.new()
+	_quest_talk_layer.name = "QuestTalkLayer"
+	_quest_talk_layer.layer = 35
+	add_child(_quest_talk_layer)
+	_quest_talk = load("res://scripts/ui/quest_talk.gd").new()
+	_quest_talk.name = "QuestTalk"
+	_quest_talk.theme = theme
+	_quest_talk_layer.add_child(_quest_talk)
+	_quest_talk.finished.connect(_on_quest_talk_finished)
+	# 每一小时都可能"顶"出新任务 / 结算完一章（黎明就在小时里），所以挂在 hour_ticked 上。
+	# ⚠️ 用 `call_deferred`：这个信号是从仿真 tick 里发出来的，正在改状态，
+	#    这时候去读 `quest_talks_pending()` 是干净的（tick 已收尾），但**别在信号里
+	#    直接开层/暂停** —— 延到这一帧结束更安全。
+	runner.hour_ticked.connect(func(): call_deferred("_poll_quest_talks"))
+	# 面板**关掉之后**再看一眼：对话是黎明产出的，那一刻玩家可能正开着面板在读。
+	# 有面板开着的时候 `_poll_quest_talks()` 会让路（见那段注释），所以关掉时补一次。
+	for p in [_panel_stats, _panel_tech, _panel_civic, _panel_quest, _esc_menu,
+			_new_game, _save_dialog, _ai_panel]:
+		if p != null:
+			(p as CanvasItem).visibility_changed.connect(func():
+				if not (p as CanvasItem).visible:
+					call_deferred("_poll_quest_talks"))
+
 ## 开新局 → 放开场剧情：藏起游戏 UI、暂停时间、换开场曲。
 func _begin_intro() -> void:
 	if _intro == null:
@@ -283,6 +319,70 @@ func _end_intro() -> void:
 	runner.set_paused(false)
 	if _hud != null and _hud.has_method("refresh_now"):
 		_hud.refresh_now()
+	# 开场剧情放完，第一条任务对话（塞巴斯蒂安讲「粗面包链」）接着来
+	call_deferred("_poll_quest_talks")
+
+# ---------------------------------------------------------------------------
+# 任务 / 章节的剧情对话
+#
+# 数据源是引擎：`SimCore.quest_talks_pending()`（见 docs/quests.md §七）。
+# 这里只做四件事：**拿第一条 → 暂停时间 → 播 → 播完回引擎记一笔、拿下一条**。
+#
+# 除了 `hour_ticked`，`_process` 里还有一条**慢速重试**（0.75s）：对话在黎明产出，
+# 而黎明那一刻玩家可能正开着面板在读 —— 那时候不该把一段剧情糊在他脸上。
+# 所以有面板开着就先不播，等他关上，下一次重试自然会接着播。
+# ---------------------------------------------------------------------------
+
+## 有没播过的对话就播一条（一次只播一条；剩下的等这一条播完再取）。
+func _poll_quest_talks() -> void:
+	if _quest_talk == null or _talking:
+		return
+	if runner == null or runner.sim == null:
+		return
+	# 开场剧情 / 标题页期间不抢（那时候屏幕上不该出现第二套对话）
+	if _intro != null and _intro.visible:
+		return
+	if _title_layer != null and _title_layer.visible:
+		return
+	# 玩家正在看面板 / 对话框：先不抢，等他关掉（`_process` 会重试）
+	if _modal_open() or _fullscreen_panel_open():
+		return
+	if _ai_panel != null and (_ai_panel as CanvasItem).visible:
+		return
+	var pend: Array = runner.sim.quest_talks_pending()
+	if pend.is_empty():
+		return
+	var talk: Dictionary = pend[0]
+	_talking = true
+	_talk_key = String(talk.get("key", ""))
+	# 剧情期间时间暂停（用户："触发任务的时候，时间暂停"）。
+	# 玩家本来就按着暂停的话，播完别替他恢复 —— 所以先记一笔。
+	_talk_paused = false
+	if not runner.paused:
+		if _hud != null and _hud.has_method("set_paused_external"):
+			_hud.set_paused_external(true)
+		else:
+			runner.set_paused(true)
+		_talk_paused = true
+	_quest_talk.play(talk)
+
+## 一段对话播完（`action` = 选项的 action；没选项时空串）。
+func _on_quest_talk_finished(action: String) -> void:
+	_talking = false
+	if runner != null and runner.sim != null and _talk_key != "":
+		runner.sim.quest_talk_mark_shown(_talk_key)
+	_talk_key = ""
+	if _talk_paused:
+		if _hud != null and _hud.has_method("set_paused_external"):
+			_hud.set_paused_external(false)
+		else:
+			runner.set_paused(false)
+		_talk_paused = false
+	# 第一章收尾选了「……说下去」→ 她当场送一次免费预言（不吃 5 天冷却）
+	if action == "free_prophecy" and _ai_panel != null and runner.sim.prophet_unlocked():
+		_ai_panel.open_free_prophecy()
+	# 同一次黎明可能顶出好几条（还可能有章节收尾）—— 接着来
+	call_deferred("_poll_quest_talks")
 
 ## 点地图上的建筑：城镇中心 / 仓库 弹浮动对话框，其余走右侧建筑面板。
 func _on_select_building(id: String) -> void:
@@ -369,6 +469,10 @@ func _shortcut_input(event: InputEvent) -> void:
 		return
 	# 模态对话框开着时（ESC 菜单 / 新游戏 / 存读档）不抢键
 	if _modal_open():
+		return
+	# 剧情对话正在播：快捷键全部让路（空格是"翻页"，不是"暂停"）——
+	# 这段话自己的 `_input` 已经吃掉了 Esc / 空格 / 回车。
+	if _talking:
 		return
 
 	var k: int = event.keycode

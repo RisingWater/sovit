@@ -2172,15 +2172,54 @@ bash godot/verify.sh       # 最后一行要是 ALL CHECKS PASSED
 - **换图**：`world_view._texture_for("town_center")` 按这个标记取两张之一（**不进缓存**）。
   ⚠️ 城镇中心是 `_build_town_center()` **单独建**的节点（不在 `_shop_sprites` 里），
   原来那里写死了 `load(...town_center.png)` —— 第一版就是这么"改了没生效"的。
-- **修缮**：城镇中心面板（「基本信息」页）最上面一块 —— 用料 木 40 · 石 20，
+- **修缮**：城镇中心面板（「基本信息」页）最上面一块 —— 用料 **木 30 · 石 20 · 砖 15**
+  （价格只有一份：`SimCore.TOWN_CENTER_REPAIR_COST`，面板读 `sim.town_center_repair_cost()`），
   按下就是 `runner.enqueue([{"type": "repair_town_center"}])`，**次日黎明**生效
   （和别的建造一致），材料不够当场说明白、不排队。
-  动作实现在 `SimCore._apply_actions`（TS 侧没有这个动作 —— TS 没有 UI，黄金也不取这一项）。
+  动作实现在 `SimCore._apply_actions` 与 TS `actions.ts`（两侧同口径，价格在 `investment.ts`）。
+- **换图认任务，不认物理标记**（用户 2026-10 补的那条任务之后）：判据是
+  `SimCore.town_center_ruined_visual()` = **任务 `q10f_townhall_repair` 记过完成没有**。
+  用户原话："这个任务完成之前用破旧城镇中心素材，这个任务完成后使用新的。"
+  所以下单当天 → 次日黎明**物理上**修好（`townCenter.ruined = false`），但地图上还是废墟，
+  直到那条任务在某次黎明结算（任务判定读的就是这个物理标记）。
 - **换完之后**：`runner.hour_ticked` → `world.refresh_town_center_sprite()` 把贴图刷成好的。
-- 老存档（这条功能之前）按**已修好**迁移（`SaveManager._sanitize` 补 `{"ruined": false}`）——
-  那时候地图上本来就是好图。
-- 门槛 `intro`：新开局是破旧 → 下修缮命令 → 过一个黎明修好、材料扣了。
-- ⚠️ **还差一个"任务"**：用户原话是"加一个任务，修复城镇中心"。现在修是能修，
-  但任务树里没有这一条 —— 因为现有 goal 类型表达不了"修好了"，要加一个 `flag` 之类的新类型，
-  而 `scripts/check-quests.ts` 是 TS 侧的镜像，得一起改并重跑内容门槛。
+- 存档版本已经升到 2（`quests.json` schema 2 + 剧情对话），v1 老档**直接拒读**；
+  `_sanitize` 里那条 `{"ruined": true}` 只是兜"同版本里残缺的存档"。
+- 门槛 `intro`：新开局是破旧 → 下修缮命令 → 过一个黎明物理修好、材料扣了、**图还是旧的**；
+  门槛 `questtalk`：把那条任务记成完成之后才换成新图。
+
+## 二十七、剧情对话（任务触发 / 章节收尾）
+
+用户 2026-10："触发任务的时候，时间暂停，然后触发一段 galgame 小对话"；
+"章节完成的时候也会触发 galgame 对话"；"第一章结束的时候瑟拉菲娜出场，免费给一次预言"。
+
+- **一套 UI 两处用**：`godot/scripts/ui/quest_talk.gd`（独立 CanvasLayer 35，压在面板之上、
+  开场剧情之下）。右侧立绘从边上滑进来（0.3s）、下中米黄文字框（宽 900）、名字 24px、
+  台词 12px、右下角闪动的 `▼`；有选项时最后一页换成按钮行、`▼` 收起来。
+  点一下 / 空格 / 回车翻页，Esc 或右上角「跳过」结束（= 放弃选项）。
+- **数据全来自引擎**：`SimCore.quest_talks_pending()`（契约见 `docs/spec.md` §16.7、
+  `docs/quests.md` §七）。`main.gd` 只做"取第一条 → 暂停 → 播 → 记一笔 → 取下一条"。
+- **驱动时机**：`runner.hour_ticked`（黎明就在小时里，任务与章节都在那时结算）
+  + 开场剧情结束后 + 读档后。都走 `call_deferred("_poll_quest_talks")`。
+- **时间暂停**：走 `hud.set_paused_external(true)`，并记一笔"是我暂停的"——
+  玩家本来按着暂停的话，播完**不**替他恢复（`_talk_paused`）。播放期间
+  `main._shortcut_input` 全部让路（否则空格会当成"暂停"）。
+- **第一章收尾的 `accept`** → `ai_panel.open_free_prophecy()`：打开预言页、预填默认问句、
+  `ask(true)` 跳过 5 天冷却，答完**不**记 `mark_prophet_asked`。
+- **预言家入口的出场**：第一章收尾之前，左侧「预言」圆钮（`_prophecy_nav_btn`）与顶栏水晶球
+  （`_ai_btn`）都 `visible = false`，`hud.activate_nav()` 对藏着的按钮返回 false
+  （F6 不会凭空弹面板）。判据只有一处：`SimCore.prophet_unlocked()`。
+- **人物身份解析**：`godot/scripts/ui/cast.gd`（`class_name Cast`）——
+  `Cast.speaker_name()` / `Cast.portrait()` / `Cast.portrait_head()`。
+  内容里 `renard` / `vila` / `seraphina` 与立绘文件名 `reynard` / `vera` / `serafina` 的差异
+  在 `Cast.ALIAS` 里，只此一处；`<人>_<表情>` 先找表情差分、没有就落回默认立绘。
+  开场剧情（`intro.gd`）也改成走它，不再自己留一张名字表。
+- 门槛 `questtalk`：内容（每条任务有发布人/立绘、每章有 outro、第一章两个选项、**逐字查缺字**）、
+  引擎（pending 的顺序与记账）、界面（名字/立绘/翻页/选项 → `finished(action)`）、
+  解锁（第一章之前藏着、之后出现）、城镇中心认任务、`SAVE_VERSION == 2`。
+
+截图：`shots/questtalk-1.png`（塞巴斯蒂安讲「粗面包链」）、
+`shots/questoutro-1.png`（第一章收尾，瑟拉菲娜登场 + 两个选项）。
+截图模式：`screenshot.gd` 的 `questtalk` / `questoutro`（后者会先摆满第一章四条产线、
+跑一次黎明真结算，再翻到出选项那一页）。
 

@@ -4,7 +4,12 @@ extends RefCounted
 # 存档：JSON 快照 + 版本号 + 备份恢复。
 # 由于仿真确定性，也可只存 (pack, seed, 命令日志) 做回放；此处提供状态快照。
 
-const SAVE_VERSION := 1
+## 存档版本。**2** = 任务 schema 2（`giver` / `giverPortrait` / `chapters[].outro` /
+## `building_repaired`）+ 剧情对话记账（`quests.shown`）+ 城镇中心破旧标记。
+##
+## 用户 2026-10："版本更新，存档不跟之前兼容" —— 所以这里**不做 v1 → v2 的迁移**，
+## 老存档读进来直接拒（`load_into` 版本不符就返回 null，提示由 UI 说）。
+const SAVE_VERSION := 2
 const DEFAULT_PATH := "user://sovit_save.json"
 
 static func save_to(path: String, sim: SimCore) -> Error:
@@ -131,6 +136,10 @@ static func _sanitize(s: Dictionary, db: ContentDB) -> void:
 		qst["done"] = {}
 	if not (qst.get("chapters", null) is Dictionary):
 		qst["chapters"] = {}
+	# `shown` = 已经播过的剧情对话（`q:<id>` / `c:<章节>`，用户 2026-10）。
+	# 缺了就当"一条都没播过" —— 那只会在读进来的这一局里补播一遍，不改任何数字。
+	if not (qst.get("shown", null) is Dictionary):
+		qst["shown"] = {}
 	for qid in (qst["done"] as Dictionary).keys():
 		qst["done"][qid] = int(qst["done"][qid])
 	for cid in (qst["chapters"] as Dictionary).keys():
@@ -145,8 +154,10 @@ static func _sanitize(s: Dictionary, db: ContentDB) -> void:
 		s["prophet"] = pr
 	# 城镇中心"破旧"标记（用户 2026-10）：**这条功能之前**的存档按"已经修好"处理 ——
 	# 那时候的城镇中心本来就是好图，不该读进来突然变废墟。
+	# ⚠️ 存档版本已经升到 2（`quests.json` schema 2 + 剧情对话），旧档根本读不进来；
+	# 这一行是给"同版本里手工塞的残缺存档"兜底的。
 	if not (s.get("townCenter", null) is Dictionary):
-		s["townCenter"] = {"ruined": false}
+		s["townCenter"] = {"ruined": true}
 	# 每种物资的软上限（见 docs/town.md §3.6）：老存档没有这个字段。
 	if not (gov.get("storageCaps", null) is Dictionary):
 		gov["storageCaps"] = {}

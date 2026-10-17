@@ -113,11 +113,15 @@ export function createInitialState(options: CreateOptions = {}): GameState {
     // 开局已研究的科技来自 pack.start.techs（缺省空 = 只有无科技锁的建筑可建）
     research: { done: [...(start.techs ?? [])], queue: [] },
     // 任务（引导系统）：一局从零开始记；判定与发钱都在黎明，见 docs/quests.md
-    quests: { done: {}, chapters: {} },
+    // `shown` = 已经播过的剧情对话（只记事，不改任何数字）
+    quests: { done: {}, chapters: {}, shown: {} },
     // 山顶那位预言家：`lastAskDay` = 上一次问他话是第几天（-1 = 还没问过）。
     // 冷却 5 天，见 docs/ai-assist.md §六 —— 这条**不参与仿真演化**（问不问都不改村子），
     // 但记在存档里，所以退出再进 / 读档都绕不过冷却。
     prophet: { lastAskDay: -1 },
+    // 城镇中心是不是**破旧**的（用户 2026-10：一开局是废墟，修好才换回好素材）。
+    // ⚠️ 仿真的任何数字都不读它 —— 和 `prophet` 一样"只记事、不演化"。
+    townCenter: { ruined: true },
     ledgerToday: emptyLedger(0),
     // 当日建造力预算：由黎明 planConstructionDay 钉死（开局为 0，黎明那一小时算出来）
     constructionRateToday: 0,

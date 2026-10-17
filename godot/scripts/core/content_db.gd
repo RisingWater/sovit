@@ -15,7 +15,10 @@ var tech_ids: Array = []
 var eras: Array = []            # [{id, nameZh}]
 var quests: Dictionary = {}     # id -> QuestDef（任务/引导系统，见 docs/quests.md）
 var quest_ids: Array = []
-var chapters: Array = []        # [{id, title, reward}]
+var chapters: Array = []        # [{id, title, reward, outro}]
+## `quests.json` 自己的 schema 版本（2 起有 giver / outro / building_repaired）。
+## 与 `schema_version`（economy.json，还是 1）分开记，见 docs/quests.md §七。
+var quests_schema_version: int = 0
 var economy: Dictionary = {}
 var defaults: Dictionary = {}
 var tuning: Dictionary = {}
@@ -130,21 +133,29 @@ func _load() -> void:
 	# 任务（引导系统）：字段原样保留（goal 的 type/id/min 由 sim_core 解释），
 	# 只把 id 顺序与章节表拉出来。契约见 docs/quests.md。
 	var q: Dictionary = _read_json("quests.json")
+	quests_schema_version = int(q.get("schemaVersion", 0))
 	for ch in q.get("chapters", []):
+		# `outro` = 章节完成时那段 galgame 对话（说话人 + 立绘 + 逐行台词 + 可选选项）。
+		# 结构与任务发布对话同形，所以这里**原样**留着，由 sim_core 摊给 UI。
 		chapters.append({
 			"id": int(ch["id"]),
 			"title": String(ch["title"]),
 			"reward": float(ch["reward"]),
+			"outro": ch.get("outro", {}),
 		})
 	for it in q.get("quests", []):
 		var qid := String(it["id"])
 		quests[qid] = {
 			"id": qid,
 			"chapter": int(it["chapter"]),
+			# 发布人 + 立绘（用户 2026-10）：任务一出现就弹一段对话，说话的就是这位。
+			"giver": String(it.get("giver", "")),
+			"giverPortrait": String(it.get("giverPortrait", "")),
 			"title": String(it["title"]),
 			"hint": String(it["hint"]),
 			# 「为什么要做这一条」——任务面板右侧的描述（老臣塞巴斯蒂安的口吻）。
 			# 与 `hint` 分工：`hint` 说怎么点，`brief` 说为什么值当。
+			# ⚠️ 任务触发的那段对话也是拿它**逐句**说的，所以它得是能念的台词。
 			"brief": String(it.get("brief", "")),
 			"reward": float(it["reward"]),
 			"requires": it.get("requires", []),

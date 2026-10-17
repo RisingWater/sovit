@@ -73,6 +73,57 @@ func _run() -> void:
 		quit(0)
 		return
 
+	# 剧情对话（任务触发 / 章节收尾，见 scripts/ui/quest_talk.gd）：
+	#   questtalk  = 任务一出现时，发布人讲这条任务（塞巴斯蒂安 / 粗面包链）
+	#   questoutro = 第一章全绿的收尾（瑟拉菲娜登场，最后一页带两个选项）
+	# 走的是**真入口**：引擎给 `quest_talks_pending()`，`main._poll_quest_talks()` 播。
+	# 这个模式自己出图就退 —— 后面那些"摆建筑/跑天数"会把画面变掉。
+	if mode == "questtalk" or mode == "questoutro":
+		if node.has_method("_end_title"):
+			node._end_title()
+			await process_frame
+		var sim_q = runner.sim
+		# 别的对话先记成"播过"，只留我们要拍的那一条
+		if mode == "questoutro":
+			# 第一章全绿：四条都建成 → 过一次黎明结算（章节奖励 + 收尾对话）
+			for bid in ["wheat_farm", "coarse_mill", "coarse_bakery", "vegetable_farm"]:
+				var dq: Dictionary = runner.db.buildings[bid]
+				(sim_q.s["shops"] as Array).append({
+					"id": "%s#shot" % bid, "defId": bid, "owner": "state",
+					"targetWorkers": int(dq["workers"]), "wage": 5.0, "wageCap": 30.0,
+					"level": 1, "active": true, "profit": 0.0, "skill": 50.0, "planned": 0.0,
+				})
+			sim_q._run_dawn()
+			for t in sim_q.quest_talks_pending():
+				if String((t as Dictionary)["kind"]) == "quest":
+					sim_q.quest_talk_mark_shown(String((t as Dictionary)["key"]))
+		# 播第一条（main 那条真路径：暂停 + 播）
+		node._poll_quest_talks()
+		await process_frame
+		await process_frame
+		var qt = node.get("_quest_talk")
+		if qt == null:
+			push_error("SCREENSHOT: 没有 quest_talk 层")
+			quit(1)
+			return
+		if mode == "questoutro":
+			# 翻到最后一页（出选项那一页）
+			for i in 24:
+				if (qt.get("_choice_row") as HBoxContainer).visible:
+					break
+				qt._lock = 0.0
+				qt._advance()
+				await process_frame
+		for f in 10:
+			await process_frame
+		await RenderingServer.frame_post_draw
+		var qimg: Image = root.get_texture().get_image()
+		if qimg != null:
+			qimg.save_png(out_path)
+		print("SCREENSHOT ", mode, " -> ", out_path)
+		quit(0)
+		return
+
 	# 标题页模式：**不要**关标题页，等展示村庄铺好（铺路/摆建筑/快进几天要几秒）
 	# 再出图。logo 的排版、上下压暗的渐变、居中菜单都在这张图上验。
 	if mode == "title":

@@ -36,7 +36,8 @@ const MAX_PLAN := 6
 ## ⚠️ 内容里出现这里没有的类型 = 那条任务在建议里**静默消失**（玩家少一条引导，
 ## 而且不报错）。门槛 `ai_test.gd` 会拿内容里的全部类型跟这份表对拍。
 const KNOWN_GOAL_TYPES := ["building", "housing", "housing_capacity", "population",
-	"class", "tech", "tech_count", "good", "produced", "avg_satisfaction", "private_housing"]
+	"class", "tech", "tech_count", "good", "produced", "avg_satisfaction", "private_housing",
+	"building_repaired"]
 ## 提示词里"可建清单"最多列几项。
 const MAX_BUILD_LIST := 28
 ## 任务那一段最多细讲几个任务。
@@ -708,6 +709,9 @@ func _quest_goal_suggestion(out: Array, q: Dictionary, g: Dictionary) -> void:
 	var have := float(g["have"])
 	var need := float(g["need"])
 	var lead := "任务「%s」：%s" % [String(q["title"]), String(g["text"])]
+	if gtype == "building_repaired" or (gtype == "building" and bool(g.get("repaired", false))):
+		_repaired_suggestion(out, q, g)
+		return
 	match gtype:
 		"building":
 			var extra := maxi(1, int(need - have))
@@ -798,6 +802,30 @@ func _quest_goal_suggestion(out: Array, q: Dictionary, g: Dictionary) -> void:
 				"所以先抬满意度（见「满意度」那条），房不用你建"])
 		_:
 			pass
+
+## 「修好一座塌了的建筑」（用户 2026-10：修复城镇中心）—— 只有城镇中心这一座。
+## 建议里给的是**修缮用料**（缺哪样就补哪条产线），以及"点哪儿修"。
+func _repaired_suggestion(out: Array, q: Dictionary, g: Dictionary) -> void:
+	var qid := String(q["id"])
+	var cost: Dictionary = sim.town_center_repair_cost()
+	var lead := "任务「%s」：%s" % [String(q["title"]), String(g["text"])]
+	var parts := PackedStringArray()
+	var how: Array = []
+	for gid in ["wood", "stone", "brick"]:
+		if not cost.has(gid):
+			continue
+		var lacking := float(sim.s["goods"].get(gid, 0.0)) < float(cost[gid])
+		parts.append("%s %d%s" % [gname(String(gid)), int(cost[gid]),
+			"（不够）" if lacking else ""])
+		if not lacking:
+			continue
+		var bid := producer_of(String(gid))
+		if bid != "":
+			how.append("%s建 %d 座%s（%s）" % [_where_to_build(bid),
+				extra_shops_for(String(gid), float(cost[gid])), bname(bid), _cost_text(build_cost(bid))])
+	how.append("材料够了就点地图上那座破旧的城镇中心 →「修缮」，次日黎明完工")
+	_add(out, "quest_%s_repaired" % qid, P_HIGH, "任务", lead,
+		"用料：%s" % "、".join(parts), how)
 
 func _binding_for(gid: String) -> String:
 	for row in prod_rows():

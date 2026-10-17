@@ -4,6 +4,7 @@ import { clamp, round2 } from './util.ts'
 import {
   cancelConstruction,
   moveConstruction,
+  repairTownCenter,
   tryBuild,
   tryBuildHousing,
   tryExpand,
@@ -284,6 +285,13 @@ export function applyActions(
           ok: true,
           ...(refunded.length ? { reason: `退回 ${refunded.join('、')}` } : {}),
         })
+        break
+      }
+
+      case 'repair_town_center': {
+        // 修缮城镇中心（用户 2026-10：一开局是废墟）。材料不够 → 白下这一单。
+        const res = repairTownCenter(state)
+        applied.push({ type: action.type, ok: res.ok, reason: res.reason })
         break
       }
 

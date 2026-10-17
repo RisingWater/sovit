@@ -78,15 +78,9 @@ const SCRIPT := [
 	},
 ]
 
-const SPEAKER_NAME := {
-	"sebastian": "塞巴斯蒂安",
-	"vera": "薇拉",
-	"reynard": "雷纳德",
-	"luna": "露娜",
-	"alvin": "阿尔文",
-	"serafina": "瑟拉菲娜",
-	"isabella": "伊莎贝拉",
-}
+## 说话人的中文名、立绘、头像统一走 `Cast`（见 scripts/ui/cast.gd）：
+## 内容里同一个人有 `renard` / `reynard`、`vila` / `vera`、`seraphina` / `serafina`
+## 三种拼法，名字表散着写迟早对错人。
 
 var _act := 0
 var _page := 0
@@ -276,19 +270,12 @@ func _set_portrait(who: String) -> void:
 			.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 
 func _portrait_texture(who: String) -> Texture2D:
-	var p := "res://assets/portraits/%s.png" % who
-	return load(p) if ResourceLoader.exists(p) else null
+	return Cast.portrait(who)
 
 ## 第 5 幕左下角那个**头像**：立绘是半身像，直接缩到 300 高会整条人都挤在角上，
-## 所以用 `AtlasTexture` 只取**上面 36%**（头顶到胸口），看起来才是"头像"。
+## 所以只取**上面 36%**（头顶到胸口），看起来才是"头像"。
 func _corner_texture(who: String) -> Texture2D:
-	var t := _portrait_texture(who)
-	if t == null:
-		return null
-	var at := AtlasTexture.new()
-	at.atlas = t
-	at.region = Rect2(0, 0, t.get_width(), t.get_height() * 0.36)
-	return at
+	return Cast.portrait_head(who)
 
 func _page_text() -> String:
 	var a := _act_data()
@@ -312,7 +299,7 @@ func _render_page() -> void:
 	if _narr.visible:
 		_narr.text = _page_text()
 	_name_lb.visible = who != ""
-	_name_lb.text = String(SPEAKER_NAME.get(who, ""))
+	_name_lb.text = Cast.speaker_name(who) if who != "" else ""
 	_text_lb.text = _page_text()
 	_arrow.visible = bg != "black"
 	# 每翻一页就从 0 重新计时（手动翻页也重置）

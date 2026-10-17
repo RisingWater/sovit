@@ -157,7 +157,9 @@ func new_game(pack_id: String, seed_value: int, resource_mult: float = 1.0) -> v
 		"research": {"done": _start_techs(pack_id), "queue": []},
 		# 任务（引导系统）：完成记录 + 章节奖励记录。判定与发钱都在黎明，
 		# 见 docs/quests.md 与下面的 _check_quests()。
-		"quests": {"done": {}, "chapters": {}},
+		# `shown` = 已经播过的剧情对话（`q:<id>` / `c:<章节>`）—— 只记事、不演化，
+		# 和 `prophet` / `townCenter` 同一类；黄金摘要按字段取，碰不到它。
+		"quests": {"done": {}, "chapters": {}, "shown": {}},
 		# 山顶那位预言家（AI 辅助）：`lastAskDay` = 上次问他话是第几天（-1 = 还没问过）。
 		# 冷却 PROPHET_COOLDOWN_DAYS 天，见 docs/ai-assist.md §六。
 		# ⚠️ 这是**唯一一个不参与仿真演化**的状态段：问不问都不改村子的任何数值。
@@ -384,7 +386,7 @@ func _apply_actions(actions: Array) -> Array:
 				# 材料不够就白下这一单（不发钱也不扣东西），面板上写清楚了价。
 				# ⚠️ match 分支里不要用 `:=`（GDScript 会报 "Expected end of statement"）。
 				if bool((s.get("townCenter", {}) as Dictionary).get("ruined", false)):
-					var cost: Dictionary = {"wood": 40.0, "stone": 20.0}
+					var cost: Dictionary = TOWN_CENTER_REPAIR_COST
 					var afford: bool = true
 					for gid in cost.keys():
 						if float(s["goods"].get(gid, 0.0)) < float(cost[gid]):
@@ -1436,11 +1438,14 @@ func can_ask_prophet() -> bool:
 ## ⚠️ 由表现层在**拿到回答之后**调（失败 / 正在问都不算），并且只作用于这一条账。
 ##
 ## `answer` 为空 = 只记冷却、不记历史（门槛与截图工具会这么调）。
+## `charge_cooldown = false` = **不占冷却**（用户 2026-10：第一章收尾瑟拉菲娜自己送的那次
+## 「免费预言」）。历史照记（玩家回头能翻），只是不罚 5 天。
 ## ⚠️ 历史**只在真的有回答时才写键** —— 新开局的状态里没有 `log`，
 ## 这样黄金轨迹的摘要素一个字节都不会变（见 `prophecy_log()` 的注释）。
-func mark_prophet_asked(q: String = "", answer: String = "") -> void:
+func mark_prophet_asked(q: String = "", answer: String = "", charge_cooldown: bool = true) -> void:
 	var p: Dictionary = s.get("prophet", {})
-	p["lastAskDay"] = int(s["day"])
+	if charge_cooldown:
+		p["lastAskDay"] = int(s["day"])
 	if answer.strip_edges() != "":
 		var log: Array = p.get("log", [])
 		log.append({"d": int(s["day"]), "q": q, "t": answer})
@@ -2449,6 +2454,37 @@ func _build_alerts(hungry: int) -> Array:
 #   4. 显示文案由**引擎**拼（quest_view 里的 text），UI 不要自己拼 —— 两边必须一模一样
 # ===========================================================================
 
+## 修缮城镇中心的材料价（用户 2026-10）。**唯一一份**：
+## 判定够不够、面板上列材料、TS 侧 `TOWN_CENTER_REPAIR_COST` 都是这个数。
+## ⚠️ 内容里 `q10f_townhall_repair.hint` 那句「消耗木材 30 + 石块 20 + 砖 15」是**文字**，
+## 改价只能人肉对齐（`check-quests.ts` 有一条把两边钉死的断言）。
+const TOWN_CENTER_REPAIR_COST := {"wood": 30.0, "stone": 20.0, "brick": 15.0}
+
+## 修缮价（UI 读它画材料行，不要自己再抄一份）。
+func town_center_repair_cost() -> Dictionary:
+	return TOWN_CENTER_REPAIR_COST.duplicate()
+
+## **画面上的**城镇中心是不是还是破的（用户 2026-10）。
+##
+## ⚠️ 判据是**任务 `q10f_townhall_repair` 记过完成**，不是 `townCenter.ruined` ——
+## 后者是物理状态（下单当天就翻了），而任务在**黎明**结算。用户的原话是
+## 「这个任务完成之前用破旧素材、完成之后用新的」，所以换图的那一下由任务决定。
+func town_center_ruined_visual() -> bool:
+	return not (s["quests"]["done"] as Dictionary).has("q10f_townhall_repair")
+
+## `building_repaired` 的 id 归一：内容里写的是口语名 `townhall`，
+## 建筑表里叫 `town_center`。两个写法都认，统一成建筑表里那个（用于取中文名）。
+## 与 TS `quests.ts::repairTargetBuilding` 同表。
+func _repair_target_building(id: String) -> String:
+	return "town_center" if id == "townhall" else id
+
+## 这座"塌了的"建筑修好了吗（目前只有城镇中心这一座）。
+func _quest_repaired(id: String) -> bool:
+	if _repair_target_building(id) == "town_center":
+		return not bool((s.get("townCenter", {}) as Dictionary).get("ruined", true))
+	return false
+
+
 ## 进度数字一律向下取整（对齐 TS `quests.ts::shown` 的 Math.floor）。
 func _quest_shown(x: float) -> int:
 	return int(floor(x + 1e-9))
@@ -2492,13 +2528,26 @@ func _quest_goal_progress(goal: Dictionary) -> Dictionary:
 	var need := float(goal.get("min", 1))
 	var have := 0.0
 	var text := ""
-	if type == "building":
+	if type == "building" and bool(goal.get("repaired", false)):
+		# `repaired: true` 换个口径：数的是"这座塌了的建筑修好了吗"，不是"建了几座"。
+		# 内容里的主写法是 `building_repaired`，这个别名收着是给换写法用的。
+		have = 1.0 if _quest_repaired(gid) else 0.0
+		need = 1.0
+		text = "%s 已修复 %d/%d" % [_quest_name("building", _repair_target_building(gid)),
+			_quest_shown(have), int(need)]
+	elif type == "building":
 		var n := 0
 		for shop in (s["shops"] as Array):
 			if String(shop["defId"]) == gid:
 				n += 1
 		have = float(n)
 		text = "%s %d/%d" % [_quest_name("building", gid), _quest_shown(have), int(need)]
+	elif type == "building_repaired":
+		# 一座**塌了的**建筑已经修好（用户 2026-10：修复城镇中心）。
+		have = 1.0 if _quest_repaired(gid) else 0.0
+		need = 1.0
+		text = "%s 已修复 %d/%d" % [_quest_name("building", _repair_target_building(gid)),
+			_quest_shown(have), int(need)]
 	elif type == "housing":
 		have = float((s["housing"] as Dictionary).get(gid, 0))
 		text = "%s %d/%d" % [_quest_name("housing", gid), _quest_shown(have), int(need)]
@@ -2619,6 +2668,97 @@ func quest_journal() -> Array:
 			continue
 		out.append(quest_progress(qid))
 	return out
+
+# ---------------------------------------------------------------------------
+# 剧情对话（用户 2026-10）—— 与 TS `quests.ts::questTalks` 同口径
+#
+# 两处要弹 galgame 对话，共用「说话人 + 立绘 + 逐行台词（+ 可选选项）」这个形状：
+#   1. **任务触发**：任务一出现在追踪条上，发布人（`giver`）就把这条任务的
+#      `brief` 逐句说一遍 —— 所以 `brief` 必须是能当台词念的话
+#   2. **章节完成**：内容里的 `chapters[].outro`
+#
+# 判定"该播哪一条"靠**状态比对**（`quests.shown` 里没有的 = 还没播过），不是事件队列：
+# 队列会丢，比对不会 —— 读档 / 退出重进都不重播也不漏播。
+# ---------------------------------------------------------------------------
+
+## 把一段话按**句末标点**切成"一页一句"的台词（TS `splitSentences` 同口径）。
+## 只认 `。！？…`；`：` `，` `、` 不切 —— 切了一句话就断成两截，念起来不像人话。
+func _split_sentences(text: String) -> Array:
+	var out := []
+	var cur := ""
+	for i in text.length():
+		var ch := text[i]
+		cur += ch
+		if "。！？…".contains(ch):
+			var t := cur.strip_edges()
+			if t != "":
+				out.append(t)
+			cur = ""
+	var rest := cur.strip_edges()
+	if rest != "":
+		out.append(rest)
+	return out
+
+## 还没播过的对话，**按内容顺序**排好（第 1 章任务 → 第 1 章收尾 → 第 2 章 …）。
+##
+## 为什么按章节交错、而不是"先全部任务再全部收尾"：第一章一结束，第二章的任务当晚
+## 就会一起解锁 —— 收尾那段必须排在下一章任务之前，否则瑟拉菲娜的登场会插在
+## 露娜的"蔬菜农场"后面。
+func quest_talks_pending() -> Array:
+	var out := []
+	var shown: Dictionary = (s["quests"] as Dictionary).get("shown", {})
+	var done: Dictionary = s["quests"]["done"]
+	var chapters: Dictionary = s["quests"]["chapters"]
+	for ch in db.chapters:
+		var cid := str(int(ch["id"]))
+		for qid in db.quest_ids:
+			var def: Dictionary = db.quests[qid]
+			if int(def["chapter"]) != int(ch["id"]) or done.has(qid):
+				continue
+			if not _quest_unlocked(def):
+				continue
+			var key := "q:" + String(qid)
+			if bool(shown.get(key, false)):
+				continue
+			out.append({
+				"key": key, "kind": "quest", "id": String(qid),
+				"chapter": int(ch["id"]),
+				"speaker": String(def.get("giver", "")),
+				"portrait": String(def.get("giverPortrait", "")),
+				"lines": _split_sentences(String(def.get("brief", ""))),
+			})
+		if not chapters.has(cid):
+			continue
+		var outro: Dictionary = ch.get("outro", {})
+		if outro.is_empty():
+			continue
+		var ckey := "c:" + cid
+		if bool(shown.get(ckey, false)):
+			continue
+		out.append({
+			"key": ckey, "kind": "outro", "id": cid, "chapter": int(ch["id"]),
+			"speaker": String(outro.get("speaker", "")),
+			"portrait": String(outro.get("portrait", "")),
+			"lines": (outro.get("lines", []) as Array).duplicate(),
+			"choices": (outro.get("choices", []) as Array).duplicate(),
+		})
+	return out
+
+## 记一笔"这段播过了"（只记事，不改任何数字）。
+func quest_talk_mark_shown(key: String) -> void:
+	if not (s["quests"].get("shown", null) is Dictionary):
+		s["quests"]["shown"] = {}
+	s["quests"]["shown"][key] = true
+
+## 某一章的主线是不是都结算过了（章节奖励记在 `quests.chapters` 上）。
+func quest_chapter_done(cid: int) -> bool:
+	return (s["quests"]["chapters"] as Dictionary).has(str(cid))
+
+## 预言家（瑟拉菲娜）解锁了没有：**第一章收尾之后**（用户 2026-10）。
+## 在那之前左侧不出现「预言」圆钮、顶栏水晶球也点不出东西 —— 因为剧情里她是
+## 第一章结尾才登场的。规则写在这儿，HUD 与面板都只读它。
+func prophet_unlocked() -> bool:
+	return quest_chapter_done(1)
 
 ## 黎明结算：把已经达成的任务记账、发钱、写公告（不用玩家"提交"）。
 ##

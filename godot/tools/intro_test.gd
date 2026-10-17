@@ -37,10 +37,10 @@ func _run() -> void:
 		if who != "" and not ids.has(who):
 			_fail("第 %d 幕的说话人「%s」不在立绘表里" % [i + 1, who])
 			return
-		if who != "" and not (load(INTRO).SPEAKER_NAME as Dictionary).has(who):
+		if who != "" and not (Cast.NAME as Dictionary).has(who):
 			_fail("第 %d 幕的说话人「%s」没有中文名" % [i + 1, who])
 			return
-		if who != "" and not ResourceLoader.exists("res://assets/portraits/%s.png" % who):
+		if who != "" and Cast.portrait(who) == null:
 			_fail("说话人「%s」的立绘不存在" % who)
 			return
 		for page in pages:
@@ -131,6 +131,7 @@ func _run() -> void:
 		return
 	sim.s["goods"]["wood"] = 200.0
 	sim.s["goods"]["stone"] = 200.0
+	sim.s["goods"]["brick"] = 200.0
 	var wood0 := float(sim.s["goods"]["wood"])
 	sim.enqueue([{"type": "repair_town_center"}])
 	sim._run_dawn()
@@ -143,6 +144,14 @@ func _run() -> void:
 	if (node.get_node("World").town_center_sprite as Sprite2D).texture == null:
 		_fail("城镇中心的贴图没了")
 		return
-	print("INTRO TEST 城镇中心：开局破旧 → 修缮扣料 → 黎明后修好 ✅")
+	# ⚠️ 换图**不跟着物理标记走**（用户 2026-10）：任务「修复城镇中心」还在第 4 章，
+	# 所以这时候地图上**仍然是破旧的**。换图那一半在 questtalk_test 里验。
+	var world = node.get_node("World")
+	world.refresh_town_center_sprite()
+	var tex: Texture2D = (world.town_center_sprite as Sprite2D).texture
+	if not sim.town_center_ruined_visual() or tex == null or not tex.resource_path.contains("ruined"):
+		_fail("修复任务还没结算，地图上就已经换掉破旧素材了")
+		return
+	print("INTRO TEST 城镇中心：开局破旧 → 修缮扣料 → 黎明后物理状态修好（换图等任务）✅")
 	print("INTRO TEST RESULT: PASS")
 	quit(0)

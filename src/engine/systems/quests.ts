@@ -2,6 +2,7 @@ import type {
   GameState,
   LogEntry,
   QuestChapterDef,
+  QuestChoice,
   QuestDef,
   QuestGoal,
   QuestGoalProgress,
@@ -28,6 +29,22 @@ import { round2 } from '../util.ts'
 /** 显示用的整数（进度数字）：一律向下取整，避免 TS / GDScript 浮点格式差异。 */
 function shown(x: number): number {
   return Math.floor(x + 1e-9)
+}
+
+/**
+ * `building_repaired` 的 id 归一：内容里写的是口语名 `townhall`，
+ * 而建筑表里叫 `town_center`。两个写法都认，统一成建筑表里的那个（用于取中文名）。
+ * 与 GDScript `sim_core.gd::_repair_target_building` 同表。
+ */
+function repairTargetBuilding(id: string): string {
+  return id === 'townhall' ? 'town_center' : id
+}
+
+/** 这座"塌了的"建筑修好了吗（目前只有城镇中心这一座）。 */
+function repairedOf(state: GameState, id: string): boolean {
+  const b = repairTargetBuilding(id)
+  if (b === 'town_center') return state.townCenter?.ruined === false
+  return false
 }
 
 /** 历史上（含今天）某商品的单日产量峰值。 */
@@ -72,11 +89,24 @@ export function goalProgress(state: GameState, ctx: ContentContext, goal: QuestG
 
   switch (goal.type) {
     case 'building': {
+      // `repaired: true` 换个口径：数的是"这座塌了的建筑修好了吗"，不是"建了几座"。
+      if (goal.repaired === true) {
+        have = repairedOf(state, goal.id) ? 1 : 0
+        need = 1
+        text = `${nameOf(goal.id, 'building')} 已修复 ${have}/${need}`
+        break
+      }
       let n = 0
       for (const s of state.shops) if (s.defId === goal.id) n += 1
       have = n
       need = goal.min
       text = `${nameOf(goal.id, 'building')} ${shown(have)}/${need}`
+      break
+    }
+    case 'building_repaired': {
+      have = repairedOf(state, goal.id) ? 1 : 0
+      need = 1
+      text = `${nameOf(repairTargetBuilding(goal.id), 'building')} 已修复 ${have}/${need}`
       break
     }
     case 'housing':
@@ -276,4 +306,108 @@ export function checkQuests(state: GameState, ctx: ContentContext, day: number):
   }
 
   return logs
+}
+
+// ---------------------------------------------------------------------------
+// 剧情对话（用户 2026-10）
+//
+// 两处要弹 galgame 对话，都用「说话人 + 立绘 + 逐行台词（+ 可选选项）」这同一个形状：
+//   1. **任务触发**：任务一出现在追踪条上，发布人（`giver`）就把这条任务的
+//      `brief` 逐句说一遍 —— 所以 `brief` 必须是能当台词念的话
+//   2. **章节完成**：内容里的 `chapters[].outro`
+//
+// 判定"该播哪一条"的方式是**状态比对**，不是事件队列：`quests.shown` 里没有的
+// 就还没播过。好处是读档 / 退出重进都不会重播，也不会漏播（队列会丢）。
+// ⚠️ `shown` 只记事、不参与演化 —— 和 `prophet` / `townCenter` 同一类字段。
+// ---------------------------------------------------------------------------
+
+/** 一段剧情对话（引擎说"该播这个"，UI 只管画）。 */
+export interface QuestTalk {
+  /** 记账键：`q:<questId>` / `c:<chapterId>`。播完调 `markQuestTalkShown()`。 */
+  key: string
+  kind: 'quest' | 'outro'
+  /** 任务 id 或章节 id（数字章节转成字符串）。 */
+  id: string
+  chapter: number
+  /** 说话的 NPC id（`sebastian` / `luna` / `vila` …）。 */
+  speaker: string
+  /** 立绘 id（`<id>_<mood>`）。 */
+  portrait: string
+  lines: string[]
+  choices?: QuestChoice[]
+}
+
+/**
+ * 把一段话按**句末标点**切成"一页一句"的台词。
+ *
+ * 切分只认 `。！？…`（含「……」这种连写），标点跟着前一句走；
+ * `：` `，` `、` 不切 —— 切了会把一句话拆成两截，念起来就不是人话了。
+ */
+export function splitSentences(text: string): string[] {
+  const out: string[] = []
+  let cur = ''
+  for (const ch of text) {
+    cur += ch
+    if ('。！？…'.includes(ch)) {
+      const t = cur.trim()
+      if (t.length > 0) out.push(t)
+      cur = ''
+    }
+  }
+  const rest = cur.trim()
+  if (rest.length > 0) out.push(rest)
+  return out
+}
+
+/**
+ * 还没播过的对话，**按内容顺序**排好（第 1 章的任务 → 第 1 章收尾 → 第 2 章 …）。
+ *
+ * 为什么按章节交错而不是"先全部任务、再全部收尾"：第一章一结束，第二章的任务
+ * 当晚会一起解锁 —— 收尾那段必须**排在**下一章任务之前，不然瑟拉菲娜的登场
+ * 会插在露娜的"蔬菜农场"后面。
+ */
+export function questTalks(state: GameState, ctx: ContentContext): QuestTalk[] {
+  const out: QuestTalk[] = []
+  const shown = state.quests.shown ?? {}
+  const done = state.quests.done
+  for (const ch of ctx.chapters) {
+    const cid = String(ch.id)
+    for (const id of ctx.questIds) {
+      const def = ctx.quests[id]!
+      if (def.chapter !== ch.id) continue
+      if (done[id] !== undefined) continue
+      if (!isUnlocked(state, def)) continue
+      const key = `q:${id}`
+      if (shown[key] === true) continue
+      out.push({
+        key,
+        kind: 'quest',
+        id,
+        chapter: ch.id,
+        speaker: def.giver,
+        portrait: def.giverPortrait,
+        lines: splitSentences(def.brief),
+      })
+    }
+    if (state.quests.chapters[cid] === undefined) continue
+    if (ch.outro === undefined) continue
+    const key = `c:${cid}`
+    if (shown[key] === true) continue
+    out.push({
+      key,
+      kind: 'outro',
+      id: cid,
+      chapter: ch.id,
+      speaker: ch.outro.speaker,
+      portrait: ch.outro.portrait,
+      lines: ch.outro.lines.slice(),
+      ...(ch.outro.choices ? { choices: ch.outro.choices } : {}),
+    })
+  }
+  return out
+}
+
+/** 记一笔"这段播过了"（只记事，不改任何数字）。 */
+export function markQuestTalkShown(state: GameState, key: string): void {
+  state.quests.shown[key] = true
 }

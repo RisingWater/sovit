@@ -684,6 +684,17 @@ func _cooldown_section() -> bool:
 	if not _chk((psim.prophecy_log() as Array).size() == 1,
 			"没拿到回答时不该往历史里塞空条目"):
 		return false
+	# 第一章收尾那次「免费预言」（用户 2026-10）：**历史照记、不占冷却**。
+	# `charge_cooldown = false` 的那条路 —— 玩家一进游戏不该被罚等 5 天。
+	var fsim: SimCore = SimCore.new(sim.db)
+	fsim.s = sim.s.duplicate(true)
+	fsim.s["prophet"] = {"lastAskDay": -1}
+	fsim.mark_prophet_asked("我下一步要做什么", "我看见了，你先把菜种上", false)
+	if not _chk(fsim.can_ask_prophet() and fsim.prophet_days_left() == 0
+			and (fsim.prophecy_log() as Array).size() == 1,
+			"免费预言应当进历史但**不吃冷却**（days_left=%d / 历史 %d 条）" % [
+				fsim.prophet_days_left(), (fsim.prophecy_log() as Array).size()]):
+		return false
 	# 上限 30 条，超出丢最旧的
 	for i in 40:
 		psim.mark_prophet_asked("问 %d" % i, "答 %d" % i)

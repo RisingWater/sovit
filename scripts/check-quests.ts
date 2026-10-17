@@ -1,6 +1,14 @@
-import { advanceHour, buildContext, createInitialState } from '../src/engine/index.ts'
+import { advanceHour, applyActions, buildContext, createInitialState } from '../src/engine/index.ts'
 import type { GameState } from '../src/engine/index.ts'
-import { questView, questProgress, questJournal } from '../src/engine/systems/quests.ts'
+import {
+  questView,
+  questProgress,
+  questJournal,
+  questTalks,
+  markQuestTalkShown,
+  splitSentences,
+} from '../src/engine/systems/quests.ts'
+import { TOWN_CENTER_REPAIR_COST } from '../src/engine/systems/investment.ts'
 import { runDawn } from '../src/engine/tick.ts'
 import { TIME } from '../src/engine/config.ts'
 
@@ -295,6 +303,94 @@ console.log('\n=== 任务系统引擎自检 ===\n')
     jq === undefined ? '（没了）' : `day=${jq.day}`)
   ok('面板里的顺序 = 内容定义顺序（左树按章节分组后就是章节内顺序）',
     questJournal(cur, ctx).every((q, i, arr) => i === 0 || ctx.questIds.indexOf(arr[i - 1]!.def.id) < ctx.questIds.indexOf(q.def.id)))
+}
+
+// ---- 10. 修缮城镇中心：`building_repaired` 目标 + 修缮动作 -----------------
+{
+  const s = freshState()
+  const def = ctx.quests['q10f_townhall_repair']!
+  const goalText = (): string => questProgress(s, ctx, def).goals[0]!.text
+
+  ok('第 4 章那条「修复城镇中心」用的是 building_repaired 目标',
+    def.goals[0]!.type === 'building_repaired', def.goals[0]!.type)
+  ok('没修之前：0/1、不算达成',
+    goalText() === '城镇中心 已修复 0/1' && !questProgress(s, ctx, def).met, goalText())
+
+  // 材料不够 → 白下这一单（不扣东西、也不修好）
+  s.goods['wood'] = 10
+  s.goods['stone'] = 20
+  s.goods['brick'] = 15
+  applyActions(s, ctx, [{ type: 'repair_town_center' }])
+  ok('材料不够 → 不扣料、不修好',
+    s.townCenter.ruined === true && s.goods['wood'] === 10, `wood=${s.goods['wood']}`)
+
+  // 材料刚好够 → 修好，且**正好扣光**
+  s.goods['wood'] = TOWN_CENTER_REPAIR_COST['wood']!
+  s.goods['stone'] = TOWN_CENTER_REPAIR_COST['stone']!
+  s.goods['brick'] = TOWN_CENTER_REPAIR_COST['brick']!
+  const applied = applyActions(s, ctx, [{ type: 'repair_town_center' }])
+  ok('材料够了 → 修缮生效', applied[0]!.ok && s.townCenter.ruined === false)
+  ok('修缮把料正好扣光',
+    s.goods['wood'] === 0 && s.goods['stone'] === 0 && s.goods['brick'] === 0,
+    `wood=${s.goods['wood']} stone=${s.goods['stone']} brick=${s.goods['brick']}`)
+  ok('修好之后：1/1 且达成',
+    goalText() === '城镇中心 已修复 1/1' && questProgress(s, ctx, def).met, goalText())
+
+  // 内容里的 hint 是**文字**，改价只能人肉对齐 —— 所以在这儿钉一条
+  ok('hint 里写的材料与引擎那份价格一致（木 30 / 石 20 / 砖 15）',
+    def.hint.includes(`木材 ${TOWN_CENTER_REPAIR_COST['wood']}`) &&
+      def.hint.includes(`石块 ${TOWN_CENTER_REPAIR_COST['stone']}`) &&
+      def.hint.includes(`砖 ${TOWN_CENTER_REPAIR_COST['brick']}`),
+    def.hint)
+
+  // 已经修好了再修一次 → 不重复扣
+  s.goods['wood'] = 50
+  const again = applyActions(s, ctx, [{ type: 'repair_town_center' }])
+  ok('修好了再点一次不会重复扣料', !again[0]!.ok && s.goods['wood'] === 50)
+
+  // 前置：q11_middle 挂着它（内容里用户指定）
+  ok('q11_middle 的前置就是这条修复任务',
+    ctx.quests['q11_middle']!.requires.join(',') === 'q10f_townhall_repair',
+    ctx.quests['q11_middle']!.requires.join(','))
+}
+
+// ---- 11. 剧情对话：任务触发 / 章节收尾 -----------------------------------
+{
+  const s = freshState()
+  const talks = questTalks(s, ctx)
+  ok('开局有两条任务对话要播（第 1 章两条任务）',
+    talks.length === 2 && talks[0]!.key === 'q:q01_bread_chain', talks.map((t) => t.key).join(' → '))
+  ok('说话人/立绘取内容里的 giver / giverPortrait',
+    talks[0]!.speaker === ctx.quests['q01_bread_chain']!.giver &&
+      talks[0]!.portrait === ctx.quests['q01_bread_chain']!.giverPortrait,
+    `${talks[0]!.speaker} / ${talks[0]!.portrait}`)
+  ok('台词 = brief 逐句切开（至少 3 页）',
+    talks[0]!.lines.length === splitSentences(ctx.quests['q01_bread_chain']!.brief).length &&
+      talks[0]!.lines.length >= 3,
+    `${talks[0]!.lines.length} 页`)
+  ok('切句不会把逗号/冒号当句末',
+    splitSentences('殿下，仓里那点存粮是死数：十二口人。靠余粮不行！').length === 2,
+    JSON.stringify(splitSentences('殿下，仓里那点存粮是死数：十二口人。靠余粮不行！')))
+
+  for (const t of talks) markQuestTalkShown(s, t.key)
+  ok('播过的就不再返回（记在 quests.shown 里）', questTalks(s, ctx).length === 0)
+
+  // 第 1 章全绿 → 收尾对话（瑟拉菲娜），并且**排在**第 2 章任务之前
+  for (const id of ['wheat_farm', 'coarse_mill', 'coarse_bakery', 'vegetable_farm']) addShop(s, id)
+  runDawn(s, ctx)
+  const t2 = questTalks(s, ctx)
+  ok('第 1 章收尾排在第 2 章任务之前（瑟拉菲娜登场不该被插在后面）',
+    t2[0]!.key === 'c:1', t2.map((t) => t.key).join(' → '))
+  ok('收尾那段是瑟拉菲娜出场', t2[0]!.speaker === 'seraphina', t2[0]!.speaker)
+  ok('第一章收尾带选项（accept 免费预言 / decline 关闭）',
+    (t2[0]!.choices ?? []).map((c) => c.id).join(',') === 'accept,decline' &&
+      (t2[0]!.choices ?? [])[0]!.action === 'free_prophecy',
+    JSON.stringify(t2[0]!.choices ?? []))
+  ok('后面跟着的是第 2 章那三条任务',
+    t2.slice(1).every((t) => t.kind === 'quest') && t2.length === 4,
+    t2.map((t) => t.key).join(' → '))
+  markQuestTalkShown(s, 'c:1')
+  ok('收尾播过也不再返回', !questTalks(s, ctx).some((t) => t.key === 'c:1'))
 }
 
 console.log('')

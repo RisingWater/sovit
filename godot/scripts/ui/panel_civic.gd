@@ -292,25 +292,40 @@ func _refresh() -> void:
 #
 # 只在「破旧」时出现；命令进 `runner.enqueue()`，和别的建造一样**次日黎明生效**。
 # 材料不够就当场说明白（不排队、不扣东西）—— 免得玩家排了单又白等一天。
+#
+# ⚠️ 价格与"破旧/修好"的判据**都不在这儿**：
+#   · 价格 = `SimCore.TOWN_CENTER_REPAIR_COST`（`sim.town_center_repair_cost()`）
+#   · 换图 = 任务 `q10f_townhall_repair` 结算（`sim.town_center_ruined_visual()`）
+# 这里只画。别在 UI 里再抄一份数字 —— 抄一份就等于两处会漂。
 # ---------------------------------------------------------------------------
-const TOWN_CENTER_REPAIR_COST := {"wood": 40.0, "stone": 20.0}
 
 func _build_repair() -> void:
 	var tc: Dictionary = runner.sim.s.get("townCenter", {})
 	if not bool(tc.get("ruined", false)):
+		# 已经下过单（或本来就好的）：说清楚现在是什么状态，别留一片空
+		if bool(runner.sim.town_center_ruined_visual()):
+			_body.add_child(UIKit.hsep())
+			_title("修缮城镇中心")
+			_body.add_child(UIKit.label("已下令修缮 —— 等任务「修复城镇中心」结算后才换新貌",
+				UIKit.FG_DIM))
 		return
 	_body.add_child(UIKit.hsep())
 	_title("修缮城镇中心")
-	var need := "木 %d · 石 %d" % [int(TOWN_CENTER_REPAIR_COST["wood"]),
-		int(TOWN_CENTER_REPAIR_COST["stone"])]
+	var cost: Dictionary = runner.sim.town_center_repair_cost()
+	var parts := PackedStringArray()
+	for gid in ["wood", "stone", "brick"]:
+		if not cost.has(gid):
+			continue
+		parts.append("%s %d" % [_cost_name(gid), int(cost[gid])])
+	var need := " · ".join(parts)
 	_kv("用料", need)
 	_body.add_child(UIKit.label("明日 06:00 完工，之后城镇中心就修好了", UIKit.FG_DIM))
 	var b := UIKit.button("修缮", false)
 	b.tooltip_text = "花 %s，次日黎明完工" % need
 	b.pressed.connect(func():
 		var ok := true
-		for gid in TOWN_CENTER_REPAIR_COST.keys():
-			if float(runner.sim.s["goods"].get(gid, 0.0)) < float(TOWN_CENTER_REPAIR_COST[gid]):
+		for gid in cost.keys():
+			if float(runner.sim.s["goods"].get(gid, 0.0)) < float(cost[gid]):
 				ok = false
 		if not ok:
 			_set_sub("材料不够：还差一些" + need)
@@ -319,6 +334,11 @@ func _build_repair() -> void:
 		_set_sub("已下令修缮 —— 次日 06:00 完工")
 		_refresh())
 	_body.add_child(b)
+
+## 材料的显示名（木 / 石 / 砖）。内容表里是 `wood` / `stone` / `brick`。
+func _cost_name(gid: String) -> String:
+	var zh := String((runner.sim.db.goods.get(gid, {}) as Dictionary).get("nameZh", gid))
+	return zh
 
 # ---------------------------------------------------------------------------
 # 排版小件（和 inspector 同款：区块标题 + 左标签右数值 + 进度条）# ---------------------------------------------------------------------------

@@ -667,6 +667,7 @@ for sweep in range(questIds.size() + 1):          # 反复扫，直到这一轮�
 | `tech` / `tech_count` | 某科技已完成 / 已完成科技数 |
 | `good` / `produced` | 仓库库存不低于 N / **历史单日产量**曾达到 N（看产能不看库存） |
 | `avg_satisfaction` | 全体居民满意度的算术平均 |
+| `building_repaired` | 一座**塌了的**建筑已经修好（`state.townCenter.ruined == false`）；id 写 `townhall` 或 `town_center` 都认。别名写法 `{type:"building", id:"town_center", repaired:true}` 等价 |
 
 ### 16.4 面板数据源 `questJournal`（全部**已知**任务）
 
@@ -727,3 +728,22 @@ state.prophet = { lastAskDay: int }      # -1 = 这一局还没问过
   这是给模型用的工具，不能让它一次把 CPU 吃光。实测一轮 5 个方案 ≈ 20~30 ms。
 - **命令集刻意收窄**：只给"建设 / 研究 / 用工"三类；拆房、改税、改价不开放试。
   详见 `docs/ai-assist.md` §五。
+
+### 16.7 剧情对话 `questTalks`（只读，用户 2026-10）
+
+```
+输入   state.quests.{done, chapters, shown} + 内容（giver / giverPortrait / brief / chapters[].outro）
+输出   [ { key, kind, id, chapter, speaker, portrait, lines[], choices[]? } ]     # 还没播过的
+顺序   按 chapters 顺序，每章先「本章未完成且已解锁的任务」，再「本章 outro」
+记账   markQuestTalkShown(key) → state.quests.shown[key] = true
+切句   splitSentences()：只按 。！？… 断，标点跟着前一句走
+```
+
+- **只读**：不改任何数字，所以不影响黄金摘要、不进 `golden.ts::summarize`
+- `shown` 是**只记事**的状态段（与 `prophet` / `townCenter` 同类），进存档是为了
+  读档 / 退出重进不重播；缺了也不会算错（最多补播一遍）
+- 台词内容全在 `content/quests.json`（任务的 `brief`、章节的 `outro`），引擎不硬编码一个字
+- 表现层：`godot/scripts/ui/quest_talk.gd`（galgame 框），由 `main.gd` 在
+  `hour_ticked` / 开场剧情结束后轮询 `quest_talks_pending()`；对话期间
+  `hud.set_paused_external(true)` 暂停时间（纯表现层，不进仿真状态）
+- 选项的 `action` 由 UI 消费：`free_prophecy` → 打开预言面板并**跳过 5 天冷却**问一次

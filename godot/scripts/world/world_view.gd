@@ -586,10 +586,14 @@ func _place_sprite(spr: Sprite2D, type: String, origin: Vector2i, fp: Vector2i) 
 func _texture_for(type: String) -> Texture2D:
 	# 城镇中心分两张：开局是**破旧**的（用户 2026-10），修好之后换回好图。
 	# 所以这一项**不进缓存**（按状态现取，`load()` 自己会缓存资源）。
+	#
+	# ⚠️ 判据是 `sim.town_center_ruined_visual()`（= 任务 `q10f_townhall_repair`
+	# 记过完成没有），**不是** `townCenter.ruined`：下单修缮当天那个标记就翻了，
+	# 而任务要到黎明才结算。用户的原话是"这个任务完成之前用旧素材"。
 	if type == "town_center":
-		var ruined := false
+		var ruined := true
 		if runner != null and runner.sim != null:
-			ruined = bool((runner.sim.s.get("townCenter", {}) as Dictionary).get("ruined", false))
+			ruined = bool(runner.sim.town_center_ruined_visual())
 		return load("res://assets/buildings/town_center_ruined.png" if ruined
 			else "res://assets/buildings/town_center.png")
 	if _tex_cache.has(type):

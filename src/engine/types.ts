@@ -478,10 +478,20 @@ export interface ResearchState {
 
 export type QuestID = string
 
+/** 可修缮的建筑：`townhall` 是内容里用的口语名，`town_center` 是建筑表里的 id。 */
+export type RepairTargetID = 'townhall' | 'town_center'
+
 /** 任务目标：每种都能算出「当前 / 需要」，用于追踪条上的进度。 */
 export type QuestGoal =
-  /** 建成 N 座某建筑（在途工地不算）。 */
-  | { type: 'building'; id: BuildingID; min: number }
+  /**
+   * 建成 N 座某建筑（在途工地不算）。
+   *
+   * `repaired: true` = 换个口径：数的是「这座**已经修好**了吗」（只对 `town_center` 有意义）。
+   * 等价于 `building_repaired`，留着是给内容里换个写法用的。
+   */
+  | { type: 'building'; id: BuildingID; min: number; repaired?: true }
+  /** 某座**塌了的**建筑已经修好（用户 2026-10：修复城镇中心）。 */
+  | { type: 'building_repaired'; id: RepairTargetID; min: number }
   /** 拥有 N 栋某住房（国有 + 私有）。 */
   | { type: 'housing'; id: GoodID; min: number }
   /** 住房总容量不低于 N。 */
@@ -507,12 +517,22 @@ export interface QuestDef {
   id: QuestID
   /** 章节号：整章全绿（不含 `side` 支线）另有一次性奖励。 */
   chapter: number
+  /**
+   * 发布这条任务的 NPC（`sebastian` / `luna` / `vila` …）。用户 2026-10：
+   * 任务触发时要**暂停时间、弹一段 galgame 对话** —— 说话的就是这位。
+   */
+  giver: string
+  /** 这位 NPC 的立绘 id（`<id>_<mood>`，见 docs/characters.md）。 */
+  giverPortrait: string
   title: string
   /** 一句「怎么做」，直接显示在追踪条上。 */
   hint: string
   /**
    * 「为什么要做这一条」——任务面板右侧的描述，用**老臣（塞巴斯蒂安）**的口吻写给玩家。
    * 与 `hint` 分工明确：`hint` 说怎么点，`brief` 说为什么值当。
+   *
+   * ⚠️ 任务触发时那段对话就是拿它**逐句**说的（`splitSentences`），所以它必须是一段
+   * 能当台词念的话，而不是提纲。
    */
   brief: string
   reward: number
@@ -523,10 +543,40 @@ export interface QuestDef {
   side?: boolean
 }
 
+/**
+ * 章节结尾那段对话里的一个选项（用户 2026-10）。
+ *
+ * `action` 决定选完之后干什么：
+ *   · `free_prophecy` —— 送一次预言（第一章：瑟拉菲娜出场，绕过 5 天冷却）
+ *   · `close`        —— 什么都不做，把对话关掉（缺省）
+ */
+export interface QuestChoice {
+  id: string
+  text: string
+  action?: 'free_prophecy' | 'close'
+}
+
+/**
+ * 章节完成时弹出的一段对话（galgame 形式）。
+ *
+ * 结构与任务发布对话同形（说话人 + 立绘 + 逐行台词），只多了可选的 `choices`。
+ */
+export interface QuestOutro {
+  /** 说话人（NPC id，同上 `giver`）。 */
+  speaker: string
+  /** 立绘 id。 */
+  portrait: string
+  /** 逐行显示的台词（一行 = 一页）。 */
+  lines: string[]
+  choices?: QuestChoice[]
+}
+
 export interface QuestChapterDef {
   id: number
   title: string
   reward: number
+  /** 章节全部完成时的那段对话（可选）。 */
+  outro?: QuestOutro
 }
 
 /**
@@ -565,6 +615,13 @@ export interface QuestState {
   done: Record<QuestID, number>
   /** chapterId → 领到章节奖励那一天。 */
   chapters: Record<string, number>
+  /**
+   * 已经播过的剧情对话（`q:<questId>` / `c:<chapterId>`）。
+   *
+   * 只记事、不演化：播没播过都不改村子的任何数字。放在状态里是为了读档 / 退出重进
+   * 之后**不重播**，也不会漏播（事件队列会丢，比对状态不会）。
+   */
+  shown: Record<string, boolean>
 }
 
 export interface Government {  money: number
@@ -676,6 +733,14 @@ export interface GameState {
    * 放在状态里而不是 UI 配置里，是为了让退出重进 / 读档都绕不过冷却。
    */
   prophet: ProphetState
+  /**
+   * 城镇中心的**物理状态**（用户 2026-10：一开局是废墟，修好才换回好素材）。
+   *
+   * ⚠️ 仿真的任何数字都不读它 —— 和 `prophet` 一样"只记事、不演化"，
+   * 所以黄金摘要（按字段取的）不受影响。真正"能看/能点"的判据是任务
+   * `q10f_townhall_repair` 有没有完成（表现层读 `town_center_ruined`）。
+   */
+  townCenter: { ruined: boolean }
 
   /** 当日台账累加器：黎明清零，夜间结算时挂到当天快照上。 */
   ledgerToday: DayLedger
@@ -787,6 +852,11 @@ export type Action =
    * 与施工队列同一套语义（见 §9.8）：只改顺序，不重算进度、不退料。
    */
   | { type: 'move_research'; id: TechID; delta: number }
+  /**
+   * 修缮城镇中心（用户 2026-10：一开局是废墟）。和别的命令一样**次日黎明生效**，
+   * 材料不够就白下这一单。价格见 `TOWN_CENTER_REPAIR_COST`（`systems/investment.ts`）。
+   */
+  | { type: 'repair_town_center' }
   | { type: 'end_turn' }
 
 export interface AppliedAction {

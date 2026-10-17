@@ -42,6 +42,8 @@ var _speed_btns: Array[Button] = []
 var _nav_btns: Array[Button] = []
 ## 「科技」那个圆钮（研究所建起来之前藏着，见 `refresh_nav_buttons()`）
 var _tech_nav_btn: Button = null
+## 「预言」那个圆钮（第一章收尾之前藏着 —— 瑟拉菲娜那时才登场）
+var _prophecy_nav_btn: Button = null
 
 ## 速度档位。`+` / `-` 按它步进；**1x 就是最慢**（用户："减速最快 1x"），
 ## 4x 是最快。与顶栏那排按钮一一对应。
@@ -188,6 +190,9 @@ func _open_quest() -> void:
 func _open_ai() -> void:
 	if ai_panel == null:
 		return
+	# 第一章收尾之前她还没登场（按钮本来就藏着，这里是第二道闸：快捷键/ESC 也进不来）
+	if runner != null and runner.sim != null and not runner.sim.prophet_unlocked():
+		return
 	if ai_panel.has_method("open_for_question"):
 		ai_panel.open_for_question()
 	elif ai_panel.has_method("open"):
@@ -206,6 +211,11 @@ func refresh_now() -> void:
 ## 挂在 `hour_ticked` 上刷新 —— 跨过黎明就少一天，很便宜（只换一张贴图 + 一句 tooltip）。
 func refresh_ai_btn() -> void:
 	if _ai_btn == null or runner == null or runner.sim == null:
+		return
+	# 第一章收尾之前不出现（用户 2026-10：瑟拉菲娜是第一章结尾才登场的）。
+	# 判据在引擎里（`SimCore.prophet_unlocked()`），这里只读。
+	_ai_btn.visible = runner.sim.prophet_unlocked()
+	if not _ai_btn.visible:
 		return
 	var left := runner.sim.prophet_days_left()
 	if left <= 0:
@@ -368,6 +378,8 @@ func _build_nav() -> void:
 			b.pressed.connect(_open_stats_tab.bind(tab))
 		if tab == NAV_TECH:
 			_tech_nav_btn = b
+		elif tab == NAV_PROPHECY:
+			_prophecy_nav_btn = b
 		col.add_child(b)
 		_nav_btns.append(b)
 	refresh_nav_buttons()
@@ -377,15 +389,22 @@ func _build_nav() -> void:
 ## 没有研究所就一点都不出科研力，点进去只有一片"需要先研究"，纯属误导 ——
 ## 所以第一次开出研究所之前，左侧圆钮列只有 5 个。
 ## 建筑都在黎明落成，所以挂在 `hour_ticked` 上刷一次就够（按钮可见性变一下，很便宜）。
+##
+## 「预言」那个圆钮同理：**第一章收尾之前不出现**（用户 2026-10）。
+## 瑟拉菲娜是第一章结尾才出场的，在那之前露出一个"预言家"按钮等于剧透。
+## 两个判据都在引擎里（`_tech_nav_btn` 看 shops、`_prophecy_nav_btn` 看 `prophet_unlocked()`）。
 func refresh_nav_buttons() -> void:
-	if _tech_nav_btn == null or runner == null or runner.sim == null:
+	if runner == null or runner.sim == null:
 		return
-	var has_inst := false
-	for sh in (runner.sim.s["shops"] as Array):
-		if String((sh as Dictionary)["defId"]) == "research_institute":
-			has_inst = true
-			break
-	_tech_nav_btn.visible = has_inst
+	if _tech_nav_btn != null:
+		var has_inst := false
+		for sh in (runner.sim.s["shops"] as Array):
+			if String((sh as Dictionary)["defId"]) == "research_institute":
+				has_inst = true
+				break
+		_tech_nav_btn.visible = has_inst
+	if _prophecy_nav_btn != null:
+		_prophecy_nav_btn.visible = runner.sim.prophet_unlocked()
 
 ## 圆钮外观：**手绘像素贴图**（不是代码画的几何圆）。
 ##
@@ -631,8 +650,12 @@ func speed_step(dir: int) -> void:
 ## （现在只有 4 个，F5/F6 落空 —— 调用方据此决定要不要吃掉这个键）。
 ## ⚠️ **F7 / F8 不在这里**：那是快存 / 快读（`quick_save` / `quick_load`），
 ## 上限就是 `NAV_MAX_KEY`。
+## ⚠️ 按钮**藏着**的时候（科技没研究所 / 预言没到第一章收尾）也算"没有这个按钮"：
+## 否则 F5 会在屏幕上什么都没有的情况下弹出一个面板。
 func activate_nav(i: int) -> bool:
 	if i < 0 or i >= _nav_btns.size():
+		return false
+	if not _nav_btns[i].visible:
 		return false
 	_nav_btns[i].pressed.emit()
 	return true

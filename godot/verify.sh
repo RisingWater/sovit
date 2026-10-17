@@ -131,6 +131,7 @@ step "inspector" "$GODOT_BIN" --headless --path . -s res://tools/inspector_test.
 step "newgame" "$GODOT_BIN" --headless --path . -s res://tools/newgame_test.gd
 step "title" "$GODOT_BIN" --headless --path . -s res://tools/title_test.gd
 step "intro" "$GODOT_BIN" --headless --path . -s res://tools/intro_test.gd
+step "questtalk" "$GODOT_BIN" --headless --path . -s res://tools/questtalk_test.gd
 step "occlusion" "$GODOT_BIN" --headless --path . -s res://tools/occlusion_test.gd
 
 if [ "$FAIL" -ne 0 ]; then

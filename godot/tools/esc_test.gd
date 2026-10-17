@@ -112,8 +112,20 @@ func _run() -> void:
 		return
 
 	# 第 6 个「预言」圆钮要真的接上：点它 → 全屏预言页（anchors 0..1）
+	#
+	# ⚠️ 用户 2026-10：**第一章收尾之前这个按钮是藏着的**（瑟拉菲娜那时才登场），
+	# 而藏着的时候 `activate_nav()` 也返回 false（不然 F6 会凭空弹面板）。
+	# 所以这里要先把她"解锁"（= 第一章记过完成），再验接通。
+	var sim0 = node.get("runner").sim
+	if not sim0.prophet_unlocked():
+		if hud.activate_nav(5):
+			_fail("第一章还没收尾，F6 就把预言面板弹出来了（她会提前现身）")
+			return
+		sim0.s["quests"]["chapters"]["1"] = int(sim0.s["day"])
+		hud.refresh_nav_buttons()
+		await process_frame
 	if not hud.activate_nav(5):
-		_fail("activate_nav(5) 应当打到「预言」那个圆钮")
+		_fail("activate_nav(5) 应当打到「预言」那个圆钮（第一章收尾之后）")
 		return
 	await process_frame
 	var ai_panel = node.get_node_or_null("UI/Root/AiPanel")

@@ -84,6 +84,8 @@ var _dragging := false
 var _drag_off := Vector2.ZERO
 ## 本次提问是不是"测试连接"（回答的处理方式不同）
 var _testing := false
+## 本次提问是不是**免费**的（第一章收尾她主动送的那次）：答完不记冷却
+var _free := false
 ## 我们自己暂停的吗？是的话答完就恢复（玩家本来按着暂停就别动它）
 var _auto_paused := false
 
@@ -154,6 +156,18 @@ func open_settings() -> void:
 	_build()
 	_place()
 
+## 第一章收尾选「……说下去」之后的那次**免费预言**（用户 2026-10）。
+##
+## 剧情里她自己送上来的，所以：
+##   · 不占 5 天冷却（`ask(true)`）—— 玩家没挑时机，不该被罚等 5 天
+##   · 问话栏预填一句默认问句（玩家还可以改），因为这时候没什么可打字的
+func open_free_prophecy() -> void:
+	_cfg = AiConfig.load_cfg()
+	open()
+	if _ask_input != null:
+		_ask_input.text = "我下一步要做什么"
+	ask(true)
+
 ## 关面板 = **把这一场问话结束掉**。
 ##
 ## ⚠️ 这里必须清 `_session`：玩家在"正在问"的时候按关闭（或 ESC）时，`_client.cancel()`
@@ -163,6 +177,7 @@ func close_panel() -> void:
 	visible = false
 	_session = false
 	_testing = false
+	_free = false
 	if _client != null:
 		_client.cancel()
 	_sync_ask_button()
@@ -642,7 +657,8 @@ func _render_reply(text: String) -> void:
 # ---------------------------------------------------------------------------
 # 提问：一场**多轮试方案**的会话（见 docs/ai-assist.md §四·五）
 # ---------------------------------------------------------------------------
-func ask() -> void:
+## `free` = 这一次**不占冷却**（第一章收尾她主动送的那次，见 `open_free_prophecy()`）。
+func ask(free: bool = false) -> void:
 	if runner == null or runner.sim == null or _client == null:
 		return
 	if _client.is_busy() or _session:
@@ -650,12 +666,18 @@ func ask() -> void:
 	if not _has_key_for_gateway():
 		_notice("还没配置（ESC 菜单 →「AI 辅助设置」）")
 		return
+	_free = free
 	# 冷却（用户："预言家 5 天才能问一次"）。规则在引擎里，这里只读。
-	var left := _cooldown_left()
+	var left := 0 if free else _cooldown_left()
 	if left > 0:
 		_notice("预言家在闭门静修：还有 %d 天（第 %d 天）才能再问"
 			% [left, int(runner.sim.s["day"]) + left])
+		_free = false
 		return
+	# 免费的那次不算"问过" —— 冷却、按钮文案都要按没问过算
+	if free:
+		if _ask_btn != null:
+			_ask_btn.disabled = false
 	_testing = false
 	_begin_session()
 
@@ -799,10 +821,13 @@ func _on_replied(reply: Dictionary) -> void:
 ## 读"这一场试了几个方案"。它只是个数据袋，不会再发请求（`_session` 才是那个开关）。
 func _finish_session() -> void:
 	_session = false
-	# 问到了才记冷却（用户："预言家 5 天才能问一次"）—— 失败/超时都不算
+	# 问到了才记冷却（用户："预言家 5 天才能问一次"）—— 失败/超时都不算；
+	# 第一章收尾那次**免费**的也算"问到了"，但**不占冷却**（`_free`）：她在剧情里
+	# 主动送上来的，不该让玩家一进游戏就被罚 5 天。历史照样记（`charge_cooldown=false`）。
 	if runner != null and runner.sim != null:
 		var q := _ask_input.text if _ask_input != null else ""
-		runner.sim.mark_prophet_asked(q, _last_final)
+		runner.sim.mark_prophet_asked(q, _last_final, not _free)
+	_free = false
 	_sync_ask_button()
 	_resume_if_auto_paused()
 	if _mode == MODE_PROPHECY:
@@ -841,6 +866,7 @@ static func _auth_hint(message: String) -> String:
 func _on_failed(message: String) -> void:
 	_session = false
 	_testing = false
+	_free = false
 	_sync_ask_button()
 	_resume_if_auto_paused()
 	# 设置页：结果就写在那一行小字上（那边没有内容区）

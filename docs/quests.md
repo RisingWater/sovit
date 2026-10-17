@@ -29,7 +29,7 @@ v0.3 开局是「12 个人、6 座茅屋、一座城镇中心、2000 金」，�
 | 会不会回退？ | 不会。完成过就是完成过（人口掉回去也不算未完成），钱不重复发 |
 | 进不进仿真？ | **进**。判定与发钱都在引擎里（TS + GDScript 两份），golden 一起重新生成 |
 
-## 三、任务树（27 条 + 6 章）
+## 三、任务树（28 条 + 6 章）
 
 ```
 1  粗面包链：小麦农场×1 + 粗面粉磨坊×1 + 粗面包房×1
@@ -53,7 +53,9 @@ v0.3 开局是「12 个人、6 座茅屋、一座城镇中心、2000 金」，�
    ├ 10.3 肉与鱼：渔捞+田猎 → 渔场、狩猎营地
    ├ 10.4 陶器：制陶 → 陶器坊 且 陶器 20
    └ 10.5 娱乐：娱乐 → 剧院
-11 中产：中产 ≥5 人 且 木屋×1（木作住房）
+   10.6 修复城镇中心：把开局那座塌了半边的城镇中心修好   ← 用户 2026-10 新增
+        前置 = 10.1~10.5 全绿；用料 木 30 + 石 20 + 砖 15
+11 中产：中产 ≥5 人 且 木屋×1（木作住房）        ← 前置 = 10.6
 12 二百五十人的村子：人口 250                     ← 台阶
 13 富人：富人 ≥1 人 且 砖房×1（砖石住房）   ┐ 与 12 并行
 14 家政：家政 → 家政工坊×1                  │
@@ -83,6 +85,7 @@ v0.3 开局是「12 个人、6 座茅屋、一座城镇中心、2000 金」，�
 | 9 一百人的村子 | 到 100 人会开始暴露"只有面包+蔬菜"的天花板：满意度上不去、移民停滞 |
 | 10.1–10.5 加工与舒适 | 中产/富人的需求清单就是这些（白面包、肉、衣服、陶器、娱乐）——不补上，人口变大后满意度会掉下来。同时把"易腐品要有加工兜底"（熏鱼/肉干）、"耐储奢侈品可以囤"（陶器）对照着教 |
 | 11 中产 | 教**阶层由存款决定**（≥40 自动升中产），以及"**住房质量要跟着阶层**"：中产住茅屋会被扣满意度 —— 「只堆茅屋冲人口」的第一个天花板 |
+| 10.6 修复城镇中心 | 教**"花材料换脸面"**：这是唯一一条**修缮**类任务（不是新建）。用料来自三条已经跑熟的产线（木/石/砖），做完之后地图上那座废墟才换成新素材 —— 玩家第一次"看着自己修好的东西" |
 | 12 二百五十人的村子 | 该从"铺新建筑"切到"升级扩产"了（一座 6 级面包房 = 144 个/天） |
 | 13 富人 / 14 家政 | 教最高一档（存款 120、住房等级 3），以及富人的需求里**家政服务**也是需求、不是摆设 |
 | 15 自己的房子（支线） | 教**私有化**：居民存款够、满意度 80 以上会自己买下国有住房，房款进国库、居民满意度 +12。绝大多数玩家会漏掉这条 |
@@ -110,6 +113,11 @@ v0.3 开局是「12 个人、6 座茅屋、一座城镇中心、2000 金」，�
 | `produced` | **单日产量**曾达到 N（看产能，不看库存） | `history` 各天台账 + 今天的 `ledgerToday` 取峰值 |
 | `avg_satisfaction` | 平均满意度不低于 N | 全体居民满意度的算术平均 |
 | `private_housing` | 私有住房不低于 N 户 | `privateHousing` 求和 |
+| `building_repaired` | 一座**塌了的**建筑已经修好 | `s["townCenter"]["ruined"] == false`（id 可写 `townhall` 或 `town_center`） |
+
+> `building` 还接受一个别名写法 `{type:"building", id:"town_center", repaired:true}` ——
+> 口径与 `building_repaired` 完全一样，收着只是为了内容里换写法时不用改引擎。
+> 两个引擎都有这条分支（`quests.ts::repairedOf` / `sim_core.gd::_quest_repaired`）。
 
 **显示文案由引擎拼**（`QuestGoalProgress.text` / `quest_progress(qid)["goals"][i]["text"]`）：
 UI 一个字都不自己拼 —— 否则 TS 与 GDScript 会显示出两种样子。数字一律向下取整。
@@ -166,21 +174,110 @@ UI 一个字都不自己拼 —— 否则 TS 与 GDScript 会显示出两种样�
 两份实现：`src/engine/systems/quests.ts::questJournal` 与
 `godot/scripts/sim/sim_core.gd::quest_journal`（同口径；门槛两边都锁）。
 
-## 七、门槛
+## 七、剧情对话（任务触发 / 章节收尾，用户 2026-10）
+
+两条都做成 **galgame 形式**：右侧立绘滑进来、下中一个米黄文字框、说一句点一下翻页
+（`▼` 闪动提示可以继续），**对话期间时间暂停**。
+
+| 何时 | 说什么 | 数据 |
+|---|---|---|
+| **任务一出现在追踪条上** | 发布人（`giver`）把这条任务的 `brief` **逐句**说一遍 | `quests[].giver` / `giverPortrait` / `brief` |
+| **一章主线全绿（领章节奖励那一刻）** | 内容里的 `chapters[].outro`: `{ speaker, portrait, lines, choices? }` | `chapters[].outro` |
+
+### 引擎给、界面画
+
+`SimCore.quest_talks_pending()`（TS 侧 `quests.ts::questTalks`）返回**还没播过的**对话：
+
+```jsonc
+{ "key": "q:q01_bread_chain", "kind": "quest", "id": "q01_bread_chain", "chapter": 1,
+  "speaker": "sebastian", "portrait": "sebastian_neutral",
+  "lines": ["殿下，仓里那点存粮是死数：……", "……", "……"] }
+```
+
+- **顺序 = 内容顺序，按章交错**：第 1 章的任务 → 第 1 章的收尾 → 第 2 章的任务 …
+  这样第一章一结束（第二章任务同时解锁）时，瑟拉菲娜的登场**不会**插在露娜的
+  「蔬菜农场」后面。
+- 播完界面调 `quest_talk_mark_shown(key)`，记进 `s["quests"]["shown"]`。
+- 判定方式是**状态比对**而不是事件队列：队列会丢（读档 / 退出重进就丢），比对不会 ——
+  所以既不重播也不漏播。`shown` 与 `prophet` / `townCenter` 同一类：**只记事、不演化**，
+  黄金摘要按字段取，碰不到它。
+
+### 台词怎么来的
+
+`brief` 按**句末标点**（`。！？…`）切页，`：，、` 不切（切了一句话就断成两截，念起来不像人话）。
+所以 `brief` 必须是**能当台词念的一段话**，不是提纲 —— 这条要求已经写进内容校验器（非空）
+和 `docs/quests.md` §十的第 1 步。
+
+### 选项（`choices`）
+
+```jsonc
+"choices": [{ "id": "accept",  "text": "……说下去。", "action": "free_prophecy" },
+            { "id": "decline", "text": "不必了。",     "action": "close" }]
+```
+
+`action` 只有两个合法值：`free_prophecy`（送一次预言）/ `close`（什么都不做）。
+带选项的最后一页**点空白不算选**，得真按一个按钮；「跳过」/ Esc 等于放弃。
+第一章收尾选 `accept` → 打开预言面板并**当场问一次**，这次**不吃 5 天冷却**
+（`ai_panel.open_free_prophecy()`：`ask(free = true)`，答完不记 `mark_prophet_asked`）——
+她自己在剧情里送上来的，不该让玩家一进游戏就被罚等 5 天。
+
+### 人物 id 的三种拼法（`scripts/ui/cast.gd`）
+
+内容里是 `renard` / `vila` / `seraphina`，立绘文件叫 `reynard.png` / `vera.png` / `serafina.png`。
+所以「id → 中文名 / 立绘」只有一份实现：`Cast.speaker_name()` / `Cast.portrait()` /
+`Cast.portrait_head()`。`<人>_<表情>` 先找表情差分图（`assets/portraits/<人>_<表情>.png`），
+没有就落回这个人的默认立绘。以后画了表情差分，**放文件就行**，代码不用动。
+
+### 预言家按钮：第一章收尾之前不出现
+
+瑟拉菲娜是第一幕之外**只在第一章结尾登场**的人，所以在她登场之前：
+
+- 左侧圆钮列的「预言」（`NAV_PROPHECY`）**藏着**（`hud.refresh_nav_buttons()`）
+- 顶栏那个水晶球按钮也藏（`hud.refresh_ai_btn()`），`_open_ai()` 里还有第二道闸
+- 判据只有一处：`SimCore.prophet_unlocked()`（= `quests.chapters["1"]` 有没有记录）
+
+ESC 菜单里的「AI 辅助设置」不受影响（那是**配置**，不是预言家本人在场）。
+
+### 城镇中心的材质：认任务，不认物理标记
+
+`s["townCenter"]["ruined"]` 是**物理状态**（下修缮令当天就翻）；而换图认的是
+**任务 `q10f_townhall_repair` 记过完成**（`SimCore.town_center_ruined_visual()`）——
+用户原话："这个任务完成之前用破旧城镇中心素材，这个任务完成后使用新的"。
+所以修缮当天 → 次日黎明修好（物理），但地图上还是废墟，直到那条任务在某次黎明结算。
+
+## 八、存档与版本（`schemaVersion` 2）
+
+用户 2026-10："schemaVersion 改成 2。版本更新，存档不跟之前兼容。"
+
+| 版本号 | 在哪 | 现在 | 管什么 |
+|---|---|---|---|
+| `quests.json.schemaVersion` | `content/quests.json` | **2** | 内容形状：`giver` / `giverPortrait` / `chapters[].outro` / `building_repaired` |
+| `economy.json.schemaVersion` | `content/economy.json` | 1 | 经济参数（这一轮没动） |
+| `SaveManager.SAVE_VERSION` | `godot/scripts/core/save_manager.gd` | **2** | 存档文件；**版本不符直接拒读**（`load_into` 返回 null），不做 v1 → v2 迁移 |
+
+`check-content.ts` 会把 `quests.json` 的 `schemaVersion` 钉在 2：
+写回 1 会红，写了 3 也会红（引擎还不认识）。
+
+## 九、门槛
 
 | 门槛 | 文件 | 盯什么 |
 |---|---|---|
-| `npm run check:quests` | `scripts/check-quests.ts` | 引擎侧：渐进显示 / 黎明结算 / 连锁可追溯 / 支线不挡章节 / 不回退 / 文案 / **面板数据源 `questJournal`**（已完成的隔天仍留着、锁着的不进） |
+| `npm run check:quests` | `scripts/check-quests.ts` | 引擎侧：渐进显示 / 黎明结算 / 连锁可追溯 / 支线不挡章节 / 不回退 / 文案 / **面板数据源 `questJournal`**（已完成的隔天仍留着、锁着的不进）/ **`building_repaired` 与修缮动作**（材料不够白下单、够了一分不差扣光、不重复扣）/ **`questTalks` 的顺序与记账** |
 | `godot verify.sh` 的 `quest` | `godot/tools/quest_test.gd` | 同一批断言的 GDScript 镜像（同口径、同数字）+ `brief`/`reward` 齐不齐 + 追踪条图标在位 |
 | `godot verify.sh` 的 `questpanel` | `godot/tools/questpanel_test.gd` | 面板本身：圆钮第 5 个接对了、点得开、默认选中第一个未完成的、左树分章可收起、右栏四块齐全、已完成的留在树里并写着第几天完成 |
+| `godot verify.sh` 的 `questtalk` | `godot/tools/questtalk_test.gd` | 剧情对话：内容里每条任务有发布人/立绘、每章有 outro（**逐字查缺字**）、第一章两个选项；`quest_talks_pending()` 的开局两条 → 播过不再来 → 章节收尾排在下一章任务之前；`quest_talk.gd` 能播（名字/立绘/翻页/选项 → `finished(action)`）；**第一章收尾之前预言入口是藏着的、之后出现**；城镇中心换图认任务；`SAVE_VERSION == 2` 且 v1 老档被拒 |
 | golden | `scripts/golden.ts` | 任务发钱会改国库 → 黄金轨迹跟着变；两份实现必须同时改、一起重生成 |
 
-## 八、加一条任务怎么做
+## 十、加一条任务怎么做
 
-1. `content/quests.json` 里加一条（`id` / `chapter` / `title` / `hint` / **`brief`** / `reward` / `requires` / `goals`）
-   - `brief` **必填**（校验器会拦空的）：一句话讲清"为什么值得做"，口吻是**镇长的智囊**
+1. `content/quests.json` 里加一条（`id` / `chapter` / **`giver`** / **`giverPortrait`** /
+   `title` / `hint` / **`brief`** / `reward` / `requires` / `goals`）
+   - `brief` **必填**（校验器会拦空的）：一句话讲清"为什么值得做"，口吻是**发布人**的；
+     它还会被**逐句念**出来（任务触发对话），所以必须是能当台词念的话
+   - `giver` / `giverPortrait` 也**必填**：少了就是"任务静静地出现"，玩家注意不到
    - 描的字要用像素字体有的字（`⚠ ≤ ≥ √ ✓` 都没有）—— 门槛 `glyph` 会扫 `content/quests.json`
 2. `npm run sync:content`（副本必须逐字节一致）
-3. `npm run check:content`（会校验引用存在、`requires` 无环、支线不被人依赖、`brief` 非空）
+3. `npm run check:content`（会校验引用存在、`requires` 无环、支线不被人依赖、`brief` 非空、
+   `giver` 非空）
 4. 想锁住行为就补一条断言到 `scripts/check-quests.ts` 与 `godot/tools/quest_test.gd`
 5. 若任务会改到"某一章会不会被提前领掉"，跑 `npm run golden` 重生成 + `godot verify.sh`

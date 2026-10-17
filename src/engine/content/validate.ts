@@ -19,6 +19,7 @@ import type {
   QuestDef,
   QuestGoal,
   QuestID,
+  QuestOutro,
   RecipeDef,
   RecipeID,
   Sector,
@@ -64,6 +65,14 @@ export interface ParsedContent {
 }
 
 const SCHEMA_VERSION = 1
+/**
+ * `quests.json` 自己的 schema 版本（用户 2026-10 升到 2）。
+ *
+ * 与 `SCHEMA_VERSION` 分开，是因为两个文件各自演进：economy 还是 1，
+ * 而 quests 加了 `giver` / `giverPortrait` / `chapters[].outro` / `building_repaired`。
+ * ⚠️ 版本一升，老存档就不兼容了 —— 那是有意的（`docs/quests.md` §七）。
+ */
+const QUESTS_SCHEMA_VERSION = 2
 
 const CATEGORIES: readonly GoodCategory[] = [
   'raw', 'food', 'clothing', 'household', 'fuel', 'material', 'housing', 'investment', 'service', 'entertainment', 'tool',
@@ -987,7 +996,24 @@ function parseQuestGoal(v: unknown, p: string, sets: QuestSets): QuestGoal {
   const need = (): number => asPos(g.min, `${p}.min`)
   switch (type) {
     case 'building':
+      // `repaired: true` = 换口径数"这座修好了吗"（只对城镇中心有意义）。
+      // 内容里的主写法是 `building_repaired`，这个别名收着是给换写法用的。
+      if (g.repaired === true) {
+        const raw = asStr(g.id, `${p}.id`)
+        const id = raw === 'townhall' ? 'town_center' : raw
+        if (id !== 'town_center') fail(`${p}.id 只能是 townhall 或 town_center（实际 ${raw}）`)
+        return { type, id: id as BuildingID, min: need(), repaired: true }
+      }
       return { type, id: asRef(g.id, sets.buildingSet, `${p}.id`, '建筑'), min: need() }
+    case 'building_repaired': {
+      // 塌了的建筑目前只有城镇中心这一座。内容里两个写法都认：
+      // `townhall`（口语名）与 `town_center`（建筑表 id）。
+      const id = asStr(g.id, `${p}.id`)
+      if (id !== 'townhall' && id !== 'town_center') {
+        fail(`${p}.id 只能是 townhall 或 town_center（实际 ${id}）`)
+      }
+      return { type, id, min: need() }
+    }
     case 'housing':
       return { type, id: asRef(g.id, sets.housingSet, `${p}.id`, '住房'), min: need() }
     case 'housing_capacity':
@@ -1013,13 +1039,48 @@ function parseQuestGoal(v: unknown, p: string, sets: QuestSets): QuestGoal {
   }
 }
 
+/**
+ * 章节收尾那段对话（`chapters[].outro`，用户 2026-10）。
+ *
+ * 结构与任务发布对话同形；`choices` 可选，`action` 只有两个合法值。
+ * ⚠️ 这些字是**直接画在屏幕上的台词**：像素字体里没有的字会静默变空白，
+ * 所以 Godot 侧的 `glyph` 门槛会扫整个 `quests.json`。
+ */
+function parseOutro(v: unknown, p: string): QuestOutro {
+  const o = asObj(v, p)
+  const lines = asArr(o.lines, `${p}.lines`).map((l, i) => asStr(l, `${p}.lines[${i}]`))
+  if (lines.length === 0) fail(`${p}.lines 不能为空`)
+  const outro: QuestOutro = {
+    speaker: asStr(o.speaker, `${p}.speaker`),
+    portrait: asStr(o.portrait, `${p}.portrait`),
+    lines,
+  }
+  if (o.choices !== undefined) {
+    const cs = asArr(o.choices, `${p}.choices`).map((c, i) => {
+      const q = asObj(c, `${p}.choices[${i}]`)
+      const action = q.action === undefined ? undefined : asStr(q.action, `${p}.choices[${i}].action`)
+      if (action !== undefined && action !== 'free_prophecy' && action !== 'close') {
+        fail(`${p}.choices[${i}].action 只能是 free_prophecy 或 close（实际 ${action}）`)
+      }
+      return {
+        id: asStr(q.id, `${p}.choices[${i}].id`),
+        text: asStr(q.text, `${p}.choices[${i}].text`),
+        ...(action ? { action: action as 'free_prophecy' | 'close' } : {}),
+      }
+    })
+    if (cs.length === 0) fail(`${p}.choices 给了就得至少有一个`)
+    outro.choices = cs
+  }
+  return outro
+}
+
 function parseQuests(
   raw: unknown,
   sets: QuestSets,
 ): { quests: Record<QuestID, QuestDef>; questIds: QuestID[]; chapters: QuestChapterDef[] } {
   const root = asObj(raw, 'quests.json')
-  if (root.schemaVersion !== SCHEMA_VERSION) {
-    fail(`quests.json.schemaVersion 必须是 ${SCHEMA_VERSION}（实际 ${String(root.schemaVersion)}）`)
+  if (root.schemaVersion !== QUESTS_SCHEMA_VERSION) {
+    fail(`quests.json.schemaVersion 必须是 ${QUESTS_SCHEMA_VERSION}（实际 ${String(root.schemaVersion)}）`)
   }
 
   const chapters: QuestChapterDef[] = []
@@ -1030,7 +1091,12 @@ function parseQuests(
     const id = asNum(c.id, `${p}.id`)
     if (chapterIds.has(id)) fail(`${p}.id 重复：${id}`)
     chapterIds.add(id)
-    chapters.push({ id, title: asStr(c.title, `${p}.title`), reward: asNonNeg(c.reward, `${p}.reward`) })
+    chapters.push({
+      id,
+      title: asStr(c.title, `${p}.title`),
+      reward: asNonNeg(c.reward, `${p}.reward`),
+      ...(c.outro === undefined ? {} : { outro: parseOutro(c.outro, `${p}.outro`) }),
+    })
   }
   if (chapters.length === 0) fail('quests.json.chapters 不能为空')
 
@@ -1048,6 +1114,10 @@ function parseQuests(
     quests[id] = {
       id,
       chapter,
+      // 发布人 + 立绘（用户 2026-10）：任务触发时要暂停时间、弹一段 galgame 对话，
+      // 说话的就是这位。**必填** —— 少了就是"任务静静地出现"，没人会注意到。
+      giver: asStr(q.giver, `${p}.giver`),
+      giverPortrait: asStr(q.giverPortrait, `${p}.giverPortrait`),
       title: asStr(q.title, `${p}.title`),
       hint: asStr(q.hint, `${p}.hint`),
       // 任务面板右侧的描述（智囊口吻）。**必填**：漏了的话面板上会空一块，

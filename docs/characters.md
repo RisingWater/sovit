@@ -259,6 +259,24 @@
 
 没有后缀的那一张（`<id>.png`）就是**默认脸**，找不到对应表情时兜底用它。
 
+### 5.2.1 内容里的 id 与立绘文件名的差异（`Cast`）
+
+内容（`content/quests.json` 的 `giver` / `giverPortrait`、`chapters[].outro`）里，
+同一个人的写法有两种：
+
+| 内容里 | 立绘文件 | 备注 |
+|---|---|---|
+| `sebastian` / `alvin` / `luna` / `isabella` | 同名 | 一致 |
+| `renard` | `reynard.png` | 名字的两种拼法 |
+| `vila` | `vera.png` | 财务官（薇拉） |
+| `seraphina` | `serafina.png` | 预言家（瑟拉菲娜） |
+
+这层映射**只在一处**：`godot/scripts/ui/cast.gd`（`class_name Cast`，`ALIAS` 表 +
+`NAME` 中文名表）。取名字用 `Cast.speaker_name(id)`、取立绘用 `Cast.portrait(id)`、
+取头像（上半身）用 `Cast.portrait_head(id)`。`<人>_<表情>` 先找表情差分图，没有就落回默认立绘。
+
+⚠️ 别在别处再抄一份名字/立绘表 —— 抄错一个人，玩家就会看到「露娜」顶着薇拉的脸。
+
 ### 5.3 抠图口径（要重跑时照这个来）
 
 绿幕图和成品都在，重跑一次只要两条约束：
@@ -297,5 +315,5 @@
 5. **瑟拉菲娜的来历**：她不在家臣之列，为什么会在这块封地上（见 [story.md](story.md) §三）。
 6. **水印**：四张立绘右下角有生成工具的水印。要抹的话最省事是**把底部裁掉 ~110px**
    （人物正好在这里被切断），或者给原图我贴片补。
-7. **称呼统一**：`content/quests.json` 里 27 条 `brief` 现在称呼是「大人 / 属下」，
+7. **称呼统一**：`content/quests.json` 里 28 条 `brief` 现在称呼是「大人 / 属下」，
    跟「殿下 / 老臣」不一致，要不要全局改一遍。

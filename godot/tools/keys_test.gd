@@ -69,6 +69,14 @@ func _run() -> void:
 		await process_frame
 	await process_frame
 
+	# ⚠️ 把"还没播过的剧情对话"全部标成播过（用户 2026-10：任务触发 / 章节收尾会弹
+	# galgame 对话，**对话期间所有快捷键让路**）。这是真行为，但这一关验的是键位路由，
+	# 不该被一段对话插进来 —— 对话本身在 `questtalk_test` 里验。
+	var sim_pre = _main.runner.sim
+	for t in sim_pre.quest_talks_pending():
+		sim_pre.quest_talk_mark_shown(String((t as Dictionary)["key"]))
+	await process_frame
+
 	var runner = _main.runner
 	var hud = _main.get_node_or_null("UI/Root/HUD")
 	var bar = _main.get_node_or_null("UI/Root/BuildBar")
@@ -156,6 +164,28 @@ func _run() -> void:
 		_fail("按 F1 没有打开统计面板（圆钮第 1 个 = 资源）")
 		return
 	stats_panel.visible = false
+	await process_frame
+	# ⚠️ 用户 2026-10：「科技」圆钮**研究所之前是藏着的**，藏着的时候 `activate_nav()`
+	# 也返回 false（不然 F4 会凭空弹出一个科技面板）。所以这里先摆一座研究所把按钮叫出来 ——
+	# 这条断言验的是"F4 接在科技上"，不是"藏着的按钮也能按"（那是 esc_test 的活）。
+	var sim_k = _main.get("runner").sim
+	var has_inst := false
+	for sh in (sim_k.s["shops"] as Array):
+		if String((sh as Dictionary)["defId"]) == "research_institute":
+			has_inst = true
+			break
+	if not has_inst:
+		var d_inst: Dictionary = _main.get("runner").db.buildings["research_institute"]
+		(sim_k.s["shops"] as Array).append({
+			"id": "inst#keystest", "defId": "research_institute", "owner": "state",
+			"targetWorkers": int(d_inst["workers"]), "wage": 5.0, "wageCap": 30.0,
+			"level": 1, "active": true, "profit": 0.0, "skill": 50.0, "planned": 0.0,
+		})
+		hud.refresh_nav_buttons()
+		await process_frame
+	# ⚠️ 无条件刷一次：标题页那局展示村庄里可能**已经有研究所**（所以上面没插），
+	# 但圆钮是建 HUD 那一刻算的，那时研究所还没落成 —— 不刷的话按钮还是藏着的。
+	hud.refresh_nav_buttons()
 	await process_frame
 	await _key(KEY_F4)
 	if tech_panel == null or not tech_panel.visible:
