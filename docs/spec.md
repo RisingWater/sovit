@@ -31,7 +31,7 @@
 - 所有命令（玩家/AI）追加到 `state.pending`。
 - **黎明**统一执行 `applyActions(state, pending)` 后清空。因此：
   - 06:00 前下的命令当天 06:00 生效；
-  - 06:00 后下的命令等次日 06:00。
+  - 06:00 后下的命令等次日 06:00。**例外：研究队列的三条（research / cancel_research / move_research）当场生效**，见 technology.md §10.2。
 - 命令语义见 `actions.ts`；`end_turn` 为空操作。
 
 ## 2. 生产（日计划 + 小时执行）

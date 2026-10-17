@@ -720,6 +720,28 @@ func _run() -> void:
 	# ⚠️ 面板现在**本身就是全屏**的（顶栏以下全铺满），所以这里**不再**手工设
 	#    position/size —— 原来那几行会把面板挪到 (20,16)、尺寸 1520x856，
 	#    结果截图里底部建造栏从面板下沿露出来，看着像"没盖住"。
+	# 「研究队列」页（科技面板的第二个 tab，2026-10）：
+	# 排两条研究再切过去，验"队列在科研面板里就能看/能调序"。
+	if mode == "techqueue":
+		var tq = node.get_node_or_null("UI/Root/Tech")
+		if tq != null:
+			# 先排两条（研究动作当场生效，所以不用等黎明）
+			for tid in ["stonework", "digging"]:
+				runner.sim.enqueue([{"type": "research", "techId": String(tid)}])
+			tq.open()
+			for _k in 3:
+				await process_frame
+			tq._select_tab(1)
+			for _k2 in 6:
+				await process_frame
+			await RenderingServer.frame_post_draw
+			var qimg2: Image = root.get_texture().get_image()
+			if qimg2 != null:
+				qimg2.save_png(out_path)
+			print("SCREENSHOT techqueue -> ", out_path)
+		quit(0)
+		return
+
 	# 只保留"把画布向下平移一段"这条（让一张图里看得到树的上下两端）。
 	# 第 3 个参数是画布的 y 平移量（传正数 = 向下看多少像素），例如 `tech 0` / `tech 520`
 	if mode == "tech" or mode == "techtip":

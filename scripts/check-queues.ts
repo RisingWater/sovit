@@ -276,5 +276,39 @@ ok('跑完的科技不在队首也生效（扫全队列）',
 ok('它留了一条「研究完成」日志', aLogs.some((l) => l.text.includes('研究完成') && l.text.includes('掘土')),
   aLogs.map((l) => l.text).join(' | '))
 
+// ---- 即时生效（2026-10）：研究队列的三条动作不等黎明 ------------------------
+//
+// 用户："我白天点了一个研究……结果队列里没有，没有实时出现。要到第二天才能调整顺序太蠢了。"
+// 研究的三条动作不花资源（材料在开工时才扣），所以当场应用；建造类仍然次日黎明生效。
+{
+  const s5 = freshResearch()
+  const before = techs(s5).length
+  s5.researchWorkToday = 0
+  const r = advanceHour(s5, [{ type: 'research', techId: T1 }])
+  ok('点「研究」当场进队列（不用等黎明）',
+    techs(r.state).length === before + 1 && techs(r.state).includes(T1),
+    techs(r.state).join(',') || '（空）')
+  ok('它没有留在 pending 里', r.state.pending.length === 0, JSON.stringify(r.state.pending))
+
+  // 调序也当场生效：再排一条，然后把它往上挪
+  const r2b = advanceHour(r.state, [{ type: 'research', techId: T2 }])
+  ok('第二条也能当场排进去', techs(r2b.state).join(',') === [T1, T2].join(','),
+    techs(r2b.state).join(','))
+  const r3b = advanceHour(r2b.state, [{ type: 'move_research', id: T2, delta: -1 }])
+  ok('↑ 当场改顺序（不用等黎明）', techs(r3b.state).join(',') === [T2, T1].join(','),
+    techs(r3b.state).join(','))
+
+  // 撤单也当场生效（材料按进度退）
+  const r4b = advanceHour(r3b.state, [{ type: 'cancel_research', techId: T2 }])
+  ok('× 当场撤单', techs(r4b.state).join(',') === [T1].join(','), techs(r4b.state).join(','))
+
+  // 反例：**建造**仍然等黎明（一天一结算的核心口径不能被这条改动带偏）
+  const s6 = freshState()
+  const r5 = advanceHour(s6, [{ type: 'build', buildingId: A }])
+  ok('建造类的动作仍然留在 pending（次日黎明才生效）',
+    r5.state.pending.some((a) => a.type === 'build') && r5.state.construction.length === 0,
+    `pending=${r5.state.pending.length} construction=${r5.state.construction.length}`)
+}
+
 console.log(failed === 0 ? '\n两条队列自检通过 🎉\n' : `\n两条队列自检失败 ${failed} 项 ❌\n`)
 if (failed > 0) process.exitCode = 1

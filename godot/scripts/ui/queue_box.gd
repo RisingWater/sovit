@@ -89,17 +89,22 @@ func refresh() -> void:
 	if rows.is_empty():
 		_note("队列是空的。%s" % _empty_hint(waiting))
 		return
-	_note("从上往下依次%s：队首先吃到%s %s/天。命令次日 06:00 生效。" % [
+	# ⚠️ 研究队列的三条命令**当场生效**（`sim_core.IMMEDIATE_ACTIONS`），施工的仍然次日黎明 ——
+	#    这句提示别写死成"次日 06:00"，不然玩家点了 ↑ 看到顺序变了反而不信自己眼睛。
+	_note("从上往下依次%s：队首先吃到%s %s/天。%s" % [
 		"施工" if kind == Kind.BUILD else "研究",
-		"建造力" if kind == Kind.BUILD else "科研力", _rate_text()])
+		"建造力" if kind == Kind.BUILD else "科研力", _rate_text(),
+		"命令次日 06:00 生效。" if kind == Kind.BUILD else "调序 / 增删当场生效。"])
 	_gap(2)
 	for i in rows.size():
 		_row(i, rows, view)
 	if waiting > 0:
 		_gap(2)
-		_note("另有 %d 项刚下的单，次日 06:00 才进队列。" % waiting)
+		_note(("另有 %d 项刚下的单，次日 06:00 才进队列。" % waiting) if kind == Kind.BUILD
+			else "另有 %d 项刚下的单。" % waiting)
 	if int(view["cancelled"]) > 0:
-		_note("%d 项已排队取消，次日 06:00 生效（材料那时才退）。" % int(view["cancelled"]))
+		_note(("%d 项已排队取消，次日 06:00 生效（材料那时才退）。" % int(view["cancelled"]))
+			if kind == Kind.BUILD else "%d 项已撤单（材料当场退回）。" % int(view["cancelled"]))
 
 
 func _empty_hint(waiting: int) -> String:

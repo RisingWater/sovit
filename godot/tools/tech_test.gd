@@ -199,28 +199,104 @@ func _run() -> void:
 			_fail("拖动被当成了点击，误下单研究")
 			return
 
-	# ---- 5. 点卡片（位移为 0）→ 必须把研究命令送进 pending
+	# ---- 5. 点卡片（位移为 0）→ 研究**当场进队列**（2026-10：研究三类动作即时生效）
+	#
+	# 用户："我白天点了一个研究……结果队列里没有，没有实时出现。要到第二天才能调整顺序太蠢了。"
+	var want := String(db.tech_ids[0])
+	var q_before := (sim.s["research"]["queue"] as Array).size()
 	_click(card0, Vector2(300, 300))
 	await process_frame
-	var queued := false
-	var want := String(db.tech_ids[0])
-	for a in sim.s["pending"]:
-		if String(a.get("type", "")) == "research" and String(a.get("techId", "")) == want:
-			queued = true
-	if not queued:
-		_fail("点卡片后没有把 research 命令送进 pending")
+	var q_now: Array = sim.s["research"]["queue"]
+	var has_want := false
+	for p in q_now:
+		if String((p as Dictionary).get("id", "")) == want:
+			has_want = true
+	if not has_want:
+		_fail("点卡片后研究队列里没有当场出现「%s」（q=%s）" % [want, JSON.stringify(q_now)])
 		return
+	if q_now.size() != q_before + 1:
+		_fail("点一次卡片队列应当只多一条（%d → %d）" % [q_before, q_now.size()])
+		return
+	for a in sim.s["pending"]:
+		if String(a.get("type", "")) == "research":
+			_fail("research 还留在 pending 里（应当当场生效）")
+			return
 
-	# ---- 6. 推进到次日：研究队列里应该真的出现这一项
+	# ---- 6. 「研究队列」页：tab 在科技面板里，↑↓ 当场改顺序
+	var qpage = panel.find_child("QueuePage", true, false)
+	if qpage == null:
+		_fail("科技面板里没有「研究队列」页（QueuePage）")
+		return
+	if panel.get("_tab_btns").size() != 2:
+		_fail("科技面板应当有两个页签（科技树 / 研究队列），实际 %d" % panel.get("_tab_btns").size())
+		return
+	panel._select_tab(1)
+	await process_frame
+	if not (qpage as Control).visible:
+		_fail("切到「研究队列」页之后它没显示出来")
+		return
+	if (panel.get("_view") as Control).visible:
+		_fail("切到队列页之后科技树应当收起来（两页互斥）")
+		return
+	var qbox = panel.get("_queue_box")
+	if qbox == null:
+		_fail("队列页里没有 QueueBox")
+		return
+	# 再排一条，然后点 ↑ 把第二条挪到前面（走真实按钮）
+	panel._select_tab(0)
+	await process_frame
+	var tech2 := String(db.tech_ids[1])
+	sim.enqueue([{"type": "research", "techId": tech2}])
+	panel._select_tab(1)
+	await process_frame
+	await process_frame
+	var order_before := []
+	for p in (sim.s["research"]["queue"] as Array):
+		order_before.append(String((p as Dictionary)["id"]))
+	if order_before.size() < 2:
+		_fail("队列里应当有两条（实际 %s）" % str(order_before))
+		return
+	var up := _find_queue_button(qbox, "▲", 1)
+	if up == null:
+		_fail("队列第二行没有「▲」按钮")
+		return
+	up.pressed.emit()
+	await process_frame
+	var order_after := []
+	for p in (sim.s["research"]["queue"] as Array):
+		order_after.append(String((p as Dictionary)["id"]))
+	if order_after.size() != order_before.size() or order_after[0] != order_before[1]:
+		_fail("点 ↑ 之后顺序没变（%s → %s）—— 调序应当当场生效"
+			% [str(order_before), str(order_after)])
+		return
+	print("TECH TEST 队列页：tab 切得动、↑ 当场改顺序 %s → %s" % [str(order_before), str(order_after)])
+
+	# ---- 7. 推进到次日：队列还在（研究做完之前不会掉）
 	for h in 24:
 		sim.tick_hour([])
 	await process_frame
 	var q: Array = sim.s["research"]["queue"]
 	if q.is_empty():
-		_fail("次日研究队列仍为空（命令没有被引擎接受）；木材=%s" % str(sim.s["goods"].get("wood", -1)))
+		_fail("次日研究队列空了（研究不该被吞）；木材=%s" % str(sim.s["goods"].get("wood", -1)))
 		return
 
 	print("TECH TEST 科技=%d 卡片=%d 连线=%d(前置边 %d) 拖动 %s->%s 队列=%s" % [
 		db.tech_ids.size(), cards.size(), got, edges, before, after, JSON.stringify(q)])
 	print("TECH TEST RESULT: PASS")
 	quit(0)
+
+## 队列页里找某一行（row_index 起）的按钮（按钮文字是 "↑" / "↓" / "×"）。
+## 行结构在 `queue_box.gd` 里（每行一个 HBox，按钮是最后三个）。
+func _find_queue_button(box, text: String, row_index: int) -> Button:
+	var rows: Array = []
+	for c in box.get_children():
+		if c is HBoxContainer or c is PanelContainer or c is VBoxContainer:
+			rows.append(c)
+	# QueueBox 直接把行挂在自身上（构造见 `queue_box.gd::refresh()`），所以先找按钮再按行筛
+	var hits: Array = []
+	for c in box.find_children("*", "Button", true, false):
+		if String((c as Button).text) == text:
+			hits.append(c)
+	if hits.is_empty():
+		return null
+	return hits[clampi(row_index, 0, hits.size() - 1)]

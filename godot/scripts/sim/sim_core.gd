@@ -11,10 +11,35 @@ var rng: Rng
 func _init(content: ContentDB) -> void:
 	db = content
 
+## **即时生效**的动作：研究队列的增 / 撤 / 调序（用户 2026-10 要求）。
+##
+## 原话："我白天点了一个研究……结果队列里没有，没有实时出现。要到第二天才能调整顺序太蠢了。"
+## 这三条**不花任何资源**（材料是在**开工那一刻**才扣的），只动一条队列，没理由等黎明。
+## ⚠️ 其余动作（建造 / 拆除 / 改价 / 招工…）仍然**次日黎明生效** —— 那是"一天一结算"的核心
+## 口径，也是黄金轨迹的确定性来源。TS 侧同一份名单：`tick.ts::IMMEDIATE_ACTIONS`。
+const IMMEDIATE_ACTIONS := ["research", "cancel_research", "move_research"]
+
+## 当场应用一条动作，并把它的公告并进 `s["log"]`（与 `tick_hour` 末尾同一口径，上限 500）。
+func _apply_immediate(a: Dictionary) -> void:
+	var logs := _apply_actions([a])
+	if logs.is_empty():
+		return
+	var all_logs: Array = s["log"]
+	all_logs.append_array(logs)
+	if all_logs.size() > 500:
+		s["log"] = all_logs.slice(all_logs.size() - 500)
+	else:
+		s["log"] = all_logs
+
 func enqueue(actions: Array) -> void:
 	# 合并同类命令：同一目标的设置只保留最新一条；建造类可叠加。
 	for a in actions:
-		if String(a.get("type", "")) == "end_turn":
+		var at := String(a.get("type", ""))
+		if at == "end_turn":
+			continue
+		# 研究队列那三条：**当场生效**（不等黎明）
+		if IMMEDIATE_ACTIONS.has(at):
+			_apply_immediate(a)
 			continue
 		var key = _action_key(a)
 		if key == "":
@@ -220,7 +245,11 @@ func _empty_account() -> Dictionary:
 # ===========================================================================
 func tick_hour(pending_actions: Array = []) -> Array:
 	for a in pending_actions:
-		s["pending"].append(a)
+		# 研究队列那三条**当场生效**（与 `enqueue()` 同一份名单 / 同一口径）
+		if IMMEDIATE_ACTIONS.has(String(a.get("type", ""))):
+			_apply_immediate(a)
+		else:
+			s["pending"].append(a)
 	var logs := []
 	var h = int(s["hour"])
 	if h == int(db.time["dawnHour"]):

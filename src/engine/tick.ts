@@ -190,32 +190,72 @@ function stepHour(
 }
 
 /**
+ * **即时生效**的动作：研究队列的增 / 撤 / 调序。
+ *
+ * 用户 2026-10："我白天点了一个研究…结果队列里没有，没有实时出现。要到第二天才能调整顺序
+ * 太蠢了。" 这三个动作**不花任何资源**（材料是在**开工那一刻**才扣的），只动一条队列，
+ * 所以没有理由等黎明。
+ *
+ * ⚠️ 其余动作（建造 / 拆除 / 改价 / 招工…）仍然**次日黎明生效** —— 那是"一天一结算"的核心口径，
+ * 也是黄金轨迹的确定性来源。
+ */
+export const IMMEDIATE_ACTIONS: readonly Action['type'][] = [
+  'research',
+  'cancel_research',
+  'move_research',
+]
+
+/**
+ * 把动作分流：即时生效的当场应用（研究队列那三条），其余进 `pending` 等黎明。
+ * 返回即时那批的 `AppliedAction` / 日志，调用方并进本次 tick 的结果里。
+ */
+function queueActions(
+  state: GameState,
+  ctx: ContentContext,
+  actions: Action[],
+  logs: LogEntry[],
+): AppliedAction[] {
+  if (actions.length === 0) return []
+  const immediate = actions.filter((a) => IMMEDIATE_ACTIONS.includes(a.type))
+  const deferred = actions.filter((a) => !IMMEDIATE_ACTIONS.includes(a.type))
+  if (deferred.length > 0) state.pending.push(...deferred)
+  if (immediate.length === 0) return []
+  const applied = applyActions(state, ctx, immediate, logs)
+  // 公告：即时动作的日志**也**要进 `state.log`（它是公告的唯一真源，见 stepHour 末尾）。
+  // 以前取消研究是在黎明应用的，日志跟着黎明那批进；现在当场应用，就得在这儿补一次。
+  state.log = [...state.log, ...logs]
+  if (state.log.length > 500) state.log = state.log.slice(-500)
+  return applied
+}
+
+/**
  * 推进一个游戏小时（纯函数）。
- * 传入的 actions 进入「待生效队列」，在次日黎明（dawnHour）统一应用。
+ * 传入的 actions：研究队列那三条**当场生效**，其余进入「待生效队列」，次日黎明统一应用。
  */
 export function advanceHour(state: GameState, actions: Action[] = []): TickResult {
   const draft: GameState = structuredClone(state)
   const ctx = buildContext(draft.pack)
   const rng = createRng(draft.rngState)
-  if (actions.length > 0) draft.pending.push(...actions)
+  const nowLogs: LogEntry[] = []
+  const nowApplied = queueActions(draft, ctx, actions, nowLogs)
 
   const { logs, applied } = stepHour(draft, ctx, rng)
   draft.rngState = rng.state
-  return { state: draft, log: logs, applied }
+  return { state: draft, log: [...nowLogs, ...logs], applied: [...nowApplied, ...applied] }
 }
 
 /**
- * 推进一整天（hoursPerDay 个小时）。命令在起始处入队、于当天首个黎明生效。
+ * 推进一整天（hoursPerDay 个小时）。研究队列那三条当场生效，其余在当天首个黎明生效。
  * 主要供测试 / 脚本使用。
  */
 export function advanceDay(state: GameState, actions: Action[] = []): TickResult {
   const draft: GameState = structuredClone(state)
   const ctx = buildContext(draft.pack)
   const rng = createRng(draft.rngState)
-  if (actions.length > 0) draft.pending.push(...actions)
-
   const logs: LogEntry[] = []
   const applied: AppliedAction[] = []
+  applied.push(...queueActions(draft, ctx, actions, logs))
+
   for (let i = 0; i < TIME.hoursPerDay; i++) {
     const r = stepHour(draft, ctx, rng)
     logs.push(...r.logs)

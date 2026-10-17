@@ -53,6 +53,18 @@ var _pos: Dictionary = {}         # techId -> Vector2（画布坐标）
 var _canvas_size := Vector2.ZERO
 var _built := false
 
+# 页签（用户 2026-10："在科研面板里点研究，还要到科研中心去找研究队列，很不方便，
+# 研究队列应该是一个 tab，也可以挂进科研面板"）
+const TAB_TREE := 0
+const TAB_QUEUE := 1
+var _tab := TAB_TREE
+var _tab_btns: Array = []
+var _queue_page: Control
+var _queue_box: QueueBox
+## QueueBox 的二次确认状态袋（面板重建时"点了一下 ×"不会被抹掉）
+var _qstate: Dictionary = {}
+var _tab_hint: Label
+
 # 画布平移
 var _pan := Vector2.ZERO
 # 指针状态机（区分"拖动画布"和"点击卡片"）
@@ -116,6 +128,24 @@ func _ready() -> void:
 	_top = VBoxContainer.new()
 	_top.add_theme_constant_override("separation", 2)
 	root.add_child(_top)
+
+	# ---------------- 页签：科技树 / 研究队列
+	#
+	# 用户 2026-10："我在科研面板里点研究，还要到科研中心去找研究队列，很不方便，
+	# 应该研究队列是一个 tab。" 这里复用研究所面板那套共用控件（`queue_box.gd`），
+	# 所以 ↑↓ 调序、× 撤单、退料预览的口径与研究所里那一页完全一致。
+	var tabrow := HBoxContainer.new()
+	tabrow.name = "TabRow"
+	tabrow.add_theme_constant_override("separation", 4)
+	root.add_child(tabrow)
+	for i in 2:
+		var b := UIKit.button("科技树" if i == TAB_TREE else "研究队列", true)
+		b.pressed.connect(_select_tab.bind(i))
+		tabrow.add_child(b)
+		_tab_btns.append(b)
+	tabrow.add_child(UIKit.spacer())
+	_tab_hint = UIKit.label("", UIKit.FG_DIM)
+	tabrow.add_child(_tab_hint)
 	root.add_child(UIKit.hsep())
 
 	# ---------------- 树视口
@@ -129,6 +159,23 @@ func _ready() -> void:
 	_view.gui_input.connect(_on_view_input)
 	_view.resized.connect(_on_view_resized)
 	root.add_child(_view)
+
+	# ---------------- 「研究队列」页（与树视口互斥显示）
+	_queue_page = ScrollContainer.new()
+	_queue_page.name = "QueuePage"
+	_queue_page.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_queue_page.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_queue_page.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	_queue_page.visible = false
+	root.add_child(_queue_page)
+	var qwrap := VBoxContainer.new()
+	qwrap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_queue_page.add_child(qwrap)
+	# ⚠️ `QueueBox.setup()` 会立刻 `refresh()`，所以 runner/world 必须已经就位
+	_queue_box = QueueBox.new()
+	_queue_box.name = "ResearchQueue"
+	_queue_box.setup(runner, world, QueueBox.Kind.RESEARCH, _qstate)
+	qwrap.add_child(_queue_box)
 
 	# 画布：被平移的那一层。mouse_filter=IGNORE —— 自己不收事件，
 	# 但子节点（卡片）照收，空白处的事件冒泡给 _view。
@@ -145,6 +192,11 @@ func _ready() -> void:
 
 	visible = false
 	visibility_changed.connect(_on_visibility_changed)
+	# 研究动作现在**当场生效**（见 `sim_core.IMMEDIATE_ACTIONS`），所以队列页跟着每小时的
+	# 信号刷一次就够；打开时也刷。
+	if runner != null:
+		runner.hour_ticked.connect(_on_hour_ticked)
+	_select_tab(TAB_TREE)
 	# ⚠️ 这里**不**建树：29 张卡片 + 37 条连线不算便宜，而面板默认是隐藏的。
 	# 建树推迟到第一次 open()（_refresh 里的 _built 判断），
 	# 这样"从没打开过科技面板"的玩家和那些只实例化 main.tscn 的头less 测试都不用付这份钱。
@@ -190,6 +242,33 @@ func open() -> void:
 # ---------------------------------------------------------------------------
 func _on_visibility_changed() -> void:
 	UIKit.show_map_chrome(self, not UIKit.any_panel_open(self, visible))
+
+
+## 切页：科技树 ⇄ 研究队列。两个页面**互斥显示**（树要占满剩下的高度）。
+func _select_tab(i: int) -> void:
+	_tab = clampi(i, 0, 1)
+	UIKit.play_switch()
+	for k in _tab_btns.size():
+		(_tab_btns[k] as Button).add_theme_stylebox_override("normal",
+			UIKit.box(UIKit.T_BTN_ACTIVE if k == _tab else UIKit.T_BTN))
+	if _view != null:
+		_view.visible = _tab == TAB_TREE
+	if _queue_page != null:
+		_queue_page.visible = _tab == TAB_QUEUE
+	if _tab_hint != null:
+		_tab_hint.text = ("面板内按住可平移科技树" if _tab == TAB_TREE
+			else "↑↓ 调序 · × 撤单；研究与调序当场生效")
+	if _tab == TAB_QUEUE and _queue_box != null:
+		_queue_box.refresh()
+
+
+## 每小时的刷新：只在「研究队列」页且面板开着时刷（科技树的卡片状态按天刷，见 `_process`）。
+func _on_hour_ticked() -> void:
+	if not visible or _tab != TAB_QUEUE:
+		return
+	_refresh_top()
+	if _queue_box != null:
+		_queue_box.refresh()
 
 
 # ===========================================================================
@@ -363,7 +442,7 @@ func _refresh_top() -> void:
 			rest.append(String(t2["nameZh"]) if t2 != null else String(q[i]["id"]))
 		# 顺序可以改：研究所面板的「研究队列」页（queue_box.gd），这里只报名单
 		_top.add_child(UIKit.label("排队中：" + "、".join(rest)
-			+ "　（顺序在研究所面板的「研究队列」页里调）", UIKit.FG_DIM))
+			+ "　（顺序在下面「研究队列」页里调，当场生效）", UIKit.FG_DIM))
 
 
 func _refresh_states() -> void:
@@ -500,12 +579,12 @@ func _activate(tid: String) -> void:
 	match String(st["key"]):
 		"ready":
 			runner.enqueue([{"type": "research", "techId": tid}])
-			_notify("已排队：%s（次日 06:00 生效）" % nm)
+			_notify("已加入研究队列：%s（当场生效）" % nm)
 		"queued":
 			runner.enqueue([{"type": "cancel_research", "techId": tid}])
 			_notify("已取消研究：%s" % nm)
 		"pending":
-			# 待生效的那条还没进队列，但命令是按顺序在黎明应用的 ——
+			# 待生效的那条还没进队列，但命令是按顺序应用的 ——
 			# 所以补一条 cancel 就能把同一回合的 research 抵消掉。
 			runner.enqueue([{"type": "cancel_research", "techId": tid}])
 			_notify("已撤销排队：%s" % nm)
@@ -519,6 +598,10 @@ func _activate(tid: String) -> void:
 			_notify("需要先研究：%s" % "、".join(names))
 	_last_day = int(runner.sim.s["day"])
 	_refresh_states()
+	# 队列那页也要立刻跟着变（研究动作现在**当场生效**，不用等黎明）
+	_refresh_top()
+	if _queue_box != null and _queue_box.visible:
+		_queue_box.refresh()
 
 
 func _notify(msg: String) -> void:
