@@ -107,12 +107,19 @@ func open() -> void:
 	move_to_front()
 	visible = true
 	refresh()
+	_say_hi()
 
 ## 打开并直接切到某个页签（顶栏左侧的圆钮用：资源 / 人口 / 财政）。
 func open_tab(i: int) -> void:
 	move_to_front()
 	visible = true
+	# `_select_tab` 里会说话（visible 已经是 true），不用再补一次
 	_select_tab(clampi(i, 0, TABS.size() - 1))
+
+## 右下角那位冒一句话（用户 2026-10）。每次**打开**才说，切页签 / 刷新数据都不重说。
+func _say_hi() -> void:
+	if _portrait != null:
+		_portrait.speak()
 
 # ---------------------------------------------------------------------------
 # 打开时**隐藏地图那一侧**的常驻件（小地图 + 左侧圆钮）
@@ -135,8 +142,11 @@ func _select_tab(i: int) -> void:
 		_tab_btns[k].add_theme_stylebox_override("normal",
 			UIKit.box(UIKit.T_BTN_ACTIVE if k == i else UIKit.T_BTN))
 	if _portrait != null:
-		_portrait.setup(String(TAB_PORTRAIT[clampi(i, 0, TAB_PORTRAIT.size() - 1)]))
+		_portrait.setup(String(TAB_PORTRAIT[clampi(i, 0, TAB_PORTRAIT.size() - 1)]), runner.sim)
 	refresh()
+	# 切页签 = 换人，让新的那位也说一句（`_ready` 里那次 visible 还是 false，不会说）。
+	if visible:
+		_say_hi()
 
 ## 面板范围内的鼠标事件一律吃掉。
 ##

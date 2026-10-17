@@ -132,6 +132,9 @@ func open() -> void:
 	_build()
 	_place()
 	_select_latest_entry()
+	# 右下角那位冒一句话（用户 2026-10）
+	if _portrait != null:
+		_portrait.speak()
 
 ## 打开并**把光标放进问话栏**（顶栏那个水晶球走这条）。
 ##
@@ -386,7 +389,7 @@ func _build_prophecy(root: VBoxContainer) -> void:
 	_portrait = PanelPortrait.new()
 	_portrait.name = "Portrait"
 	add_child(_portrait)
-	_portrait.setup("serafina")
+	_portrait.setup("serafina", runner.sim if runner != null else null)
 
 	_rebuild_history()
 	_refresh_status()

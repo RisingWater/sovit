@@ -141,7 +141,7 @@ func _ready() -> void:
 	_portrait = PanelPortrait.new()
 	_portrait.name = "Portrait"
 	add_child(_portrait)
-	_portrait.setup("alvin")
+	_portrait.setup("alvin", runner.sim if runner != null else null)
 
 	visible = false
 	visibility_changed.connect(_on_visibility_changed)
@@ -176,6 +176,9 @@ func open() -> void:
 	if _canvas != null:
 		_canvas.position = _pan
 	_refresh()
+	# 右下角那位冒一句话（用户 2026-10）
+	if _portrait != null:
+		_portrait.speak()
 
 
 # ---------------------------------------------------------------------------

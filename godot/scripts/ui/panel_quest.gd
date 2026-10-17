@@ -119,7 +119,7 @@ func _ready() -> void:
 	_portrait = PanelPortrait.new()
 	_portrait.name = "Portrait"
 	add_child(_portrait)
-	_portrait.setup("reynard")
+	_portrait.setup("reynard", runner.sim if runner != null else null)
 
 	visible = false
 	if runner != null:
@@ -137,6 +137,9 @@ func open() -> void:
 		_open[str(int(_chapter_of(_sel)))] = true
 	visible = true
 	_refresh()
+	# 右下角那位冒一句话（用户 2026-10）
+	if _portrait != null:
+		_portrait.speak()
 	move_to_front()
 
 func close_panel() -> void:

@@ -162,6 +162,87 @@ func _run() -> void:
 	for i in 3:
 		await process_frame
 
+	# ---- 右下角那位要说一句话（用户 2026-10："立绘说一句话吧…在立绘的左边冒个气泡，
+	#      说一下话，有个叉可以点掉"）。
+	#  1) 台词表：七个人各 5 句，一个都不能少；逐字查像素字体有没有那个字（缺字=屏幕上空一块）
+	#  2) 每个情况标签都能挑出话来（挑不出 = 面板上永远不弹气泡）
+	#  3) 气泡真的冒出来、在立绘**左边**、里面的字不是空的
+	#  4) 点「×」能收掉
+	var font := UIKit.pixel_font()
+	var ctxs := ["hungry", "broke", "nohouse", "unhappy", "idle", "small", "ok", ""]
+	for cid in AdvisorLines.LINES.keys():
+		var lines: Array = AdvisorLines.LINES[cid]
+		if lines.size() != 5:
+			_fail("「%s」的台词应当是 5 句，实际 %d 句" % [cid, lines.size()])
+			return
+		for l in lines:
+			var txt := String((l as Dictionary).get("text", ""))
+			if txt.strip_edges() == "":
+				_fail("「%s」有一句是空的" % cid)
+				return
+			for ch in txt:
+				if not font.has_char(ch.unicode_at(0)):
+					_fail("「%s」的台词里有像素字体画不出的字：%s（「%s」）"
+						% [cid, ch, txt])
+					return
+		for k in ctxs:
+			if AdvisorLines.pick(String(cid), String(k)) == "":
+				_fail("「%s」在情况「%s」下挑不出话（面板上就不弹气泡了）" % [cid, k])
+				return
+	print("PANEL TEST 台词表 7 人 × 5 句，缺字 0，8 种情况都能挑出话")
+
+	var portrait = panel.get_node_or_null("Portrait")
+	var bubble = portrait.get_node_or_null("Bubble") if portrait != null else null
+	if bubble == null:
+		_fail("立绘上没有「Bubble」气泡节点")
+		return
+	if not (bubble as CanvasItem).visible:
+		_fail("打开面板之后气泡应当是可见的（顾问要说话）")
+		return
+	var said := ""
+	for lb in (bubble as Node).find_children("*", "Label", true, false):
+		if String((lb as Label).text).strip_edges() != "":
+			said = String((lb as Label).text)
+			break
+	if said == "":
+		_fail("气泡里没有字")
+		return
+	# 气泡要**整块在面板里**（右缘不许超出面板右边；左边有立绘挡着时会被夹住）
+	var pv := portrait as Control
+	var bv := bubble as Control
+	if bv.position.x < 0.0 or bv.position.x + bv.size.x > pv.size.x + 1.0:
+		_fail("气泡跑到面板外面去了（x %.0f..%.0f，面板宽 %.0f）"
+			% [bv.position.x, bv.position.x + bv.size.x, pv.size.x])
+		return
+	print("PANEL TEST 气泡：%s（x %.0f..%.0f，面板宽 %.0f）"
+		% [said, bv.position.x, bv.position.x + bv.size.x, pv.size.x])
+	# 竖着要**对准肩膀**（不是贴底）—— 用户 2026-10："不要贴底啊，大概在立绘肩膀的位置，
+	# 你这个不是用屁股说话吗？"
+	var p_th: float = pv.size.y * PanelPortrait.HEIGHT_RATIO
+	var p_py: float = pv.size.y + (pv as PanelPortrait).edge_pad.y - p_th
+	var b_cy: float = bv.position.y + bv.size.y * 0.5
+	if b_cy < p_py + p_th * 0.20 or b_cy > p_py + p_th * 0.60:
+		_fail("气泡的竖位置不在肩膀那一带（中心 y=%.0f，立绘 %.0f..%.0f）"
+			% [b_cy, p_py, p_py + p_th])
+		return
+	print("PANEL TEST 气泡竖位置 %.0f 落在立绘 %.0f..%.0f 的肩线附近 ✅"
+		% [b_cy, p_py, p_py + p_th])
+	# 点「×」收掉
+	var xbtn: Button = null
+	for b in (bubble as Node).find_children("*", "Button", true, false):
+		if String((b as Button).text) == "×":
+			xbtn = b
+			break
+	if xbtn == null:
+		_fail("气泡上没有「×」按钮")
+		return
+	xbtn.pressed.emit()
+	await process_frame
+	if (bubble as CanvasItem).visible:
+		_fail("点了「×」气泡没有收掉")
+		return
+	print("PANEL TEST 气泡点「×」收掉 ✅")
+
 	# ---- 资源 Tab：直接在列表里点商品名选中（不再有底部那排选择按钮），
 	#      而且详情里**不再画折线图**（用户 2026-10："库存+日产两个折线图删掉"）。
 	#      所以这里反过来断言：选中之后一个 Chart 都不该有。
