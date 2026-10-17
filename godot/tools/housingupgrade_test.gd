@@ -12,7 +12,8 @@ extends SceneTree
 #   2. 引擎（GDScript 这份实现）：下单 → 队列里出现条目 → 完工时茅屋 −1、木屋 +1，**栋数不变**；
 #   3. 世界层：升级中的住房头顶有进度条（先灰后蓝）、悬停能看进度；
 #   4. 私有住房不能改建（居民买下的私产）；
-#   5. 住房面板里给得出「改建为木屋」按钮，且私有时置灰。
+#   5. 住房面板里给得出「改建为木屋」按钮，且私有时置灰；`s["housing"]` 计数 = 由 `housingUnits` 数出来的；
+#   6. 一批茅屋同时改建：**原地换**（同一格、同一房号）、进度条不会跳房子（2026-10）。
 #
 # 用法（在 godot/ 下）：
 #   powershell -NoProfile -File tools/headless_timeout.ps1 -Script res://tools/housingupgrade_test.gd
@@ -125,10 +126,13 @@ func _run() -> void:
 	if huts0 < 1:
 		_fail("新局没有茅屋，测不了")
 		return
-	world.runner.enqueue([{"type": "upgrade_housing", "goodId": "hut"}])
-	await process_frame
-	# 命令次日黎明（hour 6）生效；先看"刚下单"这条 pending 状态
+	# 命令次日黎明（hour 6）生效；先看"刚下单"这条 pending 状态。
+	# ⚠️ 下单要**指名房号**（`unitId`）：真实 UI（住房面板）就是这么发的，
+	# pending 阶段也只有这样才挂得到那一栋头上。
 	var inst0: Dictionary = world._housing_instances[0]
+	world.runner.enqueue([{"type": "upgrade_housing", "goodId": "hut",
+		"unitId": String(inst0["uid"])}])
+	await process_frame
 	var st_pending: Dictionary = world._housing_upgrade_state(inst0)
 	if String(st_pending.get("state", "")) != "pending":
 		_fail("刚下单时那条住房应显示 pending，实际 %s" % str(st_pending))
@@ -191,18 +195,30 @@ func _run() -> void:
 	_ok("住房面板按钮：「%s」（可用）" % btn.text)
 
 	# ---- 4. 私有住房不能改建 --------------------------------------------------
-	# 私有化的分配口径：`_assign_homes()` 按实例顺序把前 N 座标成私有。
-	sim.s["privateHousing"]["hut"] = 1.0
+	# 私有标记现在**落在具体那一栋**上（`HousingUnit.private` + `ownerId`），
+	# 不是"前 N 座按顺序标"（那是旧的计数模型口径）。
+	var priv_unit: Variant = null
+	for u in (sim.s["housingUnits"] as Array):
+		if String((u as Dictionary)["type"]) == "hut":
+			priv_unit = u
+			break
+	if priv_unit == null:
+		_fail("找不到一栋茅屋来私有化")
+		return
+	(priv_unit as Dictionary)["private"] = true
+	(priv_unit as Dictionary)["ownerId"] = "res#1"
+	sim._sync_housing_counts()
+	var inst_before_priv = world._housing_by_uid.get(String((priv_unit as Dictionary)["id"]), null)
+	if inst_before_priv == null:
+		_fail("私有那栋房在地图上找不到实例（房号对不上？）")
+		return
+	# 那一栋的私有标记要跟着变（`_assign_homes` 按房号读 unit）
 	world._assign_homes()
 	await process_frame
-	var priv_inst: Dictionary = {}
-	for inst in world._housing_instances:
-		if String(inst["type"]) == "hut" and bool(inst["private"]):
-			priv_inst = inst
-			break
-	if priv_inst.is_empty():
-		_fail("没能造出一座私有茅屋（_assign_homes 没标 private？）")
+	if not bool(inst_before_priv["private"]):
+		_fail("地图上的实例没跟着 unit.private 变成私有")
 		return
+	var priv_inst: Dictionary = inst_before_priv
 	if not world._housing_upgrade_state(priv_inst).is_empty():
 		_fail("私有住房不该显示改建进度条（它不会被改建）")
 		return
@@ -215,14 +231,24 @@ func _run() -> void:
 	if not pbtn.disabled:
 		_fail("私有住房的改建按钮必须置灰")
 		return
-	# 引擎层面也要拦：直接把全部茅屋私有化，再试一次下单
-	sim.s["privateHousing"]["hut"] = float(sim.s["housing"]["hut"])
+	# 引擎层面也要拦：把这种房型**全部**私有化，再试一次下单
+	for u2 in (sim.s["housingUnits"] as Array):
+		if String((u2 as Dictionary)["type"]) == "hut":
+			(u2 as Dictionary)["private"] = true
+	sim._sync_housing_counts()
 	var before := _entries(sim, "housing_upgrade").size()
 	sim._try_upgrade_housing("hut")
 	if _entries(sim, "housing_upgrade").size() != before:
 		_fail("私有住房竟然排进了改建队列")
 		return
-	_ok("私有住房：按钮置灰 + 引擎拒绝下单（私有住房不能改建）")
+	# 指名一栋**私有**的也要被拒（指名路径独立于"挑一栋"路径）
+	var bid_uid := String((priv_unit as Dictionary)["id"])
+	var before2 := _entries(sim, "housing_upgrade").size()
+	sim._try_upgrade_housing("hut", bid_uid)
+	if _entries(sim, "housing_upgrade").size() != before2:
+		_fail("指名一栋私有房，居然也排进了改建队列")
+		return
+	_ok("私有住房：按钮置灰 + 引擎拒绝下单（含指名路径；私有/公有按房号区分）")
 
 	# ---- 5. 一批茅屋同时改建：房子要**原地换**、进度条不许乱跳 ------------------
 	#
@@ -246,16 +272,21 @@ func _run() -> void:
 	if huts_before < 3:
 		_fail("新局的茅屋太少（%d 座），测不了" % huts_before)
 		return
-	# 连下 3 条改建
-	for i in 3:
-		world.runner.enqueue([{"type": "upgrade_housing", "goodId": "hut"}])
-	await process_frame
-	# 记下"改建前第一座茅屋的格子"——FIFO 的话，它应该第一个被换掉
-	var first_hut_cell: Vector2i = Vector2i(-1, -1)
+	# 连下 3 条改建（**指名房号** —— 真实 UI 就是这么发的；不指名就没有 pending 条）
+	var hut_insts: Array = []
 	for inst in world._housing_instances:
 		if String(inst["type"]) == "hut":
-			first_hut_cell = inst["cell"]
-			break
+			hut_insts.append(inst)
+	if hut_insts.size() < 3:
+		_fail("地图上的茅屋实例不足 3 座（%d）" % hut_insts.size())
+		return
+	for i in 3:
+		world.runner.enqueue([{"type": "upgrade_housing", "goodId": "hut",
+			"unitId": String((hut_insts[i] as Dictionary)["uid"])}])
+	await process_frame
+	# 记下"改建前第一座茅屋的格子与房号"——建完之后应当**同一格、同一房号、房型变木屋**
+	var first_hut_cell: Vector2i = (hut_insts[0] as Dictionary)["cell"]
+	var first_hut_uid := String((hut_insts[0] as Dictionary)["uid"])
 	for h in 8:
 		sim.tick_hour([])
 		await process_frame
@@ -263,24 +294,21 @@ func _run() -> void:
 	if ups3.size() != 3:
 		_fail("黎明后施工队列里应有 3 条改建，实际 %d 条" % ups3.size())
 		return
-	# 配对：第一座茅屋头顶应当是**队首**那条（building = 正在施工）
-	var hut0: Dictionary = {}
-	for inst in world._housing_instances:
-		if String(inst["type"]) == "hut":
-			hut0 = inst
-			break
-	if hut0.is_empty() or int(world._housing_ordinal(hut0)) != 0:
-		_fail("第一座茅屋的序号不是 0（进度条配对会错位）")
-		return
+	# 条目里必须写着**是哪一栋**（这就是"给他们 id"的直接断言）
+	for i in 3:
+		if String(ups3[i].get("housingUnitId", "")) != String((hut_insts[i] as Dictionary)["uid"]):
+			_fail("第 %d 条改建没记住房号（记的是「%s」，应为「%s」）"
+				% [i + 1, String(ups3[i].get("housingUnitId", "")), String((hut_insts[i] as Dictionary)["uid"])])
+			return
+	var hut0: Dictionary = hut_insts[0]
 	var st0: Dictionary = world._housing_upgrade_state(hut0)
 	if String(st0.get("state", "")) != "building":
-		_fail("第一座茅屋头顶应当是队首那条（building），实际 %s" % str(st0))
+		_fail("第一座茅屋头顶应当是它自己那条（building），实际 %s" % str(st0))
 		return
-	# 只让**第一条**完工，然后立刻验"配对没有错位"—— 这才是"进度条到处乱跳"的直接断言：
-	# 剩下那几座里**最早的一座**（序号仍是 0）必须继续顶着**新的队首**那条。
+	# 只让**第一条**完工，然后立刻验"那栋房原地换、其它房的条不跑" ——
+	# 这才是"进度条到处乱跳"的直接断言：完工后剩下那两栋头顶的条必须还是**它们自己**那条。
 	#
-	# ⚠️ 必须人为把进度拉开：一次工作小时可能同时完工两条（第一版就是这么红的：
-	#    采样到的中间态是"还剩 1 条"，中间那一帧根本没看到）。
+	# ⚠️ 必须人为把进度拉开：一次工作小时可能同时完工两条（第一版就是这么红的）。
 	ups3[0]["remaining"] = 0.5
 	for i in range(1, ups3.size()):
 		ups3[i]["remaining"] = 9999.0
@@ -293,27 +321,28 @@ func _run() -> void:
 	if left.size() != ups3.size() - 1:
 		_fail("把进度拉开之后应当**恰好**完工 1 条（还剩 %d 条）" % left.size())
 		return
-	var at_first_mid := ""
-	var hut_next: Dictionary = {}
-	for inst in world._housing_instances:
-		if inst["cell"] == first_hut_cell:
-			at_first_mid = String(inst["type"])
-		elif String(inst["type"]) == "hut" and hut_next.is_empty():
-			hut_next = inst
-	if at_first_mid != "wooden_house":
-		_fail("第一条改建完工后，原来那座茅屋那一格是「%s」，应当是 wooden_house（原地换）"
-			% at_first_mid)
+	# ① 完工的那栋：**同一格、同一房号**，房型变木屋
+	var inst_first = world._housing_by_uid.get(first_hut_uid, null)
+	if inst_first == null:
+		_fail("完工之后那栋房的实例不见了（房号 %s）" % first_hut_uid)
 		return
-	if hut_next.is_empty() or int(world._housing_ordinal(hut_next)) != 0:
-		_fail("第一条完工后，剩下那座茅屋的序号不是 0（配对整体错位 → 进度条会跳房子）")
+	if String(inst_first["type"]) != "wooden_house" or (inst_first["cell"] as Vector2i) != first_hut_cell:
+		_fail("完工后那栋房应原地换成木屋（现在 %s @ %s）"
+			% [String(inst_first["type"]), str(inst_first["cell"])])
 		return
-	var st1: Dictionary = world._housing_upgrade_state(hut_next)
-	var want1: Dictionary = world._entry_bar_state(left[0])
-	if String(st1.get("state", "")) != String(want1.get("state", "")) \
-			or absf(float(st1.get("frac", 0.0)) - float(want1.get("frac", 0.0))) > 0.001:
-		_fail("第一条完工后进度条没跟到队首那条：显示 %s / 应为 %s（条在跳房子）"
-			% [str(st1), str(want1)])
+	if not world._housing_upgrade_state(inst_first).is_empty():
+		_fail("完工那栋还挂着进度条")
 		return
+	# ② 剩下那两栋：条必须还是**各自那条**（按房号对，不按顺序凑）
+	for i in range(1, 3):
+		var inst_i: Dictionary = hut_insts[i]
+		var st_i: Dictionary = world._housing_upgrade_state(inst_i)
+		var want_i: Dictionary = world._entry_bar_state(left[i - 1])
+		if String(st_i.get("state", "")) != String(want_i.get("state", "")) \
+				or absf(float(st_i.get("frac", 0.0)) - float(want_i.get("frac", 0.0))) > 0.001:
+			_fail("第 %d 栋茅屋的进度条不是它自己那条：显示 %s / 应为 %s（条在跳房子）"
+				% [i + 1, str(st_i), str(want_i)])
+			return
 	# 把剩下那几条的进度放回去，让它们照常完工
 	for c in left:
 		c["remaining"] = 1.0

@@ -209,7 +209,7 @@ func _run() -> void:
 	for site in world._sites:
 		var type := String(site["id"])
 		if String(site["kind"]) == "housing":
-			housing[type] = float(housing.get(type, 0.0)) + 1.0
+			runner.sim._add_housing_unit(type)
 			continue
 		n += 1
 		shops.append({

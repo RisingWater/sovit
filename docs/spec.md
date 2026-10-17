@@ -202,9 +202,11 @@ savings += gross − tax ;  government.money += (Σtax − Σgross)
 实际退化成常量 **1**（`housing.json` 的 `salePrice` 三档都写了 10 / 25 / 50，永远命中第二级）。
 GDScript 侧要小心：`Dictionary.get(k, 默认值)` **不短路**，回退值必须先算出来
 （`sim_core.gd::_base_value_or()`）。
-当 `stateOwned>0 && soldTotal<privateHousingPerDay`，选**存款最高**的合格买家：
+当"该房型还有**国有且未售**的一栋"且 `soldTotal<privateHousingPerDay`，选**存款最高**的合格买家：
 非房主、`classLevel>=2`、`classLevel==def.quality`、`savings>=price+5`、`satisfaction>=privateHousingNeedThreshold`。
-成交：`savings-=price`、`homeowner=true, ownedQuality=quality`、`privateHousing[gid]++`、`government.money+=price`。
+成交（2026-10 起**落在具体那一栋**上）：`savings-=price`、`homeowner=true, ownedQuality=quality`、
+`ownedUnitId=<那一栋的房号>`、那一栋 `unit.private=true / unit.ownerId=<买家>`、`government.money+=price`；
+计数由 `syncHousingCounts()` 重算（`privateHousing[gid]++` 是它的结果，不再手写）。
 
 ### 5.4 住房改建 `upgrade_housing`（2026-10）
 
@@ -213,21 +215,46 @@ GDScript 侧要小心：`Dictionary.get(k, 默认值)` **不短路**，回退值
 （用户："茅屋可以升级成木屋，木屋升级成砖房，但是别墅要单独建造"）。
 
 ```
-动作    { type:'upgrade_housing', goodId }        # goodId = 改建**前**的房型
+动作    { type:'upgrade_housing', goodId, unitId? }   # goodId = 改建**前**的房型
+        unitId = 指名那一栋（`HousingUnit.id`）；不给就由引擎挑最早那栋可改建的
 前提    goodId ∈ pack.housing；有 upgradeTo；目标房型已解锁（同 build_housing）
-        国有栋数 = housing[goodId] − privateHousing[goodId] − 在途改建数 ≥ 1
+        选中的那栋必须存在、房型对、**非私有**、且没有已经在改建队列里
         # → 私有住房**不能**改建；在途的也算占用（否则完工时会凭空多出一栋）
 成本    mats = { g: max(0, to.buildCost[g] − from.buildCost[g]) }   # 只算差价，旧料视为回收
         work = max(1, to.buildWork − from.buildWork)
-条目    construction 里 kind='housing_upgrade'，housingId=from、toHousingId=to
+条目    construction 里 kind='housing_upgrade'，housingId=from、toHousingId=to、
+        **housingUnitId = 那一栋的房号**
         **不额外占土地名额**（`usedSlots()` 跳过它）
-完工    housing[from] -= 1（下限 0）；housing[to] += 1          # 栋数不变
+完工    **那一栋**的 `unit.type = to`（房号不变、栋数不变），再 `syncHousingCounts()`
         日志：`<from> 改建为 <to>`
 ```
 
-`available()`（开工时扣材料）与其它工程同一条路径；进度条与悬停提示由表现层负责
-（世界层按"同类型第 i 座住房 ↔ 第 i 条在途改建"配对，见 docs/town.md §14）。
+`available()`（开工时扣材料）与其它工程同一条路径；进度条与悬停提示由表现层负责 ——
+2026-10 起**按房号认**（`housingUnitId`），不再靠"同类型第 i 座 ↔ 第 i 条"的顺序配对
+（那套约定曾让进度条在批量改建时到处乱跳，见 docs/town.md §二十八）。
 自检：`scripts/check-housing-upgrade.ts`（引擎）＋ `godot/tools/housingupgrade_test.gd`（镜像与世界层）。
+
+### 5.5 住房单体 `housingUnits`（2026-10）
+
+用户："引擎没建筑 id？村民 id 也没有？" —— 建筑（`shops[].id`）和村民（`residents[].id`）
+本来就有，**只有住房**是 `{hut: 6}` 这种计数。现在补上：
+
+```
+state.housingUnits: HousingUnit[]     # 一栋一个：{ id: "h#7", type, private, ownerId? }
+state.housingSeq: number              # 下一个房号（单调，收房不回收号码）
+state.housing / state.privateHousing  # **派生计数**，由 syncHousingCounts() 从 units 重算
+```
+
+- 增删房一律走 `addHousingUnit()` / `removeHousingUnit()`（GDScript 同名下划线版），
+  它们内部会重算计数；**改建只换 `type`，房号不变**
+- `privateHousing` 不再手写：私有一栋就 `unit.private = true`（+ `ownerId`）
+- 容量 / 租金 / 任务判定 / 黄金摘要继续读计数 → 行为与摘要都不变
+  （`scripts/golden.ts::summarize` 取的就是 `state.housing`）
+- 存档版本 **3**（旧档拒读）；`SaveManager._sanitize()` 在缺 `housingUnits` 的残缺存档里
+  按计数重建，然后按 units 回算两个计数
+- 世界层与仿真**一一对应**：地图实例的 `uid` 就是房号（`h#N`），
+  所以"哪一栋在改建 / 哪一栋是私产"都是确定的
+
 
 ## 6. 消费 `runConsumption`（夜晚）
 

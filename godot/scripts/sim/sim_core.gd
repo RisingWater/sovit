@@ -79,8 +79,11 @@ func new_game(pack_id: String, seed_value: int, resource_mult: float = 1.0) -> v
 	var housing := {}
 	var private_housing := {}
 	var start_housing: Dictionary = start["housing"]
+	# 每栋房一个条目（2026-10）：id 单调发号 `h#N`，改建换 type 不换 id
+	var housing_units := []
+	var housing_seq := 0
 	for gid in pack["housing"]:
-		housing[gid] = float(start_housing.get(gid, 0.0))
+		housing[gid] = 0.0
 		private_housing[gid] = 0.0
 		var hd: Dictionary = db.housing[gid]
 		# ⚠️ GDScript 的 `Dictionary.get(k, 默认值)` **不短路** —— 默认值总会被求值。
@@ -88,6 +91,12 @@ func new_game(pack_id: String, seed_value: int, resource_mult: float = 1.0) -> v
 		# 住房 2026-10 起**不再是商品**（`goods.json` 里没有 hut/wooden_house/brick_house），
 		# 那样写会在 `new_game` 里直接 KeyError。
 		prices[gid] = float(hd.get("salePrice", _base_value_or(gid)))
+	for gid in pack["housing"]:
+		var n := int(floor(float(start_housing.get(gid, 0.0))))
+		for i in n:
+			housing_seq += 1
+			housing_units.append({"id": "h#%d" % housing_seq, "type": String(gid), "private": false})
+		housing[gid] = float(n)
 
 	var shops := []
 	var start_shops: Dictionary = start["shops"]
@@ -148,6 +157,9 @@ func new_game(pack_id: String, seed_value: int, resource_mult: float = 1.0) -> v
 			"storageCaps": {},
 		},
 		"goods": goods, "housing": housing, "privateHousing": private_housing, "prices": prices,
+		# 住房单体（唯一真源）：`housing` / `privateHousing` 是它算出来的计数，
+		# 见 docs/spec.md §5.5。`housingSeq` = 下一条房号的序号（单调，收房不回收号码）。
+		"housingUnits": housing_units, "housingSeq": housing_seq,
 		"shops": shops, "residents": residents, "construction": [],
 		# 城镇中心是不是**破旧**的（用户 2026-10：一开局是废墟，修好才换回好图）。
 		# ⚠️ 这是**表现层要用的一个开关**，仿真的任何数字都不读它 ——
@@ -407,7 +419,8 @@ func _apply_actions(actions: Array) -> Array:
 			"build_housing":
 				_try_build_housing(String(action["goodId"]))
 			"upgrade_housing":
-				_try_upgrade_housing(String(action["goodId"]))
+				# `unitId`：玩家从某栋房的面板点「改建」时带上它（指名到栋，进度条才钉得住）
+				_try_upgrade_housing(String(action["goodId"]), String(action.get("unitId", "")))
 			"move_construction":
 				_move_construction(String(action["id"]), int(action.get("delta", 0)))
 			"cancel_construction":
@@ -961,7 +974,80 @@ func _pay_wages(day: int) -> Array:
 
 # ===========================================================================
 # 住房
+#
+# ⚠️ 2026-10 起住房有**单体身份**：`s["housingUnits"]` 一栋一个条目
+# （`{id: "h#N", type, private, ownerId?}`），而 `s["housing"]` / `s["privateHousing"]`
+# 变成**派生计数**（`_sync_housing_counts()` 从 units 重算）。
+# 容量 / 租金 / 任务 / 黄金摘要继续读计数，行为不变；但"哪一栋在改建 / 哪一栋被买下"
+# 现在都指到具体那一栋（`housing_upgrade` 条目带 `housingUnitId`）。
+# 两个引擎同口径（TS 侧 `systems/housing.ts`）。
 # ===========================================================================
+
+## 从 units 重算 `housing` / `privateHousing`。**任何**增删房 / 改建 / 私有化之后都要调。
+func _sync_housing_counts() -> void:
+	for gid in s["housing"].keys():
+		s["housing"][gid] = 0.0
+	for gid in s["privateHousing"].keys():
+		s["privateHousing"][gid] = 0.0
+	for u in s["housingUnits"]:
+		var t := String(u["type"])
+		if not s["housing"].has(t):
+			s["housing"][t] = 0.0
+		if not s["privateHousing"].has(t):
+			s["privateHousing"][t] = 0.0
+		s["housing"][t] = float(s["housing"][t]) + 1.0
+		if bool(u.get("private", false)):
+			s["privateHousing"][t] = float(s["privateHousing"][t]) + 1.0
+
+## 新建一栋房（发号 `h#N`，单调、不回收）。
+func _add_housing_unit(good_id: String, private: bool = false, owner_id: String = "") -> Dictionary:
+	s["housingSeq"] = int(s.get("housingSeq", 0)) + 1
+	var unit := {"id": "h#%d" % int(s["housingSeq"]), "type": good_id, "private": private}
+	if owner_id != "":
+		unit["ownerId"] = owner_id
+	(s["housingUnits"] as Array).append(unit)
+	_sync_housing_counts()
+	return unit
+
+func _housing_unit(unit_id: String) -> Variant:
+	for u in s["housingUnits"]:
+		if String(u["id"]) == unit_id:
+			return u
+	return null
+
+## 调试 / 测试 / 截图工具用：把某房型的**栋数**改成 n（增删 units，计数自动重算）。
+##
+## ⚠️ 正式玩法不许调它 —— 增删房只走 `_add_housing_unit()` / 改建 / 私有化。
+## 存在的理由：以前大家直接写 `s["housing"]["hut"] = 8`，而现在那两个是**派生计数**，
+## 直接写会在下一次 `_sync_housing_counts()` 被抹掉（而且和 units 打架）。
+func debug_set_housing_units(good_id: String, n: int) -> void:
+	var cur := 0
+	for u in s["housingUnits"]:
+		if String(u["type"]) == good_id:
+			cur += 1
+	while cur < n:
+		_add_housing_unit(good_id)
+		cur += 1
+	while cur > n:
+		var removed := false
+		for i in range((s["housingUnits"] as Array).size() - 1, -1, -1):
+			var u2: Dictionary = (s["housingUnits"] as Array)[i]
+			if String(u2["type"]) == good_id and not bool(u2.get("private", false)):
+				(s["housingUnits"] as Array).remove_at(i)
+				removed = true
+				break
+		if not removed:
+			break
+		cur -= 1
+	_sync_housing_counts()
+
+## 第一栋**国有**的同房型房（私有住房市场卖的是这个）。
+func _first_state_housing_unit(good_id: String) -> Variant:
+	for u in s["housingUnits"]:
+		if String(u["type"]) == good_id and not bool(u.get("private", false)):
+			return u
+	return null
+
 func _housing_capacity() -> int:
 	var cap = 0
 	for gid in s["housing"].keys():
@@ -1087,9 +1173,12 @@ func _run_private_housing_market(day: int) -> Array:
 		var price = float(s["prices"].get(gid, def.get("salePrice", _base_value_or(gid))))
 		if price <= 0.0:
 			continue
-		var state_owned = int(floor(float(s["housing"].get(gid, 0.0)) - float(s["privateHousing"].get(gid, 0.0))))
 		var sold = 0
-		while state_owned > 0 and sold_total < per_day:
+		while sold_total < per_day:
+			# 卖的是**具体某一栋**（国有、还没被买走的）
+			var unit = _first_state_housing_unit(gid)
+			if unit == null:
+				break
 			var buyer: Variant = null
 			for r in s["residents"]:
 				if bool(r.get("homeowner", false)):
@@ -1110,13 +1199,15 @@ func _run_private_housing_market(day: int) -> Array:
 			buyer["savings"] = SimUtil.r2(float(buyer["savings"]) - price)
 			buyer["homeowner"] = true
 			buyer["ownedQuality"] = int(def["quality"])
+			buyer["ownedUnitId"] = String(unit["id"])
 			s["government"]["money"] = SimUtil.r2(float(s["government"]["money"]) + price)
-			s["privateHousing"][gid] = float(s["privateHousing"].get(gid, 0.0)) + 1.0
-			state_owned -= 1
+			unit["private"] = true
+			unit["ownerId"] = String(buyer["id"])
 			sold += 1
 			sold_total += 1
 		if sold > 0:
 			logs.append({"day": day, "kind": "invest", "text": "%d 户购买私有住房（¥%.0f/户）" % [sold, price]})
+	_sync_housing_counts()
 	return logs
 
 # ===========================================================================
@@ -1684,11 +1775,15 @@ func _try_build_housing(good_id: String) -> void:
 ## 住房改建：下单进施工队列（材料在开工时才扣）。见 docs/spec.md §5.4。
 ##
 ## ⚠️ 三条规矩（与 TS 的 `tryUpgradeHousing()` 一致）：
-##   · **只允许国有住房**：私有住房是居民买下的私产（`privateHousing` + 房主 ownedQuality），
+##   · **只允许国有住房**：私有住房是居民买下的私产（`HousingUnit.private` + 房主 ownedQuality），
 ##     改建的口径复杂且容易算乱（用户拍板：私有住房不能改建）；
 ##   · **在途的改建也算占用**：2 栋茅屋只能排 2 条改建 —— 否则完工时会凭空多出一栋木屋；
 ##   · **目标房型要已解锁**（和 `build_housing` 同一条规矩）。
-func _try_upgrade_housing(good_id: String) -> void:
+##
+## 2026-10 起**指名到栋**：条目里带 `housingUnitId`（`unit_id` 指定，不指定就挑最早那栋
+## 可改建的）。完工时换那栋的 `type`，**id 不变** —— 于是"哪一栋在改建"是确定的，
+## 地图上的进度条不用再按顺序猜。
+func _try_upgrade_housing(good_id: String, unit_id: String = "") -> void:
 	if not _pack()["housing"].has(good_id):
 		return
 	if not db.housing.has(good_id):
@@ -1699,13 +1794,8 @@ func _try_upgrade_housing(good_id: String) -> void:
 		return	# 链尾（砖房）/ 别墅：不能改建
 	if not is_housing_unlocked(to_id):
 		return
-	var total = int(floor(float(s["housing"].get(good_id, 0.0))))
-	var priv = int(floor(float(s["privateHousing"].get(good_id, 0.0))))
-	var in_flight = 0
-	for c in s["construction"]:
-		if String(c["kind"]) == "housing_upgrade" and String(c.get("housingId", "")) == good_id:
-			in_flight += 1
-	if total - priv - in_flight < 1:
+	var target = _pick_upgradable_unit(good_id, unit_id)
+	if target == null:
 		return
 	var spec: Dictionary = _housing_upgrade_spec(from_def, db.housing[to_id])
 	var work = float(spec["work"])
@@ -1713,8 +1803,35 @@ func _try_upgrade_housing(good_id: String) -> void:
 		"id": "c#%d-re-%s" % [s["construction"].size() + 1, good_id],
 		"kind": "housing_upgrade", "buildingId": "", "shopId": "",
 		"housingId": good_id, "toHousingId": to_id,
+		"housingUnitId": String(target["id"]),
 		"remaining": work, "totalRequired": work, "started": false,
 	})
+
+## 挑一栋可改建的房：国有（非私有）、房型对、且**没有**已经在改建队列里。
+## `unit_id` 非空时指名那一栋（找不到 / 房型不对 / 私有 → 返回 null）。
+## 与 TS `pickUpgradableUnit()` 同口径。
+func _pick_upgradable_unit(good_id: String, unit_id: String = "") -> Variant:
+	var busy := {}
+	for c in s["construction"]:
+		if String(c.get("kind", "")) == "housing_upgrade":
+			var bid := String(c.get("housingUnitId", ""))
+			if bid != "":
+				busy[bid] = true
+	if unit_id != "":
+		for u in s["housingUnits"]:
+			if String(u["id"]) != unit_id:
+				continue
+			if String(u["type"]) != good_id or bool(u.get("private", false)) or busy.has(unit_id):
+				return null
+			return u
+		return null
+	for u in s["housingUnits"]:
+		if String(u["type"]) != good_id or bool(u.get("private", false)):
+			continue
+		if busy.has(String(u["id"])):
+			continue
+		return u
+	return null
 
 # ===========================================================================
 # 研究（见 docs/technology.md）
@@ -2272,15 +2389,21 @@ func _activate_completed() -> Array:
 				logs.append({"day": int(s["day"]), "kind": "invest", "text": "升级至 Lv%d" % int(shop["level"])})
 		elif kind == "housing":
 			var hid = String(c["housingId"])
-			s["housing"][hid] = float(s["housing"].get(hid, 0.0)) + 1.0
+			_add_housing_unit(hid)
 			logs.append({"day": int(s["day"]), "kind": "invest", "text": "建成住房"})
 		elif kind == "housing_upgrade":
-			# 原地改建：栋数不变，只是从 from 挪到 to（土地名额因此也不变，见 _used_slots）。
+			# 原地改建：**那一栋**换房型，id 不变、栋数不变（土地名额因此也不变，见 _used_slots）。
 			var hfrom = String(c.get("housingId", ""))
 			var hto = String(c.get("toHousingId", ""))
 			if hfrom != "" and hto != "":
-				s["housing"][hfrom] = maxf(0.0, float(s["housing"].get(hfrom, 0.0)) - 1.0)
-				s["housing"][hto] = float(s["housing"].get(hto, 0.0)) + 1.0
+				var uid := String(c.get("housingUnitId", ""))
+				var unit = _housing_unit(uid) if uid != "" else null
+				if unit == null:
+					# 老存档 / 手工构造的条目没有房号：退化成"换一栋"（栋数不变）
+					unit = _pick_upgradable_unit(hfrom)
+				if unit != null:
+					unit["type"] = hto
+					_sync_housing_counts()
 				var nf = String(db.housing[hfrom]["nameZh"]) if db.housing.has(hfrom) else hfrom
 				var nt = String(db.housing[hto]["nameZh"]) if db.housing.has(hto) else hto
 				logs.append({"day": int(s["day"]), "kind": "invest",

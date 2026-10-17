@@ -102,7 +102,7 @@ func _stage3(sim) -> void:
 			"research_institute", "quarry", "clay_pit", "firewood_works",
 			"brick_kiln", "construction_works"]:
 		_add_shop(sim, String(id))
-	sim.s["housing"]["hut"] = 8                      # 容量 32 → 「住得下」
+	sim.debug_set_housing_units("hut", 8)           # 容量 32 → 「住得下」
 	_add_residents(sim, 60, "poor", 70.0)            # 人口 60 + 满意度均值约 69
 	sim.s["research"]["done"] = ["stonework", "digging", "firewood", "brickmaking", "construction"]
 	sim.s["goods"]["brick"] = 100.0
@@ -268,7 +268,7 @@ func _run() -> void:
 	var s4 := _fresh()
 	for id in ["wheat_farm", "coarse_mill", "coarse_bakery", "vegetable_farm"]:
 		_add_shop(s4, String(id))
-	s4.s["housing"]["hut"] = 8                       # 早就把容量撑到 32 了
+	s4.debug_set_housing_units("hut", 8)            # 早就把容量撑到 32 了
 	var before4 := _money(s4)
 	var logs4: Array = s4._run_dawn()
 	var gain4 := _money(s4) - before4

@@ -4,12 +4,13 @@ extends RefCounted
 # 存档：JSON 快照 + 版本号 + 备份恢复。
 # 由于仿真确定性，也可只存 (pack, seed, 命令日志) 做回放；此处提供状态快照。
 
-## 存档版本。**2** = 任务 schema 2（`giver` / `giverPortrait` / `chapters[].outro` /
-## `building_repaired`）+ 剧情对话记账（`quests.shown`）+ 城镇中心破旧标记。
+## 存档版本。**3** = 住房加了**单体身份**（`housingUnits`：一栋一个 `h#N`，
+## 改建换房型不换 id；`housing` / `privateHousing` 退化成派生计数）。
 ##
-## 用户 2026-10："版本更新，存档不跟之前兼容" —— 所以这里**不做 v1 → v2 的迁移**，
+## 用户 2026-10："版本更新，存档不跟之前兼容" —— 这里**不做旧版迁移**，
 ## 老存档读进来直接拒（`load_into` 版本不符就返回 null，提示由 UI 说）。
-const SAVE_VERSION := 2
+## 历史：2 = 任务 schema 2（giver / outro / building_repaired）+ 剧情对话记账 + 城镇中心破旧标记。
+const SAVE_VERSION := 3
 const DEFAULT_PATH := "user://sovit_save.json"
 
 static func save_to(path: String, sim: SimCore) -> Error:
@@ -154,10 +155,29 @@ static func _sanitize(s: Dictionary, db: ContentDB) -> void:
 		s["prophet"] = pr
 	# 城镇中心"破旧"标记（用户 2026-10）：**这条功能之前**的存档按"已经修好"处理 ——
 	# 那时候的城镇中心本来就是好图，不该读进来突然变废墟。
-	# ⚠️ 存档版本已经升到 2（`quests.json` schema 2 + 剧情对话），旧档根本读不进来；
+	# ⚠️ 存档版本已经是 3（住房单体身份 + 剧情对话），旧档根本读不进来；
 	# 这一行是给"同版本里手工塞的残缺存档"兜底的。
 	if not (s.get("townCenter", null) is Dictionary):
 		s["townCenter"] = {"ruined": true}
+
+	# 住房单体（2026-10）：`housingUnits` 是唯一真源，`housing` / `privateHousing` 是派生计数。
+	# 残缺存档没有这一段时按计数重建（栋数不会变，只是房号从 h#1 重新发）；
+	# 有的话就把两个计数按 units 重算一遍 —— 免得存档里两个数字互相打架。
+	if not (s.get("housingUnits", null) is Array):
+		var units := []
+		var seq := 0
+		var counts: Dictionary = s.get("housing", {}) if (s.get("housing", null) is Dictionary) else {}
+		for gid in counts.keys():
+			var n := int(floor(float(counts[gid])))
+			for i in n:
+				seq += 1
+				units.append({"id": "h#%d" % seq, "type": String(gid), "private": false})
+		s["housingUnits"] = units
+		s["housingSeq"] = seq
+		if not (s.get("privateHousing", null) is Dictionary):
+			s["privateHousing"] = {}
+	s["housingSeq"] = int(s.get("housingSeq", 0))
+	_resync_housing_counts(s)
 	# 每种物资的软上限（见 docs/town.md §3.6）：老存档没有这个字段。
 	if not (gov.get("storageCaps", null) is Dictionary):
 		gov["storageCaps"] = {}
@@ -179,3 +199,22 @@ static func _sanitize(s: Dictionary, db: ContentDB) -> void:
 			p["id"] = String(p.get("id", ""))
 	for shop2 in s["shops"]:
 		shop2["toolBoost"] = float(shop2.get("toolBoost", 1.0))
+
+## 按 housingUnits 重算 housing / privateHousing（与 SimCore._sync_housing_counts() 同口径）。
+## 存档读进来之后调一次：两个计数以 units 为准，别让存档里两组数字互相打架。
+static func _resync_housing_counts(s: Dictionary) -> void:
+	var counts: Dictionary = s.get("housing", {}) if (s.get("housing", null) is Dictionary) else {}
+	var privs: Dictionary = s.get("privateHousing", {}) if (s.get("privateHousing", null) is Dictionary) else {}
+	for gid in counts.keys():
+		counts[gid] = 0.0
+	for gid in privs.keys():
+		privs[gid] = 0.0
+	for u in (s.get("housingUnits", []) as Array):
+		var t := String((u as Dictionary).get("type", ""))
+		if t == "":
+			continue
+		counts[t] = float(counts.get(t, 0.0)) + 1.0
+		if bool((u as Dictionary).get("private", false)):
+			privs[t] = float(privs.get(t, 0.0)) + 1.0
+	s["housing"] = counts
+	s["privateHousing"] = privs

@@ -2,6 +2,7 @@ import { TIME, advanceHour, createInitialState } from '../src/engine/index.ts'
 import type { Action, GameState } from '../src/engine/index.ts'
 import { constructionCost, housingUpgradeSpec, usedSlots, tryUpgradeHousing } from '../src/engine/systems/investment.ts'
 import { buildContext } from '../src/engine/content/index.ts'
+import { syncHousingCounts } from '../src/engine/systems/housing.ts'
 import { TECH_IDS } from '../src/engine/content/index.ts'
 
 // ---------------------------------------------------------------------------
@@ -120,7 +121,9 @@ ok('完工日志同时落进 state.log（公告页与存档读的就是它）',
 
 // ---- 3. 三条拒绝路径 ------------------------------------------------------
 let s3 = freshState()
-s3.privateHousing['hut'] = s3.housing['hut'] ?? 0 // 全部私有化
+// 全部私有化：现在私有化落在**具体哪一栋**上（`HousingUnit.private`），计数是派生值
+for (const u of s3.housingUnits) if (u.type === 'hut') u.private = true
+syncHousingCounts(s3)
 const r1 = tryUpgradeHousing(s3, ctx, 'hut')
 ok('私有住房不能改建', !r1.ok && r1.reason === '私有住房不能改建', String(r1.reason))
 
@@ -129,13 +132,74 @@ const r2 = tryUpgradeHousing(s4, ctx, 'brick_house')
 ok('链尾（砖房）不能改建', !r2.ok && r2.reason === '这档住房不能改建', String(r2.reason))
 
 let s5 = freshState()
-s5.housing['hut'] = 1
-s5.privateHousing['hut'] = 0
+// 只留 1 栋茅屋（同样是改 units，不是改计数）
+s5.housingUnits = s5.housingUnits.filter((u) => u.type !== 'hut')
+s5.housingUnits.push({ id: 'h#only', type: 'hut', private: false })
+syncHousingCounts(s5)
 const r3a = tryUpgradeHousing(s5, ctx, 'hut')
 const r3b = tryUpgradeHousing(s5, ctx, 'hut')
 ok('第一单成功', r3a.ok, String(r3a.reason))
 ok('在途的也算占用 → 第 2 单被拒（否则完工时会凭空多一栋）',
   !r3b.ok && r3b.reason === '没有空闲的国有住房可改建', String(r3b.reason))
+
+// ---- 4. 单体身份（2026-10）：每栋房一个 id，改建换 type 不换 id -------------
+{
+  const s6 = freshState()
+  const ids = new Set(s6.housingUnits.map((u) => u.id))
+  ok('开局每栋房一个 id（唯一）', s6.housingUnits.length === 6 && ids.size === 6,
+    `栋数 ${s6.housingUnits.length} / 唯一 id ${ids.size}`)
+  ok('计数 == 由 units 数出来的',
+    s6.housing['hut'] === s6.housingUnits.filter((u) => u.type === 'hut').length &&
+      s6.privateHousing['hut'] === s6.housingUnits.filter((u) => u.type === 'hut' && u.private).length)
+  // 指名改建：钉在**某一栋**上，条目里带房号
+  const picked = s6.housingUnits.find((u) => u.type === 'hut')!
+  const r = tryUpgradeHousing(s6, ctx, 'hut', picked.id)
+  const entry = s6.construction.find((c) => c.kind === 'housing_upgrade')
+  ok('指名改建：条目里记着是哪一栋', r.ok && entry?.housingUnitId === picked.id,
+    `${String(r.reason)} / ${entry?.housingUnitId}`)
+  // 指定一栋**私有**的 → 拒
+  const privUnit = s6.housingUnits.find((u) => u.type === 'hut' && !u.private)!
+  privUnit.private = true
+  syncHousingCounts(s6)
+  const rBad = tryUpgradeHousing(s6, ctx, 'hut', privUnit.id)
+  ok('指名的是一栋私有房 → 拒', !rBad.ok && rBad.reason === '私有住房不能改建', String(rBad.reason))
+  // 指定一个不存在的房号 → 拒
+  const rNone = tryUpgradeHousing(s6, ctx, 'hut', 'h#nope')
+  ok('指名一个不存在的房号 → 拒', !rNone.ok && rNone.reason === '找不到那栋住房', String(rNone.reason))
+}
+
+// ---- 5. 改建完工：那栋房的 id 不变、type 换了；私有化按栋落地 --------------
+{
+  const s7 = freshState()
+  for (const t of TECH_IDS) if (!s7.research.done.includes(t)) s7.research.done.push(t)
+  for (const g of ['wood', 'brick', 'stone']) s7.goods[g] = 500
+  const unit = s7.housingUnits.find((u) => u.type === 'hut')!
+  const uid = unit.id
+  tryUpgradeHousing(s7, ctx, 'hut', uid)
+  // 把工期压到 0 直接过黎明（测试只关心"完工那一刻做了什么"）
+  for (const c of s7.construction) c.remaining = 0
+  let cur = s7
+  for (let i = 0; i < TIME.hoursPerDay + 2; i++) cur = advanceHour(cur).state
+  const after = cur.housingUnits.find((u) => u.id === uid)
+  ok('改建后那栋房还在，且 id 不变', after !== undefined && after.id === uid, String(after?.type))
+  ok('改建后 type 换成木屋，栋数不变', after?.type === 'wooden_house' &&
+    cur.housingUnits.length === s7.housingUnits.length,
+    `${after?.type} / ${cur.housingUnits.length}`)
+  ok('改建后计数跟着变（hut−1 / wooden+1）',
+    cur.housing['hut'] === (s7.housing['hut'] ?? 0) - 1 &&
+      cur.housing['wooden_house'] === (s7.housing['wooden_house'] ?? 0) + 1,
+    `hut=${cur.housing['hut']} wooden=${cur.housing['wooden_house']}`)
+  // 私有化落在具体某栋上（`runPrivateHousingMarket` 会写 `unit.private` + `ownerId`）
+  const priv = cur.housingUnits.find((u) => u.private)
+  if (priv) {
+    ok('私有房有房主 id 且计数对得上',
+      typeof priv.ownerId === 'string' && priv.ownerId.length > 0 &&
+        cur.privateHousing[priv.type] === cur.housingUnits.filter((u) => u.type === priv.type && u.private).length,
+      `${priv.id} owner=${priv.ownerId}`)
+  } else {
+    ok('这一局没有卖出私有房（跳过房主断言）', true)
+  }
+}
 
 console.log(failed === 0 ? '\n住房改建自检通过 🎉\n' : `\n住房改建自检失败 ${failed} 项 ❌\n`)
 if (failed > 0) process.exitCode = 1

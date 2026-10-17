@@ -27,7 +27,7 @@ func _run() -> void:
 			sim.s["shops"].append({"id": "%s#b" % bid, "defId": bid, "owner": "state",
 				"targetWorkers": int(d["workers"]), "wage": 3.0, "wageCap": 6.0, "level": 1,
 				"active": true, "profit": 0.0, "skill": 50.0, "planned": 0.0})
-		sim.s["housing"]["hut"] = 14.0
+		sim.debug_set_housing_units("hut", 14)
 		for i in 9:
 			for h in 24:
 				sim.tick_hour([])

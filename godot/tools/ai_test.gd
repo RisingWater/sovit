@@ -990,7 +990,7 @@ func _coverage_section() -> bool:
 	_ok("规则：挨饿时紧急建议排第一，并指名缺的那一项食物")
 
 	var s2 := _fresh()
-	s2.s["housing"]["hut"] = 3.0          # 容量 12 = 人口 12 → 空 0
+	s2.debug_set_housing_units("hut", 3)  # 容量 12 = 人口 12 → 空 0
 	s2.s["arrivals"] = 4
 	var ad2 := Advisor.new(s2)
 	ad2.cat_of = Callable(self, "_cat_of")

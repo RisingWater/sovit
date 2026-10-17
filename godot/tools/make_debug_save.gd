@@ -88,7 +88,7 @@ func _run() -> void:
 	for gid in sim.s["goods"].keys():
 		sim.s["goods"][gid] = GOODS
 	for hid in sim.s["housing"].keys():
-		sim.s["housing"][hid] = float(HOUSING.get(hid, 0.0))
+		sim.debug_set_housing_units(String(hid), int(HOUSING.get(hid, 0)))
 		sim.s["privateHousing"][hid] = 0.0
 
 	# 4) 人口：全部失业 → 建造力拉满

@@ -861,7 +861,7 @@ func _run() -> void:
 					"wageCap": float(runner.db.economy["defaultWageCap"]),
 					"level": 1, "active": true, "profit": 0.0, "skill": 50.0, "planned": 0.0,
 				})
-			runner.sim.s["housing"]["hut"] = 8
+			runner.sim.debug_set_housing_units("hut", 8)
 			var residents: Array = runner.sim.s["residents"]
 			for k in 48:
 				residents.append({"id": "res#shot%d" % (k + 100), "classId": "poor",

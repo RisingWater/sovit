@@ -167,7 +167,8 @@ export function applyActions(
           })
           break
         }
-        const res = tryUpgradeHousing(state, ctx, action.goodId)
+        // `unitId`：玩家从某栋房的面板点「改建」时带上它（指名到栋，进度条才钉得住）
+        const res = tryUpgradeHousing(state, ctx, action.goodId, action.unitId)
         applied.push({ type: action.type, ok: res.ok, reason: res.reason })
         break
       }

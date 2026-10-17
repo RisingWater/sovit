@@ -253,7 +253,7 @@ ESC 菜单里的「AI 辅助设置」不受影响（那是**配置**，不是预
 |---|---|---|---|
 | `quests.json.schemaVersion` | `content/quests.json` | **2** | 内容形状：`giver` / `giverPortrait` / `chapters[].outro` / `building_repaired` |
 | `economy.json.schemaVersion` | `content/economy.json` | 1 | 经济参数（这一轮没动） |
-| `SaveManager.SAVE_VERSION` | `godot/scripts/core/save_manager.gd` | **2** | 存档文件；**版本不符直接拒读**（`load_into` 返回 null），不做 v1 → v2 迁移 |
+| `SaveManager.SAVE_VERSION` | `godot/scripts/core/save_manager.gd` | **3** | 存档文件；**版本不符直接拒读**（`load_into` 返回 null），不做旧版迁移。3 = 住房单体身份（`housingUnits`，见 spec §5.5）|
 
 `check-content.ts` 会把 `quests.json` 的 `schemaVersion` 钉在 2：
 写回 1 会红，写了 3 也会红（引擎还不认识）。
@@ -265,7 +265,7 @@ ESC 菜单里的「AI 辅助设置」不受影响（那是**配置**，不是预
 | `npm run check:quests` | `scripts/check-quests.ts` | 引擎侧：渐进显示 / 黎明结算 / 连锁可追溯 / 支线不挡章节 / 不回退 / 文案 / **面板数据源 `questJournal`**（已完成的隔天仍留着、锁着的不进）/ **`building_repaired` 与修缮动作**（材料不够白下单、够了一分不差扣光、不重复扣）/ **`questTalks` 的顺序与记账** |
 | `godot verify.sh` 的 `quest` | `godot/tools/quest_test.gd` | 同一批断言的 GDScript 镜像（同口径、同数字）+ `brief`/`reward` 齐不齐 + 追踪条图标在位 |
 | `godot verify.sh` 的 `questpanel` | `godot/tools/questpanel_test.gd` | 面板本身：圆钮第 5 个接对了、点得开、默认选中第一个未完成的、左树分章可收起、右栏四块齐全、已完成的留在树里并写着第几天完成 |
-| `godot verify.sh` 的 `questtalk` | `godot/tools/questtalk_test.gd` | 剧情对话：内容里每条任务有发布人/立绘、每章有 outro（**逐字查缺字**）、第一章两个选项；`quest_talks_pending()` 的开局两条 → 播过不再来 → 章节收尾排在下一章任务之前；`quest_talk.gd` 能播（名字/立绘/翻页/选项 → `finished(action)`）；**第一章收尾之前预言入口是藏着的、之后出现**；城镇中心换图认任务；`SAVE_VERSION == 2` 且 v1 老档被拒 |
+| `godot verify.sh` 的 `questtalk` | `godot/tools/questtalk_test.gd` | 剧情对话：内容里每条任务有发布人/立绘、每章有 outro（**逐字查缺字**）、第一章两个选项；`quest_talks_pending()` 的开局两条 → 播过不再来 → 章节收尾排在下一章任务之前；`quest_talk.gd` 能播（名字/立绘/翻页/选项 → `finished(action)`）；**第一章收尾之前预言入口是藏着的、之后出现**；城镇中心换图认任务；`SAVE_VERSION == 3` 且老档被拒 |
 | golden | `scripts/golden.ts` | 任务发钱会改国库 → 黄金轨迹跟着变；两份实现必须同时改、一起重生成 |
 
 ## 十、加一条任务怎么做

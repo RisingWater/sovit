@@ -807,7 +807,10 @@ func _upgrade_housing() -> void:
 		return
 	if not world._housing_upgrade_state(inst).is_empty():
 		return
-	runner.enqueue([{"type": "upgrade_housing", "goodId": String(inst["type"])}])
+	# ⚠️ 带上**这一栋的房号**（`unitId`）：引擎与地图都是按房号认"哪一栋在改建"的
+	# （用户 2026-10："你是不是没有给他们 id？" —— 现在有了，就别再靠顺序猜）。
+	runner.enqueue([{"type": "upgrade_housing", "goodId": String(inst["type"]),
+		"unitId": String(inst["uid"])}])
 	_rebuild()
 
 func _begin_move_housing() -> void:

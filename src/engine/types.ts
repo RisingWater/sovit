@@ -340,6 +340,8 @@ export interface Resident {
   housingQuality?: number
   /** 作为房主所拥有住房的等级。 */
   ownedQuality?: number
+  /** 房主名下那一栋（`HousingUnit.id`）。 */
+  ownedUnitId?: string
   /** 当日账目（每个游戏日结算一次，逐人记录）。 */
   account?: ResidentAccount
 }
@@ -404,6 +406,11 @@ export interface Construction {
   housingId?: GoodID
   /** kind=housing_upgrade 时**改建后**的房型。 */
   toHousingId?: GoodID
+  /**
+   * kind=housing_upgrade 时的**具体哪一栋**（`HousingUnit.id`，改建前后不变）。
+   * 有了它，"这条改建是给哪栋房的"就是确定的 —— 进度条不用再按顺序猜。
+   */
+  housingUnitId?: string
   /** 还差的建造力（人·天）。开工时 = buildWork，逐日被产能扣减。 */
   remaining: number
   /** 总建造力需求（进度条用）。 */
@@ -610,8 +617,30 @@ export interface QuestProgress {
   day?: number
 }
 
-export interface QuestState {
-  /** questId → 完成那一天。 */
+// ---------------------------------------------------------------------------
+// 住房的**单体身份**（用户 2026-10：建筑和村民本来就有 id，只有住房是 `{hut: 6}` 计数）
+//
+// 每栋房现在有自己的 id（`h#7`）：**改建也换不掉的**那个 id。
+// 于是"哪一栋在改建 / 哪一栋被买下 / 哪一栋住着谁"都能直接指到它，
+// 不用再靠"同类型第 i 座"这种顺序约定（那套约定曾让改建进度条到处乱跳）。
+//
+// ⚠️ `housing` / `privateHousing` 仍然保留，但它们是**派生计数**：
+// 任何 unit 变动之后 `syncHousingCounts()` 从 units 重算一遍。
+// 容量 / 租金 / 任务判定 / 黄金摘要都继续读计数，所以摘要不会因为这层改动而漂。
+// ---------------------------------------------------------------------------
+
+export interface HousingUnit {
+  /** `h#<n>`：单调递增，**改建时不变**（换的是 `type`，不是身份）。 */
+  id: string
+  /** 房型（`hut` / `wooden_house` / `brick_house`）。 */
+  type: GoodID
+  /** 被居民买下了（户主名下）。 */
+  private: boolean
+  /** 房主的 resident id（`private` 时才有）。 */
+  ownerId?: string
+}
+
+export interface QuestState {  /** questId → 完成那一天。 */
   done: Record<QuestID, number>
   /** chapterId → 领到章节奖励那一天。 */
   chapters: Record<string, number>
@@ -711,10 +740,17 @@ export interface GameState {
   government: Government
   /** 中央仓库库存。 */
   goods: Record<GoodID, number>
-  /** 已建成住房存量（按住房商品计），决定人口上限。 */
+  /** 已建成住房存量（按住房商品计），决定人口上限。**由 `housingUnits` 派生**。 */
   housing: Record<GoodID, number>
-  /** 其中已私有化的住房数量（⊆ housing）。 */
+  /** 其中已私有化的住房数量（⊆ housing）。**由 `housingUnits` 派生**。 */
   privateHousing: Record<GoodID, number>
+  /**
+   * 每栋房一个条目（**唯一真源**）。`housing` / `privateHousing` 是它算出来的计数。
+   * 见文件上方 `HousingUnit` 的说明。
+   */
+  housingUnits: HousingUnit[]
+  /** 下一条住房 id 的序号（`h#<n>`）。单调递增，收房也不回收号码。 */
+  housingSeq: number
   /** 售价（居民购买价）。 */
   prices: Record<GoodID, number>
 
@@ -812,9 +848,17 @@ export type Action =
    * - 成本 = 目标房型 buildCost **减去**原房型 buildCost（只算差、旧料视为已回收）；
    *   工期同理取差值。都只认当前内容包里存在的商品。
    * - **只作用于国有住房**：私有（居民买下的）住房不能改建，条目会被拒。
-   * - 完工时 `housing[from] −1`、`housing[to] +1`，**不额外占地**。
+   * - 完工时那栋房的 `type` 换成目标房型，**id 不变、不额外占地**。
    */
-  | { type: 'upgrade_housing'; goodId: GoodID }
+  | {
+      type: 'upgrade_housing'
+      goodId: GoodID
+      /**
+       * 指定改建**哪一栋**（`HousingUnit.id`）。不传就由引擎挑最早那栋国有空房
+       * （玩家从某栋房的面板点「改建」时会带上它，进度条因此能钉在那栋房头上）。
+       */
+      unitId?: string
+    }
   /**
    * 建造队列调序：把 `id` 这条按 `delta` 的方向挪**一位**（-1 = 上移 / +1 = 下移）。
    *

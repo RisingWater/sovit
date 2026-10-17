@@ -1,4 +1,4 @@
-import type { ClassID, GameState, LogEntry } from '../types.ts'
+import type { ClassID, GameState, HousingUnit, LogEntry, GoodID } from '../types.ts'
 import type { ContentContext } from '../content/index.ts'
 import { ALL_GOODS } from '../content/index.ts'
 import { ECONOMY } from '../config.ts'
@@ -12,7 +12,79 @@ import { progressiveTax } from './finance.ts'
 // - 私有住房：最高层需求。居民在满意度达标且存款足够时，按玩家设定的价格
 //   向政府购买住房，成为房主（房东）；房客向房主交租。
 // - 私有住房提升居住者满意度（房主 > 房客 > 国有住户）。
+//
+// ⚠️ 2026-10 起住房有**单体身份**（`state.housingUnits`，一栋一个 `HousingUnit`），
+// 而 `state.housing` / `state.privateHousing` 变成**派生计数**（下面的
+// `syncHousingCounts()`）。容量 / 租金 / 任务 / 黄金摘要继续读计数，行为不变。
 // ---------------------------------------------------------------------------
+
+/**
+ * 从 units 重算 `housing` / `privateHousing` 两个计数表。
+ *
+ * **任何**增删房、改建、私有化之后都要调它 —— 两个引擎各一份实现
+ * （GDScript：`sim_core._sync_housing_counts()`），门槛会核对"计数 == 由 units 数出来"。
+ */
+export function syncHousingCounts(state: GameState): void {
+  // 先把已有的键清零（保持键集合 = 内容包里的房型，黄金摘要按 `Object.keys` 取）
+  for (const gid of Object.keys(state.housing)) state.housing[gid] = 0
+  for (const gid of Object.keys(state.privateHousing)) state.privateHousing[gid] = 0
+  for (const u of state.housingUnits) {
+    const t = u.type as string
+    if (state.housing[t] === undefined) state.housing[t as GoodID] = 0
+    if (state.privateHousing[t] === undefined) state.privateHousing[t as GoodID] = 0
+    state.housing[t as GoodID] = (state.housing[t as GoodID] ?? 0) + 1
+    if (u.private) state.privateHousing[t as GoodID] = (state.privateHousing[t as GoodID] ?? 0) + 1
+  }
+}
+
+/** 新建一栋房（id 由 `state.housingSeq` 发号，单调、不回收）。 */
+export function addHousingUnit(
+  state: GameState,
+  type: GoodID,
+  opts: { private?: boolean; ownerId?: string } = {},
+): HousingUnit {
+  state.housingSeq = (state.housingSeq ?? 0) + 1
+  const unit: HousingUnit = { id: `h#${state.housingSeq}`, type, private: opts.private === true }
+  if (opts.ownerId) unit.ownerId = opts.ownerId
+  state.housingUnits.push(unit)
+  syncHousingCounts(state)
+  return unit
+}
+
+/** 拆掉一栋房（改建不会走这里：改建换的是 `type`，id 保留）。 */
+export function removeHousingUnit(state: GameState, unitId: string): HousingUnit | null {
+  const i = state.housingUnits.findIndex((u) => u.id === unitId)
+  if (i < 0) return null
+  const [unit] = state.housingUnits.splice(i, 1)
+  syncHousingCounts(state)
+  return unit ?? null
+}
+
+export function housingUnitOf(state: GameState, unitId: string): HousingUnit | undefined {
+  return state.housingUnits.find((u) => u.id === unitId)
+}
+
+/**
+ * 挑一栋**可改建**的房：国有（非私有）、指定房型、且**没有**已经在改建队列里。
+ * `skip` 用来一次挑多栋（批量下单时排除已选中的）。
+ */
+export function pickUpgradableUnit(
+  state: GameState,
+  type: GoodID,
+  skip?: Set<string>,
+): HousingUnit | undefined {
+  const busy = new Set<string>()
+  for (const c of state.construction) {
+    if (c.kind === 'housing_upgrade' && c.housingUnitId) busy.add(c.housingUnitId)
+  }
+  for (const u of state.housingUnits) {
+    if (u.type !== type || u.private) continue
+    if (busy.has(u.id)) continue
+    if (skip?.has(u.id)) continue
+    return u
+  }
+  return undefined
+}
 
 /** 总住房容量（国有 + 私有）。 */
 export function housingCapacity(state: GameState, ctx: ContentContext): number {
@@ -191,10 +263,12 @@ export function runPrivateHousingMarket(
     const price = state.prices[gid] ?? def.salePrice ?? ALL_GOODS[gid]?.baseValue ?? 0
     if (price <= 0) continue
 
-    let stateOwned = Math.floor((state.housing[gid] ?? 0) - (state.privateHousing[gid] ?? 0))
     let sold = 0
 
-    while (stateOwned > 0 && soldTotal < ECONOMY.privateHousingPerDay) {
+    while (soldTotal < ECONOMY.privateHousingPerDay) {
+      // 卖的是**具体某一栋**（国有、还没被买走的）
+      const unit = state.housingUnits.find((u) => u.type === gid && !u.private)
+      if (!unit) break
       let buyer: (typeof state.residents)[number] | undefined
       for (const r of state.residents) {
         if (r.homeowner) continue
@@ -210,9 +284,10 @@ export function runPrivateHousingMarket(
       buyer.savings = round2(buyer.savings - price)
       buyer.homeowner = true
       buyer.ownedQuality = def.quality
+      buyer.ownedUnitId = unit.id
       state.government.money = round2(state.government.money + price)
-      state.privateHousing[gid] = (state.privateHousing[gid] ?? 0) + 1
-      stateOwned--
+      unit.private = true
+      unit.ownerId = buyer.id
       sold++
       soldTotal++
     }
@@ -222,5 +297,6 @@ export function runPrivateHousingMarket(
     }
   }
 
+  syncHousingCounts(state)
   return logs
 }

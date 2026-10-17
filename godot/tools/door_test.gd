@@ -318,9 +318,10 @@ func _run() -> void:
 	if _road_at(world.map, hfront0) != 1:
 		_fail("放下住房后，门前通行格 %s 没有变成道路" % str(hfront0))
 		return
-	# 让 _sync() 把工地变成住房实例（真实入口：s["housing"] 计数 → _take_sites_for）
+	# 让 _sync() 把工地变成住房实例（真实入口：`housingUnits` 多一栋 → 认领 `_sites` 里的工地）
+	# ⚠️ 2026-10 起要加**房号**（`housingUnits`），不能再直接改 `s["housing"]` 那个派生计数。
 	var hcount: Dictionary = world.runner.sim.s["housing"]
-	hcount["hut"] = int(float(hcount.get("hut", 0))) + 1
+	world.runner.sim.debug_set_housing_units("hut", int(float(hcount.get("hut", 0))) + 1)
 	world._prev_housing_n = -1
 	await process_frame
 	await process_frame

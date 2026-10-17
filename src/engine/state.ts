@@ -1,4 +1,4 @@
-import type { DayLedger, GameState, PackID, Resident, Shop } from './types.ts'
+import type { DayLedger, GameState, HousingUnit, PackID, Resident, Shop } from './types.ts'
 import { ALL_BUILDINGS, ALL_GOODS, buildContext } from './content/index.ts'
 import { DEFAULTS, ECONOMY } from './config.ts'
 import { createRng } from './rng.ts'
@@ -39,10 +39,21 @@ export function createInitialState(options: CreateOptions = {}): GameState {
   // 住房售价（私有化价格，玩家可调）
   const housing: Record<string, number> = {}
   const privateHousing: Record<string, number> = {}
+  // 每栋房一个条目（2026-10）：id 单调发号，开局按 pack.start.housing 铺出来
+  const housingUnits: HousingUnit[] = []
   for (const gid of ctx.pack.housing) {
-    housing[gid] = start.housing[gid] ?? 0
+    housing[gid] = 0
     privateHousing[gid] = 0
     prices[gid] = ctx.housing[gid]?.salePrice ?? ALL_GOODS[gid]?.baseValue ?? 1
+  }
+  let housingSeq = 0
+  for (const gid of ctx.pack.housing) {
+    const n = Math.floor(start.housing[gid] ?? 0)
+    for (let i = 0; i < n; i++) {
+      housingSeq++
+      housingUnits.push({ id: `h#${housingSeq}`, type: gid, private: false })
+    }
+    housing[gid] = n
   }
 
   const shops: Shop[] = []
@@ -106,6 +117,8 @@ export function createInitialState(options: CreateOptions = {}): GameState {
     goods,
     housing,
     privateHousing,
+    housingUnits,
+    housingSeq,
     prices,
     shops,
     residents,

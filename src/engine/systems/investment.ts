@@ -7,6 +7,13 @@ import { markConstructionWorkers } from './labor.ts'
 import { assignedWorkers } from './labor.ts'
 import { effectiveSlots } from './labor.ts'
 import { techBonuses } from './tech_bonus.ts'
+import {
+  addHousingUnit,
+  housingUnitOf,
+  pickUpgradableUnit,
+  removeHousingUnit,
+  syncHousingCounts,
+} from './housing.ts'
 
 // ---------------------------------------------------------------------------
 // 投资：扩产 / 建店 / 建房 / 施工队列
@@ -248,14 +255,18 @@ export function housingUpgradeSpec(
 /**
  * 住房改建：下单进施工队列（材料在开工时才扣）。
  *
- * ⚠️ **只允许改建国有住房**：私有住房是居民买下的私产，改建会牵动 `privateHousing[gid]`
- * 和房主的 `ownedQuality`，口径复杂且容易算乱（用户拍板：私有住房不能改建）。
+ * ⚠️ **只允许改建国有住房**：私有住房是居民买下的私产（`unit.private`），改建会牵动
+ * 房主那一栋的归属，口径复杂（用户拍板：私有住房不能改建）。
  * 在途的改建也算占用 —— 否则 2 栋茅屋能排 3 条改建，完工时凭空多出一栋木屋。
+ *
+ * 2026-10 起改建**指名到栋**：条目里带 `housingUnitId`（`unitId` 参数指定，
+ * 不指定就由引擎挑最早那栋可改建的）。完工时改那栋的 `type`，**id 不变**。
  */
 export function tryUpgradeHousing(
   state: GameState,
   ctx: ContentContext,
   goodId: string,
+  unitId?: string,
 ): AffordResult {
   if (!ctx.pack.housing.includes(goodId)) {
     return { ok: false, reason: '该住房不在当前内容包内' }
@@ -267,24 +278,36 @@ export function tryUpgradeHousing(
   const to = ctx.housing[toId]
   if (!to) return { ok: false, reason: '改建目标缺失' }
 
-  const total = Math.floor(state.housing[goodId] ?? 0)
-  const priv = Math.floor(state.privateHousing[goodId] ?? 0)
-  const inFlight = state.construction.filter(
-    (c) => c.kind === 'housing_upgrade' && c.housingId === goodId,
-  ).length
-  if (total - priv - inFlight < 1) {
+  // 指名的那一栋必须真的存在、是这个房型、并且是国有的（私有不能改建）
+  let target = unitId ? housingUnitOf(state, unitId) : undefined
+  if (unitId && !target) return { ok: false, reason: '找不到那栋住房' }
+  if (target) {
+    if (target.type !== goodId) return { ok: false, reason: '那栋房的房型对不上' }
+    if (target.private) return { ok: false, reason: '私有住房不能改建' }
+    if (state.construction.some((c) => c.kind === 'housing_upgrade' && c.housingUnitId === target!.id)) {
+      return { ok: false, reason: '这栋房已经在改建了' }
+    }
+  } else {
+    target = pickUpgradableUnit(state, goodId)
+  }
+  const freeUnits = state.housingUnits.filter(
+    (u) => u.type === goodId && !u.private && !state.construction.some(
+      (c) => c.kind === 'housing_upgrade' && c.housingUnitId === u.id),
+  )
+  if (freeUnits.length < 1 || !target) {
+    const anyPrivate = state.housingUnits.some((u) => u.type === goodId && u.private)
     return {
       ok: false,
-      reason: total - priv <= 0 ? '私有住房不能改建' : '没有空闲的国有住房可改建',
+      reason: anyPrivate && freeUnits.length === 0 ? '私有住房不能改建' : '没有空闲的国有住房可改建',
     }
   }
-
   const spec = housingUpgradeSpec(from, to, ctx)
   return order(state, ctx, {
     id: nextConstructionId(state, `re-${goodId}`),
     kind: 'housing_upgrade',
     housingId: goodId,
     toHousingId: toId,
+    housingUnitId: target.id,
     remaining: spec.work,
     totalRequired: spec.work,
     started: false,
@@ -557,19 +580,29 @@ export function activateCompleted(state: GameState, ctx: ContentContext, day: nu
       }
     } else if (c.kind === 'housing' && c.housingId) {
       const def = ctx.housing[c.housingId]
-      state.housing[c.housingId] = (state.housing[c.housingId] ?? 0) + 1
+      // 建房：**加一栋**（id 由 `addHousingUnit` 发号），再重算计数
+      addHousingUnit(state, c.housingId)
       logs.push({ day, kind: 'invest', text: `${def?.nameZh ?? c.housingId} 建成` })
     } else if (c.kind === 'housing_upgrade' && c.housingId && c.toHousingId) {
-      // 原地改建：栋数不变，只是从 from 挪到 to（土地名额因此也不变，见 usedSlots）。
-      const from = ctx.housing[c.housingId]
-      const to = ctx.housing[c.toHousingId]
-      state.housing[c.housingId] = Math.max(0, (state.housing[c.housingId] ?? 0) - 1)
-      state.housing[c.toHousingId] = (state.housing[c.toHousingId] ?? 0) + 1
+      // 原地改建：**那一栋**换房型，id 不变、栋数不变（土地名额因此也不变，见 usedSlots）。
+      const unit = c.housingUnitId ? housingUnitOf(state, c.housingUnitId) : undefined
+      if (unit) {
+        unit.type = c.toHousingId
+        syncHousingCounts(state)
+      } else {
+        // 老存档 / 手工构造的条目没有房号：退化成"换一栋"（栋数不变）
+        removeHousingUnit(state, state.housingUnits.find((u) => u.type === c.housingId)?.id ?? '')
+        addHousingUnit(state, c.toHousingId)
+      }
       logs.push({
         day,
         kind: 'invest',
-        text: `${from?.nameZh ?? c.housingId} 改建为 ${to?.nameZh ?? c.toHousingId}`,
+        text: `${ctx.housing[c.housingId]?.nameZh ?? c.housingId} 改建为 ${ctx.housing[c.toHousingId]?.nameZh ?? c.toHousingId}`,
       })
+    } else if (c.kind === 'housing_upgrade' && c.housingId) {
+      logs.push({ day, kind: 'invest', text: `${ctx.housing[c.housingId]?.nameZh ?? c.housingId} 改建完成` })
+    } else if (c.kind === 'housing') {
+      logs.push({ day, kind: 'invest', text: '建成住房' })
     }
   }
   state.construction = remaining
