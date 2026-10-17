@@ -201,8 +201,12 @@ func _grid_in(parent: Control, cols: int) -> GridContainer:
 	parent.add_child(g)
 	return g
 
-func _cell(g: GridContainer, text: String, color: Color, min_w := 0.0, right := false) -> Label:
-	var l := UIKit.label(text, color)
+## 表格单元格。
+## `num` = 这是**数字**单元格 → 用数字专用字号（`UIKit.NUM_FS`，18），
+## 用户 2026-10："把整个游戏的所有数字都用这个字体（但是大小可以小一点）"。
+func _cell(g: GridContainer, text: String, color: Color, min_w := 0.0, right := false,
+		num := false) -> Label:
+	var l: Label = UIKit.num_label(text, color) if num else UIKit.label(text, color)
 	if min_w > 0.0:
 		l.custom_minimum_size = Vector2(min_w, 0)
 	if right:
@@ -226,9 +230,14 @@ func _resources_tab() -> void:
 	# 用户 2026-10：这一页**不要**「全局统计」那一段（人口/就业折线 + 口径说明），
 	# 也不要在详情里放「库存 / 日产」两张折线 —— 一页只要"资源清单 + 单项数据"。
 	# 主从布局：左列表 + 右详情。不做一览表 —— 一屏 9 列挤在一起既难读也看不清重点。
+	# ⚠️ 高度要**撑满面板**（用户 2026-10："资源高度没有占满整个面板"）。
+	# 这一页的内容挂在一个 ScrollContainer 里，而 ScrollContainer 只按**最小高度**摆子节点，
+	# 所以 `EXPAND_FILL` 在这里不起作用 —— 只能自己按视口算一个"剩下多高"。
+	var fill_h := maxf(360.0, get_viewport_rect().size.y - float(UIKit.BAR_H) - 152.0)
 	var split := HBoxContainer.new()
 	split.add_theme_constant_override("separation", 10)
 	split.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	split.custom_minimum_size = Vector2(0, fill_h)
 	_body.add_child(split)
 
 	# ---- 左：资源列表
@@ -270,8 +279,9 @@ func _resources_tab() -> void:
 			nb.add_theme_color_override("font_color", UIKit.FG_LIGHT)
 		nb.pressed.connect(_on_pick_good.bind(gid2))
 		row.add_child(nb)
-		var st := UIKit.label("%.0f" % float(stats.good_row(gid2)["stock"]), Color(0.62, 0.48, 0.34))
-		st.custom_minimum_size = Vector2(40, 0)
+		var st := UIKit.num_label("%.0f" % float(stats.good_row(gid2)["stock"]),
+			Color(0.62, 0.48, 0.34))
+		st.custom_minimum_size = Vector2(56, 0)
 		st.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 		row.add_child(st)
 		var pad := Control.new()          # 给纵向滚动条留位置，否则数字被压住
@@ -280,16 +290,15 @@ func _resources_tab() -> void:
 		lv.add_child(row)
 
 	# ---- 右：详情
-	# 详情列**不给撑开**（用户 2026-10 去掉了折线图之后，撑开会把数字甩到屏幕最右边，
-	# 眼睛要横穿整个屏幕才能把标签和数字对上）。右边多出来的宽度给立绘留着。
+	# 详情列**撑开**，右边缘停在立绘的左边（用户 2026-10："净变化/日那列，为什么在中间
+	# 没有靠右侧？"）—— 所以是 `EXPAND_FILL` + 右边一个**固定宽度**的空隙，
+	# 不是"详情固定 640、空隙去撑开"（那样数字会停在屏幕中间）。
 	var right := VBoxContainer.new()
-	right.custom_minimum_size = Vector2(640, 0)
-	right.size_flags_horizontal = Control.SIZE_FILL
+	right.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	right.add_theme_constant_override("separation", 6)
 	split.add_child(right)
 	_good_detail(right)
 	var gap := Control.new()
-	gap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	gap.custom_minimum_size = Vector2(PORTRAIT_GAP, 0)
 	split.add_child(gap)
 
@@ -415,10 +424,10 @@ func _people_tab() -> void:
 		var i := g.get_child_count()
 		var right := i % 2 == 1
 		_cell(g, h, HEAD_COL, 90.0 if not right else 60.0, right)
-	_cell(g, "人口", UIKit.FG_HEAD, 90.0); _cell(g, "%d" % (s["residents"] as Array).size(), UIKit.FG_DARK, 60.0, true)
-	_cell(g, "就业", UIKit.FG_HEAD, 90.0); _cell(g, "%d" % employed, UIKit.FG_DARK, 60.0, true)
-	_cell(g, "岗位总量", UIKit.FG_HEAD, 90.0); _cell(g, "%d" % total_slots, UIKit.FG_DARK, 60.0, true)
-	_cell(g, "用工目标", UIKit.FG_HEAD, 90.0); _cell(g, "%d" % total_workers, UIKit.FG_DARK, 60.0, true)
+	_cell(g, "人口", UIKit.FG_HEAD, 90.0); _cell(g, "%d" % (s["residents"] as Array).size(), UIKit.FG_DARK, 60.0, true, true)
+	_cell(g, "就业", UIKit.FG_HEAD, 90.0); _cell(g, "%d" % employed, UIKit.FG_DARK, 60.0, true, true)
+	_cell(g, "岗位总量", UIKit.FG_HEAD, 90.0); _cell(g, "%d" % total_slots, UIKit.FG_DARK, 60.0, true, true)
+	_cell(g, "用工目标", UIKit.FG_HEAD, 90.0); _cell(g, "%d" % total_workers, UIKit.FG_DARK, 60.0, true, true)
 
 	# 左：名单；右：详情。
 	# 用户 2026-10："点名字看详情好像并没有实现，是不是弹到后面去了？"
@@ -445,8 +454,10 @@ func _people_tab() -> void:
 	gg.add_theme_constant_override("v_separation", 1)
 	lscroll.add_child(gg)
 	for h in ["姓名", "阶层", "住房", "工作", "熟练", "满意"]:
+		# 用户 2026-10："中文也右对齐，现在中文左对齐、数字右对齐很丑" ——
+		# 六列**全部右对齐**（表头跟着一起），整张表只有一个右边线。
 		var numeric: bool = h == "熟练" or h == "满意"
-		_cell(gg, h, HEAD_COL, 56.0 if numeric else 76.0, numeric)
+		_cell(gg, h, HEAD_COL, 56.0 if numeric else 76.0, true)
 	var shops_by_id := {}
 	for shop in s["shops"]:
 		shops_by_id[String(shop["id"])] = shop
@@ -466,19 +477,19 @@ func _people_tab() -> void:
 		elif bool(r.get("privateTenant", false)):
 			tenure = "私租"
 		var b := UIKit.button(Names.for_id(rid), true)
-		b.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		b.alignment = HORIZONTAL_ALIGNMENT_RIGHT
 		b.custom_minimum_size = Vector2(76, 0)
 		if rid == _sel_resident:
 			b.add_theme_stylebox_override("normal", UIKit.box(UIKit.T_BTN_ACTIVE))
 			b.add_theme_color_override("font_color", UIKit.FG_LIGHT)
 		b.pressed.connect(_on_pick_resident.bind(rid))
 		gg.add_child(b)
-		_cell(gg, _class_name_zh(String(r["classId"])), UIKit.FG_DARK, 76.0)
+		_cell(gg, _class_name_zh(String(r["classId"])), UIKit.FG_DARK, 76.0, true)
 		_cell(gg, "%s·%s" % [tenure, _house_name(int(r.get("housingQuality", 0)))],
-			UIKit.FG_DARK, 76.0)
-		_cell(gg, job, UIKit.FG_DARK, 76.0)
-		_cell(gg, "%.0f" % float(r["skill"]), UIKit.FG_DARK, 56.0, true)
-		_cell(gg, "%.0f" % float(r["satisfaction"]), UIKit.FG_DARK, 56.0, true)
+			UIKit.FG_DARK, 76.0, true)
+		_cell(gg, job, UIKit.FG_DARK, 76.0, true)
+		_cell(gg, "%.0f" % float(r["skill"]), UIKit.FG_DARK, 56.0, true, true)
+		_cell(gg, "%.0f" % float(r["satisfaction"]), UIKit.FG_DARK, 56.0, true, true)
 	if rows >= 60:
 		_note("（只列出前 60 位）")
 
@@ -534,7 +545,8 @@ func _resident_detail(pane: VBoxContainer, rid: String, s: Dictionary) -> void:
 			break
 	if r == null:
 		return
-	_section_in(pane, "居民 %s" % Names.for_id(rid))
+	# ⚠️ **不画「居民 XXX」那行标题**（用户 2026-10："选择人之后，居民xx这一行去掉"）——
+	# 名字在左边那张表里已经高亮着了，右栏直接从数据开始。
 	var job := "无业"
 	var js = r.get("jobShopId", null)
 	if js != null:
@@ -551,11 +563,11 @@ func _resident_detail(pane: VBoxContainer, rid: String, s: Dictionary) -> void:
 	_cell(g, "阶层", UIKit.FG_HEAD, 82.0)
 	_cell(g, _class_name_zh(String(r["classId"])), UIKit.FG_DARK, 82.0)
 	_cell(g, "熟练度", UIKit.FG_HEAD, 82.0)
-	_cell(g, "%.1f" % float(r["skill"]), UIKit.FG_DARK, 82.0, true)
+	_cell(g, "%.1f" % float(r["skill"]), UIKit.FG_DARK, 82.0, true, true)
 	_cell(g, "满意度", UIKit.FG_HEAD, 82.0)
-	_cell(g, "%.1f" % float(r["satisfaction"]), UIKit.FG_DARK, 82.0, true)
+	_cell(g, "%.1f" % float(r["satisfaction"]), UIKit.FG_DARK, 82.0, true, true)
 	_cell(g, "存款", UIKit.FG_HEAD, 82.0)
-	_cell(g, "¥%.1f" % float(r["savings"]), UIKit.FG_DARK, 82.0, true)
+	_cell(g, "¥%.1f" % float(r["savings"]), UIKit.FG_DARK, 82.0, true, true)
 	_cell(g, "住房", UIKit.FG_HEAD, 82.0)
 	_cell(g, "%s·%s" % [tenure, _house_name(int(r.get("housingQuality", 0)))], UIKit.FG_DARK, 82.0)
 	_cell(g, "工作", UIKit.FG_HEAD, 82.0)
@@ -571,23 +583,23 @@ func _resident_detail(pane: VBoxContainer, rid: String, s: Dictionary) -> void:
 		Color(0.72, 0.22, 0.18) if is_hungry else Color(0.18, 0.45, 0.20), 82.0)
 	_cell(g, "食物满足", UIKit.FG_HEAD, 82.0)
 	_cell(g, "%.0f%%" % (float(acc.get("foodScore", 1.0)) * 100.0),
-		Color(0.72, 0.22, 0.18) if is_hungry else UIKit.FG_DARK, 82.0, true)
+		Color(0.72, 0.22, 0.18) if is_hungry else UIKit.FG_DARK, 82.0, true, true)
 	_cell(g, "舒适满足", UIKit.FG_HEAD, 82.0)
-	_cell(g, "%.0f%%" % (float(acc.get("comfortScore", 1.0)) * 100.0), UIKit.FG_DARK, 82.0, true)
+	_cell(g, "%.0f%%" % (float(acc.get("comfortScore", 1.0)) * 100.0), UIKit.FG_DARK, 82.0, true, true)
 	_cell(g, "价格满意", UIKit.FG_HEAD, 82.0)
-	_cell(g, "%.0f%%" % (float(acc.get("priceScore", 1.0)) * 100.0), UIKit.FG_DARK, 82.0, true)
+	_cell(g, "%.0f%%" % (float(acc.get("priceScore", 1.0)) * 100.0), UIKit.FG_DARK, 82.0, true, true)
 	_cell(g, "今日工资", UIKit.FG_HEAD, 82.0)
-	_cell(g, "¥%.2f" % float(acc.get("wage", 0.0)), UIKit.FG_DARK, 82.0, true)
+	_cell(g, "¥%.2f" % float(acc.get("wage", 0.0)), UIKit.FG_DARK, 82.0, true, true)
 	_cell(g, "今日所得税", UIKit.FG_HEAD, 82.0)
-	_cell(g, "¥%.2f" % float(acc.get("tax", 0.0)), UIKit.FG_DARK, 82.0, true)
+	_cell(g, "¥%.2f" % float(acc.get("tax", 0.0)), UIKit.FG_DARK, 82.0, true, true)
 	_cell(g, "今日租金", UIKit.FG_HEAD, 82.0)
-	_cell(g, "¥%.2f" % float(acc.get("rent", 0.0)), UIKit.FG_DARK, 82.0, true)
+	_cell(g, "¥%.2f" % float(acc.get("rent", 0.0)), UIKit.FG_DARK, 82.0, true, true)
 	_cell(g, "今日消费", UIKit.FG_HEAD, 82.0)
-	_cell(g, "¥%.2f" % float(acc.get("spent", 0.0)), UIKit.FG_DARK, 82.0, true)
+	_cell(g, "¥%.2f" % float(acc.get("spent", 0.0)), UIKit.FG_DARK, 82.0, true, true)
 	var net := float(acc.get("wage", 0.0)) - float(acc.get("tax", 0.0)) - float(acc.get("rent", 0.0)) - float(acc.get("spent", 0.0))
 	_cell(g, "今日净额", UIKit.FG_HEAD, 82.0)
 	_cell(g, "¥%+.2f" % net,
-		Color(0.18, 0.45, 0.20) if net >= 0.0 else Color(0.65, 0.22, 0.18), 82.0, true)
+		Color(0.18, 0.45, 0.20) if net >= 0.0 else Color(0.65, 0.22, 0.18), 82.0, true, true)
 
 	# 逐人每日消耗（bought）：目前按阶层均分，所以同阶层人人相同
 	var bought: Dictionary = acc.get("bought", {})
@@ -606,7 +618,7 @@ func _resident_detail(pane: VBoxContainer, rid: String, s: Dictionary) -> void:
 		for k in keys:
 			var gid := String(k)
 			_cell(gb, _good_name(gid), UIKit.FG_HEAD, 96.0)
-			_cell(gb, "%.2f" % float(bought[gid]), UIKit.FG_DARK, 60.0, true)
+			_cell(gb, "%.2f" % float(bought[gid]), UIKit.FG_DARK, 60.0, true, true)
 
 # ---------------------------------------------------------------------------
 # 财务

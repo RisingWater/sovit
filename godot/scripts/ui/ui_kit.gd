@@ -336,6 +336,21 @@ static func label(text: String, color: Color = FG_DARK) -> Label:
 	l.add_theme_color_override("font_color", color)
 	return l
 
+## **数字专用的字号**（用户 2026-10："资源面板右侧数字用的是什么字体？非常符合像素画风，
+## 把整个游戏的所有数字都用这个字体（但是大小可以小一点）"）。
+##
+## 那个"字体"其实**就是同一个像素字体** —— 只是那边画的是 24（= 原生 12 的整数 2 倍），
+## 笔画成了干净的 2px、一点灰边都没有，所以才显得"很像素"。12 太细、24 太大，
+## 18 是实测下来的中间档：抗锯齿/次像素/自动微调全关，**任何字号都是硬边**，
+## 16/18/20 都清晰（14 会把笔画拆散，别用）。
+const NUM_FS := 18
+
+## 数字标签（顶栏数值、表格里的数值、库存数……）。正文仍然用 `label()`（12）。
+static func num_label(text: String, color: Color = FG_DARK) -> Label:
+	var l := label(text, color)
+	l.add_theme_font_size_override("font_size", NUM_FS)
+	return l
+
 
 static func button(text: String, small: bool = false) -> Button:
 	var b := Button.new()

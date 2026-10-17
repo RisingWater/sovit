@@ -189,6 +189,18 @@ func _run() -> void:
 	print("PANEL TEST 列表可选商品=%d 选中=%s 折线=%d（应为 0）"
 		% [pick_buttons, panel._sel_good, charts])
 
+	# ---- 数字用**数字专用字号**（UIKit.NUM_FS=18）
+	#    用户 2026-10："把整个游戏的所有数字都用这个字体（但是大小可以小一点）"。
+	#    这里只锁"统计面板里确实有一批 NUM_FS 的标签" —— 有人把它改回 12 就会红。
+	var numfs := 0
+	for l in panel.find_children("*", "Label", true, false):
+		if (l as Label).get_theme_font_size("font_size") == UIKit.NUM_FS:
+			numfs += 1
+	if numfs < 4:
+		_fail("统计面板里的数值应当用 NUM_FS(%d) 画，实际只有 %d 个" % [UIKit.NUM_FS, numfs])
+		return
+	print("PANEL TEST 数字字号=%d 的标签 %d 个" % [UIKit.NUM_FS, numfs])
+
 	# ---- 没有新数据时不能重建面板
 	#    曾经 main.gd 写成"只要面板可见就 refresh()"，于是每帧把所有子节点
 	#    （含按钮）销毁重建 —— 面板看着正常，但按钮永远点不动。

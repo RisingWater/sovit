@@ -19,6 +19,10 @@ const HEIGHT_RATIO := 0.5
 
 var id := ""
 var tex: Texture2D
+## 面板内边距（右 / 下）。面板的 content_margin 把子节点往里挤了一圈，
+## 立绘又画在这个被挤小的矩形里 —— 不把它加回去，图就**离面板边还有一条 padding**
+## （用户 2026-10："下底边要贴着面板下沿，现在有一个 padding"）。
+var edge_pad := Vector2.ZERO
 
 func setup(pid: String) -> void:
 	id = pid
@@ -29,11 +33,24 @@ func setup(pid: String) -> void:
 			tex = load(path)
 	# 立绘是**照片级**的美术，不是像素图：项目默认的最近邻过滤会把它画成一格一格的。
 	texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
+	_read_pad()
 	queue_redraw()
 
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
+	_read_pad()
+
+## 从**父节点**（那个 PanelContainer）的 panel 样式盒里读内边距。
+## 注意不能问自己：`panel` 这个覆盖是挂在 PanelContainer 身上的，子节点问不到。
+func _read_pad() -> void:
+	var p := get_parent() as Control
+	if p == null:
+		return
+	var sb := p.get_theme_stylebox("panel")
+	if sb == null:
+		return
+	edge_pad = Vector2(sb.get_margin(SIDE_RIGHT), sb.get_margin(SIDE_BOTTOM))
 
 ## 立绘在面板里占的宽度（给内容留位用）。没图时返回 0。
 func width_in(panel_h: float) -> float:
@@ -48,5 +65,6 @@ func _draw() -> void:
 	if th <= 1.0:
 		return
 	var tw := th * tex.get_width() / maxf(1.0, tex.get_height())
-	# 底边贴面板底边、右边贴面板右边（留 6px 让它别糊在边框上）
-	draw_texture_rect(tex, Rect2(size.x - tw - 6.0, size.y - th, tw, th), false)
+	# 底边 / 右边**贴住面板的边**：把面板的内边距加回去（见 edge_pad 的注释）。
+	draw_texture_rect(tex,
+		Rect2(size.x + edge_pad.x - tw, size.y + edge_pad.y - th, tw, th), false)
