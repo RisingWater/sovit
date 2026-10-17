@@ -185,6 +185,24 @@ func _clear_labels() -> void:
 			l.queue_free()
 	_label_items.clear()
 
+## 撤掉**一个**标签（拆房 / 移房用）。
+##
+## ⚠️ 只 `_shop_label.erase(sid)` 是不够的：标签是 `label_layer` 的子节点，
+## 不 `queue_free()` 的话它会**永远留在屏幕上** —— 用户 2026-10 报的
+## "建筑拆掉后，建筑的名字还留在地图上" 就是这个（精灵和地格都收干净了，只有字还在）。
+## 顺手把它从 `_label_items` 里摘掉，免得那一帧还按世界坐标给它定位（闪一下）。
+func _drop_label(lb) -> void:
+	if lb == null:
+		return
+	var live: Array = []
+	for it in _label_items:
+		if it["node"] == lb:
+			continue
+		live.append(it)
+	_label_items = live
+	if is_instance_valid(lb):
+		lb.queue_free()
+
 ## 像素光标（Kenney Cursor Pixel Pack, CC0）。按热点对齐尖角。
 func _setup_cursors() -> void:
 	Input.set_custom_mouse_cursor(load("res://assets/cursors/default.png"),
@@ -1149,8 +1167,9 @@ func move_shop_to(sid: String, origin: Vector2i) -> bool:
 		return false
 	_free_building_cells(old, fp, _shop_door.get(sid, []), _shop_goal.get(sid, old))
 	_restore_deco(old, fp.x, fp.y)     # 旧址还原成自然地（该长树的把树补回来）
-	if _shop_label.has(sid) and is_instance_valid(_shop_label[sid]):
-		_shop_label[sid].queue_free()
+	# 旧标签走同一套收法（`_drop_label` 会顺手从 `_label_items` 里摘掉，
+	# 否则那一帧它还会按旧址的世界坐标被定位一次，肉眼看是"闪一下"）
+	_drop_label(_shop_label.get(sid, null))
 	_shop_label.erase(sid)
 	var spr = _shop_sprites[sid]
 	_place_sprite(spr, def_id, origin, fp)
@@ -1179,8 +1198,7 @@ func move_housing_to(uid: String, origin: Vector2i) -> bool:
 		return false
 	_free_building_cells(old, fp, inst["door"], inst["goal"])
 	_restore_deco(old, fp.x, fp.y)     # 旧址还原成自然地
-	if is_instance_valid(inst.get("label", null)):
-		inst["label"].queue_free()
+	_drop_label(inst.get("label", null))
 	# 贴图是按占地"横向居中、底边对齐"摆的，换位置后要重算
 	_place_sprite(inst["sprite"], type, origin, fp)
 	inst["cell"] = origin
@@ -1265,11 +1283,14 @@ func _sync() -> void:
 	# 必须放在绑定新建筑**之后** —— 完工的那一座正是从队首那处工地收走的。
 	_prune_orphan_sites()
 
-## 收掉一座建筑的视图：精灵 + 地格占用 + 所有按 shop_id 索引的表。
+## 收掉一座建筑的视图：精灵 + **名字标签** + 地格占用 + 所有按 shop_id 索引的表。
 func _remove_shop_view(sid: String) -> void:
 	var spr = _shop_sprites.get(sid, null)
 	if spr != null and is_instance_valid(spr):
 		spr.queue_free()
+	# ⚠️ 名字标签也得收（它在 `label_layer` 上，不在精灵的子树里）——
+	# 漏了这一步的话，房子没了、地上的名字还在（用户 2026-10 报的 bug）。
+	_drop_label(_shop_label.get(sid, null))
 	var origin: Vector2i = _shop_cell.get(sid, Vector2i(-1, -1))
 	if origin.x >= 0:
 		var def_id := String(_shop_def.get(sid, ""))

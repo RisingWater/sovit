@@ -252,7 +252,28 @@ func _run() -> void:
 		_fail("拆完了还有 %d 个工人挂在被拆的建筑上" % orphans)
 		return
 
-	print("WORKER TEST 有效工位(L3)=%d 拖动条max=%d 拖到0=%d 拆除=弹窗确认 引擎已移除 退料%s 工人已释放"
+	# 3d. **用户报的 bug**：建筑拆掉之后，它的名字还留在地图上。
+	#
+	#     名字标签挂在 `world.label_layer`（屏幕空间 CanvasLayer）上，**不在精灵的子树里** ——
+	#     `_remove_shop_view()` 只把精灵 `queue_free()` + 从字典里 erase，
+	#     标签节点就一直留在屏幕上（精灵没了、字还在）。
+	var world = node.get_node("World")
+	var lb = (world.get("_shop_label") as Dictionary).get(sid, null)
+	if lb == null or not is_instance_valid(lb):
+		_fail("拆除之前地图上就没有「%s」的名字标签（这条断言没意义）" % String(def["nameZh"]))
+		return
+	# 走**真实路径**：`world._process` 每帧都 `_sync()`，它会发现 shops 里没这条了
+	await process_frame
+	await process_frame
+	if is_instance_valid(lb):
+		_fail("拆掉之后「%s」的名字标签还活着（用户：建筑拆掉后名字还留在地图上）"
+			% String(def["nameZh"]))
+		return
+	if (world.get("_shop_label") as Dictionary).has(sid):
+		_fail("拆掉之后 `_shop_label` 里还留着这条（标签字典没清）")
+		return
+
+	print("WORKER TEST 有效工位(L3)=%d 拖动条max=%d 拖到0=%d 拆除=弹窗确认 引擎已移除 退料%s 工人已释放 名字标签已收"
 		% [expect, slider_max, got, before_goods.keys()])
 	print("WORKER TEST RESULT: PASS")
 	quit(0)
