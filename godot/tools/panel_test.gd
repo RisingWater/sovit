@@ -88,6 +88,32 @@ func _run() -> void:
 		return
 	var vp := root.get_visible_rect().size
 
+	# ---- 换一局之后「日净额」不能跨局（用户 2026-10 报的 "钱是不是算错了"）
+	# 标题页那局"展示村庄"国库是 50 万，正式这局是 2000 —— 历史要是不清，
+	# 财务页的「最近 12 天」会冒出上一局的天数和一个 -497485 的净额。
+	var st = node.get("_stats")
+	var runner = node.get("runner")
+	var world0 = node.get_node_or_null("World")
+	if st != null and runner != null and world0 != null:
+		st.poll()
+		await process_frame
+		var before: int = (st.days as Array).size()
+		var old_money: float = (runner.sim.s["government"]["money"] as float)
+		# 用**真正的入口**换一局：`world.start_new_game()` 会换一个 SimCore 对象
+		# （读档 `load_from()` 也一样）—— 直接 `sim.new_game()` 是同一个对象，测不出这条。
+		world0.start_new_game(999, 1.0, "测试")
+		st.poll()
+		await process_frame
+		if (st.days as Array).size() != 1:
+			_fail("换局之后历史没有清空（残留 %d 条，换局前 %d 条）"
+				% [(st.days as Array).size(), before])
+			return
+		if absf(float((st.money_flow as Array)[0])) > 1.0:
+			_fail("换局之后第一条「日净额」应当是 0（旧国库 %.0f 被算进这一局了），实际 %.0f"
+				% [old_money, float((st.money_flow as Array)[0])])
+			return
+		print("PANEL TEST 换局清空历史 ✅（旧国库 %.0f 不会被算成日净额）" % old_money)
+
 	# 面板初始是隐藏的，隐藏时容器不做布局 —— 必须先打开再量尺寸
 	panel.open()
 	for i in 3:

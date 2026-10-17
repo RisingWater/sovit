@@ -48,9 +48,28 @@ var last_slots: Dictionary = {}
 var last_workers: Dictionary = {}
 
 var _last_day := -1
+## 上一次采样时用的是哪一个 SimCore。
+## ⚠️ 新开一局 / 读档 / 标题页那局"展示村庄"都是**换一个 SimCore 对象**
+## （`world_view.start_new_game()` / `load_from()`），所以认对象最准。
+var _sim_ref = null
 
 func setup(r: SimRunner) -> void:
 	runner = r
+	_live_reset()
+
+## 清空所有序列（换了一局就得清）。
+func reset() -> void:
+	for arr in [days, money, money_flow, population, satisfaction, hungry, employed,
+			wages, tax, rent, sales, build_cost]:
+		(arr as Array).clear()
+	for m in [stock, produced, consumed_ind, consumed_pop, last_produced,
+			last_consumed_ind, last_consumed_pop, last_shop_count, last_slots, last_workers]:
+		(m as Dictionary).clear()
+	_last_day = -1
+
+func _live_reset() -> void:
+	_sim_ref = null
+	reset()
 
 ## 每帧调用；只有跨天才真正采样，返回值表示这一帧是否采到了新数据。
 ##
@@ -59,6 +78,12 @@ func setup(r: SimRunner) -> void:
 func poll() -> bool:
 	if runner == null or runner.sim == null:
 		return false
+	# 换了一局就清空历史（见 `_sim_ref` 的注释）。不认这一条的话：
+	# 标题页那局展示村庄（国库 50 万）的天数会跟正式这局连成一条"日净额"，
+	# 财务页上就会冒出 `D6 / D7 / D51` 和一个 `-497485` —— 用户 2026-10 就是这么发现的。
+	if runner.sim != _sim_ref:
+		_sim_ref = runner.sim
+		reset()
 	var s: Dictionary = runner.sim.s
 	var d := int(s["day"])
 	if d == _last_day:

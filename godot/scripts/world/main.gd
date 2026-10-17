@@ -202,6 +202,10 @@ func _ready() -> void:
 	_esc_menu.save_dialog = _save_dialog
 	# 读档成功：如果当时还在标题页，就读档结果直接进游戏
 	_save_dialog.loaded.connect(func(_p):
+		# 读档换的是**另一个 SimCore 对象**：顶栏平时只挂在 `hour_ticked` 上，
+		# 不手动刷一次的话顶上还留着上一局（或标题页那局展示村庄）的钱和人。
+		if _hud != null and _hud.has_method("refresh_now"):
+			_hud.refresh_now()
 		if _title_layer != null and _title_layer.visible:
 			_end_title())
 
@@ -257,6 +261,9 @@ func _on_select_building(id: String) -> void:
 func _end_title() -> void:
 	root_ui.visible = true
 	_title_layer.visible = false
+	# 开新局 / 读档都会走到这里 —— 顶栏先按**现在这个** sim 刷一遍（见 loaded 那边的注释）
+	if _hud != null and _hud.has_method("refresh_now"):
+		_hud.refresh_now()
 	if world.label_layer != null:
 		world.label_layer.visible = true
 	# 必须停掉 _process —— 它每帧都在改 camera.position，

@@ -27,6 +27,7 @@ const HEAD_COL := Color(0.52, 0.31, 0.16)
 var _tab := 0
 var _tab_btns: Array[Button] = []
 var _body: VBoxContainer
+var _scroll_root: ScrollContainer
 var _portrait: PanelPortrait
 var _sel_good := ""
 var _sel_resident := ""
@@ -87,6 +88,7 @@ func _ready() -> void:
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	root.add_child(scroll)
+	_scroll_root = scroll
 	_body = VBoxContainer.new()
 	_body.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_body.add_theme_constant_override("separation", 4)
@@ -170,6 +172,11 @@ func refresh() -> void:
 		0: _resources_tab()
 		1: _people_tab()
 		_: _finance_tab()
+	# ⚠️ ScrollContainer 只按**最小高度**摆子节点 —— 不给 `_body` 一个下限，内容就停在
+	# 面板上半截，下面空一片（用户 2026-10 在资源页 / 人口页各圈出来一块）。
+	# 让它至少和视口一样高，页面里那些 `EXPAND_FILL` 才真的能撑开。
+	if _scroll_root != null and _scroll_root.size.y > 4.0:
+		_body.custom_minimum_size.y = _scroll_root.size.y - 2.0
 
 # ---------------------------------------------------------------------------
 # 通用小件
@@ -239,14 +246,11 @@ func _resources_tab() -> void:
 	# 用户 2026-10：这一页**不要**「全局统计」那一段（人口/就业折线 + 口径说明），
 	# 也不要在详情里放「库存 / 日产」两张折线 —— 一页只要"资源清单 + 单项数据"。
 	# 主从布局：左列表 + 右详情。不做一览表 —— 一屏 9 列挤在一起既难读也看不清重点。
-	# ⚠️ 高度要**撑满面板**（用户 2026-10："资源高度没有占满整个面板"）。
-	# 这一页的内容挂在一个 ScrollContainer 里，而 ScrollContainer 只按**最小高度**摆子节点，
-	# 所以 `EXPAND_FILL` 在这里不起作用 —— 只能自己按视口算一个"剩下多高"。
-	var fill_h := maxf(360.0, get_viewport_rect().size.y - float(UIKit.BAR_H) - 152.0)
+	# 高度靠 `refresh()` 里给 `_body` 的下限撑满（见那里的注释），这里不用再算。
 	var split := HBoxContainer.new()
 	split.add_theme_constant_override("separation", 10)
 	split.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	split.custom_minimum_size = Vector2(0, fill_h)
+	split.custom_minimum_size = Vector2(0, 360)
 	_body.add_child(split)
 
 	# ---- 左：资源列表
