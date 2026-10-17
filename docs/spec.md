@@ -384,6 +384,13 @@ slots = (def.maxWorkers ?? def.workers) + (def.capacity?.slotsPerLevel ?? 0) × 
 > "把研究所升到 L3 再拖满 12 人"会被**静默夹回 6 人** ——
 > 上限看着是 12、拖到 12、次日却只有 6 个工位在开。同一口径必须只有一份实现。
 
+> ⚠️ **工位上限是内容决定的天花板，别开大**（用户 2026-10）：产出按
+> `staffing = 在岗 / workers` **线性放大、不封顶**，所以 `maxWorkers` 一开大，
+> 玩家就会把整个村子塞进一座采石场而不是多建一座。用户看到采石场写着「最多 100 人」
+> 当场否掉 ——「太多了，和农田一样，要就多建造」。现在：采集业（伐木/采石/粘土）= 6，
+> 通用硬上限 12（`validate.ts::MAX_WORKERS_CAP`，超过 `check:content` 直接红）。
+> 明细见 `docs/content.md` §八之二。
+
 **升级时的用工目标重算**（`activateCompleted` 的 `upgrade` 分支）：
 
 | 升级前 | 升级后 |

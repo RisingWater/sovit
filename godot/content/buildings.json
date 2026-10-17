@@ -219,7 +219,7 @@
       },
       "tier": 1,
       "workers": 3,
-      "maxWorkers": 100,
+      "maxWorkers": 6,
       "terrain": "forest",
       "buildCost": {
         "wood": 4
@@ -246,7 +246,7 @@
       },
       "tier": 1,
       "workers": 3,
-      "maxWorkers": 100,
+      "maxWorkers": 6,
       "terrain": "stone",
       "buildCost": {
         "wood": 4
@@ -273,7 +273,7 @@
       },
       "tier": 1,
       "workers": 3,
-      "maxWorkers": 100,
+      "maxWorkers": 6,
       "terrain": "clay",
       "buildCost": {
         "wood": 4

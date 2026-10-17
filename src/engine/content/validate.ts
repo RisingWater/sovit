@@ -66,6 +66,14 @@ export interface ParsedContent {
 
 const SCHEMA_VERSION = 1
 /**
+ * 一座建筑最多能开多少工位（`workers` / `maxWorkers` 的上限）。
+ *
+ * 用户 2026-10 看到采石场/伐木场写着「最多 100 人」当场否掉："太多了，和农田一样，
+ * 要就多建造"。产出按 `在岗 / workers` **线性放大且不封顶**，所以这个上限一开大，
+ * 玩家就会把整个村子塞进一座采石场 —— 正确玩法应该是"再建一座"。
+ */
+const MAX_WORKERS_CAP = 12
+/**
  * `quests.json` 自己的 schema 版本（用户 2026-10 升到 2）。
  *
  * 与 `SCHEMA_VERSION` 分开，是因为两个文件各自演进：economy 还是 1，
@@ -405,6 +413,17 @@ function parseBuildings(
     const maxWorkers = o.maxWorkers === undefined ? undefined : asNonNeg(o.maxWorkers, `${p}.maxWorkers`)
     if (maxWorkers !== undefined && maxWorkers < workers) {
       fail(`${p}.maxWorkers（${maxWorkers}）不能小于 workers（${workers}）`)
+    }
+    // ⚠️ 一座建筑**吸走几十上百个人**是不对的（用户 2026-10 看到采石场写「最多 100 人」
+    // 当场报的："太多了，和农田一样，要就多建造"）。产出与在岗人数成正比
+    // （`staffing = 在岗 / workers`，**不封顶**），所以上限一开大，玩家就会把一整个村
+    // 塞进一座采石场，而不是多建一座。这里把上限钉在 12（够 3 级研究所 + 升级工位）。
+    if (maxWorkers !== undefined && maxWorkers > MAX_WORKERS_CAP) {
+      fail(`${p}.maxWorkers = ${maxWorkers} 超过了上限 ${MAX_WORKERS_CAP}`
+        + '（一座建筑不该吸走这么多人；要更多产出请多建一座，见 docs/spec.md §7.4）')
+    }
+    if (workers > MAX_WORKERS_CAP) {
+      fail(`${p}.workers = ${workers} 超过了上限 ${MAX_WORKERS_CAP}（同上，多建一座）`)
     }
 
     // 配方可选：产商品的建筑必须有配方；「建筑工坊」这类产出*建造产能*而非商品的
