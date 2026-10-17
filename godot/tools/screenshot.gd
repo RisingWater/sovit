@@ -84,6 +84,12 @@ func _run() -> void:
 		for t in sim_n.quest_talks_pending():
 			sim_n.quest_talk_mark_shown(String((t as Dictionary)["key"]))
 		sim_n.s["quests"]["chapters"]["1"] = int(sim_n.s["day"])
+		# ⚠️ 这一局是**标题页展示村庄**，本来就有一堆建筑（可能已经带研究所）——
+		# 不清掉的话"还没有研究所"那张图里其实是 6 个（第一版就是这么错的）。
+		var shops_n: Array = sim_n.s["shops"]
+		for i in range(shops_n.size() - 1, -1, -1):
+			if String((shops_n[i] as Dictionary)["defId"]) == "research_institute":
+				shops_n.remove_at(i)
 		hud_n.refresh_nav_buttons()
 		# 只留圆钮列：面板/建造栏/追踪条全收掉，看的就是那条竖列
 		# ⚠️ 圆钮列挂在 HUD 的**父节点**上（不是 HUD 的子节点），所以按名字放行
@@ -100,9 +106,10 @@ func _run() -> void:
 		var nimg: Image = root.get_texture().get_image()
 		if nimg != null:
 			nimg.save_png(out_path)
+		print("SCREENSHOT nav 无研究所：", _nav_visible_count(hud_n), " 个圆钮")
 		# 加一座研究所 → 科技圆钮插到**中间**
 		var dn: Dictionary = runner.db.buildings["research_institute"]
-		(sim_n.s["shops"] as Array).append({
+		shops_n.append({
 			"id": "inst#shot", "defId": "research_institute", "owner": "state",
 			"targetWorkers": int(dn["workers"]), "wage": 5.0, "wageCap": 30.0,
 			"level": 1, "active": true, "profit": 0.0, "skill": 50.0, "planned": 0.0,
@@ -114,6 +121,7 @@ func _run() -> void:
 		var nimg2: Image = root.get_texture().get_image()
 		if nimg2 != null:
 			nimg2.save_png(out_path.replace(".png", "-tech.png"))
+		print("SCREENSHOT nav 有研究所：", _nav_visible_count(hud_n), " 个圆钮")
 		print("SCREENSHOT nav -> ", out_path, " / -tech.png")
 		quit(0)
 		return
@@ -905,3 +913,11 @@ func _run() -> void:
 	var err := img.save_png(out_path)
 	print("SCREENSHOT ", mode, " -> ", out_path, " err=", err, " size=", img.get_width(), "x", img.get_height())
 	quit(0 if err == OK else 1)
+
+## 圆钮列此刻**看得见**的按钮个数（截图模式用来自证「这张图里确实是 5 个 / 6 个」）。
+func _nav_visible_count(hud) -> int:
+	var n := 0
+	for b in (hud._nav_btns as Array):
+		if (b as Button).visible:
+			n += 1
+	return n

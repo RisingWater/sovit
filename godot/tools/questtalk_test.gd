@@ -269,15 +269,27 @@ func _run() -> void:
 	if nav_col == null:
 		_fail("找不到左侧圆钮列 NavCol")
 		return
+	# ⚠️ 先把研究所全部拿掉：这一局是**标题页那局的展示村庄**，它本来就有一堆建筑，
+	# 很可能已经带着研究所了 —— 不清掉就会直接量到"6 个"，然后误以为"5 个"那步是对的。
+	# （用户第一版截图就是这么骗过我的：标题写着 5 个，图里其实是 6 个。）
+	var shops_arr: Array = msim.s["shops"]
+	for i in range(shops_arr.size() - 1, -1, -1):
+		if String((shops_arr[i] as Dictionary)["defId"]) == "research_institute":
+			shops_arr.remove_at(i)
+	hud.refresh_nav_buttons()
 	# ⚠️ 圆钮列的落位是**延后**的（Container 收到 queue_sort 之后要到下一帧才排），
-	# 所以量尺寸之前先等两帧 —— 不等的话量到的是"全都叠在 0"的中间态。
+	# 所以量尺寸之前先等几帧 —— 不等的话量到的是"全都叠在 0"的中间态。
 	for _f in 3:
 		await process_frame
-	if not _nav_layout_ok(nav_col, hud):
+	var tech_btn: Button = hud.get("_tech_nav_btn")
+	if tech_btn.visible:
+		_fail("研究所已经全部拿掉了，「科技」圆钮还露着")
+		return
+	if not _nav_layout_ok(nav_col, hud, 5):
 		return
 	# 加上研究所 → 科技圆钮出现在**中间**，其余整体下移一格，仍然不许留洞
 	var d_inst: Dictionary = node.get("runner").db.buildings["research_institute"]
-	(msim.s["shops"] as Array).append({
+	shops_arr.append({
 		"id": "inst#qtt", "defId": "research_institute", "owner": "state",
 		"targetWorkers": int(d_inst["workers"]), "wage": 5.0, "wageCap": 30.0,
 		"level": 1, "active": true, "profit": 0.0, "skill": 50.0, "planned": 0.0,
@@ -285,9 +297,12 @@ func _run() -> void:
 	hud.refresh_nav_buttons()
 	await process_frame
 	await process_frame
-	if not _nav_layout_ok(nav_col, hud):
+	if not tech_btn.visible:
+		_fail("研究所建起来之后「科技」圆钮没有出现")
 		return
-	print("QUESTTALK TEST 圆钮排版：预言先出（5 个）、科技后插到中间（6 个），中间不留洞 ✅")
+	if not _nav_layout_ok(nav_col, hud, 6):
+		return
+	print("QUESTTALK TEST 圆钮排版：先 5 个（含预言）→ 科技插到第 4 位变 6 个，中间不留洞 ✅")
 
 	# 城镇中心：换图要等**修复城镇中心那条任务**结算
 	var world = node.get_node("World")
@@ -332,19 +347,24 @@ func _run() -> void:
 	print("QUESTTALK TEST RESULT: PASS")
 	quit(0)
 
-## 圆钮列的排版自检：**可见的**那几个必须一个挨一个（间距 = `NAV_GAP`），
-## 而且顺序 = `NAV_ITEMS` 的顺序。
+## 圆钮列的排版自检：**可见的**那几个必须正好 `expect_count` 个、一个挨一个
+## （间距 = `NAV_GAP`），而且顺序 = `NAV_ITEMS` 的顺序。
 ##
 ## 为什么要单拎出来：出场顺序是「预言先、科技后」，但科技在列里排在预言**前面**——
 ## 科技出现时等于往中间插了一个按钮。VBoxContainer 对隐藏子节点**不占位**，
 ## 所以正确表现是"整体下移一格"，不是"留个洞"或"两个压在一起"。
-func _nav_layout_ok(nav_col, hud) -> bool:
+func _nav_layout_ok(nav_col, hud, expect_count: int) -> bool:
 	var btns: Array = hud._nav_btns
 	var vis: Array = []
 	for c in nav_col.get_children():
 		if c is Button and (c as Button).visible:
 			vis.append(c)
-	# ① 列里可见的按钮 = HUD 记录里 visible 的那些，且**顺序一致**（不许重排）
+	# ① 个数（别只信 print 里写死的数字 —— 第一条截图就是这么错的）
+	if vis.size() != expect_count:
+		_fail("圆钮列此刻可见 %d 个，应当是 %d 个（%s）" % [vis.size(), expect_count,
+			" / ".join(vis.map(func(b): return String((b as Button).tooltip_text)))])
+		return false
+	# ② 列里可见的按钮 = HUD 记录里 visible 的那些，且**顺序一致**（不许重排）
 	var want: Array = []
 	for i in btns.size():
 		if (btns[i] as Button).visible:
@@ -355,10 +375,7 @@ func _nav_layout_ok(nav_col, hud) -> bool:
 	if got != want:
 		_fail("圆钮列可见按钮的下标是 %s，按 NAV_ITEMS 应当是 %s" % [str(got), str(want)])
 		return false
-	if vis.size() < 4:
-		_fail("圆钮列只剩 %d 个（资源 / 人口 / 财政 / 任务 总该在）" % vis.size())
-		return false
-	# ② 一个挨一个：不许留洞、不许重叠
+	# ③ 一个挨一个：不许留洞、不许重叠
 	var gap := float(hud.NAV_GAP)
 	for i in range(1, vis.size()):
 		var prev: Control = vis[i - 1]
