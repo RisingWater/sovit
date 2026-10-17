@@ -224,6 +224,138 @@ func _run() -> void:
 		return
 	_ok("私有住房：按钮置灰 + 引擎拒绝下单（私有住房不能改建）")
 
+	# ---- 5. 一批茅屋同时改建：房子要**原地换**、进度条不许乱跳 ------------------
+	#
+	# 用户 2026-10 报的两个症状：
+	#   · "茅屋改建木屋之后，房子并没有消失，而是多了一座木屋"
+	#     —— 地图这边原来只加不减（`_sync` 里只有 `while have < want`）
+	#   · "有大量茅屋在升级的时候，升级条到处乱跳"
+	#     —— 进度条按"第 i 条在途改建 ↔ 同类型第 i 座房子"配对，两边必须都按 FIFO 挪；
+	#        收错那一座（尾部）或者干脆不收，配对就整体错位、条就跳到别的房子上
+	world.start_new_game(SEED, RES_MULT, "改建批测")
+	await process_frame
+	sim = world.runner.sim
+	sim.s["research"]["done"] = db.tech_ids.duplicate()
+	for g in ["wood", "stone", "brick", "clay", "firewood"]:
+		sim.s["goods"][g] = 400.0
+	await process_frame
+	world.runner.paused = true
+	var huts_before := int(floor(float(sim.s["housing"].get("hut", 0.0))))
+	var wood_before := int(floor(float(sim.s["housing"].get("wooden_house", 0.0))))
+	var inst_before: int = world._housing_instances.size()
+	if huts_before < 3:
+		_fail("新局的茅屋太少（%d 座），测不了" % huts_before)
+		return
+	# 连下 3 条改建
+	for i in 3:
+		world.runner.enqueue([{"type": "upgrade_housing", "goodId": "hut"}])
+	await process_frame
+	# 记下"改建前第一座茅屋的格子"——FIFO 的话，它应该第一个被换掉
+	var first_hut_cell: Vector2i = Vector2i(-1, -1)
+	for inst in world._housing_instances:
+		if String(inst["type"]) == "hut":
+			first_hut_cell = inst["cell"]
+			break
+	for h in 8:
+		sim.tick_hour([])
+		await process_frame
+	var ups3: Array = _entries(sim, "housing_upgrade")
+	if ups3.size() != 3:
+		_fail("黎明后施工队列里应有 3 条改建，实际 %d 条" % ups3.size())
+		return
+	# 配对：第一座茅屋头顶应当是**队首**那条（building = 正在施工）
+	var hut0: Dictionary = {}
+	for inst in world._housing_instances:
+		if String(inst["type"]) == "hut":
+			hut0 = inst
+			break
+	if hut0.is_empty() or int(world._housing_ordinal(hut0)) != 0:
+		_fail("第一座茅屋的序号不是 0（进度条配对会错位）")
+		return
+	var st0: Dictionary = world._housing_upgrade_state(hut0)
+	if String(st0.get("state", "")) != "building":
+		_fail("第一座茅屋头顶应当是队首那条（building），实际 %s" % str(st0))
+		return
+	# 只让**第一条**完工，然后立刻验"配对没有错位"—— 这才是"进度条到处乱跳"的直接断言：
+	# 剩下那几座里**最早的一座**（序号仍是 0）必须继续顶着**新的队首**那条。
+	#
+	# ⚠️ 必须人为把进度拉开：一次工作小时可能同时完工两条（第一版就是这么红的：
+	#    采样到的中间态是"还剩 1 条"，中间那一帧根本没看到）。
+	ups3[0]["remaining"] = 0.5
+	for i in range(1, ups3.size()):
+		ups3[i]["remaining"] = 9999.0
+	var guard := 0
+	while _entries(sim, "housing_upgrade").size() == ups3.size() and guard < 120:
+		sim.tick_hour([])
+		await process_frame
+		guard += 1
+	var left := _entries(sim, "housing_upgrade")
+	if left.size() != ups3.size() - 1:
+		_fail("把进度拉开之后应当**恰好**完工 1 条（还剩 %d 条）" % left.size())
+		return
+	var at_first_mid := ""
+	var hut_next: Dictionary = {}
+	for inst in world._housing_instances:
+		if inst["cell"] == first_hut_cell:
+			at_first_mid = String(inst["type"])
+		elif String(inst["type"]) == "hut" and hut_next.is_empty():
+			hut_next = inst
+	if at_first_mid != "wooden_house":
+		_fail("第一条改建完工后，原来那座茅屋那一格是「%s」，应当是 wooden_house（原地换）"
+			% at_first_mid)
+		return
+	if hut_next.is_empty() or int(world._housing_ordinal(hut_next)) != 0:
+		_fail("第一条完工后，剩下那座茅屋的序号不是 0（配对整体错位 → 进度条会跳房子）")
+		return
+	var st1: Dictionary = world._housing_upgrade_state(hut_next)
+	var want1: Dictionary = world._entry_bar_state(left[0])
+	if String(st1.get("state", "")) != String(want1.get("state", "")) \
+			or absf(float(st1.get("frac", 0.0)) - float(want1.get("frac", 0.0))) > 0.001:
+		_fail("第一条完工后进度条没跟到队首那条：显示 %s / 应为 %s（条在跳房子）"
+			% [str(st1), str(want1)])
+		return
+	# 把剩下那几条的进度放回去，让它们照常完工
+	for c in left:
+		c["remaining"] = 1.0
+	# 让它完工（多跑几天）
+	for h in 72:
+		sim.tick_hour([])
+		await process_frame
+	var huts_after := int(floor(float(sim.s["housing"].get("hut", 0.0))))
+	var wood_after := int(floor(float(sim.s["housing"].get("wooden_house", 0.0))))
+	if huts_after != huts_before - 3 or wood_after != wood_before + 3:
+		_fail("3 条改建完工后应 茅屋 %d→%d、木屋 %d→%d，实际 茅屋 %d / 木屋 %d" % [
+			huts_before, huts_before - 3, wood_before, wood_before + 3, huts_after, wood_after])
+		return
+	# ① 地图上的实例总数不变（房还是那些房，只是三座换了个样）
+	if world._housing_instances.size() != inst_before:
+		_fail("改建之后地图上的房子数量变了：%d → %d（旧房没消失 / 多建了一座）"
+			% [inst_before, world._housing_instances.size()])
+		return
+	# ② 第一座茅屋那一格现在必须是木屋（原地变样），且**没有**茅屋还占着它
+	var at_first := ""
+	for inst in world._housing_instances:
+		if inst["cell"] == first_hut_cell:
+			at_first = String(inst["type"])
+	if at_first != "wooden_house":
+		_fail("原来第一座茅屋那一格现在是「%s」，应当是 wooden_house（原地换房）" % at_first)
+		return
+	# ③ 茅屋实例数 = 引擎里的茅屋数（不许有"幽灵茅屋"留在图上）
+	var hut_views := 0
+	for inst in world._housing_instances:
+		if String(inst["type"]) == "hut":
+			hut_views += 1
+	if hut_views != huts_after:
+		_fail("地图上茅屋实例 %d 座，引擎里只有 %d 座（幽灵房子）" % [hut_views, huts_after])
+		return
+	# ④ 完工后没有残留的改建进度条
+	for inst in world._housing_instances:
+		if not world._housing_upgrade_state(inst).is_empty():
+			_fail("改建都完工了，还有房子头顶挂着进度条（配对错位）")
+			return
+	_ok("3 座茅屋同时改建：原地换成木屋（实例数 %d 不变）、无幽灵房子、无残留进度条"
+		% inst_before)
+
 	if _checks == 0:
 		_fail("一条都没检查到（假绿）")
 		return

@@ -68,6 +68,11 @@ var _housing_by_uid := {}
 var _sites := []                # [{kind, id, cell, fw, fh, node}]  待建
 var _site_by_type := {}         # defId/housingType -> [site index...]
 var _placed_housing_count := {} # type -> count already bound
+## 住房实例 id 的**单调**计数器（`<type>#<n>`）。
+## ⚠️ 不能用 `_housing_instances.size() + 1`：改建会**收走**一座住房，size 变小，
+## 之后新建的那座就可能撞上仍然存在的老 id（比如收掉 hut#1、新增又拿到 hut#2，
+## 而 hut#2 还在）—— 撞了之后点 A 会弹出 B。
+var _housing_seq := 0
 var _prev_res := -1
 var _prev_housing_n := -1
 
@@ -633,7 +638,8 @@ func refresh_town_center_sprite() -> void:
 
 func _place_housing_instance(type: String, cell: Vector2i) -> void:
 	var fp = _footprint(type)
-	var uid = "%s#%d" % [type, _housing_instances.size() + 1]
+	_housing_seq += 1
+	var uid = "%s#%d" % [type, _housing_seq]
 	map.occupy(_foot_top(cell, fp), fp.x, fp.y, "housing", uid)
 	_clear_deco(cell, fp.x, fp.y)
 	var spr := Sprite2D.new()
@@ -655,6 +661,42 @@ func _place_housing_instance(type: String, cell: Vector2i) -> void:
 
 func housing_instance(uid: String) -> Variant:
 	return _housing_by_uid.get(uid, null)
+
+## 取该类型**最早放下的那一座**实例（**FIFO**，只从索引里摘出来，不动精灵/地格）。
+##
+## ⚠️ 为什么必须是 FIFO 而不是"最后那座"：地图上"第 i 座同类住房"要和 sim 队列里
+## "第 i 条改建"对齐（`_housing_ordinal()` 的约定），而队列是**先进先出**的。
+## 收尾部的话，每完工一条，剩下的房子和剩下的条目就错位一格 ——
+## 用户 2026-10 报的"大量茅屋在升级时进度条到处乱跳"就是这么来的。
+func _pop_housing_instance(type: String) -> Variant:
+	for inst in _housing_instances:
+		if String(inst["type"]) == type:
+			return inst
+	return null
+
+## 收掉一座**住房**实例：精灵 + 名字标签 + 地格/门洞 + 索引表。
+##
+## ⚠️ 为什么必须有它：**改建**（茅屋 → 木屋）在引擎里就是
+## `housing[茅屋] −1 / housing[木屋] +1`，地图这边如果只加不减，结果就是
+## "旧房子没消失、旁边又冒出一座新的"（用户 2026-10 报的 bug）。
+func _remove_housing_instance(inst: Dictionary) -> void:
+	var spr = inst.get("sprite", null)
+	if spr != null and is_instance_valid(spr):
+		spr.queue_free()
+	_drop_label(inst.get("label", null))
+	var fp := Vector2i(int(inst["fw"]), int(inst["fh"]))
+	# 地格 / 门洞 / 内部格一起还回去（`_free_building_cells` 会把 map.occupied 擦掉）
+	_free_building_cells(inst["cell"], fp, inst["door"], inst["goal"])
+	_restore_deco(inst["cell"], fp.x, fp.y)     # 旧址还原成自然地
+	_housing_instances.erase(inst)
+	_housing_by_uid.erase(String(inst["uid"]))
+	var t := String(inst["type"])
+	_placed_housing_count[t] = maxi(0, int(_placed_housing_count.get(t, 0)) - 1)
+	# ⚠️ 实例**总数**可能不变（收一座茅屋、补一座木屋），而 `_sync` 里那句
+	# "数量变了才重排住户"看的是总数 —— 不把缓存打成无效，住户会继续指着一座
+	# 已经不存在的房子（晚上回家的小人消失 / 点住房面板显示的是别人的住户）。
+	_prev_housing_n = -1
+	_nav_dirty = true
 
 ## 建筑占地范围内的装饰（树）要抹掉，否则房子四周会露出树。
 ## 道路/地板在 _rerender_terrain() 里抹过，建筑这条路径原本漏了。
@@ -818,6 +860,7 @@ func _reset_buildings() -> void:
 	_walk_inside.clear()
 	_housing_instances.clear()
 	_housing_by_uid.clear()
+	_housing_seq = 0
 	_sites.clear()
 	_site_by_type.clear()
 	_placed_housing_count.clear()
@@ -1257,21 +1300,46 @@ func _sync() -> void:
 	_has_research_bar = not _research_shops().is_empty()
 
 	# 新住房实例
+	#
+	# 三条硬规矩（都是用户 2026-10 报出来的）：
+	#   ① **先收后加**：改建是"茅屋 −1 / 木屋 +1"，只加不减的话旧房子不消失、
+	#      旁边反而多出一座新的（"茅屋改建木屋之后，房子并没有消失，而是多了一座木屋"）。
+	#   ② 收的那座要**连精灵 + 名字标签 + 地格**一起还回去（`_remove_housing_instance`）。
+	#   ③ 收的是同类型**最早那座**（FIFO，见 `_pop_housing_instance`），并且新房优先落在
+	#      **刚腾出来的格子上** —— 两边都按 FIFO 走，"第 i 座 ↔ 第 i 条改建"才不会错位，
+	#      头顶的进度条也就不会到处乱跳。
 	var housing: Dictionary = runner.sim.s["housing"]
+	var freed_cells: Array = []
+	for key in _placed_housing_count.keys():
+		var t_old := String(key)
+		var want_old := int(float(housing.get(t_old, 0.0)))
+		while int(_placed_housing_count.get(t_old, 0)) > want_old:
+			var gone = _pop_housing_instance(t_old)
+			if gone == null:
+				break
+			freed_cells.append(gone["cell"])
+			_remove_housing_instance(gone)      # 里面会把 _placed_housing_count[t] 减 1
 	for type in housing.keys():
+		var t := String(type)
 		var want = int(float(housing[type]))
-		var have = int(_placed_housing_count.get(type, 0))
-		var site_cells := _take_sites_for(type, want - have)
-		for cell in site_cells:
-			_place_housing_instance(type, cell)
+		var have = int(_placed_housing_count.get(t, 0))
+		# ① 改建：新房优先盖在**刚收走那座**的格子上（"原地变样"，不是旁边多一座）
+		while have < want and not freed_cells.is_empty():
+			_place_housing_instance(t, freed_cells.pop_front())
 			have += 1
+		# ② 新下的建房单：认领已经摆好的工地
+		var site_cells := _take_sites_for(t, want - have)
+		for cell in site_cells:
+			_place_housing_instance(t, cell)
+			have += 1
+		# ③ 剩下的找空地
 		while have < want:
-			var cell = _find_free_area(type, map.center, 1)
+			var cell = _find_free_area(t, map.center, 1)
 			if cell.x < 0:
 				break
-			_place_housing_instance(type, cell)
+			_place_housing_instance(t, cell)
 			have += 1
-		_placed_housing_count[type] = have
+		_placed_housing_count[t] = have
 
 	var n = (runner.sim.s["residents"] as Array).size()
 	if n != _prev_res or _housing_instances.size() != _prev_housing_n:
@@ -2330,8 +2398,10 @@ func _entry_bar_state(c: Dictionary) -> Dictionary:
 ## 这座住房在同类型实例里的序号（0 起）。
 ##
 ## 住房是**计数模型**：sim 只记"茅屋还剩几栋、有几条改建在途"，**不认地图上具体哪一座**。
-## 所以"第 i 条在途改建 ↔ 同类型第 i 座房子"是表现层的约定（和 `_site_ordinal()` 同思路），
-## 两侧都是 FIFO，条目被收走时序号自动重新对齐。
+## 所以"第 i 条在途改建 ↔ 同类型第 i 座房子"是表现层的约定（和 `_site_ordinal()` 同思路）——
+## ⚠️ 这条约定只有在两边都按 FIFO 时才成立：条目完工时 `construction` 是队头出、
+## 地图这边也必须收**同类最早那座**（`_pop_housing_instance`），否则每完工一条就整体错位，
+## 进度条会从一座房子跳到另一座（用户 2026-10 报的"到处乱跳"）。
 func _housing_ordinal(inst: Dictionary) -> int:
 	var t := String(inst["type"])
 	var i := 0
