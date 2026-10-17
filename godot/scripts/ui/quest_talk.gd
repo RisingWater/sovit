@@ -203,16 +203,26 @@ func _process(delta: float) -> void:
 	if _arrow != null and _arrow.visible:
 		_arrow.modulate.a = 0.35 + 0.65 * absf(sin(_blink * 2.2))
 
-func _gui_input(event: InputEvent) -> void:
-	if event is InputEventMouseButton:
-		var mb := event as InputEventMouseButton
-		if mb.pressed and mb.button_index == MOUSE_BUTTON_LEFT:
-			accept_event()
-			_advance()
-
+## 鼠标点**任意地方**翻页（用户 2026-10："galgame 窗口点鼠标无法继续，只能按空格"）。
+##
+## ⚠️ 为什么在 `_input` 里自己做命中判定，而不是只靠 `Control._gui_input`：
+## 文字框是 `PanelContainer` + `Label`，`mouse_filter` 默认是 STOP —— 点在框上会被它们
+## **吃掉**，父节点的 `_gui_input` 根本收不到（就是这个 bug）。
+## 而"把框设成 IGNORE 让点击穿过去"也不行：Godot 的 GUI 拾取遇到
+## `MOUSE_FILTER_IGNORE` 的父节点会**整棵子树跳过**，框里的选项按钮会跟着点不动
+## （门槛 questtalk 里有一条真鼠标点 accept 的断言，就是这么红的）。
+## 所以：点在按钮上 → 放给按钮；点在别处（框上、立绘上、空地）→ 翻页。
 func _input(event: InputEvent) -> void:
 	if not visible:
 		return
+	if event is InputEventMouseButton:
+		var mb := event as InputEventMouseButton
+		if mb.pressed and mb.button_index == MOUSE_BUTTON_LEFT:
+			if _over_interactive(mb.position):
+				return          # 「跳过」/ 选项按钮自己处理，**不要** consume
+			get_viewport().set_input_as_handled()
+			_advance()
+			return
 	if event is InputEventKey and (event as InputEventKey).pressed \
 			and not (event as InputEventKey).echo:
 		var k := (event as InputEventKey).keycode
@@ -222,3 +232,15 @@ func _input(event: InputEvent) -> void:
 		elif k == KEY_SPACE or k == KEY_ENTER or k == KEY_KP_ENTER:
 			get_viewport().set_input_as_handled()
 			_advance()
+
+## 这个点是不是落在**能按的东西**上（「跳过」或选项按钮）。
+## 是的话鼠标要让给按钮 —— 否则点「跳过」会变成翻页、点选项会变成什么也没发生。
+func _over_interactive(pos: Vector2) -> bool:
+	if _skip != null and _skip.visible and _skip.get_global_rect().has_point(pos):
+		return true
+	if _choice_row != null and _choice_row.visible:
+		for c in _choice_row.get_children():
+			if c is Button and (c as Button).visible \
+					and (c as Button).get_global_rect().has_point(pos):
+				return true
+	return false

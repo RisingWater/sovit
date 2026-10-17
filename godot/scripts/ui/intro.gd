@@ -347,16 +347,23 @@ func _process(delta: float) -> void:
 			_wait = 0.0
 			_advance()
 
-func _gui_input(event: InputEvent) -> void:
-	if event is InputEventMouseButton:
-		var mb := event as InputEventMouseButton
-		if mb.pressed and mb.button_index == MOUSE_BUTTON_LEFT:
-			accept_event()
-			_advance()
-
+## 鼠标点**任意地方**翻页。
+##
+## ⚠️ 和任务对话（`quest_talk.gd`）同一个坑：文字框是 `PanelContainer` + `Label`，
+## `mouse_filter` 默认 STOP，点在框上会被吃掉、父节点的 `_gui_input` 收不到 ——
+## 于是"点鼠标没反应、只能按空格"。这里在 `_input` 里自己判命中，框上也能翻。
 func _input(event: InputEvent) -> void:
 	if not visible:
 		return
+	if event is InputEventMouseButton:
+		var mb := event as InputEventMouseButton
+		if mb.pressed and mb.button_index == MOUSE_BUTTON_LEFT:
+			# 「跳过」按钮自己吃，别把它的点击变成翻页
+			if _skip != null and _skip.visible and _skip.get_global_rect().has_point(mb.position):
+				return
+			get_viewport().set_input_as_handled()
+			_advance()
+			return
 	if event is InputEventKey and (event as InputEventKey).pressed \
 			and not (event as InputEventKey).echo:
 		var k := (event as InputEventKey).keycode

@@ -2140,6 +2140,10 @@ bash godot/verify.sh       # 最后一行要是 ALL CHECKS PASSED
   "Follow Through"，授权同其它两首）。播完 `finished` 自动接回常规轮播，不需要调用方恢复。
 - **推进**：点一下 / 空格 / 回车 → 下一页；`Esc` 或右上角「跳过」→ 直接进游戏
   （不给跳过太狠了，一段剧情不该关住玩家）。
+  ⚠️ 鼠标是**在 `_input` 里自己判命中**的，不是靠 `_gui_input`：文字框是
+  `PanelContainer` + `Label`（`mouse_filter` 默认 STOP），点在框上会被它们吃掉，
+  父节点的 `_gui_input` 根本收不到 —— 那就是"点鼠标翻不了页、只能按空格"
+  （用户 2026-10 在任务对话里报的同一个 bug）。
 - 文本里的 `{money}` / `{pop}` 在建场时换成**开局真实数字**（`begin(sim)`）。
 - ⚠️ 剧本是**常量表** `SCRIPT`，加一幕就多一条；门槛 `intro_test` 会查：
   5 幕、每幕有台词、说话人有立绘和中文名、**逐字查像素字体**（缺字 = 屏幕上空一块）、
@@ -2197,6 +2201,15 @@ bash godot/verify.sh       # 最后一行要是 ALL CHECKS PASSED
   开场剧情之下）。右侧立绘从边上滑进来（0.3s）、下中米黄文字框（宽 900）、名字 24px、
   台词 12px、右下角闪动的 `▼`；有选项时最后一页换成按钮行、`▼` 收起来。
   点一下 / 空格 / 回车翻页，Esc 或右上角「跳过」结束（= 放弃选项）。
+- **鼠标怎么接**（用户 2026-10："galgame 窗口点鼠标无法继续，只能按空格"）：在 `_input` 里
+  自己判命中，**不是** `_gui_input` ——
+  · 原因是文字框是 `PanelContainer` + `Label`，`mouse_filter` 默认 STOP，点上去被框吃掉；
+  · 而"把框设成 IGNORE 让点击穿过去"**也不行**：Godot 的 GUI 拾取遇到
+    `MOUSE_FILTER_IGNORE` 的父节点会**整棵子树跳过**，框里的选项按钮会跟着点不动；
+  · 所以：`_over_interactive(pos)`（「跳过」+ 选项按钮的全局矩形）→ 让给按钮；
+    点在别处（框上 / 立绘上 / 空地）→ 翻页。
+  门槛 `questtalk` 里有两条**真鼠标**断言：点文字框能翻页、点 accept 能出
+  `free_prophecy`（后者要 press + release 都发 —— 按钮是**松开**那一刻发 `pressed` 的）。
 - **数据全来自引擎**：`SimCore.quest_talks_pending()`（契约见 `docs/spec.md` §16.7、
   `docs/quests.md` §七）。`main.gd` 只做"取第一条 → 暂停 → 播 → 记一笔 → 取下一条"。
 - **驱动时机**：`runner.hour_ticked`（黎明就在小时里，任务与章节都在那时结算）

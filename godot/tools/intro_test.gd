@@ -18,6 +18,11 @@ func _fail(msg: String) -> void:
 	quit(1)
 
 func _run() -> void:
+	# ⚠️ headless 的 dummy 窗口只有 64×64，而剧情框的位置是按 `get_viewport_rect()` 算的
+	# （headless 下它报 1600×1600）。不撑开窗口，鼠标事件就落在"窗口外面"、
+	# GUI 拾取找不到任何控件 —— "点文字框能翻页"那条断言会假红。
+	root.size = Vector2i(1600, 1600)
+	await process_frame
 	var font := UIKit.pixel_font()
 	var script: Array = load(INTRO).SCRIPT
 	if script.size() != 5:
@@ -58,8 +63,12 @@ func _run() -> void:
 	print("INTRO TEST 剧本 5 幕、说话人/立绘/中文名齐、缺字 0")
 
 	# ---- 播完会发 finished（含"跳过"那条路）
+	# ⚠️ `host` 要铺满视口：剧情是 `PRESET_FULL_RECT`，尺寸跟着父节点走。
+	# 给 0×0 的 host，剧情自己的 rect 就是 0×0，真鼠标点上去 GUI 拾取找不到它。
 	var host := Control.new()
+	host.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root.add_child(host)
+	host.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	var intro = load(INTRO).new()
 	host.add_child(intro)
 	await process_frame
@@ -84,6 +93,26 @@ func _run() -> void:
 	if not got[0]:
 		_fail("点「跳过」没有发 finished")
 		return
+	# 点鼠标也要能翻页（和任务对话同一个坑：文字框是 PanelContainer，
+	# `mouse_filter` 默认 STOP 会把点击吃掉，父节点收不到 `_gui_input`）
+	intro.begin(null)
+	intro.jump_to_act(1)          # 第 2 幕才有文字框（第 1 幕是黑屏旁白）
+	await process_frame
+	var p0: int = intro.get("_page")
+	var ibox: PanelContainer = intro.get("_box")
+	var at: Vector2 = ibox.position + ibox.size * 0.5
+	var mev := InputEventMouseButton.new()
+	mev.button_index = MOUSE_BUTTON_LEFT
+	mev.pressed = true
+	mev.position = at
+	mev.global_position = at
+	root.push_input(mev)
+	await process_frame
+	if int(intro.get("_page")) == p0:
+		_fail("点在开场剧情的文字框上翻不了页（鼠标被框吃掉了）")
+		return
+	print("INTRO TEST 鼠标：点文字框能翻页 ✅")
+	intro._finish()
 	intro.queue_free()
 	host.queue_free()
 	print("INTRO TEST 翻页到底 / 跳过 都会收尾 ✅")

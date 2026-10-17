@@ -32,6 +32,11 @@ func _add_shop(sim, def_id: String) -> void:
 	})
 
 func _run() -> void:
+	# ⚠️ headless 的 dummy 窗口只有 64×64，而所有布局都是按 `get_viewport_rect()` 算的
+	# （headless 下它报 1600×1600）。不把窗口撑开的话，鼠标事件落在"窗口外面"，
+	# GUI 拾取永远找不到任何控件 —— 那条"点文字框能翻页"的断言会假红。
+	root.size = Vector2i(1600, 1600)
+	await process_frame
 	var font := UIKit.pixel_font()
 	var db := ContentDB.load_all()
 	# ---- 1. 内容：giver / giverPortrait / outro / schemaVersion 2 ----------
@@ -144,8 +149,14 @@ func _run() -> void:
 	print("QUESTTALK TEST 引擎：开局 2 条 → 播过不再来 → 章节收尾排在下一章任务之前 ✅")
 
 	# ---- 3. 界面：能播、能翻页、能选 --------------------------------------
+	# ⚠️ `host` 必须是**铺满视口**的：对话是 `PRESET_FULL_RECT`，它的尺寸跟着父节点走；
+	# 给一个 0×0 的 host，对话自己的 rect 就是 0×0 —— 真鼠标点上去谁也接不到
+	# （GUI 拾取靠 rect，不靠 `_layout()` 里算出来的位置）。
 	var host := Control.new()
+	host.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	root.add_child(host)
+	host.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	await process_frame
 	var talk = load("res://scripts/ui/quest_talk.gd").new()
 	host.add_child(talk)
 	await process_frame
@@ -164,6 +175,23 @@ func _run() -> void:
 	if (talk.get("_portrait") as TextureRect).texture == null:
 		_fail("立绘没加载出来")
 		return
+	# 点鼠标也要能翻页（用户 2026-10："galgame 窗口点鼠标无法继续，只能按空格"）
+	# ⚠️ 必须是**真事件**：`root.push_input` 走完整 GUI 拾取链 —— 框是 PanelContainer，
+	# `mouse_filter` 默认 STOP 会把点击吃掉，父节点的 `_gui_input` 根本收不到。
+	var page_before: int = talk.get("_page")
+	var tbox: PanelContainer = talk.get("_box")
+	var at: Vector2 = tbox.position + tbox.size * 0.5
+	var mev := InputEventMouseButton.new()
+	mev.button_index = MOUSE_BUTTON_LEFT
+	mev.pressed = true
+	mev.position = at
+	mev.global_position = at
+	root.push_input(mev)
+	await process_frame
+	if int(talk.get("_page")) == page_before:
+		_fail("点在文字框上翻不了页（鼠标被框吃掉了 —— 用户报的「只能按空格」）")
+		return
+	print("QUESTTALK TEST 鼠标：点文字框能翻页 ✅")
 	# 一路点到最后一页之后
 	for i in 20:
 		if int(got["n"]) > 0:
@@ -206,7 +234,25 @@ func _run() -> void:
 	if int(got["n"]) != 0:
 		_fail("有选项的最后一页，点空白就把对话关掉了")
 		return
-	(row.get_child(0) as Button).pressed.emit()
+	# 真鼠标点 accept 那个按钮 —— 按钮的爸爸（`_choice_row` / `_box`）都被设成了
+	# MOUSE_FILTER_IGNORE（好让点在框上能翻页），必须确认**按钮本身**还点得动。
+	# 真鼠标点 accept 那个按钮。
+	# ⚠️ 先等两帧：选项按钮是**这一页才创建**的，尺寸要等下一次布局才落下来 ——
+	# 立刻点的话 `get_global_rect()` 还是 0×0，真玩家那边不会有这个问题（人不会 16ms 内点完）。
+	for _f in 3:
+		await process_frame
+	var accept: Button = row.get_child(0)
+	var cr := accept.get_global_rect()
+	# ⚠️ 按钮是在**松开**（按钮抬起）那一刻发 `pressed` 的，所以 press + release 都要发 ——
+	# 只发 press 的话会看到 gui_input 收到了、`pressed` 不响（第一版就这么红的）。
+	for pressed in [true, false]:
+		var cev := InputEventMouseButton.new()
+		cev.button_index = MOUSE_BUTTON_LEFT
+		cev.pressed = pressed
+		cev.position = cr.get_center()
+		cev.global_position = cr.get_center()
+		root.push_input(cev)
+		await process_frame
 	if int(got["n"]) == 0 or String(got["action"]) != "free_prophecy":
 		_fail("点 accept 没有发 finished(\"free_prophecy\")（免费预言不会触发）")
 		return
