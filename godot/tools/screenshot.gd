@@ -73,6 +73,51 @@ func _run() -> void:
 		quit(0)
 		return
 
+	# 左侧圆钮列的"中间插进来一个按钮"：科技（第 4 个）在预言（第 6 个）之后才出现。
+	# 拍两张：`<out>`（第一章收尾后、还没有研究所 = 5 个）与 `<out>-tech.png`（+研究所 = 6 个）。
+	if mode == "nav":
+		if node.has_method("_end_title"):
+			node._end_title()
+			await process_frame
+		var hud_n = node.get_node_or_null("UI/Root/HUD")
+		var sim_n = runner.sim
+		for t in sim_n.quest_talks_pending():
+			sim_n.quest_talk_mark_shown(String((t as Dictionary)["key"]))
+		sim_n.s["quests"]["chapters"]["1"] = int(sim_n.s["day"])
+		hud_n.refresh_nav_buttons()
+		# 只留圆钮列：面板/建造栏/追踪条全收掉，看的就是那条竖列
+		# ⚠️ 圆钮列挂在 HUD 的**父节点**上（不是 HUD 的子节点），所以按名字放行
+		var rootc: Node = node.get_node_or_null("UI/Root")
+		for c in rootc.get_children():
+			if not (c is CanvasItem):
+				continue
+			if String(c.name) in ["HUD", "NavCol"]:
+				continue
+			(c as CanvasItem).visible = false
+		for _f in 6:
+			await process_frame
+		await RenderingServer.frame_post_draw
+		var nimg: Image = root.get_texture().get_image()
+		if nimg != null:
+			nimg.save_png(out_path)
+		# 加一座研究所 → 科技圆钮插到**中间**
+		var dn: Dictionary = runner.db.buildings["research_institute"]
+		(sim_n.s["shops"] as Array).append({
+			"id": "inst#shot", "defId": "research_institute", "owner": "state",
+			"targetWorkers": int(dn["workers"]), "wage": 5.0, "wageCap": 30.0,
+			"level": 1, "active": true, "profit": 0.0, "skill": 50.0, "planned": 0.0,
+		})
+		hud_n.refresh_nav_buttons()
+		for _f in 6:
+			await process_frame
+		await RenderingServer.frame_post_draw
+		var nimg2: Image = root.get_texture().get_image()
+		if nimg2 != null:
+			nimg2.save_png(out_path.replace(".png", "-tech.png"))
+		print("SCREENSHOT nav -> ", out_path, " / -tech.png")
+		quit(0)
+		return
+
 	# 剧情对话（任务触发 / 章节收尾，见 scripts/ui/quest_talk.gd）：
 	#   questtalk  = 任务一出现时，发布人讲这条任务（塞巴斯蒂安 / 粗面包链）
 	#   questoutro = 第一章全绿的收尾（瑟拉菲娜登场，最后一页带两个选项）

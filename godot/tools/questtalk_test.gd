@@ -34,7 +34,6 @@ func _add_shop(sim, def_id: String) -> void:
 func _run() -> void:
 	var font := UIKit.pixel_font()
 	var db := ContentDB.load_all()
-
 	# ---- 1. 内容：giver / giverPortrait / outro / schemaVersion 2 ----------
 	if db.quests_schema_version != 2:
 		_fail("quests.json 的 schemaVersion 应当是 2，实际 %d" % db.quests_schema_version)
@@ -221,6 +220,12 @@ func _run() -> void:
 	root.add_child(node)
 	await process_frame
 	await process_frame
+	# ⚠️ 必须收起标题页：标题页期间 `root_ui` 整个是隐藏的，隐藏的子树**不做布局**
+	# （量圆钮列会量到"全都叠在 0"—— 那不是排版坏了，是根本没排）。
+	if node.has_method("_end_title"):
+		node._end_title()
+		await process_frame
+	await process_frame
 	var hud = node.get_node_or_null("UI/Root/HUD")
 	if hud == null:
 		_fail("找不到 HUD")
@@ -254,6 +259,35 @@ func _run() -> void:
 			% [prop_btn.visible, ai_btn.visible])
 		return
 	print("QUESTTALK TEST 预言家：第一章之前藏着 → 收尾之后出现 ✅")
+
+	# ---- 4b. 排版的"中间插进来一个按钮"------------------------------------
+	# 出场顺序是：**预言先**（第一章收尾），**科技后**（研究所建起来），而科技在圆钮列里
+	# 排在预言的**前面**（第 4 个 vs 第 6 个）—— 所以科技出现时等于往中间插了一个按钮。
+	# 圆钮列是 VBoxContainer：隐藏的子节点**不占位**，所以既不许留洞、也不许重叠。
+	# 这里两种状态各量一次（用户："中间插进去一个按钮，你 ui 没有排版吗？"）。
+	var nav_col = hud.get_parent().get_node_or_null("NavCol")
+	if nav_col == null:
+		_fail("找不到左侧圆钮列 NavCol")
+		return
+	# ⚠️ 圆钮列的落位是**延后**的（Container 收到 queue_sort 之后要到下一帧才排），
+	# 所以量尺寸之前先等两帧 —— 不等的话量到的是"全都叠在 0"的中间态。
+	for _f in 3:
+		await process_frame
+	if not _nav_layout_ok(nav_col, hud):
+		return
+	# 加上研究所 → 科技圆钮出现在**中间**，其余整体下移一格，仍然不许留洞
+	var d_inst: Dictionary = node.get("runner").db.buildings["research_institute"]
+	(msim.s["shops"] as Array).append({
+		"id": "inst#qtt", "defId": "research_institute", "owner": "state",
+		"targetWorkers": int(d_inst["workers"]), "wage": 5.0, "wageCap": 30.0,
+		"level": 1, "active": true, "profit": 0.0, "skill": 50.0, "planned": 0.0,
+	})
+	hud.refresh_nav_buttons()
+	await process_frame
+	await process_frame
+	if not _nav_layout_ok(nav_col, hud):
+		return
+	print("QUESTTALK TEST 圆钮排版：预言先出（5 个）、科技后插到中间（6 个），中间不留洞 ✅")
 
 	# 城镇中心：换图要等**修复城镇中心那条任务**结算
 	var world = node.get_node("World")
@@ -297,3 +331,41 @@ func _run() -> void:
 
 	print("QUESTTALK TEST RESULT: PASS")
 	quit(0)
+
+## 圆钮列的排版自检：**可见的**那几个必须一个挨一个（间距 = `NAV_GAP`），
+## 而且顺序 = `NAV_ITEMS` 的顺序。
+##
+## 为什么要单拎出来：出场顺序是「预言先、科技后」，但科技在列里排在预言**前面**——
+## 科技出现时等于往中间插了一个按钮。VBoxContainer 对隐藏子节点**不占位**，
+## 所以正确表现是"整体下移一格"，不是"留个洞"或"两个压在一起"。
+func _nav_layout_ok(nav_col, hud) -> bool:
+	var btns: Array = hud._nav_btns
+	var vis: Array = []
+	for c in nav_col.get_children():
+		if c is Button and (c as Button).visible:
+			vis.append(c)
+	# ① 列里可见的按钮 = HUD 记录里 visible 的那些，且**顺序一致**（不许重排）
+	var want: Array = []
+	for i in btns.size():
+		if (btns[i] as Button).visible:
+			want.append(i)
+	var got: Array = []
+	for b in vis:
+		got.append(btns.find(b))
+	if got != want:
+		_fail("圆钮列可见按钮的下标是 %s，按 NAV_ITEMS 应当是 %s" % [str(got), str(want)])
+		return false
+	if vis.size() < 4:
+		_fail("圆钮列只剩 %d 个（资源 / 人口 / 财政 / 任务 总该在）" % vis.size())
+		return false
+	# ② 一个挨一个：不许留洞、不许重叠
+	var gap := float(hud.NAV_GAP)
+	for i in range(1, vis.size()):
+		var prev: Control = vis[i - 1]
+		var cur: Control = vis[i]
+		var want_y := prev.position.y + prev.size.y + gap
+		if absf(cur.position.y - want_y) > 0.6:
+			_fail("圆钮列第 %d 个（%s）的 y=%.1f，应当是 %.1f —— 中间留洞或压住了"
+				% [i + 1, String((cur as Button).tooltip_text), cur.position.y, want_y])
+			return false
+	return true

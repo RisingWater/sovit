@@ -2209,6 +2209,14 @@ bash godot/verify.sh       # 最后一行要是 ALL CHECKS PASSED
 - **预言家入口的出场**：第一章收尾之前，左侧「预言」圆钮（`_prophecy_nav_btn`）与顶栏水晶球
   （`_ai_btn`）都 `visible = false`，`hud.activate_nav()` 对藏着的按钮返回 false
   （F6 不会凭空弹面板）。判据只有一处：`SimCore.prophet_unlocked()`。
+- **出场顺序是「预言先、科技后」，但科技在列里排在预言前面**（第 4 个 vs 第 6 个）——
+  所以科技出现时等于**往中间插了一个按钮**。圆钮列是 `VBoxContainer`：隐藏的子节点
+  **不占位**，所以正确表现是"任务 / 预言整体顺移一格"，不留洞、不重叠。
+  门槛 `questtalk` 两种状态各量一次（可见下标顺序 + 相邻间距 = `NAV_GAP`）。
+  截图：`shots/nav5.png`（5 个）与 `shots/nav5-tech.png`（科技插到中间 = 6 个），
+  截图模式 `screenshot.gd` 的 `nav`。
+  ⚠️ F 键编号**跟着按钮位置固定**（科技永远 F4、预言永远 F6）：研究所之前按 F4 什么都不会
+  发生 —— 这比"键位随出场顺序漂移"好，按钮上的 tooltip 写的也是固定编号。
 - **人物身份解析**：`godot/scripts/ui/cast.gd`（`class_name Cast`）——
   `Cast.speaker_name()` / `Cast.portrait()` / `Cast.portrait_head()`。
   内容里 `renard` / `vila` / `seraphina` 与立绘文件名 `reynard` / `vera` / `serafina` 的差异
