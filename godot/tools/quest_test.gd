@@ -248,16 +248,21 @@ func _run() -> void:
 		_fail("第 3 章还不该可见：%s" % str(ids3))
 		return
 	_ok("第 3 章仍然不可见（前置没完成）")
-	if not (ids3.has("q01_bread_chain") and ids3.has("q02_vegetable")):
-		_fail("今天刚完成的任务该留在追踪条上：%s" % str(ids3))
+	if ids3.has("q01_bread_chain") or ids3.has("q02_vegetable"):
+		_fail("已完成的任务不该留在追踪条上（6:00 结算完就收走）：%s" % str(ids3))
 		return
-	_ok("今天刚完成的任务还留在追踪条上（打勾）")
+	_ok("6:00 结算掉的任务立刻从追踪条上收走（用户 2026-10 的要求）")
+	if not (ids3.has("q03a_housing_capacity") and ids3.has("q03b_output")
+			and ids3.has("q03c_satisfaction")):
+		_fail("新解锁的三条该接上追踪条：%s" % str(ids3))
+		return
+	_ok("新解锁的任务接上追踪条")
 	s3._run_dawn()
 	var ids3b := _view_ids(s3)
-	if ids3b != ["q03a_housing_capacity", "q03b_output", "q03c_satisfaction"]:
-		_fail("隔天之后追踪条应当只剩第 2 章三条：%s" % str(ids3b))
+	if ids3b.has("q01_bread_chain") or ids3b.has("q02_vegetable"):
+		_fail("隔天之后已经完成的任务更不该回来：%s" % str(ids3b))
 		return
-	_ok("隔天之后，已完成的任务从追踪条上收掉")
+	_ok("已完成的不会回到追踪条上")
 
 	# ---- 4. 可追溯：先干了、任务后出现 —— 同一次黎明里连锁完成 ------------
 	var s4 := _fresh()

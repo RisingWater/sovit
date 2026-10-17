@@ -154,6 +154,11 @@ func new_game(pack_id: String, seed_value: int, resource_mult: float = 1.0) -> v
 		# 任务（引导系统）：完成记录 + 章节奖励记录。判定与发钱都在黎明，
 		# 见 docs/quests.md 与下面的 _check_quests()。
 		"quests": {"done": {}, "chapters": {}},
+		# 山顶那位预言家（AI 辅助）：`lastAskDay` = 上次问他话是第几天（-1 = 还没问过）。
+		# 冷却 PROPHET_COOLDOWN_DAYS 天，见 docs/ai-assist.md §六。
+		# ⚠️ 这是**唯一一个不参与仿真演化**的状态段：问不问都不改村子的任何数值。
+		# 放在状态里而不是 UI 配置里，是为了让退出重进 / 读档都绕不过冷却。
+		"prophet": {"lastAskDay": -1},
 		"ledgerToday": _empty_ledger(0),
 		# 当日建造力预算（人·天）：黎明 _plan_construction_day 钉死，全天不变；
 		# 以及当日已投入施工的建造力累加器（工作小时里逐小时累加，
@@ -1385,6 +1390,34 @@ func private_capacity() -> int:
 func job_capacity() -> int:
 	return _job_capacity()
 
+# ---------------------------------------------------------------------------
+# 预言家（AI 辅助）的冷却 —— 见 docs/ai-assist.md §六
+#
+# 规则一句话：**问一次要隔 5 天**（用户 2026-10 定）。这是唯一一个"不参与仿真演化"
+# 的状态段：问不问都不改村子的任何数值，它只是记账。所以：
+#   · 不进命令队列（命令是**次日黎明生效**，而冷却必须当场生效）
+#   · 但记在 `s["prophet"]` 里，于是退出重进、读档、改存档都绕不过去
+#   · `mark_prophet_asked()` 是这一层**唯一**的写状态入口（表现层调它，不直接写 s）
+# ---------------------------------------------------------------------------
+
+## 问一次预言家要隔几天。
+const PROPHET_COOLDOWN_DAYS := 5
+
+## 还要等几天才能再问（0 = 现在就能问）。没问过 = 0。
+func prophet_days_left() -> int:
+	var last := int((s.get("prophet", {}) as Dictionary).get("lastAskDay", -1))
+	if last < 0:
+		return 0
+	return maxi(0, last + PROPHET_COOLDOWN_DAYS - int(s["day"]))
+
+func can_ask_prophet() -> bool:
+	return prophet_days_left() <= 0
+
+## 记一次"问到了"（冷却从**这一天**起算）。
+## ⚠️ 由表现层在**拿到回答之后**调（失败 / 正在问都不算），并且只作用于这一条账。
+func mark_prophet_asked() -> void:
+	s["prophet"] = {"lastAskDay": int(s["day"])}
+
 func _apply_admission(day: int) -> Array:
 	## admit = min(想来人数, 住房余量, 人口上限 − 人口)
 	## **不看岗位数**：岗位可以后补，卡它会让村子永远长不大。见 docs/spec.md §8。
@@ -2509,20 +2542,23 @@ func quest_progress(qid: String) -> Dictionary:
 		out["day"] = int(done[qid])
 	return out
 
-## 追踪条要显示的东西：**当前可见**的任务（未完成的 + 今天刚完成的）。
-## ⚠️ 没解锁的任务**不返回** —— 玩家不该知道后面还有什么（用户要求）。
+## 追踪条要显示的东西：**只给还没完成的**（已解锁的）。
+##
+## ⚠️ 用户 2026-10："面板每天 6:00 要把已经完成的任务从右侧面板中拿掉" ——
+## 任务正是在黎明（6:00）结算的，所以"刚做完的那条"**当场就从条上收走**，
+## 不像以前那样再赖一天（`done[qid] >= day`）。完成了什么由公告与任务面板负责，
+## 追踪条只该显示"接下来干什么"。
+##
+## 渐进显示照旧：`requires` 没全完成的任务**不返回** —— 玩家不该知道后面还有什么。
 func quest_view() -> Array:
 	var out := []
-	var day := int(s["day"])
 	var done: Dictionary = s["quests"]["done"]
 	for qid in db.quest_ids:
-		var def: Dictionary = db.quests[qid]
-		if not done.has(qid):
-			if not _quest_unlocked(def):
-				continue
-			out.append(quest_progress(qid))
-		elif int(done[qid]) >= day:
-			out.append(quest_progress(qid))
+		if done.has(qid):
+			continue
+		if not _quest_unlocked(db.quests[qid]):
+			continue
+		out.append(quest_progress(qid))
 	return out
 
 ## 任务**面板**要的东西：所有"玩家已经知道"的任务 —— 已完成的 + 已解锁未完成的。

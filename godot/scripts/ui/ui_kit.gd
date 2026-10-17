@@ -429,6 +429,58 @@ static func icon_text_button(text: String, icon: Texture2D, small: bool = false)
 	return b
 
 
+## 图标**钉在按钮最左边**、文字**整体居中**的按钮（ESC 菜单那一列用，用户 2026-10 点名要）。
+##
+## 与 `icon_text_button()` 的区别：
+##   · `icon_text_button()` 把"图标 + 文字"当成一组居中 —— 顶栏那种窄按钮要它（宽度贴着内容）；
+##   · 这个的图标**不参与文字的排版**，所以文字在整条按钮里是真居中、图标不跟着文字跑。
+##     按钮宽（ESC 菜单 240）的时候，这正是想要的样子。
+##
+## 图标的锚点用 `PRESET_CENTER_LEFT` + 固定偏移，所以按钮高度变了它也跟着垂直居中。
+const ICON_LEFT_PAD := 9.0
+
+static func icon_left_button(text: String, icon: Texture2D, icon_px: int = PANEL_ICON_BTN) -> Button:
+	var b := button(text)
+	b.alignment = HORIZONTAL_ALIGNMENT_CENTER
+	if icon == null:
+		return b
+	var tr := TextureRect.new()
+	tr.name = "Icon"
+	tr.texture = icon
+	tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	tr.stretch_mode = TextureRect.STRETCH_KEEP_CENTERED
+	tr.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	tr.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	tr.set_anchors_preset(Control.PRESET_CENTER_LEFT)
+	var s := float(icon_px)
+	tr.offset_left = ICON_LEFT_PAD
+	tr.offset_right = ICON_LEFT_PAD + s
+	tr.offset_top = -s * 0.5
+	tr.offset_bottom = s * 0.5
+	b.add_child(tr)
+	return b
+
+
+## 换掉 `icon_left_button()` / `icon_text_button()` 里那张图（冷却期间换灰问号那种）。
+static func set_button_icon(b: Button, icon: Texture2D) -> void:
+	if b == null or icon == null:
+		return
+	var tr := b.get_node_or_null("Icon") as TextureRect
+	if tr != null:
+		tr.texture = icon
+		return
+	# `icon_text_button()` 把图标塞在内部的 HBox 里（没有名字），退一步按类型找
+	for c in b.get_children():
+		if c is TextureRect:
+			(c as TextureRect).texture = icon
+			return
+		if c is HBoxContainer:
+			for g in c.get_children():
+				if g is TextureRect:
+					(g as TextureRect).texture = icon
+					return
+
+
 static func panel(dark: bool = false) -> PanelContainer:
 	var p := PanelContainer.new()
 	if dark:

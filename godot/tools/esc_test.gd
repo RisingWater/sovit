@@ -135,6 +135,34 @@ func _run() -> void:
 			_fail("统计面板应该只在左侧圆钮列，菜单里不该有：%s" % items)
 			return
 
+	# 3b. 每一行都要有**图标**（用户 2026-10："为了统一风格，我这边给了所有选项一个图标，
+	#     图标固定在按钮最左侧，但是文字居中"）。
+	#     图标是按钮的子节点 `Icon`（`UIKit.icon_left_button()`），锚在左边、不参与文字排版 ——
+	#     所以文字能在整条按钮里真居中。这里量三件事：在、靠左、没跟文字挤在一起。
+	var need_icons := ["新游戏…", "保存…", "读取…", "设置资源…", "AI 辅助设置…",
+		"建筑占地：关", "退出游戏"]
+	for b in menu.find_children("*", "Button", true, false):
+		var btn := b as Button
+		var want := need_icons.has(btn.text) or btn.text.begins_with("音效：") \
+			or btn.text.begins_with("音乐：")
+		if not want:
+			continue
+		var ico := btn.get_node_or_null("Icon") as TextureRect
+		if ico == null or ico.texture == null:
+			_fail("菜单项「%s」没有贴图标" % btn.text)
+			return
+		if ico.position.x > 14.0 or ico.position.x < 1.0:
+			_fail("「%s」的图标没贴在左侧（x=%.0f）" % [btn.text, ico.position.x])
+			return
+		# 文字居中：图标只占左边一小条，按钮宽度远大于它
+		if ico.size.x > float(btn.size.x) * 0.4:
+			_fail("「%s」的图标太大，挤到文字了（图标 %.0f / 按钮 %.0f）" % [
+				btn.text, ico.size.x, btn.size.x])
+			return
+		if btn.alignment != HORIZONTAL_ALIGNMENT_CENTER:
+			_fail("「%s」的文字没有居中（alignment=%d）" % [btn.text, btn.alignment])
+			return
+
 	# 4. 保存 / 读取 必须开**自绘的存档对话框**，不能是 Godot 的 FileDialog。
 	#    FileDialog 自带一整套默认皮肤（标题栏、路径栏、列表、滚动条、下拉框），
 	#    项目主题覆盖不到 —— 用户反馈的就是"一半游戏风、一半默认风"。

@@ -53,7 +53,7 @@ func _ready() -> void:
 	vb.add_child(title)
 	vb.add_child(UIKit.hsep())
 
-	var b_new := UIKit.button("新游戏…", false)
+	var b_new := UIKit.icon_left_button("新游戏…", UIKit.panel_icon("new_game"))
 	b_new.tooltip_text = "重新开局：设置村名与难度"
 	b_new.pressed.connect(func():
 		if new_game_dialog != null:
@@ -61,47 +61,43 @@ func _ready() -> void:
 			new_game_dialog.open())
 	vb.add_child(b_new)
 
-	var b_save := UIKit.button("保存…", false)
+	var b_save := UIKit.icon_left_button("保存…", UIKit.panel_icon("save"))
 	b_save.tooltip_text = "选择路径保存存档"
 	b_save.pressed.connect(_save_dialog)
 	vb.add_child(b_save)
-	var b_load := UIKit.button("读取…", false)
+	var b_load := UIKit.icon_left_button("读取…", UIKit.panel_icon("load"))
 	b_load.tooltip_text = "选择存档文件读取"
 	b_load.pressed.connect(_load_dialog)
 	vb.add_child(b_load)
 
 	vb.add_child(UIKit.hsep())
-	_sfx_btn = UIKit.button("", false)
+	_sfx_btn = UIKit.icon_left_button("", UIKit.panel_icon("sfx"))
 	_sfx_btn.pressed.connect(_toggle_sfx)
 	vb.add_child(_sfx_btn)
-	_music_btn = UIKit.button("", false)
+	_music_btn = UIKit.icon_left_button("", UIKit.panel_icon("music"))
 	_music_btn.pressed.connect(_toggle_music)
 	vb.add_child(_music_btn)
 
 	vb.add_child(UIKit.hsep())
-	var b_res := UIKit.button("设置资源…", false)
+	var b_res := UIKit.icon_left_button("设置资源…", UIKit.panel_icon("settings"))
 	b_res.tooltip_text = "选择顶栏显示哪些资源"
 	b_res.pressed.connect(_open_resources)
 	vb.add_child(b_res)
 
-	# AI 辅助：配置 base_url / api_key / model_name，并让 AI 告诉你下一步做什么。
-	# 放在「设置资源」下面：同为"接入类"设置，且和存档 / 音效分开一组。
-	# 图标是 workbuddy 那套面板图标里的（金色问号）—— 和顶栏那个按钮、面板标题上是同一张。
-	# 这一行比别的宽（面板固定 240），Button 自带的 icon 属性会分成两截，
-	# 所以走 `UIKit.icon_text_button()`（把图标与文字当成一组居中）。
-	var b_ai := UIKit.icon_text_button("AI 辅助…", UIKit.panel_icon("ai_assist"))
-	b_ai.tooltip_text = "接入大模型（OpenAI 兼容接口）：配置 base_url / api_key / model_name，" \
-		+ "让它根据当前任务与资源告诉你下一步做什么。\n顶栏「AI 辅助」按钮也是这个面板。"
+	# AI 辅助：从 ESC 菜单进来**只开设置页**（用户 2026-10 定："esc 菜单里面应该只有 ai 辅助设置"）。
+	# 想问话走顶栏那个问号按钮 —— 那条路只开建议页。两个入口各管一摊，不混。
+	var b_ai := UIKit.icon_left_button("AI 辅助设置…", UIKit.panel_icon("ai_assist"))
+	b_ai.tooltip_text = "配置接入哪个大模型（OpenAI 兼容接口）"
 	b_ai.pressed.connect(_open_ai)
 	vb.add_child(b_ai)
 
-	var b_dbg := UIKit.button("建筑占地：关", false)
+	var b_dbg := UIKit.icon_left_button("建筑占地：关", UIKit.panel_icon("debug"))
 	b_dbg.tooltip_text = "调试：画出每座建筑的占格（同一座同色）。橙框＝门洞与门前通行格 —— 它们被永久保留，所以看着是空地、实际不能建"
 	b_dbg.pressed.connect(func(): _toggle_debug_footprint(b_dbg))
 	vb.add_child(b_dbg)
 
 	vb.add_child(UIKit.hsep())
-	var b_quit := UIKit.button("退出游戏", false)
+	var b_quit := UIKit.icon_left_button("退出游戏", UIKit.panel_icon("exit"))
 	b_quit.pressed.connect(_quit)
 	vb.add_child(b_quit)
 
@@ -182,13 +178,15 @@ func _open_resources() -> void:
 	if hud != null and hud.has_method("_open_picker"):
 		hud._open_picker()
 
-## ESC 菜单 → AI 辅助：**只打开面板、不问**（从菜单进来多半是来配 key 的；
-## 想直接问就点顶栏那个按钮，或者面板里的「问 AI」）。
+## ESC 菜单 → AI 辅助：**只开设置页**（用户 2026-10："esc 菜单里面应该只有 ai 辅助设置"）。
+## 问话走顶栏那个问号按钮（那条路只开建议页）。
 func _open_ai() -> void:
 	if ai_panel == null:
 		return
 	close()
-	if ai_panel.has_method("open"):
+	if ai_panel.has_method("open_settings"):
+		ai_panel.open_settings()
+	elif ai_panel.has_method("open"):
 		ai_panel.open()
 
 func _quit() -> void:

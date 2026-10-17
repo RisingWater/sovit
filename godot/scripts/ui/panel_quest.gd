@@ -26,18 +26,8 @@ extends PanelContainer
 var runner: SimRunner
 var world: Node
 
-const PANEL_W := 780.0
-## 框高**跟着内容走**（见 `_fit()`），这两个是上下限：再矮就只剩两行字，再高就顶到屏幕边。
-const H_MIN := 380.0
-const H_MAX := 620.0
-## 一档的高度。量化到 40px：点左树逐条翻的时候，几十像素的抖很难受；
-## 而"某几条特别长"本来也不需要每次都把框撑到最大。
-const H_STEP := 40.0
-## 标题行 + 分隔线 + 间距 + 内边距的总高（内容之外的那些）。
-const CHROME_H := 67.0
+## 左树宽度。右栏是"剩下的全部"（全屏了，所以宽度不是常量）。
 const TREE_W := 258.0
-## 标题栏那一行之外的东西（内边距），拖动时不至于把边框拖出屏幕外。
-const KEEP_VISIBLE := 80.0
 const C_OK := Color(0.19, 0.45, 0.16)
 
 ## 章节收起 / 展开的箭头。两个字形都有（`glyph_test` 会拦缺字）。
@@ -53,27 +43,25 @@ var _open: Dictionary = {}
 ## 当前选中的任务 id（"" = 还没选）。
 var _sel := ""
 
-var _dragging := false
-var _drag_off := Vector2.ZERO
-
 func setup(r: SimRunner, w: Node) -> void:
 	runner = r
 	world = w
 
 func _ready() -> void:
-	custom_minimum_size = Vector2(PANEL_W, H_MIN)
+	# **全屏**（用户 2026-10："右边圆形按钮的任务面板没有全屏，和其它圆形按钮一样，需要全屏"）。
+	# 和「统计」「科技」两个圆钮面板同一个口径：anchors 0..1 铺满，不拖动、不跟着内容改高度。
 	anchor_left = 0.0
 	anchor_top = 0.0
-	anchor_right = 0.0
-	anchor_bottom = 0.0
+	anchor_right = 1.0
+	anchor_bottom = 1.0
 	mouse_filter = Control.MOUSE_FILTER_STOP
-	add_theme_stylebox_override("panel", UIKit.pad(UIKit.box(UIKit.T_PANEL_CREAM), 12, 10, 12, 10))
+	add_theme_stylebox_override("panel", UIKit.pad(UIKit.box(UIKit.T_PANEL_CREAM), 16, 13, 16, 13))
 
 	var root := VBoxContainer.new()
 	root.add_theme_constant_override("separation", 6)
 	add_child(root)
 
-	# 标题行：图标 + 名字 + 拖动把手 + 关闭
+	# 标题行：图标 + 名字 + （空） + 关闭
 	var head := HBoxContainer.new()
 	head.add_theme_constant_override("separation", 5)
 	root.add_child(head)
@@ -88,19 +76,10 @@ func _ready() -> void:
 	_title_lb = UIKit.label("任务", UIKit.FG_HEAD)
 	_title_lb.add_theme_font_size_override("font_size", UIKit.BIG_FS)
 	head.add_child(_title_lb)
-	var dragbar := Control.new()
-	dragbar.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	dragbar.mouse_filter = Control.MOUSE_FILTER_STOP
-	dragbar.mouse_default_cursor_shape = Control.CURSOR_MOVE
-	dragbar.tooltip_text = "按住拖动对话框"
-	var hint := UIKit.label("拖动此处移动", Color(0.66, 0.52, 0.36))
-	hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	hint.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	hint.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	dragbar.add_child(hint)
-	dragbar.gui_input.connect(_on_drag_input)
-	head.add_child(dragbar)
+	var spacer := Control.new()
+	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	spacer.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	head.add_child(spacer)
 	var close := UIKit.button("关闭", true)
 	close.pressed.connect(close_panel)
 	head.add_child(close)
@@ -140,9 +119,10 @@ func _ready() -> void:
 		runner.hour_ticked.connect(_on_hour)
 
 # ---------------------------------------------------------------------------
-# 打开 / 关闭 / 拖动
+# 打开 / 关闭
 # ---------------------------------------------------------------------------
 ## 打开：**默认选中第一个未完成的任务**（用户要求："进入显示当前未完成的第一个任务"）。
+## 全屏（anchors 0..1），所以不摆位置、不量高度 —— 高度就是窗口高度。
 func open() -> void:
 	_sel = _default_sel()
 	_open.clear()
@@ -150,23 +130,7 @@ func open() -> void:
 		_open[str(int(_chapter_of(_sel)))] = true
 	visible = true
 	_refresh()
-	var vp := get_viewport_rect().size
-	position = _clamp_pos(((vp - size) * 0.5).round())
 	move_to_front()
-
-## 框高跟着内容走（取左树与右栏里**更高**的那个）。
-##
-## 为什么不写死：一条任务的要求可能是 1 项，也可能 6 项；描述有长有短。
-## 写死 470 的话，短的那些底下空一大片；跟着内容走又会让点左树时框高一直跳，
-## 所以**量化到 40px 一档**。位置不动（往下长），免得玩家正看着的对话框整体跑掉。
-func _fit() -> void:
-	var inner := maxf(_tree.get_combined_minimum_size().y,
-		_detail.get_combined_minimum_size().y)
-	var want: float = ceilf((CHROME_H + inner) / H_STEP) * H_STEP
-	var vp := get_viewport_rect().size
-	custom_minimum_size = Vector2(PANEL_W,
-		clampf(want, H_MIN, minf(H_MAX, vp.y - 2.0 * KEEP_VISIBLE)))
-	reset_size()
 
 func close_panel() -> void:
 	visible = false
@@ -174,21 +138,6 @@ func close_panel() -> void:
 func _on_hour() -> void:
 	if visible:
 		_refresh()
-
-func _on_drag_input(event: InputEvent) -> void:
-	if event is InputEventMouseButton:
-		var mb := event as InputEventMouseButton
-		if mb.button_index == MOUSE_BUTTON_LEFT:
-			_dragging = mb.pressed
-			if _dragging:
-				_drag_off = get_global_mouse_position() - position
-	elif event is InputEventMouseMotion and _dragging:
-		position = _clamp_pos(get_global_mouse_position() - _drag_off)
-
-func _clamp_pos(p: Vector2) -> Vector2:
-	var vp := get_viewport_rect().size
-	return Vector2(clampf(p.x, KEEP_VISIBLE - PANEL_W, vp.x - KEEP_VISIBLE),
-		clampf(p.y, 0.0, vp.y - KEEP_VISIBLE))
 
 # ---------------------------------------------------------------------------
 # 数据（都从引擎读，这一层不判定任何东西）
@@ -248,7 +197,6 @@ func _refresh() -> void:
 		return
 	_build_tree(j)
 	_build_detail(j)
-	_fit()
 
 func _build_tree(j: Array) -> void:
 	# 章节顺序 = 内容里的 `chapters` 顺序；没有"已知任务"的章整章不画
@@ -348,8 +296,11 @@ func _build_detail(j: Array) -> void:
 	_detail.add_child(_wrapped("奖励 %d 金%s" % [int(q["reward"]),
 		"（已入国库）" if bool(q["done"]) else "（黎明结算时入国库）"], UIKit.FG_DIM))
 
+## 右栏文字宽度：窗口宽 - 左树 - 两边的边距与滚动条。
+## 全屏之后窗口宽是运行时才知道的（1280/1600/1920 都可能），所以现算。
 func _detail_w() -> float:
-	return PANEL_W - TREE_W - 62.0
+	var vp := get_viewport_rect().size.x
+	return clampf(vp - TREE_W - 92.0, 320.0, 1200.0)
 
 func _wrapped(text: String, color: Color = UIKit.FG_DARK) -> Label:
 	var l := UIKit.label(text, color)

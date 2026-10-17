@@ -92,6 +92,20 @@ func _run() -> void:
 		return
 	_ok("点圆钮（或按 F5）能打开任务面板")
 
+	# ---- 2b. **全屏**（用户 2026-10："和其它圆形按钮一样，需要全屏"）-------
+	# 和「统计」「科技」两个圆钮面板同一个口径：anchors 0..1 铺满视口。
+	var vp := (panel as Control).get_viewport_rect().size
+	if not _chk(is_equal_approx((panel as Control).size.x, vp.x)
+			and is_equal_approx((panel as Control).size.y, vp.y),
+			"任务面板应当铺满视口（%.0f×%.0f），实际 %.0f×%.0f" % [
+				vp.x, vp.y, (panel as Control).size.x, (panel as Control).size.y]):
+		return
+	if not _chk((panel as Control).anchor_right == 1.0 and (panel as Control).anchor_bottom == 1.0,
+			"任务面板的锚点应当是 0..1（跟统计/科技一致），实际 %.0f..%.0f" % [
+				(panel as Control).anchor_right, (panel as Control).anchor_bottom]):
+		return
+	_ok("任务面板全屏（%.0f×%.0f，锚点 0..1，和统计/科技一致）" % [vp.x, vp.y])
+
 	# ---- 3. 默认选中第一个未完成的任务 -----------------------------------
 	var sim = runner.sim
 	var first_open := ""
@@ -167,8 +181,7 @@ func _run() -> void:
 		view_ids.append(String(q["id"]))
 	if not _chk(not view_ids.has("q01_bread_chain"), "追踪条这时候应当已经把 q01 收掉了"):
 		return
-	# 左树默认只展开"选中那条所在的章"，所以已完成的第 1 章是**收起**的 ——
-	# 它的完成情况靠章节行本身交代（`1/2` 这样的计数 + 全绿时的 ★）。
+	# 左树默认只展开"选中那条所在的章"，所以已完成的第 1 章是**收起**的 ——	# 它的完成情况靠章节行本身交代（`1/2` 这样的计数 + 全绿时的 ★）。
 	var tree_txt := _texts(panel._tree)
 	if not _chk(tree_txt.contains("第 1 章"), "收起状态也应当看得见第 1 章那一行：%s" % tree_txt):
 		return
