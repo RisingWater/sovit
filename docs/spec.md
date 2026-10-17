@@ -683,6 +683,47 @@ for sweep in range(questIds.size() + 1):          # 反复扫，直到这一轮�
 > ⚠️ 任务的显示文案（`goal.text`）与 `brief`（面板右侧的描述）都由**内容 + 引擎**给，
 > 表现层一个字都不自己拼 —— 两份实现必须给出同一个字符串。
 
+### 16.5 预言家（AI 辅助）的冷却记账
+
+```
+state.prophet = { lastAskDay: int }      # -1 = 这一局还没问过
+可问条件：lastAskDay < 0  或  day >= lastAskDay + 5
+写入：SimCore.mark_prophet_asked()       # 唯一的写入口，由 UI 在**收到回答后**调用
+```
+
+**这是唯一一个不参与仿真演化**的状态段：问不问都不改村子的任何数值，它只是
+"5 天才能问一次"这条冷却的记账。因此：
+
+- **不进命令队列**（命令是次日黎明生效，而冷却必须当场生效），也没有任何 `tick` 逻辑读它
+- 但**进存档**：退出重进 / 读档都绕不过冷却；2026-10 之前的存档没有这一段，
+  `SaveManager._sanitize` 迁移成 `{lastAskDay: -1}`
+- **不进黄金摘要**（`scripts/golden.ts::summarize` 是按字段取的），所以加这个段不需要重生成 golden
+- TS 侧只有字段（`GameState.prophet` + `createInitialState`），规则与 UI 都在 Godot 侧
+  （TS 引擎没有"问话"这个动作）—— 详见 `docs/ai-assist.md` §五
+
 > ⚠️ 发钱会改 `government.money`，因此会改黄金轨迹：动 `content/quests.json` 之后要
 > `npm run golden` 重生成，并让 GDScript 侧回放通过（`npm run check:quests` +
 > `godot verify.sh` 的 `quest` / `questpanel` 步骤）。
+
+### 16.6 沙盘 `Trial`（AI 辅助的"试方案"，只读）
+
+```
+克隆：SimCore.new(db) + s = source.s.duplicate(true) + rng = Rng.new(source.rng.state)
+跑法：从**现在**起 days × 24 小时，每小时 tick_hour()；第 1/25/49… 个小时把当天下达的命令入队
+命令：翻译成 _apply_actions() 认的动作（build / build_housing / expand / research / set_workers）
+      —— 缺料、科技锁、没有那座建筑，全由引擎自己拒，沙盘只如实报告
+产出：那一刻的汇总（人口/满意度/饥饿/国库/住房/岗位/食物/材料/建成数/在建数/新完成任务/短板）
+      + 与"什么都不做、同样跑 days 天"的对照之差
+```
+
+**契约要点**：
+
+- **只读真实状态**：沙盘只读 `source.s`，跑完 `sim.s` 逐字节不变（门槛 `ai_test` 钉这一条），
+  所以它**不进黄金轨迹**、不影响确定性。
+- **不另写规则**：命令走引擎自己的动作与判定，`Trial` 里没有一个经济公式；
+  汇总也复用 `Advisor` 的口径函数（食物/住房/满意度/规则引擎）。
+- **确定性**：同一份状态 + 同一个方案跑两遍，结果逐位相同（rng 状态一起复制）。
+- **上限**：`days ≤ 5`、命令 `≤ 12`（`Trial.MAX_DAYS` / `MAX_MANDATES`）——
+  这是给模型用的工具，不能让它一次把 CPU 吃光。实测一轮 5 个方案 ≈ 20~30 ms。
+- **命令集刻意收窄**：只给"建设 / 研究 / 用工"三类；拆房、改税、改价不开放试。
+  详见 `docs/ai-assist.md` §五。

@@ -14,8 +14,10 @@ var _sfx_btn: Button = null
 var _music_btn: Button = null
 ## ESC 菜单（由 main 注入）。顶栏的「菜单」按钮要能打开它。
 var esc_menu: Node = null
-## AI 辅助面板（由 main 注入）。顶栏那个「AI 辅助」按钮就是它的入口。
+## AI 辅助面板（由 main 注入）。顶栏那个「预言家」按钮（问号）就是它的入口。
 var ai_panel: Node = null
+## 顶栏那个问号按钮（冷却时要换图标，所以留着引用）。
+var _ai_btn: Button = null
 ## 任务面板（由 main 注入）。左侧圆钮列的第 5 个（F5）就是它的入口。
 var quest_panel: Node = null
 ## 左上角小地图占掉的宽度。顶栏整体右移，文字从小地图右侧开始。
@@ -93,18 +95,16 @@ func _ready() -> void:
 		"4x 速度（+ 加速，最快）",
 	]
 	# AI 辅助：**问 AI 的那个按钮就放在暂停按钮左侧**（用户要求）。
-	# 点它 = 打开面板 + 立刻问一次（没配好则跳到「设置」页并提示）。
-	# 放在速度排前面而不是后面：它是"看一眼现在该干什么"的入口，
-	# 和时间控制是一组（都属于"看/控局势"），和右边的存读档不是一类。
+	# 点它 = 打开面板的**建议页**（不自动发问，光标进问话栏）；配置在 ESC 菜单里 ——
+	# 两个入口各管一摊（用户 2026-10："顶栏的问号按钮，应该只有 ai 辅助的建议"）。
+	# 放在速度排前面：它是"看一眼现在该干什么"的入口，和时间控制是一组。
 	# 图标是 workbuddy 那套面板图标里的（金色问号）；顶栏这一行只有 21px 高，所以用 16
 	# （源图 32 的一半，整数倍不糊）。
-	# 走 `icon_text_button()`：这个按钮宽度就是内容宽，其实 Button 自带的 `icon` 也够用，
-	# 但统一走同一个helper —— 以后谁把这个按钮调宽了，不会突然裂成"图标 + 字"两截。
-	var ai_btn := UIKit.icon_text_button("AI 辅助", UIKit.panel_icon("ai_assist"), true)
-	ai_btn.tooltip_text = "让 AI 看当前局势（任务 / 资源 / 产能 / 缺料），告诉你下一步做什么。" \
-		+ "\n接入地址 / 密钥 / 模型在 ESC 菜单 →「AI 辅助…」→「设置」里填。"
-	ai_btn.pressed.connect(_open_ai)
-	row.add_child(ai_btn)
+	# 冷却中换**灰问号**（用户给的 disable 图）+ tooltip 写第几天可用 —— 见 `refresh_ai_btn()`。
+	_ai_btn = UIKit.icon_text_button("预言家", UIKit.panel_icon("ai_assist"), true)
+	_ai_btn.pressed.connect(_open_ai)
+	row.add_child(_ai_btn)
+	refresh_ai_btn()
 
 	var speeds := [["pause", "暂停", true, 0.0], ["1x", "1x 速度", false, 1.0],
 		["2x", "2x 速度", false, 2.0], ["4x", "4x 速度", false, 4.0]]
@@ -154,6 +154,8 @@ func _ready() -> void:
 
 	if runner != null:
 		runner.hour_ticked.connect(_refresh)
+		# 预言家的冷却按"天"算：每跨过黎明就要把顶栏那个问号从灰的换回金色
+		runner.hour_ticked.connect(refresh_ai_btn)
 	_refresh()
 
 func _open_stats() -> void:
@@ -177,14 +179,32 @@ func _open_quest() -> void:
 	if quest_panel != null and quest_panel.has_method("open"):
 		quest_panel.open()
 
-## 顶栏「AI 辅助」：打开面板并立刻问一次（面板自己处理"没配好"的情况）。
+## 顶栏「预言家」（那个问号）：打开面板的**建议页**并把光标放进问话栏
+## （**不自动发问**，让玩家先写一行字 —— 见 docs/ai-assist.md §六）。
 func _open_ai() -> void:
 	if ai_panel == null:
 		return
-	if ai_panel.has_method("open_and_ask"):
-		ai_panel.open_and_ask()
+	if ai_panel.has_method("open_for_question"):
+		ai_panel.open_for_question()
 	elif ai_panel.has_method("open"):
 		ai_panel.open()
+
+## 顶栏那个问号按钮的可用状态（用户 2026-10：冷却期间换**灰问号**、tooltip 写第几天可用）。
+##
+## 冷却的规则在引擎里（`SimCore.prophet_days_left()`），这里只读。
+## 挂在 `hour_ticked` 上刷新 —— 跨过黎明就少一天，很便宜（只换一张贴图 + 一句 tooltip）。
+func refresh_ai_btn() -> void:
+	if _ai_btn == null or runner == null or runner.sim == null:
+		return
+	var left := runner.sim.prophet_days_left()
+	if left <= 0:
+		UIKit.set_button_icon(_ai_btn, UIKit.panel_icon("ai_assist"))
+		_ai_btn.tooltip_text = "询问瑟拉菲娜：她会拨开水晶球，" \
+			+ "告诉你哪条路走得通。"
+	else:
+		UIKit.set_button_icon(_ai_btn, UIKit.panel_icon("ai_assist_off"))
+		_ai_btn.tooltip_text = "预言家在闭门静修 —— 第 %d 天（还有 %d 天）才回得来。" % [
+			int(runner.sim.s["day"]) + left, left] + "\n现在点开能看上一次的进言。"
 
 # ---------------------------------------------------------------------------
 # 顶栏数值行：**只有图标 + 数字，不打中文标签**

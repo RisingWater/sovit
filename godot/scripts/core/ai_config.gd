@@ -26,20 +26,24 @@ const SECTION := "ai"
 ## （和 `hud.quick_path` 一样的理由 —— 那条也是为门槛留的口子）。
 static var path := PATH
 
-## 默认值：**空的**。空 base_url 就是"还没配" —— 面板这时只显示本地分析、不联网。
+## 默认值：**DeepSeek 官方接口 + 当前那个模型**（用户 2026-10 要求："把当前 deepseek 模型的
+## base_url 和 api 填写进去"）。**只预填地址与模型名，绝不预填 key** —— key 是秘密，
+## 写进代码就等于写进仓库（`git` 里躺一辈子，还会被 push）。key 只在 `user://ai.cfg` 里。
 ##
-## 为什么不默认填 DeepSeek 的地址：填了的话 `is_ready()` 立刻为真，
-## 玩家第一次点顶栏那个按钮就会**真的发一次注定 401 的请求**（没有 key），
-## 等十几秒换回一句"HTTP 401"。空着的话按钮直接把他带到「设置」页，那句话才是有用的。
-## 地址只作为输入框的**占位提示**（`PLACEHOLDER_*`），不进配置。
-const DEFAULT_BASE_URL := ""
-const DEFAULT_MODEL := ""
+## 这么改的代价：`is_ready()` 对新装的机器立刻为真，没填 key 就点「问预言家」会真的发一次
+## 注定 401 的请求。所以面板把 401/403 单独认出来，提示"key 没填或不对，去设置页"，
+## 比原来那句"还没配置"更具体（这句原来是靠空默认值兜出来的）。
+const DEFAULT_BASE_URL := "https://api.deepseek.com/v1"
+const DEFAULT_MODEL := "deepseek-flash"
 const PLACEHOLDER_BASE_URL := "https://api.deepseek.com/v1"
-const PLACEHOLDER_MODEL := "deepseek-chat"
+const PLACEHOLDER_MODEL := "deepseek-flash"
 const DEFAULT_TIMEOUT := 60.0
-## 单次回答的 token 上限。顾问只要三条建议，800 足够；
-## 给太大只会让模型啰嗦、也更容易编数字。
-const DEFAULT_MAX_TOKENS := 800
+## 单次回答的 token 上限。
+## ⚠️ 2026-10 从 800 提到 4000：现在是**多轮 + 工具调用**，一轮要吐 3~5 个方案的 JSON
+## （每个几百 token），而 `deepseek-flash` 这类推理模型还会先花掉几百 token 思考 ——
+## 800 会把它截在半路：`finish_reason=length`，`content` 空、`tool_calls` 残缺，
+## 面板只报一句"模型返回了空内容"（实测踩过，见 docs/ai-assist.md §五）。
+const DEFAULT_MAX_TOKENS := 4000
 ## 温度：顾问要稳、要引用数字，不要发散。0.3 是"同一局势给同一个答案"的档。
 const DEFAULT_TEMPERATURE := 0.3
 
@@ -56,9 +60,9 @@ static func load_cfg() -> Dictionary:
 			64.0, 8192.0)),
 		"temperature": clampf(float(cf.get_value(SECTION, "temperature", DEFAULT_TEMPERATURE)),
 			0.0, 2.0),
-		# 提问时是否自动暂停：查询要几秒到几十秒，不暂停的话答案到手时局势已经跑过去了。
-		# 这是**纯表现层**的开关（只动 SimRunner.paused，不进仿真状态、不影响确定性）。
-		"pause_on_ask": bool(cf.get_value(SECTION, "pause_on_ask", true)),
+		# ⚠️ 这里曾经有 `pause_on_ask`（提问时自动暂停的开关）。2026-10 用户定：
+		# "问的时候游戏暂停" —— 于是它**不再是一个设置**，问话期间一定暂停
+		# （见 ui/ai_panel.gd::_auto_pause_once）。老配置文件里留着这个键也无害，会被忽略。
 	}
 
 ## 写配置。⚠️ 会覆盖整个 [ai] 段，所以调用方必须传一份完整的 cfg
@@ -72,7 +76,6 @@ static func save_cfg(cfg: Dictionary) -> Error:
 	cf.set_value(SECTION, "timeout", float(cfg.get("timeout", DEFAULT_TIMEOUT)))
 	cf.set_value(SECTION, "max_tokens", int(cfg.get("max_tokens", DEFAULT_MAX_TOKENS)))
 	cf.set_value(SECTION, "temperature", float(cfg.get("temperature", DEFAULT_TEMPERATURE)))
-	cf.set_value(SECTION, "pause_on_ask", bool(cfg.get("pause_on_ask", true)))
 	return cf.save(path)
 
 ## 能不能发请求。**api_key 不参与判断**（本地推理不需要 key）。

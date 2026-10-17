@@ -21,7 +21,7 @@ extends Node
 # 对拍/门槛友好：真正的解析逻辑是 `static func parse_reply()`，
 # 不联网也能拿"假的响应体"测遍成功与各种失败形状。
 
-signal replied(text: String)
+signal replied(reply: Dictionary)
 signal failed(message: String)
 
 var _http: HTTPRequest
@@ -45,9 +45,10 @@ func cancel() -> void:
 		_http.cancel_request()
 	_busy = false
 
-## 发一条请求。`cfg` 是 `AiConfig.load_cfg()` 的形状，`messages` 是 `Advisor.messages()`。
+## 发一条请求。`cfg` 是 `AiConfig.load_cfg()` 的形状，`messages` 是
+## `ProphetAgent.next_request()["messages"]`，`tools` 是它的 `tool_schema()`（可空 = 关掉工具）。
 ## 返回是否真的发出去了（没配好 / 正忙 → false，并已经 emit 了 failed）。
-func ask(cfg: Dictionary, messages: Array) -> bool:
+func ask(cfg: Dictionary, messages: Array, tools: Array = []) -> bool:
 	if _http == null:
 		failed.emit("HTTP 组件还没就绪")
 		return false
@@ -63,7 +64,7 @@ func ask(cfg: Dictionary, messages: Array) -> bool:
 	_http.timeout = float(cfg.get("timeout", AiConfig.DEFAULT_TIMEOUT))
 	_busy = true
 	var err := _http.request(_url, build_headers(cfg), HTTPClient.METHOD_POST,
-		build_body(cfg, messages))
+		build_body(cfg, messages, tools))
 	if err != OK:
 		_busy = false
 		failed.emit("请求发不出去（错误码 %d）：%s" % [err, _url])
@@ -74,15 +75,20 @@ func ask(cfg: Dictionary, messages: Array) -> bool:
 # 纯函数部分（门槛直接测这几个，不联网）
 # ---------------------------------------------------------------------------
 ## 请求体。字段名/形状就是 OpenAI 的那一套。
-static func build_body(cfg: Dictionary, messages: Array) -> String:
-	return JSON.stringify({
+## `tools` 非空时带上函数声明 + `tool_choice: "auto"` —— 这就是"把游戏引擎当工具交给模型"。
+static func build_body(cfg: Dictionary, messages: Array, tools: Array = []) -> String:
+	var body := {
 		"model": String(cfg.get("model", AiConfig.DEFAULT_MODEL)),
 		"messages": messages,
 		"temperature": float(cfg.get("temperature", AiConfig.DEFAULT_TEMPERATURE)),
 		"max_tokens": int(cfg.get("max_tokens", AiConfig.DEFAULT_MAX_TOKENS)),
 		# 不流式：面板要等整段回来再一次排版，流式只会让像素字一行行跳。
 		"stream": false,
-	})
+	}
+	if not tools.is_empty():
+		body["tools"] = tools
+		body["tool_choice"] = "auto"
+	return JSON.stringify(body)
 
 ## 请求头。**没有 key 就不发 Authorization** —— 本地推理（ollama 之类）不需要，
 ## 多发一个空的 Bearer 反而会被某些网关当成鉴权失败。
@@ -92,55 +98,98 @@ static func build_headers(cfg: Dictionary) -> PackedStringArray:
 		h.append("Authorization: Bearer " + String(cfg["api_key"]).strip_edges())
 	return h
 
-## 解析响应。返回 `{ok, text, error}`。**不联网也能测**：这就是它存在的理由。
+## 解析响应。返回 `{ok, text, tool_calls, finish_reason, error}`。
+## **不联网也能测**：这就是它存在的理由。
 ##
 ## 认的形状：
 ##   · 200 + `choices[0].message.content`（chat/completions，主流）
+##   · 200 + `choices[0].message.tool_calls[]`（**函数调用**：`{id, function:{name, arguments}}`，
+##     `arguments` 是个 **JSON 字符串** —— 这里顺手解析出来；解析不了就在那一条上标 `bad`，
+##     由调用方作为"参数不合法"喂回给模型，而不是整条回复算失败）
 ##   · 200 + `choices[0].text`（老的 completions，少数本地服务只给这个）
 ##   · 非 200 → 尽量把服务端的 `error.message` 挖出来（那通常比 "HTTP 500" 有用）
 static func parse_reply(code: int, body: String) -> Dictionary:
 	var trimmed := body.strip_edges()
 	if trimmed == "":
-		return {"ok": false, "text": "", "error": "服务端返回了空响应（HTTP %d）" % code}
+		return _reply("", "服务端返回了空响应（HTTP %d）" % code)
 	# ⚠️ 先看开头像不像 JSON 再解析：`JSON.parse_string()` 遇到 HTML 错误页 /
 	# 纯文本报错会往 stderr 喷一行 "Parse JSON failed"，门槛扫到会**误判成失败**
 	# （而那恰恰是我们预期要处理的一种响应）。这里自己先挡一道，顺便让
 	# "不是 JSON" 的提示更清楚。
 	if not (trimmed.begins_with("{") or trimmed.begins_with("[")):
 		if code < 200 or code >= 300:
-			return {"ok": false, "text": "", "error": "HTTP %d：%s" % [code, _snippet(trimmed)]}
-		return {"ok": false, "text": "", "error": "返回的不是 JSON：%s" % _snippet(trimmed)}
-	var data: Variant = JSON.parse_string(trimmed)
+			return _reply("", "HTTP %d：%s" % [code, _snippet(trimmed)])
+		return _reply("", "返回的不是 JSON：%s" % _snippet(trimmed))
+	var data: Variant = SimUtil.parse_json_quiet(trimmed)
 	if code < 200 or code >= 300:
 		var detail := _error_detail(data)
 		if detail == "":
 			detail = _snippet(trimmed)
-		return {"ok": false, "text": "",
-			"error": "HTTP %d：%s" % [code, detail]}
+		return _reply("", "HTTP %d：%s" % [code, detail])
 	if data == null or not (data is Dictionary):
-		return {"ok": false, "text": "", "error": "返回的不是 JSON：%s" % _snippet(trimmed)}
+		return _reply("", "返回的不是 JSON：%s" % _snippet(trimmed))
 	var choices: Variant = (data as Dictionary).get("choices", null)
 	if not (choices is Array) or (choices as Array).is_empty():
 		# 有些服务端把错误塞在 200 里（本地网关常见）
 		var detail2 := _error_detail(data)
 		if detail2 != "":
-			return {"ok": false, "text": "", "error": detail2}
-		return {"ok": false, "text": "", "error": "响应里没有 choices（模型名写错了？）"}
+			return _reply("", detail2)
+		return _reply("", "响应里没有 choices（模型名写错了？）")
 	var first: Variant = (choices as Array)[0]
 	if not (first is Dictionary):
-		return {"ok": false, "text": "", "error": "choices[0] 不是对象"}
-	var msg: Variant = (first as Dictionary).get("message", null)
-	if msg is Dictionary and (msg as Dictionary).has("content"):
-		var text := String((msg as Dictionary)["content"]).strip_edges()
-		if text == "":
-			return {"ok": false, "text": "", "error": "模型返回了空内容"}
-		return {"ok": true, "text": text, "error": ""}
-	if (first as Dictionary).has("text"):
-		var text2 := String((first as Dictionary)["text"]).strip_edges()
-		if text2 == "":
-			return {"ok": false, "text": "", "error": "模型返回了空内容"}
-		return {"ok": true, "text": text2, "error": ""}
-	return {"ok": false, "text": "", "error": "响应里找不到 message.content"}
+		return _reply("", "choices[0] 不是对象")
+	var fc := first as Dictionary
+	var finish := String(fc.get("finish_reason", ""))
+	var msg: Variant = fc.get("message", null)
+	var calls: Array = []
+	if msg is Dictionary:
+		calls = _parse_tool_calls((msg as Dictionary).get("tool_calls", null))
+	var text := ""
+	if msg is Dictionary and (msg as Dictionary).has("content") \
+			and (msg as Dictionary)["content"] != null:
+		text = String((msg as Dictionary)["content"]).strip_edges()
+	elif fc.has("text"):
+		text = String(fc["text"]).strip_edges()
+	# 函数调用优先：内容可能是空的（模型只给了 tool_calls）
+	if not calls.is_empty():
+		return {"ok": true, "text": text, "tool_calls": calls, "finish_reason": finish, "error": ""}
+	if text == "":
+		return _reply("", "模型返回了空内容")
+	return {"ok": true, "text": text, "tool_calls": [], "finish_reason": finish, "error": ""}
+
+static func _reply(text: String, error: String) -> Dictionary:
+	return {"ok": false, "text": text, "tool_calls": [], "finish_reason": "", "error": error}
+
+
+## `message.tool_calls` → `[{id, name, arguments(原样字符串), args(解析后的对象), bad(解析错误)}]`。
+static func _parse_tool_calls(raw: Variant) -> Array:
+	var out := []
+	if not (raw is Array):
+		return out
+	for i in (raw as Array).size():
+		var item: Variant = (raw as Array)[i]
+		if not (item is Dictionary):
+			continue
+		var it := item as Dictionary
+		var fn: Variant = it.get("function", null)
+		var name := ""
+		var args_str := "{}"
+		if fn is Dictionary:
+			name = String((fn as Dictionary).get("name", ""))
+			args_str = String((fn as Dictionary).get("arguments", "{}"))
+		elif it.has("name"):
+			# 少数网关会把 function 拍平
+			name = String(it["name"])
+			args_str = String(it.get("arguments", "{}"))
+		var call := {"id": String(it.get("id", "call%d" % (i + 1))), "name": name,
+			"arguments": args_str, "args": {}, "bad": ""}
+		var parsed: Variant = SimUtil.parse_json_quiet(args_str)
+		if parsed is Dictionary:
+			call["args"] = parsed
+		else:
+			call["bad"] = _snippet(args_str)
+		out.append(call)
+	return out
 
 static func _error_detail(data: Variant) -> String:
 	if not (data is Dictionary):
@@ -189,7 +238,8 @@ func _on_completed(result: int, code: int, _headers: PackedStringArray, body: Pa
 		return
 	var parsed := parse_reply(code, body.get_string_from_utf8())
 	if bool(parsed["ok"]):
-		replied.emit(String(parsed["text"]))
+		# 把**整条**解析结果交出去：多轮协议要 `tool_calls`，不只 `text`
+		replied.emit(parsed)
 	else:
 		failed.emit(String(parsed["error"]))
 

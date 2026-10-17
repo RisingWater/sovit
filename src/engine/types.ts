@@ -529,6 +529,16 @@ export interface QuestChapterDef {
   reward: number
 }
 
+/**
+ * 预言家（AI 辅助）的记账。见 `docs/ai-assist.md` §六。
+ *
+ * `lastAskDay` = 上一次问他是第几天；`-1` = 这一局还没问过。
+ * 冷却 `PROPHET_COOLDOWN_DAYS`（5）天：`day >= lastAskDay + 5` 才问得动。
+ */
+export interface ProphetState {
+  lastAskDay: number
+}
+
 /** 单个目标的进度（只读）。`text` 由引擎拼好，保证 TS 与 GDScript 显示一致。 */
 export interface QuestGoalProgress {
   goal: QuestGoal
@@ -658,6 +668,14 @@ export interface GameState {
   research: ResearchState
   /** 任务（引导系统）：完成记录 + 章节奖励记录。见 docs/quests.md。 */
   quests: QuestState
+  /**
+   * 山顶那位预言家（AI 辅助）的记账：`lastAskDay` = 上次问他话是第几天（-1 = 还没问过）。
+   *
+   * ⚠️ 这是**唯一一个不参与仿真演化**的状态段：问不问都不改村子的任何数值，
+   * 它只是"5 天才能问一次"这条冷却的记账（规则与 UI 在 Godot 侧，见 docs/ai-assist.md §六）。
+   * 放在状态里而不是 UI 配置里，是为了让退出重进 / 读档都绕不过冷却。
+   */
+  prophet: ProphetState
 
   /** 当日台账累加器：黎明清零，夜间结算时挂到当天快照上。 */
   ledgerToday: DayLedger

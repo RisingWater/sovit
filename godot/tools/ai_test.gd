@@ -117,6 +117,12 @@ func _run() -> void:
 		return
 	if not _prompt_section():
 		return
+	if not _cooldown_section():
+		return
+	if not _trial_section():
+		return
+	if not _protocol_section():
+		return
 	if not _midgame_section():
 		return
 	if not _coverage_section():
@@ -138,12 +144,18 @@ func _config_section() -> bool:
 		DirAccess.remove_absolute(TMP_CFG)
 
 	var d := AiConfig.load_cfg()
-	if not _chk(String(d["base_url"]) == "" and String(d["model"]) == "",
-			"没配过时 base_url / model 是空的（空的才算「没配」）"):
+	# 2026-10 用户要求"把当前 deepseek 模型的 base_url 和 api 填写进去"：
+	# 地址与模型名现在是**预填的默认值**（DeepSeek 官方 + deepseek-flash），
+	# 于是"没配过"和"配好了"不再由 base_url 是否为空区分。
+	# ⚠️ **key 绝不能有默认值** —— 它只活在 `user://ai.cfg` 里，不能进仓库。
+	if not _chk(String(d["base_url"]).begins_with("https://") and String(d["model"]) != "",
+			"默认应当预填 DeepSeek 的地址与模型名（%s / %s）" % [String(d["base_url"]),
+				String(d["model"])]):
 		return false
-	if not _chk(not AiConfig.is_ready(d), "空 base_url 就是没配好 —— 别拿默认地址去发注定失败的请求"):
+	if not _chk(not String(d["base_url"]).contains("key") and not String(d["model"]).contains("sk-"),
+			"默认值里不许出现任何像 key 的东西"):
 		return false
-	if not _chk(String(d["api_key"]) == "", "没配过时 api_key 应该是空的"):
+	if not _chk(String(d["api_key"]) == "", "没配过时 api_key 必须是空的（key 不进仓库）"):
 		return false
 	if not _chk(AiConfig.masked_key(d) == "（未设置）", "空 key 的显示文案"):
 		return false
@@ -158,14 +170,13 @@ func _config_section() -> bool:
 	blank["base_url"] = "   "
 	if not _chk(not AiConfig.is_ready(blank), "base_url 全是空白就算没配好"):
 		return false
-	_ok("配置：首次读取是「未配置」，只填 base_url + model 即可用（api_key 不强求）")
+	_ok("配置：默认预填 DeepSeek 地址 + 模型名，**key 没有默认值**（只填地址+模型即可用）")
 
 	d["base_url"] = "http://127.0.0.1:11434/v1"
 	d["api_key"] = "sk-abcdefghijklmnop"
 	d["model"] = "qwen2.5:7b"
 	d["timeout"] = 30.0
 	d["max_tokens"] = 512
-	d["pause_on_ask"] = false
 	if not _chk(AiConfig.save_cfg(d) == OK, "写配置应该成功"):
 		return false
 	var back := AiConfig.load_cfg()
@@ -174,8 +185,13 @@ func _config_section() -> bool:
 			and String(back["api_key"]) == "sk-abcdefghijklmnop", "配置往返要一模一样"):
 		return false
 	if not _chk(is_equal_approx(float(back["timeout"]), 30.0)
-			and int(back["max_tokens"]) == 512 and not bool(back["pause_on_ask"]),
-			"超时 / 回复上限 / 自动暂停也要往返"):
+			and int(back["max_tokens"]) == 512,
+			"超时 / 回复上限也要往返"):
+		return false
+	# 用户 2026-10："问的时候游戏暂停" —— 不再是一个设置项，问话期间一定暂停。
+	# （老配置文件里留着 pause_on_ask 也无害：读的时候被忽略、写的时候不再落盘。）
+	if not _chk(not back.has("pause_on_ask"),
+			"暂停不该再是配置项（问话期间无条件暂停）"):
 		return false
 	if not _chk(AiConfig.masked_key(back) == "sk-abc…mnop", "显示 key 只能露头尾"):
 		return false
@@ -230,6 +246,21 @@ func _request_section() -> bool:
 	if not _chk(AiClient.build_headers(no_key).size() == 1, "没有 key 时不发 Authorization 头"):
 		return false
 	_ok("接入：请求体是 OpenAI 形状，key 只在请求头里，本地推理不发 Authorization")
+
+	# 带工具（"把引擎当工具交给模型"就是这一段）：
+	#   `tools` + `tool_choice: "auto"` 非空时才出现在 body 里；
+	#   不带工具时**不许**留一个空的 `tools` 字段（有些端点会因此报 400）。
+	var schema := [{"type": "function", "function": {"name": "simulate_plan"}}]
+	var body_tools: Variant = JSON.parse_string(AiClient.build_body(cfg, msgs, schema))
+	if not _chk(body_tools is Dictionary and (body_tools as Dictionary).has("tools")
+			and String((body_tools as Dictionary)["tool_choice"]) == "auto",
+			"带工具时 body 要有 tools 与 tool_choice=auto"):
+		return false
+	var body_plain: Variant = JSON.parse_string(AiClient.build_body(cfg, msgs, []))
+	if not _chk(not (body_plain as Dictionary).has("tools"),
+			"不带工具时不该留空的 tools 字段"):
+		return false
+	_ok("接入：tools 与 tool_choice 只在真要试方案时带上")
 	return true
 
 # ---------------------------------------------------------------------------
@@ -264,7 +295,27 @@ func _parse_section() -> bool:
 	if not _chk(not bool(AiClient.parse_reply(200,
 			'{"choices":[{"message":{"content":"   "}}]}')["ok"]), "空内容判失败"):
 		return false
-	_ok("接入：响应解析覆盖成功 / 401 / 500 / 空体 / 非 JSON / 无 choices / 200 里带错误")
+	# ---- 函数调用（tool_calls）：把游戏引擎当工具交给模型，靠的就是这一段解析
+	var tc := AiClient.parse_reply(200, '{"choices":[{"finish_reason":"tool_calls","message":'
+		+ '{"role":"assistant","content":null,"tool_calls":[{"id":"c1","type":"function",'
+		+ '"function":{"name":"simulate_plan","arguments":"{\\"days\\":5,\\"actions\\":[]}"}}]}}]}')
+	var tcs: Array = tc["tool_calls"]
+	if not _chk(bool(tc["ok"]) and tcs.size() == 1 and String(tcs[0]["name"]) == "simulate_plan",
+			"tool_calls 要能解析出来（content 为 null 也算成功）"):
+		return false
+	if not _chk((tcs[0]["args"] as Dictionary).has("days"),
+			"tool_calls.function.arguments 是 **JSON 字符串**，要顺手解析出来"):
+		return false
+	if not _chk(String(tc["finish_reason"]) == "tool_calls", "finish_reason 也要带出来"):
+		return false
+	# arguments 不是合法 JSON → 整条回复仍然算成功，但那一条标 `bad`（由 agent 回给模型改）
+	var tcbad := AiClient.parse_reply(200, '{"choices":[{"message":{"tool_calls":[{"id":"c9",'
+		+ '"function":{"name":"simulate_plan","arguments":"{oops"}}]}}]}')
+	if not _chk(bool(tcbad["ok"]) and (tcbad["tool_calls"] as Array).size() == 1
+			and String((tcbad["tool_calls"] as Array)[0]["bad"]) != "",
+			"坏 arguments 不该让整条回复失败（要标 bad 交回给模型改）"):
+		return false
+	_ok("接入：响应解析覆盖成功 / 401 / 500 / 空体 / 非 JSON / 无 choices / 200 里带错误 / **tool_calls**")
 	return true
 
 # ---------------------------------------------------------------------------
@@ -306,7 +357,14 @@ func _icon_section() -> bool:
 			"ai_assist.png 应当是 32x32（顶栏按 16 = 一半显示、面板标题按 32 = 原件显示），实际 %dx%d"
 			% [ico.get_width(), ico.get_height()]):
 		return false
-	_ok("界面：AI 辅助的图标在位（32x32，顶栏 16px / 面板标题 32px）")
+	# 冷却期间顶栏换的那张**灰问号**（用户给的 disable 图）—— 缺了会是个灰块，不报错
+	var off: Texture2D = UIKit.panel_icon("ai_assist_off")
+	if not _chk(off != null, "`assets/ui/panel/ai_assist_off.png` 不见了（冷却时顶栏会空一块）"):
+		return false
+	if not _chk(off.get_width() == 32 and off.get_height() == 32,
+			"ai_assist_off.png 应当是 32x32，实际 %dx%d" % [off.get_width(), off.get_height()]):
+		return false
+	_ok("界面：AI 辅助的两张图标都在（金色 / 冷却灰，32x32；顶栏 16px / 面板标题 32px）")
 	return true
 
 # ---------------------------------------------------------------------------
@@ -451,23 +509,55 @@ func _reveal_section() -> bool:
 		return false
 	if not _chk(ad.quest_rows().size() == visible.size(), "quest_rows 只给可见任务"):
 		return false
-	# 人设：**隐居的预言家**（用户 2026-10 定：口吻要符合游戏背景）。
-	# 人设是外壳，所以这里只锁"外壳在不在"，不锁具体措辞 —— 改文案不该红线。
+	# 人设：**瑟拉菲娜**（用户 2026-10 给了完整人设：22 岁、猫系傲娇、紫瞳泪痣、
+	# 紫色露肩长裙，口头禅「哼，才不是特意为你预言呢」）。人设是外壳，
+	# 所以这里只锁"外壳在不在 + 别把机器词漏进戏里"，不锁具体措辞 —— 改文案不该红线。
 	var sys := ad.system_prompt()
-	for needle in ["预言家", "征兆", "应对", "预言："]:
+	# 格式（用户 2026-10 定的新样子）：我明白了 → 我看见了，你应该 → 一条一句措施。
+	# **没有编号、没有「征兆 / 应对 / 预言」标签** —— 那套旧格式会让她像个操作手册。
+	for needle in ["瑟拉菲娜", "预言家", "水晶球", "我明白了", "我看见了", "你应该", "木匠"]:
 		if not _chk(sys.contains(needle), "系统提示里少了人设 / 格式的「%s」" % needle):
 			return false
+	for gone in ["征兆", "应对", "预言："]:
+		if not _chk(not sys.contains(gone),
+				"旧格式的标签「%s」不该再出现在提示里（用户 2026-10 明确要求去掉）" % gone):
+			return false
+	# 措施要用**世界里的人**去办（用户 2026-10："让她用世界里的说法点一句，
+	# 比如「让木匠把菜园的架子搭起来」，不提页签"）。
+	if not _chk(sys.contains("派谁") and sys.contains("农夫"),
+			"措施里要交代「派谁去办」（工匠 / 农夫 / 磨坊工 / 读书人 / 石匠）"):
+		return false
+	if not _chk(sys.contains("傲娇") or sys.contains("猫系"),
+			"必须写明性格是猫系傲娇（否则只会是一个中性的顾问）"):
+		return false
 	if not _chk(sys.contains("江湖术士"),
-			"必须写明「你是卜者但不是江湖术士」（否则模型会滑向含糊其辞）"):
+			"必须写明「不是江湖术士」（否则模型会滑向含糊其辞）"):
 		return false
 	if not _chk(sys.contains("没有信息量"),
-			"必须明写「不许说没信息量的空话」—— 预言家这个人设最容易滑向「来日可期」"):
+			"必须明写「不许说没信息量的空话」—— 傲娇这个人设最容易滑向「来日可期」"):
 		return false
-	# 本地分析那半边仍是**账房口吻**（数字、条目）：两种口吻并存是刻意的，别被统一掉
+	# ⚠️ **戏里不许出现机器词**（用户 2026-10："不要说什么沙盘，可以说水晶球"）：
+	# 模型看到的每一段字（系统提示 + 简报 + 工具声明）都按水晶球来写，
+	# 否则它会在回答里冒出"模拟""沙盘""引擎"，那就出戏了。
+	var all_model_text := sys + "\n" + ad.user_prompt()
+	var ag_text := ProphetAgent.new(sim, "测试")
+	var brief := ""
+	for m in (ag_text.next_request()["messages"] as Array):
+		brief += String((m as Dictionary)["content"]) + "\n"
+	for t in ag_text.tool_schema():
+		brief += JSON.stringify(t)
+	all_model_text += "\n" + brief
+	for banned in ["沙盘", "模拟引擎", "引擎拒绝", "simulate_plan"]:
+		if not _chk(not all_model_text.contains(banned),
+				"模型看到的字里不许出现机器词「%s」（要说水晶球）" % banned):
+			return false
+	# 玩家看得到的**只有**瑟拉菲娜这一个口吻：面板上原来那块「本地分析」已经拿掉了
+	# （用户 2026-10："不要本地分析"）。`plan_text()` 还在，它是引擎侧的纯文本渲染
+	# （内容正确性的断言拿它当靶子），但**不再是给玩家看的一块**。
 	if not _chk(ad.plan_text().contains("为什么：") and ad.plan_text().contains("怎么做："),
-			"本地分析仍应是账房口吻（为什么 / 怎么做 的结构化条目）"):
+			"`plan_text()` 仍是引擎侧的结构化渲染（为什么 / 怎么做）"):
 		return false
-	_ok("契约：只引用可见任务；AI 那半边是隐居的预言家（征兆 / 应对 / 预言），本地分析仍是账房口吻")
+	_ok("契约：只引用可见任务；口吻是瑟拉菲娜（水晶球 + 我明白了 / 我看见了，你应该 / 措施）")
 	return true
 
 # ---------------------------------------------------------------------------
@@ -495,19 +585,306 @@ func _prompt_section() -> bool:
 	if not _chk(not sit.contains("城镇中心（"), "可建清单不该列城镇中心（地图上固定那一座）"):
 		return false
 	if not _chk(_font_ok(ad.plan_text()) and _font_ok(sit) and _font_ok(rules),
-			"本地分析 / 局势包 / 规则摘要里不许有像素字体画不出的字"):
+			"引擎侧的结构化渲染 / 局势包 / 规则摘要里不许有像素字体画不出的字"):
 		return false
-	if not _chk(ad.system_prompt().length() > 200 and ad.user_prompt().contains("【玩家的追问】") == false,
-			"没追问时不该出现追问那一段"):
+	if not _chk(ad.system_prompt().length() > 200
+			and not ad.user_prompt().contains("【村民的问话】"),
+			"没写问话时不该出现「【村民的问话】」那一段（也不能空着什么都不说）"):
 		return false
-	ad.question = "先补粮还是先盖房？"
-	if not _chk(ad.user_prompt().contains("【玩家的追问】"), "有追问时要带上那一段"):
+	ad.question = "我的食物不够了怎么办"
+	var p1 := ad.user_prompt()
+	if not _chk(p1.contains("【村民的问话】\n我的食物不够了怎么办"),
+			"写了问话就要原样带上那一段：%s" % p1.substr(p1.length() - 160)):
 		return false
-	_ok("提示词：规则与局势都从内容里取数（改内容就跟着变），分块齐、无缺字形")
+	if not _chk(ad.system_prompt().contains("村民的问话"),
+			"系统提示要交代「先答他那句话，再给该做的事」"):
+		return false
+	if not _chk(ad.system_prompt().contains("为什么") and ad.system_prompt().contains("我看见了"),
+			"要交代「问为什么时先答一句『我看见了：』」"):
+		return false
+	_ok("提示词：规则与局势都从内容里取数（改内容就跟着变），分块齐、问话原样带上、无缺字形")
 	return true
 
 # ---------------------------------------------------------------------------
-# 10. 中局：建好食物链、跑一次黎明之后的建议
+# 9b. 预言家的冷却：5 天一次（见 docs/ai-assist.md §六）
+# ---------------------------------------------------------------------------
+func _cooldown_section() -> bool:
+	var sim := _fresh()
+	if not _chk(sim.s.has("prophet"), "新开局的 state 里应当有 prophet 段（冷却的记账）"):
+		return false
+	if not _chk(sim.prophet_days_left() == 0 and sim.can_ask_prophet(),
+			"开局就能问（`lastAskDay` = -1 = 还没问过）"):
+		return false
+	# 问到了 → 从当天起算冷却
+	sim.mark_prophet_asked()
+	if not _chk(not sim.can_ask_prophet() and sim.prophet_days_left() == SimCore.PROPHET_COOLDOWN_DAYS,
+			"问过之后应当要等 %d 天（得到 %d）" % [SimCore.PROPHET_COOLDOWN_DAYS,
+				sim.prophet_days_left()]):
+		return false
+	# 每过一天少一天；第 5 天正好放行
+	for d in range(1, SimCore.PROPHET_COOLDOWN_DAYS):
+		sim.s["day"] = d
+		if not _chk(not sim.can_ask_prophet()
+				and sim.prophet_days_left() == SimCore.PROPHET_COOLDOWN_DAYS - d,
+				"第 %d 天：应当还剩 %d 天（得到 %d）" % [d, SimCore.PROPHET_COOLDOWN_DAYS - d,
+					sim.prophet_days_left()]):
+			return false
+	sim.s["day"] = SimCore.PROPHET_COOLDOWN_DAYS
+	if not _chk(sim.can_ask_prophet() and sim.prophet_days_left() == 0,
+			"第 %d 天正好可以再问（边界：>= last + %d）" % [SimCore.PROPHET_COOLDOWN_DAYS,
+				SimCore.PROPHET_COOLDOWN_DAYS]):
+		return false
+
+	# 冷却必须**进存档** —— 不然退出重进 / 读档就能刷问话
+	var path := "user://ai_test_save.json"
+	sim.mark_prophet_asked()
+	var day := int(sim.s["day"])
+	if not _chk(SaveManager.save_to(path, sim) == OK, "存档应当写得进去"):
+		return false
+	var back: SimCore = SaveManager.load_into(path, sim.db)
+	DirAccess.remove_absolute(path)
+	if not _chk(back != null, "存档应当读得回来"):
+		return false
+	if not _chk(int((back.s["prophet"] as Dictionary)["lastAskDay"]) == day
+			and not back.can_ask_prophet(),
+			"读档之后冷却还得在（第 %d 天问的）—— 不然读档就能刷问话" % day):
+		return false
+	# 老存档（没有 prophet 段）要能迁移
+	var old: Dictionary = back.s.duplicate(true)
+	old.erase("prophet")
+	var migrated := SimCore.new(back.db)
+	migrated.s = old
+	SaveManager._sanitize(migrated.s, migrated.db)
+	if not _chk(migrated.s.has("prophet")
+			and int((migrated.s["prophet"] as Dictionary)["lastAskDay"]) == -1
+			and migrated.can_ask_prophet(),
+			"2026-10 之前的存档（没有 prophet 段）迁移后应当是「没问过」"):
+		return false
+	_ok("冷却：5 天一次、问过才起算、跨天递减、进存档、老存档能迁移")
+	return true
+
+# ---------------------------------------------------------------------------
+# 10. 沙盘（把引擎当工具）：只读 / 真的落地 / 确定性 / 会拒
+# ---------------------------------------------------------------------------
+func _trial_section() -> bool:
+	var sim := _fresh()
+	var before := JSON.stringify(sim.s)
+	var base := Trial.run_baseline(sim, Trial.MAX_DAYS)
+	if not _chk(base.has("pop") and base.has("food") and base.has("problems"),
+			"对照（什么都不做）得是一份完整的汇总"):
+		return false
+	var plan := {"label": "先补粮", "days": 5, "actions": [
+		{"day": 1, "type": "build", "id": "wheat_farm"},
+		{"day": 2, "type": "build", "id": "coarse_mill"},
+	]}
+	var res := Trial.run(sim, plan, base)
+	if not _chk(JSON.stringify(sim.s) == before,
+			"**沙盘跑完真实状态必须逐字节不变**（这是「引擎当工具」的前提）"):
+		return false
+	# 落地了吗：排上队 或 已建成，二者之和应当正好等于下的 2 条 build
+	var landed := int(res["delta"]["construction"]) + int(res["delta"]["shops"])
+	if not _chk(landed == 2, "两条 build 应当排上队或建成（实际落地 %d 条）" % landed):
+		return false
+	if not _chk((res["rejected"] as Array).is_empty(), "这两条命令不该被拒：%s" % str(res["rejected"])):
+		return false
+	_ok("沙盘：只读真实状态、命令真的落地（排上队/建成）、对照齐全")
+
+	# 确定性：同一份状态 + 同一个方案 = 同一份结果
+	var again := Trial.run(sim, plan, base)
+	if not _chk(JSON.stringify(again["summary"]) == JSON.stringify(res["summary"]),
+			"同一个方案跑两遍结果必须逐位相同（rng 状态一起复制）"):
+		return false
+	# 引擎自己拒：不认识的建筑 / 科技没解锁 / 村里还没有那座建筑
+	var bad := Trial.run(sim, {"label": "瞎下", "days": 3, "actions": [
+		{"type": "build", "id": "nope_thing"},
+		{"type": "build", "id": "quarry"},
+		{"type": "expand", "id": "nothing_here"},
+		{"type": "demolish", "id": "town_center"},
+	]}, base)
+	var rej: Array = bad["rejected"]
+	if not _chk(rej.size() == 4, "四条乱下的命令都应当被拒（实际 %d 条：%s）" % [rej.size(), str(rej)]):
+		return false
+	if not _chk(String(rej[0]).contains("没有叫") and String(rej[1]).contains("还锁着")
+			and String(rej[2]).contains("还没有") and String(rej[3]).contains("不认的命令类型"),
+			"拒绝理由要说人话（模型下一轮能照着改）：%s" % str(rej)):
+		return false
+	# 天数 / 命令条数有上限
+	var clamp_plan := {"label": "超量", "days": 99, "actions": []}
+	for i in 20:
+		clamp_plan["actions"].append({"type": "build", "id": "wheat_farm"})
+	var clamped := Trial.run(sim, clamp_plan, base)
+	if not _chk(int(clamped["days"]) == Trial.MAX_DAYS,
+			"days 应当被夹到 %d（得到 %d）" % [Trial.MAX_DAYS, int(clamped["days"])]):
+		return false
+	_ok("沙盘：确定性、拒绝理由说人话、天数被夹到 %d 天" % Trial.MAX_DAYS)
+
+	# 换代太快的局面（12 人开局）里，5 天跑完仍然要 < 几百 ms —— 工具是同步跑的
+	var t0 := Time.get_ticks_usec()
+	for i in ProphetAgent.MAX_PLANS:
+		Trial.run(sim, plan, base)
+	var ms := (Time.get_ticks_usec() - t0) / 1000.0
+	if not _chk(ms < 2000.0, "一轮 %d 个方案要跑得动（实测 %.0f ms，上限 2000）" % [
+			ProphetAgent.MAX_PLANS, ms]):
+		return false
+	_ok("沙盘：一轮 %d 个方案耗时 %.0f ms（同步跑得起）" % [ProphetAgent.MAX_PLANS, ms])
+	return true
+
+# ---------------------------------------------------------------------------
+# 11. 多轮协议：3 轮、最终轮要说、收尾关工具
+# ---------------------------------------------------------------------------
+func _protocol_section() -> bool:
+	var ag := ProphetAgent.new(_fresh(), "我的食物不够了怎么办")
+	# 工具声明
+	var tools := ag.tool_schema()
+	if not _chk(tools.size() == 1
+			and String((tools[0] as Dictionary)["function"]["name"]) == ProphetAgent.TOOL_NAME,
+			"应当只暴露一个工具 `%s`" % ProphetAgent.TOOL_NAME):
+		return false
+	var params: Dictionary = (tools[0] as Dictionary)["function"]["parameters"]
+	if not _chk((params["required"] as Array).has("actions")
+			and (params["properties"] as Dictionary).has("days"),
+			"工具参数要写清 days 与 actions"):
+		return false
+	# 第 1 步：plan，带工具，简报里有"什么都不做的对照"
+	var req1 := ag.next_request()
+	if not _chk(String(req1["stage"]) == "plan" and (req1["tools"] as Array).size() == 1,
+			"第 1 步应当是 plan 且带工具"):
+		return false
+	var brief := ""
+	for m in (req1["messages"] as Array):
+		if String((m as Dictionary)["role"]) == "user":
+			brief += String((m as Dictionary)["content"])
+	# 简报要交代清楚三件事（但**用戏里的说法**：水晶球 / 卦，不写沙盘）
+	if not _chk(brief.contains("水晶球") and brief.contains("什么都不做")
+			and brief.contains("最后一轮"),
+			"简报里要说清：水晶球是什么、什么都不做的那一卦、第 3 轮是最后一轮"):
+		return false
+	_ok("协议：只暴露一个水晶球工具，第 1 步 plan + 简报（含对照与轮次规则）")
+
+	# 喂 3 个方案 → 跑 3 个，进第 2 轮
+	var r1 := ag.accept(_calls_reply(3))
+	if not _chk(String(r1["kind"]) == "trials" and ag.rounds_done == 1 and ag.trials.size() == 3,
+			"第 1 轮应当跑 3 个方案（实际 %d 个 / rounds=%d）" % [ag.trials.size(), ag.rounds_done]):
+		return false
+	var req2 := ag.next_request()
+	if not _chk(String(req2["stage"]) == "review" and _role_count(req2, "tool") == 3,
+			"第 2 步应当是 review，且消息里有 3 条沙盘结果（实际 %d 条）" % _role_count(req2, "tool")):
+		return false
+	# 第 2 轮 → last，且明确写"这是最后一轮"
+	ag.accept(_calls_reply(2))
+	var req3 := ag.next_request()
+	if not _chk(String(req3["stage"]) == "last", "第 3 步应当是 last（实际 %s）" % req3["stage"]):
+		return false
+	if not _chk(_last_user_text(req3).contains("最后一轮"),
+			"**最后一轮必须明说**（用户要求：「第三轮要告诉他这是最终轮」）：%s" % _last_user_text(req3)):
+		return false
+	# 第 3 轮 → conclude：**工具关掉**，逼它说话
+	ag.accept(_calls_reply(1))
+	var req4 := ag.next_request()
+	if not _chk(String(req4["stage"]) == "conclude" and (req4["tools"] as Array).is_empty(),
+			"3 轮跑完应当进 conclude 且**不带工具**（实际 stage=%s tools=%d）" % [
+				req4["stage"], (req4["tools"] as Array).size()]):
+		return false
+	# 收尾给文本 → 结束
+	var fin := ag.accept({"ok": true, "text": "我看见了，你应该先补粮。", "tool_calls": []})
+	if not _chk(String(fin["kind"]) == "final" and String(ag.final_text).contains("先补粮"),
+			"收尾那次回答应当成为结论"):
+		return false
+	if not _chk(ag.rounds_done == ProphetAgent.MAX_ROUNDS,
+			"一共只能跑 %d 轮（实际 %d）" % [ProphetAgent.MAX_ROUNDS, ag.rounds_done]):
+		return false
+	_ok("协议：3 轮封顶、第 3 轮明说「最后一轮」、收尾关掉工具、结论落在 final_text")
+
+	# 轮次用满之后还在试方案 → 拒绝执行（不再跑沙盘），转收尾
+	var ag2 := ProphetAgent.new(_fresh(), "测试")
+	for i in ProphetAgent.MAX_ROUNDS:
+		ag2.accept(_calls_reply(1))
+	var before_trials := ag2.trials.size()
+	var refused := ag2.accept(_calls_reply(2))
+	if not _chk(String(refused["kind"]) == "refused" and ag2.trials.size() == before_trials,
+			"轮次用满后不许再跑沙盘（实际 kind=%s，方案数 %d → %d）" % [
+				refused["kind"], before_trials, ag2.trials.size()]):
+		return false
+	if not _chk(String(ag2.next_request()["stage"]) == "conclude", "被拒之后应当转收尾"):
+		return false
+
+	# 一轮给太多方案 → 只跑上限那么多
+	var ag3 := ProphetAgent.new(_fresh(), "测试")
+	ag3.accept(_calls_reply(9))
+	if not _chk(ag3.trials.size() == ProphetAgent.MAX_PLANS,
+			"一轮最多跑 %d 个方案（实际 %d）" % [ProphetAgent.MAX_PLANS, ag3.trials.size()]):
+		return false
+
+	# 工具名不认识 / 参数不是合法 JSON → 都回一条"说明原因"的结果，不崩
+	var ag4 := ProphetAgent.new(_fresh(), "测试")
+	var weird := {"ok": true, "text": "", "tool_calls": [
+		{"id": "c1", "name": "no_such_tool", "arguments": "{}", "args": {}, "bad": ""},
+		{"id": "c2", "name": ProphetAgent.TOOL_NAME, "arguments": "{oops", "args": {}, "bad": "{oops"},
+	]}
+	var res4 := ag4.accept(weird)
+	if not _chk(String(res4["kind"]) == "trials" and ag4.trials.size() == 2,
+			"坏工具/坏参数也要各回一条结果（而不是整条失败）"):
+		return false
+	var shown := ""
+	for t in ag4.trials:
+		shown += String(t["display"])
+	if not _chk(shown.contains("没有叫") and shown.contains("不是合法 JSON"),
+			"两条坏调用都要说清原因：%s" % shown):
+		return false
+	_ok("协议：轮次用满会拒跑、一轮最多 %d 个、坏工具/坏参数只回原因不崩" % ProphetAgent.MAX_PLANS)
+
+	# 文本兜底：不支持函数调用的端点，把方案写成 JSON 块也要认
+	var ag5 := ProphetAgent.new(_fresh(), "测试")
+	var text_reply := {"ok": true, "tool_calls": [], "text":
+		"```json\n{\"label\":\"文本方案\",\"days\":5,\"actions\":[{\"type\":\"build\",\"id\":\"wheat_farm\"}]}\n```"}
+	var res5 := ag5.accept(text_reply)
+	if not _chk(String(res5["kind"]) == "trials" and ag5.trials.size() == 1,
+			"文本 JSON 块应当被当成方案跑掉（兜底协议）"):
+		return false
+	if not _chk(String((ag5.trials[0] as Dictionary)["display"]).begins_with("文本方案"),
+			"文本兜底也要带上 label"):
+		return false
+	# 但如果正文很长（明显是在给结论），就不许劫持成方案
+	var ag6 := ProphetAgent.new(_fresh(), "测试")
+	var long_prose := "这里是一大段结论性的正文，明显不是方案。".repeat(3)
+	var prose := {"ok": true, "tool_calls": [], "text":
+		"我看见了：仓里只剩一点粮，先别急着盖房。" + long_prose
+		+ "{\"label\":\"x\",\"days\":5,\"actions\":[{\"type\":\"build\",\"id\":\"wheat_farm\"}]}"}
+	var res6 := ag6.accept(prose)
+	if not _chk(String(res6["kind"]) == "final" and ag6.trials.is_empty(),
+			"正文很长时应当当结论看，不许被 JSON 块劫持成方案"):
+		return false
+	_ok("协议：文本 JSON 兜底能跑，但「正文很长」的结论不会被劫持")
+	return true
+
+## 造一个"模型回了 N 个 tool_calls"的假回答。
+func _calls_reply(n: int) -> Dictionary:
+	var calls := []
+	for i in n:
+		calls.append({"id": "call%d" % (i + 1), "name": ProphetAgent.TOOL_NAME,
+			"arguments": JSON.stringify({"label": "方案%d" % (i + 1), "days": 5, "actions": [
+				{"type": "build", "id": "wheat_farm"}]}),
+			"args": {"label": "方案%d" % (i + 1), "days": 5,
+				"actions": [{"type": "build", "id": "wheat_farm"}]},
+			"bad": ""})
+	return {"ok": true, "text": "", "tool_calls": calls}
+
+func _role_count(req: Dictionary, role: String) -> int:
+	var n := 0
+	for m in (req["messages"] as Array):
+		if String((m as Dictionary)["role"]) == role:
+			n += 1
+	return n
+
+func _last_user_text(req: Dictionary) -> String:
+	var out := ""
+	for m in (req["messages"] as Array):
+		if String((m as Dictionary)["role"]) == "user":
+			out = String((m as Dictionary)["content"])
+	return out
+
+# ---------------------------------------------------------------------------
+# 12. 中局：建好食物链、跑一次黎明之后的建议
 # ---------------------------------------------------------------------------
 func _midgame_section() -> bool:
 	var sim := _fresh()
@@ -545,7 +922,7 @@ func _midgame_section() -> bool:
 	return true
 
 # ---------------------------------------------------------------------------
-# 11. 规则覆盖：饥饿 / 住房满 / 仓储满 / 工地没产能 / 研究队列
+# 13. 规则覆盖：饥饿 / 住房满 / 仓储满 / 工地没产能 / 研究队列
 # ---------------------------------------------------------------------------
 func _coverage_section() -> bool:
 	var sim := _fresh()
@@ -635,7 +1012,7 @@ func _coverage_section() -> bool:
 	return true
 
 # ---------------------------------------------------------------------------
-# 12. goal 类型全覆盖（内容里新增一种目标，必须先教 Advisor 认识）
+# 14. goal 类型全覆盖（内容里新增一种目标，必须先教 Advisor 认识）
 # ---------------------------------------------------------------------------
 func _goal_types_section() -> bool:
 	var seen := {}

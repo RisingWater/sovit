@@ -114,6 +114,10 @@ export function createInitialState(options: CreateOptions = {}): GameState {
     research: { done: [...(start.techs ?? [])], queue: [] },
     // 任务（引导系统）：一局从零开始记；判定与发钱都在黎明，见 docs/quests.md
     quests: { done: {}, chapters: {} },
+    // 山顶那位预言家：`lastAskDay` = 上一次问他话是第几天（-1 = 还没问过）。
+    // 冷却 5 天，见 docs/ai-assist.md §六 —— 这条**不参与仿真演化**（问不问都不改村子），
+    // 但记在存档里，所以退出再进 / 读档都绕不过冷却。
+    prophet: { lastAskDay: -1 },
     ledgerToday: emptyLedger(0),
     // 当日建造力预算：由黎明 planConstructionDay 钉死（开局为 0，黎明那一小时算出来）
     constructionRateToday: 0,

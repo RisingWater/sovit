@@ -135,6 +135,14 @@ static func _sanitize(s: Dictionary, db: ContentDB) -> void:
 		qst["done"][qid] = int(qst["done"][qid])
 	for cid in (qst["chapters"] as Dictionary).keys():
 		qst["chapters"][cid] = int(qst["chapters"][cid])
+	# 预言家（AI 辅助，见 docs/ai-assist.md §六）：2026-10 之前的存档没有这一段。
+	# `lastAskDay` 是"上次问他话是第几天"（-1 = 还没问过），JSON 读回来是 float → 还原 int。
+	if not (s.get("prophet", null) is Dictionary):
+		s["prophet"] = {"lastAskDay": -1}
+	else:
+		var pr: Dictionary = s["prophet"]
+		pr["lastAskDay"] = int(pr.get("lastAskDay", -1))
+		s["prophet"] = pr
 	# 每种物资的软上限（见 docs/town.md §3.6）：老存档没有这个字段。
 	if not (gov.get("storageCaps", null) is Dictionary):
 		gov["storageCaps"] = {}

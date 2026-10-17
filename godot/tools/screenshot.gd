@@ -633,10 +633,15 @@ func _run() -> void:
 		print("SCREENSHOT quest view=", str(runner.sim.quest_view().size()), " 条当前任务")
 
 	# AI 辅助（见 docs/ai-assist.md）：
-	#   `ai`    —— 面板的「建议」页：上半是引擎算的本地分析（不联网），下半是 AI 回答区
-	#   `aiset` —— 「设置」页：base_url / api_key / model_name
-	#   `aiask` —— **真发一次请求**给本地假模型 `scripts/ai-mock-server.ts`，
-	#              等回答回来再截 —— 这张图是端到端联调的证据（提示词真的出去了、回来了、画上了）
+	#   `ai`       —— 面板的「建议」页：问话栏（默认「我下一步要做什么」）+ 占位说明
+	#   `aiset`    —— 「设置」页：base_url / api_key / model_name
+	#   `aiask`    —— 用**默认那句**问一次（问完按钮上会带出「还有 5 天」的冷却）
+	#   `aiwhy`    —— 把问话改成「为什么人口一直上不去」再问（玩家自己写的那一行）
+	#   这四个都指向**本地假模型** `scripts/ai-mock-server.ts`（不联网、不花钱、可重复）
+	#   —— 这两张图是端到端联调的证据（问话真的出去了、回来了、画上了）
+	#   `aireal`   —— **不灌假配置**，用 `user://ai.cfg` 里那份真配置（默认就是 DeepSeek
+	#                 `deepseek-flash`）真打一次。要联网、要花钱、答案不固定，所以不进门槛，
+	#                 只在"换模型 / 改提示词之后确认真端点还通"的时候手动跑一次。
 	if mode.begins_with("ai"):
 		var panel = node.get_node_or_null("UI/Root/AiPanel")
 		if panel != null:
@@ -644,10 +649,12 @@ func _run() -> void:
 			# 不然配置会被读回空的、`ask()` 直接判定"没配好"（第一次就这么踩了：等了 0 帧）。
 			panel.open()
 			panel._cfg = AiConfig.load_cfg()
-			panel._cfg["base_url"] = "http://127.0.0.1:8765/v1"
-			panel._cfg["model"] = "mock-advisor"
-			panel._cfg["api_key"] = "sk-mock-not-a-real-key"
-			panel._cfg["pause_on_ask"] = true
+			# `aireal` / `arealso`：**不灌假配置**，直接用玩家自己的 `user://ai.cfg`
+			# （真打 DeepSeek 那种要联网 + 花钱的验证就走这条；其余模式一律指向本地假模型）。
+			if not mode.begins_with("aireal"):
+				panel._cfg["base_url"] = "http://127.0.0.1:8765/v1"
+				panel._cfg["model"] = "mock-advisor"
+				panel._cfg["api_key"] = "sk-mock-not-a-real-key"
 			# 顶栏的数字要在打开面板**之前**刷一次：上面那 72 小时是直接调
 			# `sim.tick_hour()` 推的，没有发 `hour_ticked`，顶栏还停在旧值 ——
 			# 于是"面板说 66 人、顶栏说 12 人"（小地图的时钟是每帧读的，所以它是对的，
@@ -659,13 +666,31 @@ func _run() -> void:
 			else:
 				panel.select_tab(0)
 				panel._refresh_status()
-				if mode == "aiask":
+				if mode == "aiask" or mode == "aiwhy" or mode.begins_with("aireal"):
+					if mode == "aiwhy" or mode == "airealwhy" and panel._ask_input != null:
+						# 玩家自己写的那一行问话（默认那句留着给 aiask）
+						panel._ask_input.text = "为什么人口一直上不去"
+					# 这两张图要能看出"方案之间真的有差别"，所以先把建造队列腾空：
+					# 这个场景里排着一座剧院，5 天里建造力全被它吃了，于是**每个方案**
+					# 都只报「队列 +N、建成 +0」—— 真话，但看不出沙盘在干活。
+					runner.sim.s["construction"] = []
 					panel.ask()
-					var waited := 0
-					while panel._client.is_busy() and waited < 1200:
+					# 一场问话是**多轮**的（试方案 → 看结果 → 再试 → 结论），
+					# 所以等的是"会话结束"，不是"这次 HTTP 结束"。
+					# ⚠️ 真模型一轮要几十秒，**按时间**等（帧数在真机上不可靠）。
+					var t0 := Time.get_ticks_msec()
+					while (panel._session or panel._client.is_busy()) \
+							and Time.get_ticks_msec() - t0 < 600000:
 						await process_frame
-						waited += 1
-					print("SCREENSHOT aiask 等了 ", waited, " 帧")
+					var waited := int((Time.get_ticks_msec() - t0) / 1000.0)
+					print("SCREENSHOT ", mode, " 等了 ", waited, " 秒；问话=「",
+						panel._ask_input.text, "」试了 ", panel.trials_shown(), " 个方案，冷却剩 ",
+						runner.sim.prophet_days_left(), " 天")
+					# 结论在滚动区最下面，等比例撑开之后滚到底 —— 不然截到的只有沙盘小表
+					await process_frame
+					await process_frame
+					if panel._scroll != null:
+						panel._scroll.scroll_vertical = 100000
 			for _af in 4:
 				await process_frame
 			print("SCREENSHOT ai panel mode=", mode)
