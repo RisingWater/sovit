@@ -18,6 +18,7 @@
 | `icons/*.png` | 用户提供的像素图标包，由 `scripts/import-icons.py` 导入 | **doubao** | **MIT**（见 `icons/LICENSE.txt`） |
 | `ui/panel/*.png` | 面板 / 顶栏 / 圆钮 / ESC 菜单图标（财政·科技·人口·就业·金币·建造力·研究力·移民·资源工业；另有 2026-10 后加的 11 张：任务面板、金色/灰色问号、新游戏·保存·读取·设置·音乐·音效·调试·退出），前一批由 `scripts/import-panel-icons.py` 与 `import-stat-icons.py` 导入 | **workbuddy** | **MIT**（见 `ui/panel/LICENSE.txt`） |
 | `ui/tech/*.png` | 科技树卡片图标（29 个，文件名 = 科技 id），由 `scripts/import-tech-icons.py` 导入 | **workbuddy** | **MIT**（见 `ui/tech/LICENSE.txt`） |
+| `portraits/*.png` | 七人顾问团立绘（7 张，640×960，绿幕图抠成透明底），由 `scripts/import-portraits.py` 导入 | **workbuddy** | 随本项目 |
 | `goods/*.png` | 本项目自绘（36 个商品图标的**程序化兜底**，16×16） | — | 同项目授权 |
 | `tiny/extra.png` | 本项目自绘（道路 / 水面 / 桥 / 矿脉 / 砖石地板） | — | 同项目授权 |
 | `tiny/deco.png` | 本项目自绘（树 4 种） | — | 同项目授权 |
@@ -104,6 +105,19 @@ Music: Talon Trueblood
 两首曲子轮流播放（播完一首切下一首，**单曲不循环** —— 否则
 `AudioStreamPlayer.finished` 不触发，就会退化成单曲无限循环）。
 `tools/music_test.gd` 在门槛里锁住这一点。
+
+## portraits/ —— 七人顾问团立绘
+
+七张半身立绘（`sebastian / alvin / reynard / isabella / vera / luna / serafina`），
+**640×960**、透明底、2:3。人物与设定见 [`docs/characters.md`](../../docs/characters.md)。
+
+- **作者**：workbuddy（用户提供的绿幕图）
+- **授权**：随本项目
+- **重新导入**：`python scripts/import-portraits.py`（读本地绿幕图，抠掉 `#00FF00` 底）
+- 绿幕图本身不入库（与图标 / 建筑整图一致），只提交抠好的 PNG
+- 五张右下角带生成工具的 `AI生成 / WORKBUDDY` 水印 —— **没抹**（原图自带，见
+  `docs/characters.md` §七）
+- 后 31 张表情按 `<id>_<mood>.png` 接着放，命名表在 `docs/characters.md` §5.2
 
 ## 建筑整图（v3）
 

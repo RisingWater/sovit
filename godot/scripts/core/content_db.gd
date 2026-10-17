@@ -143,7 +143,7 @@ func _load() -> void:
 			"chapter": int(it["chapter"]),
 			"title": String(it["title"]),
 			"hint": String(it["hint"]),
-			# 「为什么要做这一条」——任务面板右侧的描述（镇长智囊口吻）。
+			# 「为什么要做这一条」——任务面板右侧的描述（老臣塞巴斯蒂安的口吻）。
 			# 与 `hint` 分工：`hint` 说怎么点，`brief` 说为什么值当。
 			"brief": String(it.get("brief", "")),
 			"reward": float(it["reward"]),
