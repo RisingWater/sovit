@@ -396,15 +396,15 @@ func _advisor_section() -> bool:
 	_ok("计算：住房 / 岗位 / 食物日需与库存 / 阶层人数都对上真实数字")
 
 	var rows := ad.quest_rows()
-	if not _chk(rows.size() == 3 and String(rows[0]["id"]) == "q01_bread_chain",
-			"开局可见任务 3 条（两条主线 + 送物资支线，得到 %d）" % rows.size()):
+	if not _chk(rows.size() == 2 and String(rows[0]["id"]) == "q01_bread_chain",
+			"开局可见任务 2 条（第 1 章两条主线；她的支线要等章 1 收尾，得到 %d）" % rows.size()):
 		return false
 	if not _chk(String(rows[0]["goals"][0]["type"]) == "building"
 			and String(rows[0]["goals"][0]["id"]) == "wheat_farm",
 			"goal 的 type / id 要从内容定义并回来（否则建议全落空）"):
 		return false
 	var plan := ad.plan()
-	if not _chk(plan.size() == 4 and String(plan[0]["id"]) == "quest_q01_bread_chain_wheat_farm",
+	if not _chk(plan.size() == 3 and String(plan[0]["id"]) == "quest_q01_bread_chain_wheat_farm",
 			"开局建议第一条 = 建小麦农场（得到 %s）" % str(_ids(plan))):
 		return false
 	if not _chk(String(plan[0]["how"][0]).contains("建造栏「农场」页"),

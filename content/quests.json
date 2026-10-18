@@ -1065,38 +1065,16 @@
       ]
     },
     {
-      "id": "q_s_sera_1",
-      "chapter": 1,
-      "kind": "side",
-      "giver": "seraphina",
-      "giverPortrait": "seraphina_hooded",
-      "title": "一趟面包",
-      "hint": "预言面板底部「送物资」：粗面包 20",
-      "brief": "你烤的东西，比我的锅干净。我那一带没什么人烟，能换的东西少得很。往后每个月给我送一趟，我拿它去换我要的。",
-      "reward": 150,
-      "requires": [],
-      "goals": [
-        {
-          "type": "gifted",
-          "to": "serafina",
-          "id": "coarse_bread",
-          "min": 20
-        }
-      ]
-    },
-    {
       "id": "q_s_sera_2",
       "chapter": 2,
       "kind": "side",
       "giver": "seraphina",
       "giverPortrait": "seraphina_hooded",
       "title": "两筐菜",
-      "hint": "预言面板底部「送物资」：蔬菜 25",
+      "hint": "任务面板「支线」页：这条要求后面点「提交」（蔬菜 25）",
       "brief": "我不吃菜。可我得拿菜去换我要的东西。林子里长不出这个，我又不能进城。两筐就够，多了我背不动。",
       "reward": 200,
-      "requires": [
-        "q_s_sera_1"
-      ],
+      "requires": [],
       "goals": [
         {
           "type": "gifted",

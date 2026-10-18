@@ -146,12 +146,16 @@ const texts = (s: GameState, id: string): string[] =>
 
 console.log('\n=== 任务系统引擎自检 ===\n')
 
-// ---- 1. 开局：只看得见第 1 章的两条主线（外加一条送物资支线） ------------
+// ---- 1. 开局：只看得见第 1 章的两条主线（支线要等上一章主线全绿）--------
 {
   const s = freshState()
   const ids = viewIds(s)
-  ok('开局只看得到第 1 章的差事 + 一条送物资支线',
-    JSON.stringify(ids) === JSON.stringify(['q01_bread_chain', 'q02_vegetable', 'q_s_sera_1']),
+  ok('开局只看得到第 1 章的两条主线',
+    JSON.stringify(ids) === JSON.stringify(['q01_bread_chain', 'q02_vegetable']),
+    ids.join(' → '))
+  // 用户 2026-10-20：瑟拉菲娜章 1 收尾才登场，她的送物资支线**不该开局就摊出来**
+  ok('她还没登场 → 送物资支线不出现',
+    !ids.includes('q_s_sera_2') && !ids.some((id) => id.startsWith('q_s_sera_')),
     ids.join(' → '))
   ok('未解锁的任务不可见（别让玩家知道后面干嘛）',
     !ids.includes('q03a_housing_capacity') && !ids.includes('q04_institute'))
@@ -160,6 +164,15 @@ console.log('\n=== 任务系统引擎自检 ===\n')
     texts(s, 'q03a_housing_capacity').join(' | '))
   ok('开局进度文案：小麦农场 0/1',
     texts(s, 'q01_bread_chain')[0] === '小麦农场 0/1', String(texts(s, 'q01_bread_chain')[0]))
+
+  // 第 1 章主线全绿 → 她登场，支线随之露出来
+  addShop(s, 'wheat_farm')
+  addShop(s, 'coarse_mill')
+  addShop(s, 'coarse_bakery')
+  addShop(s, 'vegetable_farm')
+  runDawn(s, ctx)
+  ok('第 1 章主线全绿之后，送物资支线才出现（同一次结算里她就登场）',
+    viewIds(s).includes('q_s_sera_2'), viewIds(s).join(' → '))
 }
 
 // ---- 2. 黎明结算：达成即完成、发钱、写公告、章节奖励一起发 ----------------
@@ -195,12 +208,12 @@ console.log('\n=== 任务系统引擎自检 ===\n')
   ok('今天刚完成的任务还留在追踪条上（打勾）',
     ids.includes('q01_bread_chain') && ids.includes('q02_vegetable'), ids.join(' → '))
 
-  // 再跑一天：昨天完成的那两条应当消失，只剩第 2 章的三条（+ 送物资支线）
+  // 再跑一天：昨天完成的那两条应当消失，剩第 2 章的三条（+ 她登场后露出的第一条支线）
   runDawn(s, ctx)
   const ids2 = viewIds(s)
   ok('隔天之后，已完成的任务从追踪条上收掉',
     JSON.stringify(ids2) ===
-      JSON.stringify(['q03a_housing_capacity', 'q03b_output', 'q03c_satisfaction', 'q_s_sera_1']),
+      JSON.stringify(['q03a_housing_capacity', 'q03b_output', 'q03c_satisfaction', 'q_s_sera_2']),
     ids2.join(' → '))
 }
 
@@ -308,7 +321,7 @@ console.log('\n=== 任务系统引擎自检 ===\n')
   // 面板与追踪条**不是**一回事：追踪条只要"当前该做 / 今天刚做完"，面板要把
   // 做过的历史都留着给玩家翻（用户："此面板记录之前完成的所有任务"）。
   const s = freshState()
-  ok('开局：面板里是那两条主线 + 一条送物资支线', questJournal(s, ctx).length === 3,
+  ok('开局：面板里就是那两条主线（支线等她登场）', questJournal(s, ctx).length === 2,
     questJournal(s, ctx).map((q) => q.def.id).join('、'))
   ok('每条任务都带 brief（面板右侧的描述）',
     questJournal(s, ctx).every((q) => q.def.brief.length > 0))
@@ -419,8 +432,8 @@ console.log('\n=== 任务系统引擎自检 ===\n')
 {
   const s = freshState()
   const talks = questTalks(s, ctx)
-  ok('开局有三段对话要播（第 1 章两条主线 + 送物资支线）',
-    talks.length === 3 && talks[0]!.key === 'q:q01_bread_chain', talks.map((t) => t.key).join(' → '))
+  ok('开局只有两段对话要播（第 1 章两条主线；她的支线还没露）',
+    talks.length === 2 && talks[0]!.key === 'q:q01_bread_chain', talks.map((t) => t.key).join(' → '))
   ok('说话人/立绘取内容里的 giver / giverPortrait',
     talks[0]!.speaker === ctx.quests['q01_bread_chain']!.giver &&
       talks[0]!.portrait === ctx.quests['q01_bread_chain']!.giverPortrait,
@@ -450,8 +463,9 @@ console.log('\n=== 任务系统引擎自检 ===\n')
     t2[0]!.lines.length === 11 && t2[0]!.lines[6] === '我看见的都不清楚……' &&
       t2[0]!.lines[10] === '……别问我什么时候。我要是知道，就不会住在这种地方了。',
     `${t2[0]!.lines.length} 页 / 第 7 页「${t2[0]!.lines[6]}」`)
-  ok('后面跟着的是第 2 章那三条任务',
-    t2.slice(1).every((t) => t.kind === 'quest') && t2.length === 4,
+  ok('后面跟着的是第 2 章那三条任务 + 她刚露出来的那条支线',
+    t2.slice(1).every((t) => t.kind === 'quest') && t2.length === 5 &&
+      t2[t2.length - 1]!.key === 'q:q_s_sera_2',
     t2.map((t) => t.key).join(' → '))
   markQuestTalkShown(s, 'c:1')
   ok('收尾播过也不再返回', !questTalks(s, ctx).some((t) => t.key === 'c:1'))
@@ -523,38 +537,38 @@ console.log('\n=== 任务系统引擎自检 ===\n')
 
 // ---- 14. 送物资（A4）：gift 命令 + gifted 目标 ---------------------------
 {
-  const def = ctx.quests['q_s_sera_1']!
+  const def = ctx.quests['q_s_sera_2']!
   const s = freshState()
-  s.goods['coarse_bread'] = 100
-  const before = s.goods['coarse_bread']!
-  const r = applyActions(s, ctx, [{ type: 'gift', to: 'serafina', goodId: 'coarse_bread', qty: 20 }])
-  ok('送物资：命令生效、当场扣货', r[0]!.ok && s.goods['coarse_bread'] === before - 20,
-    `bread=${s.goods['coarse_bread']}`)
-  ok('送出去的量记在 `gifts` 上', s.gifts['serafina']?.['coarse_bread'] === 20,
+  s.goods['vegetable'] = 100
+  const before = s.goods['vegetable']!
+  const r = applyActions(s, ctx, [{ type: 'gift', to: 'serafina', goodId: 'vegetable', qty: 25 }])
+  ok('送物资：命令生效、当场扣货', r[0]!.ok && s.goods['vegetable'] === before - 25,
+    `vegetable=${s.goods['vegetable']}`)
+  ok('送出去的量记在 `gifts` 上', s.gifts['serafina']?.['vegetable'] === 25,
     JSON.stringify(s.gifts))
   const p = questProgress(s, ctx, def)
-  ok('gifted 只认送出去的量：送 20 → 刚好达成',
-    p.met && p.goals[0]!.text === '粗面包 已送出 20/20', p.goals[0]!.text)
+  ok('gifted 只认送出去的量：送 25 → 刚好达成',
+    p.met && p.goals[0]!.text === '蔬菜 已送出 25/25', p.goals[0]!.text)
   ok('再送一趟会累加', (() => {
-    applyActions(s, ctx, [{ type: 'gift', to: 'serafina', goodId: 'coarse_bread', qty: 10 }])
-    return s.gifts['serafina']?.['coarse_bread'] === 30
+    applyActions(s, ctx, [{ type: 'gift', to: 'serafina', goodId: 'vegetable', qty: 10 }])
+    return s.gifts['serafina']?.['vegetable'] === 35
   })(), JSON.stringify(s.gifts))
 
   const s2 = freshState()
-  s2.goods['coarse_bread'] = 999
+  s2.goods['vegetable'] = 999
   ok('库存再多也不算送出（库存 ≠ 送礼）',
     !questProgress(s2, ctx, def).met && questProgress(s2, ctx, def).goals[0]!.have === 0)
 
   const s3 = freshState()
-  s3.goods['coarse_bread'] = 5
-  const r2 = applyActions(s3, ctx, [{ type: 'gift', to: 'serafina', goodId: 'coarse_bread', qty: 20 }])
+  s3.goods['vegetable'] = 5
+  const r2 = applyActions(s3, ctx, [{ type: 'gift', to: 'serafina', goodId: 'vegetable', qty: 25 }])
   ok('仓库不够 → 整单不送（不退一半）',
-    !r2[0]!.ok && s3.goods['coarse_bread'] === 5 && (s3.gifts['serafina']?.['coarse_bread'] ?? 0) === 0,
+    !r2[0]!.ok && s3.goods['vegetable'] === 5 && (s3.gifts['serafina']?.['vegetable'] ?? 0) === 0,
     String(r2[0]!.reason))
-  const r3 = applyActions(s3, ctx, [{ type: 'gift', to: 'serafina', goodId: 'coarse_bread', qty: 0 }])
+  const r3 = applyActions(s3, ctx, [{ type: 'gift', to: 'serafina', goodId: 'vegetable', qty: 0 }])
   ok('数量 0 → 拒', !r3[0]!.ok, String(r3[0]!.reason))
-  ok('17 条送物资都是支线，且每章一条',
-    ctx.questIds.filter((id) => id.startsWith('q_s_sera_')).length === 17 &&
+  ok('16 条送物资都是支线（章 2–17 各一条；章 1 那条已删）',
+    ctx.questIds.filter((id) => id.startsWith('q_s_sera_')).length === 16 &&
       ctx.questIds.filter((id) => id.startsWith('q_s_sera_')).every((id) => ctx.quests[id]!.kind === 'side'),
     String(ctx.questIds.filter((id) => id.startsWith('q_s_sera_')).length))
 }
@@ -575,21 +589,25 @@ console.log('\n=== 任务系统引擎自检 ===\n')
     r2[0]!.ok && s.goods['coarse_bread'] === 25, `bread=${s.goods['coarse_bread']}`)
 
   // ② 交完当场完成，不用等下一个黎明
+  // （她的支线要等第 1 章主线全绿才露 —— 这里先把第 1 章摆成"已经做完"）
   const s2 = freshState()
-  s2.goods['coarse_bread'] = 100
+  s2.quests.done['q01_bread_chain'] = 1
+  s2.quests.done['q02_vegetable'] = 1
+  s2.quests.chapters['1'] = 1
+  s2.goods['vegetable'] = 100
   const money0 = s2.government.money
-  const tick = advanceHour(s2, [{ type: 'gift', to: 'serafina', goodId: 'coarse_bread', qty: 20 }])
+  const tick = advanceHour(s2, [{ type: 'gift', to: 'serafina', goodId: 'vegetable', qty: 25 }])
   ok('gift 是即时动作：不进待生效队列',
     tick.state.pending.every((a) => a.type !== 'gift'), JSON.stringify(tick.state.pending))
   ok('交完当场完成（不用等 6:00）',
-    tick.state.quests.done['q_s_sera_1'] === tick.state.day,
-    `day=${tick.state.quests.done['q_s_sera_1']} / 现在第 ${tick.state.day} 天`)
-  ok('奖励当场进国库（+150）',
-    Math.abs(tick.state.government.money - (money0 + 150)) < 1e-6,
+    tick.state.quests.done['q_s_sera_2'] === tick.state.day,
+    `day=${tick.state.quests.done['q_s_sera_2']} / 现在第 ${tick.state.day} 天`)
+  ok('奖励当场进国库（+200）',
+    Math.abs(tick.state.government.money - (money0 + 200)) < 1e-6,
     `${money0} → ${tick.state.government.money}`)
   ok('公告里既有"送物资"也有"完成任务"',
-    tick.log.some((l) => l.text.includes('送物资：粗面包')) &&
-      tick.log.some((l) => l.text.includes('完成任务：一趟面包')),
+    tick.log.some((l) => l.text.includes('送物资：蔬菜')) &&
+      tick.log.some((l) => l.text.includes('完成任务：两筐菜')),
     tick.log.map((l) => l.text).join(' / '))
 
   // ③ 其它任务也不等到 6:00：判定**每小时**都跑（`stepHour` 末尾）

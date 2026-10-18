@@ -146,7 +146,7 @@ func _run() -> void:
 	# 面板与追踪条**不是**一回事：追踪条只要"当前该做 / 今天刚做完"，
 	# 面板要把做过的历史都留着给玩家翻（用户："此面板记录之前完成的所有任务"）。
 	var sj := _fresh()
-	if _journal_ids(sj).size() != 3:
+	if _journal_ids(sj).size() != 2:
 		_fail("开局：面板里应当是那两条主线 + 一条送物资支线，实际 %s" % str(_journal_ids(sj)))
 		return
 	var j0 := sj.quest_journal()
@@ -157,7 +157,7 @@ func _run() -> void:
 	if _journal_ids(sj).has("q04_institute"):
 		_fail("锁着的任务不该进面板（渐进显示在面板上也要守）")
 		return
-	_ok("面板：开局三条 + 每条都带 brief / reward，锁着的仍然看不见")
+	_ok("面板：开局两条 + 每条都带 brief / reward，锁着的仍然看不见")
 
 	for bid in ["wheat_farm", "coarse_mill", "coarse_bakery", "vegetable_farm"]:
 		_add_shop(sj, bid, 1)
@@ -186,7 +186,7 @@ func _run() -> void:
 	# ---- 1. 开局：只看得见两条并行任务，后面的一律不可见 -------------------
 	var s1 := _fresh()
 	var ids1 := _view_ids(s1)
-	if ids1 != ["q01_bread_chain", "q02_vegetable", "q_s_sera_1"]:
+	if ids1 != ["q01_bread_chain", "q02_vegetable"]:
 		_fail("开局可见任务不对：%s" % str(ids1))
 		return
 	_ok("开局只看得到第 1 章的两条任务 + 一条送物资支线：%s" % str(ids1))
@@ -462,28 +462,29 @@ func _run() -> void:
 	_ok("里程碑：不发钱、公告不写金额、千人之村仍是主线")
 
 	# ---- 11. 送物资（A4）：gift 命令 + gifted 目标 -------------------------
+	# 链头现在是 q_s_sera_2（章 2，蔬菜 25）—— 章 1 那条已经删了（她章 1 收尾才登场）
 	var f1 := _fresh()
-	f1.s["goods"]["coarse_bread"] = 100.0
-	f1._apply_actions([{"type": "gift", "to": "serafina", "goodId": "coarse_bread", "qty": 20}])
-	if not _near(float(f1.s["goods"]["coarse_bread"]), 80.0):
-		_fail("送物资应当扣货，实际 %s" % str(f1.s["goods"]["coarse_bread"]))
+	f1.s["goods"]["vegetable"] = 100.0
+	f1._apply_actions([{"type": "gift", "to": "serafina", "goodId": "vegetable", "qty": 25}])
+	if not _near(float(f1.s["goods"]["vegetable"]), 75.0):
+		_fail("送物资应当扣货，实际 %s" % str(f1.s["goods"]["vegetable"]))
 		return
-	if not _near(float((f1.s["gifts"]["serafina"] as Dictionary).get("coarse_bread", 0.0)), 20.0):
+	if not _near(float((f1.s["gifts"]["serafina"] as Dictionary).get("vegetable", 0.0)), 25.0):
 		_fail("送出去的量应当记在 gifts 上：%s" % str(f1.s["gifts"]))
 		return
-	var fp: Dictionary = f1.quest_progress("q_s_sera_1")
-	if not bool(fp["met"]) or String((fp["goals"] as Array)[0]["text"]) != "粗面包 已送出 20/20":
+	var fp: Dictionary = f1.quest_progress("q_s_sera_2")
+	if not bool(fp["met"]) or String((fp["goals"] as Array)[0]["text"]) != "蔬菜 已送出 25/25":
 		_fail("gifted 文案 / 判定不对：%s" % str(fp["goals"]))
 		return
 	var f2 := _fresh()
-	f2.s["goods"]["coarse_bread"] = 999.0
-	if bool(f2.quest_progress("q_s_sera_1")["met"]):
+	f2.s["goods"]["vegetable"] = 999.0
+	if bool(f2.quest_progress("q_s_sera_2")["met"]):
 		_fail("库存再多也不算送出（库存 ≠ 送礼）")
 		return
 	var f3 := _fresh()
-	f3.s["goods"]["coarse_bread"] = 5.0
-	f3._apply_actions([{"type": "gift", "to": "serafina", "goodId": "coarse_bread", "qty": 20}])
-	if not _near(float(f3.s["goods"]["coarse_bread"]), 5.0) \
+	f3.s["goods"]["vegetable"] = 5.0
+	f3._apply_actions([{"type": "gift", "to": "serafina", "goodId": "vegetable", "qty": 25}])
+	if not _near(float(f3.s["goods"]["vegetable"]), 5.0) \
 			or not (f3.s["gifts"] as Dictionary).is_empty():
 		_fail("仓库不够时整单不该送出")
 		return
@@ -504,23 +505,27 @@ func _run() -> void:
 		_fail("可用量够就能交（5 = 30 − 25），实际 %s" % str(q1.s["goods"]["coarse_bread"]))
 		return
 	# `enqueue` 走即时通道：当场扣货 + 当场结算，不进 pending
+	# （她的支线要等第 1 章主线全绿才露 —— 这里先把第 1 章摆成"已经做完"）
 	var q2 := _fresh()
-	q2.s["goods"]["coarse_bread"] = 100.0
+	q2.s["quests"]["done"]["q01_bread_chain"] = 1
+	q2.s["quests"]["done"]["q02_vegetable"] = 1
+	q2.s["quests"]["chapters"]["1"] = 1
+	q2.s["goods"]["vegetable"] = 100.0
 	var money0 := _money(q2)
-	q2.enqueue([{"type": "gift", "to": "serafina", "goodId": "coarse_bread", "qty": 20}])
+	q2.enqueue([{"type": "gift", "to": "serafina", "goodId": "vegetable", "qty": 25}])
 	if not (q2.s["pending"] as Array).is_empty():
 		_fail("gift 是即时动作，不该进待生效队列：%s" % str(q2.s["pending"]))
 		return
-	if int(q2.s["quests"]["done"].get("q_s_sera_1", -1)) != int(q2.s["day"]):
+	if int(q2.s["quests"]["done"].get("q_s_sera_2", -1)) != int(q2.s["day"]):
 		_fail("交完应当当场完成（不用等 6:00），done=%s" % str(q2.s["quests"]["done"]))
 		return
-	if absf(_money(q2) - (money0 + 150.0)) > 0.01:
+	if absf(_money(q2) - (money0 + 200.0)) > 0.01:
 		_fail("奖励应当当场进国库（%s → %s）" % [str(money0), str(_money(q2))])
 		return
 	var qlogs := ""
 	for l in q2.log_tail(q2.log_size()):
 		qlogs += String(l["text"]) + " / "
-	if not qlogs.contains("送物资：粗面包") or not qlogs.contains("完成任务：一趟面包"):
+	if not qlogs.contains("送物资：蔬菜") or not qlogs.contains("完成任务：两筐菜"):
 		_fail("公告里该既有「送物资」也有「完成任务」：%s" % qlogs)
 		return
 	# 其它任务也不等到 6:00：白天的小时里也会判

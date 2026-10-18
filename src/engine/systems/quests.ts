@@ -237,15 +237,20 @@ export function chapterOpen(state: GameState, ctx: ContentContext, chapterId: nu
 }
 
 /**
- * 这条任务现在**存在**吗：前置全完成 + 这一章已经开了 + 还没完成。
+ * 这条任务现在**存在**吗：前置全完成 + 它自己那一道时间闸 + 还没完成。
  *
- * 渐进显示与剧情时钟都收在这一处 —— 追踪条、面板、黎明结算、对话播报四个入口
+ * 渐进显示与两道闸都收在这一处 —— 追踪条、面板、黎明结算、对话播报四个入口
  * 必须问同一个函数，否则会出现"条上看得见、结算却不算"这种鬼事。
+ *
+ * 闸分三种（`kind`）：
+ *   · `main`      —— 剧情时钟：上一章领奖那天 + `gapDays`（`chapterOpen`）
+ *   · `side`      —— 上一章**主线全绿**就露（不看 gapDays；见 `prevChapterMainDone`）
+ *   · `milestone` —— 只认 `requires`，不受任何时间闸管（它要一直挂在追踪条上填空档）
  */
 export function questAvailable(state: GameState, ctx: ContentContext, def: QuestDef): boolean {
   if (!isUnlocked(state, def)) return false
-  // 剧情时钟只闸主线：支线（送物资 / 顺手活）与里程碑（填条）不是"下一章"的内容。
-  if (def.kind !== 'main') return true
+  if (def.kind === 'milestone') return true
+  if (def.kind === 'side') return prevChapterMainDone(state, ctx, def.chapter)
   return chapterOpen(state, ctx, def.chapter)
 }
 
@@ -295,6 +300,24 @@ function chapterQuests(ctx: ContentContext, chapter: number): QuestID[] {
     const q = ctx.quests[id]!
     return q.chapter === chapter && q.kind === 'main'
   })
+}
+
+/**
+ * 上一章的**主线**是否全绿（用户 2026-10-20：支线的开关）。
+ *
+ * 为什么支线要这个：瑟拉菲娜的送物资支线原来第一条挂在章 1，可她**章 1 收尾才登场** ——
+ * 开局就摊出来等于剧透。所以支线统一等"上一章主线走完"再露（同一瞬间她就登场了）。
+ *
+ * ⚠️ 与 `chapterOpenDay` 不是一回事：这里**不看 `gapDays`**（那是主线的剧情时钟）。
+ * ⚠️ 上一章**一条主线都没有**（还没写内容的占位章）→ 视为"还没到"，
+ *    否则章 7 之后那几条送物资会在章 6 一结束就一口气全摊出来。
+ */
+function prevChapterMainDone(state: GameState, ctx: ContentContext, chapterId: number): boolean {
+  const i = ctx.chapters.findIndex((c) => c.id === chapterId)
+  if (i <= 0) return true
+  const list = chapterQuests(ctx, ctx.chapters[i - 1]!.id)
+  if (list.length === 0) return false
+  return list.every((id) => state.quests.done[id] !== undefined)
 }
 
 /**

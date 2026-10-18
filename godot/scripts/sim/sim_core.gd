@@ -3045,16 +3045,48 @@ func quest_chapter_open_day(cid: int) -> int:
 func quest_chapter_open(cid: int) -> bool:
 	return int(s["day"]) >= quest_chapter_open_day(cid)
 
-## 这条任务现在**存在**吗：前置全完成 + 这一章已经开了（只闸主线）。
+## 上一章的**主线**是否全绿（用户 2026-10-20：支线的开关）。
 ##
-## 渐进显示与剧情时钟都收在这一处 —— 追踪条、面板、黎明结算、对话播报四个入口
-## 必须问同一个函数（与 TS `quests.ts::questAvailable` 同口径）。
+## 为什么支线要这个：瑟拉菲娜的送物资支线原来第一条挂在章 1，可她**章 1 收尾才登场** ——
+## 开局就摊出来等于剧透。所以支线统一等"上一章主线走完"再露（同一瞬间她就登场了）。
+## ⚠️ 与 `quest_chapter_open` 不是一回事：这里**不看 `gapDays`**（那是主线的剧情时钟）。
+## ⚠️ 上一章**一条主线都没有**（还没写内容的占位章）→ 视为"还没到"，
+##    否则章 7 之后那几条送物资会在章 6 一结束就一口气全摊出来。
+## 与 TS `quests.ts::prevChapterMainDone` 同口径。
+func _quest_prev_chapter_main_done(cid: int) -> bool:
+	var idx := -1
+	for i in db.chapters.size():
+		if int(db.chapters[i]["id"]) == cid:
+			idx = i
+			break
+	if idx <= 0:
+		return true
+	var prev_id := int(db.chapters[idx - 1]["id"])
+	var done: Dictionary = s["quests"]["done"]
+	var any_main := false
+	for qid in db.quest_ids:
+		var d: Dictionary = db.quests[qid]
+		if int(d["chapter"]) != prev_id or String(d.get("kind", "main")) != "main":
+			continue
+		any_main = true
+		if not done.has(qid):
+			return false
+	return any_main
+
+## 这条任务现在**存在**吗：前置全完成 + 它自己那一道时间闸。
+##
+## 闸分三种（`kind`，与 TS `quests.ts::questAvailable` 同口径）：
+##   · `main`      —— 剧情时钟：上一章领奖那天 + `gapDays`
+##   · `side`      —— 上一章**主线全绿**就露（不看 gapDays）
+##   · `milestone` —— 只认 `requires`，不受任何时间闸管（要一直挂在追踪条上填空档）
 func _quest_available(def: Dictionary) -> bool:
 	if not _quest_unlocked(def):
 		return false
-	# 剧情时钟只闸主线：支线（送物资 / 顺手活）与里程碑（填条）不是"下一章"的内容。
-	if String(def.get("kind", "main")) != "main":
+	var kind := String(def.get("kind", "main"))
+	if kind == "milestone":
 		return true
+	if kind == "side":
+		return _quest_prev_chapter_main_done(int(def["chapter"]))
 	return quest_chapter_open(int(def["chapter"]))
 
 ## 一条任务的进度（只读）。引擎判定与 UI 显示共用这一份。

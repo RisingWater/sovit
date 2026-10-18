@@ -324,6 +324,10 @@ func _end_intro() -> void:
 		_intro.queue_free()
 		_intro = null
 	runner.set_paused(false)
+	# 开场曲到这儿就停（用户 2026-10-20："开场的 bgm 延续到了游戏开始，不对，
+	# 应该剧情过完就切掉"）—— 立刻切回常规轮播，不等它自己播完。
+	if _music != null:
+		_music.end_intro()
 	if _hud != null and _hud.has_method("refresh_now"):
 		_hud.refresh_now()
 	# 开场剧情放完，第一条任务对话（塞巴斯蒂安讲「粗面包链」）接着来

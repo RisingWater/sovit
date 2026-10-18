@@ -108,8 +108,8 @@ func _run() -> void:
 	var sim = SimCore.new(db)
 	sim.new_game("v0.3", 20261016)
 	var pend: Array = sim.quest_talks_pending()
-	if pend.size() != 3:
-		_fail("开局应当有 3 条任务对话（第 1 章两条 + 送物资支线），实际 %d" % pend.size())
+	if pend.size() != 2:
+		_fail("开局应当有 2 条任务对话（第 1 章两条；她的支线要等章 1 收尾），实际 %d" % pend.size())
 		return
 	var first: Dictionary = pend[0]
 	if String(first["key"]) != "q:q01_bread_chain":
@@ -151,7 +151,7 @@ func _run() -> void:
 	if String((pend2[1] as Dictionary)["kind"]) != "quest":
 		_fail("第 1 章收尾之后应当是第 2 章的任务对话")
 		return
-	print("QUESTTALK TEST 引擎：开局 3 条 → 播过不再来 → 章节收尾排在下一章任务之前 ✅")
+	print("QUESTTALK TEST 引擎：开局 2 条 → 播过不再来 → 章节收尾排在下一章任务之前 ✅")
 
 	# ---- 3. 界面：能播、能翻页、能选 --------------------------------------
 	# ⚠️ `host` 必须是**铺满视口**的：对话是 `PRESET_FULL_RECT`，它的尺寸跟着父节点走；

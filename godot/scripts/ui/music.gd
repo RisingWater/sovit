@@ -59,8 +59,9 @@ func _play_next() -> void:
 	_player.stream = st
 	_player.play()
 
-## 放开场剧情那首（用户 2026-10 指定）。播完 `finished` 会接到 `_play_next()`，
-## 自动回到常规轮播 —— 所以调用方不需要"恢复"。
+## 放开场剧情那首（用户 2026-10 指定）。
+## ⚠️ 开场曲**只播到剧情结束为止**：剧情放完（或玩家跳过）由 `end_intro()` 当场切回常规轮播 ——
+## 不能等这首自己播完（用户 2026-10-20："开场的 bgm 延续到了游戏开始，不对，应该剧情过完就切掉"）。
 func play_intro() -> void:
 	var st: AudioStream = load(INTRO_TRACK)
 	if st == null:
@@ -71,6 +72,14 @@ func play_intro() -> void:
 	_intro = true
 	_player.stream = st
 	_player.play()
+
+## 开场剧情结束：**立刻**切回常规轮播（下一首 Dawn / Dusk）。
+##
+## 幂等：没在放开场曲时什么都不做（读档 / 直接进游戏不会无缘无故切歌）。
+func end_intro() -> void:
+	if not _intro:
+		return
+	_play_next()
 
 func _load_cfg() -> void:
 	var cf := ConfigFile.new()
