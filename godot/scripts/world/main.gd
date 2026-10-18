@@ -14,6 +14,7 @@ var _panel_tech
 var _music
 var _daylight
 var _sfx
+var _panel_map
 var _minimap
 var _esc_menu
 var _new_game
@@ -180,10 +181,17 @@ func _ready() -> void:
 	world.notice.connect(hud.set_notice)
 
 	# 左上角小地图挂件（画在 HUD 之上）
+	# 王国地图：点左上角的小地图进来（用户 2026-10-20）
+	_panel_map = load("res://scripts/ui/panel_map.gd").new()
+	_panel_map.name = "MapPanel"
+	_panel_map.setup(runner, world)
+	root_ui.add_child(_panel_map)
+
 	_minimap = load("res://scripts/ui/minimap_widget.gd").new()
 	_minimap.name = "Minimap"
 	_minimap.setup(runner, world)
 	root_ui.add_child(_minimap)
+	_minimap.map_pressed.connect(_open_map)
 
 	# ESC 菜单（最上层）
 	_esc_menu = load("res://scripts/ui/esc_menu.gd").new()
@@ -289,7 +297,7 @@ func _ready() -> void:
 	runner.hour_ticked.connect(func(): call_deferred("_poll_quest_talks"))
 	# 面板**关掉之后**再看一眼：对话是黎明产出的，那一刻玩家可能正开着面板在读。
 	# 有面板开着的时候 `_poll_quest_talks()` 会让路（见那段注释），所以关掉时补一次。
-	for p in [_panel_stats, _panel_tech, _panel_civic, _panel_quest, _esc_menu,
+	for p in [_panel_stats, _panel_tech, _panel_civic, _panel_quest, _panel_map, _esc_menu,
 			_new_game, _save_dialog, _ai_panel]:
 		if p != null:
 			(p as CanvasItem).visibility_changed.connect(func():
@@ -451,6 +459,9 @@ func _unhandled_input(event: InputEvent) -> void:
 			return
 		# 全屏面板开着时，Esc 先关面板（那是"当前一层"），不直接弹菜单 ——
 		# 否则玩家想退出面板却弹出一个菜单盖上来。
+		if _panel_map != null and _panel_map.visible:
+			_panel_map.close_panel()
+			return
 		if _panel_stats != null and _panel_stats.visible:
 			_panel_stats.visible = false
 			return
@@ -546,4 +557,17 @@ func _modal_open() -> bool:
 ## 全屏面板（统计 / 科技）是否开着 —— 它盖住了建造栏，所以建造栏的快捷键要让路。
 func _fullscreen_panel_open() -> bool:
 	return (_panel_stats != null and _panel_stats.visible) \
-		or (_panel_tech != null and _panel_tech.visible)
+		or (_panel_tech != null and _panel_tech.visible) \
+		or (_panel_map != null and _panel_map.visible)
+
+## 点小地图 → 开王国地图（用户 2026-10-20）。
+func _open_map() -> void:
+	if _panel_map == null:
+		return
+	if _panel_map.visible:
+		_panel_map.close_panel()
+		return
+	# 别的面板开着就先收掉（地图是全屏的，两层叠着没法点）
+	if _inspector != null:
+		_inspector.clear()
+	_panel_map.open()

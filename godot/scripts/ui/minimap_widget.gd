@@ -9,6 +9,13 @@ extends Control
 #
 # 尺寸都取素材尺寸的整数倍：192 = 64 x 3，红线 32 高保持 1 倍。
 # 非整数倍会重采样把像素糊掉（项目默认 texture_filter = Nearest，整数倍才干净）。
+#
+# 2026-10-20（用户："地图面板，点击小地图的时候进入"）：**点这块挂件 = 打开王国地图**。
+# 所以它现在吃鼠标（`mouse_filter = STOP`）并发 `map_pressed`；红巾那块还是自己的输入
+# （它是子节点，点它改村名，不会误开地图）。
+
+## 玩家点了小地图（左键）→ 上层去开王国地图。
+signal map_pressed
 
 const RING_D := 128                 # 圆环直径，必须是 64 的整数倍（128 = 64 * 2）
 const RING_SRC := 64                # 四块 32x32 拼起来是 64x64
@@ -64,7 +71,10 @@ func setup(r: SimRunner, w: Node) -> void:
 func _ready() -> void:
 	for n in ["ring_tl", "ring_tr", "ring_bl", "ring_br"]:
 		_ring_tex.append(load(UI_DIR + n + ".png"))
-	mouse_filter = Control.MOUSE_FILTER_IGNORE
+	# 点它开王国地图（红巾是子节点，自己吃输入，改村名不受影响）
+	mouse_filter = Control.MOUSE_FILTER_STOP
+	mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	tooltip_text = "打开王国地图"
 	# 整块只有圆盘那么大：日期框和红巾都叠在圆盘上，不外扩
 	custom_minimum_size = Vector2(RING_D, RING_D)
 	size = custom_minimum_size
@@ -191,6 +201,13 @@ func _refresh_name() -> void:
 # ---------------------------------------------------------------------------
 # 红巾改名
 # ---------------------------------------------------------------------------
+## 左键点挂件（红巾之外的地方）= 打开王国地图（用户 2026-10-20）。
+func _gui_input(event: InputEvent) -> void:
+	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT \
+			and (event as InputEventMouseButton).pressed:
+		accept_event()
+		map_pressed.emit()
+
 func _on_ribbon_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
 		_open_rename()

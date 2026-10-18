@@ -133,6 +133,7 @@ step "construction" "$GODOT_BIN" --headless --path . -s res://tools/construction
 step "research" "$GODOT_BIN" --headless --path . -s res://tools/research_test.gd
 step "imm" "$GODOT_BIN" --headless --path . -s res://tools/imm_test.gd
 step "minimap" "$GODOT_BIN" --headless --path . -s res://tools/minimap_test.gd
+step "map" "$GODOT_BIN" --headless --path . -s res://tools/map_test.gd
 step "esc" "$GODOT_BIN" --headless --path . -s res://tools/esc_test.gd
 step "savedlg" "$GODOT_BIN" --headless --path . -s res://tools/save_dialog_test.gd
 step "inspector" "$GODOT_BIN" --headless --path . -s res://tools/inspector_test.gd
