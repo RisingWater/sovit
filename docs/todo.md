@@ -23,7 +23,7 @@
   GD 侧 `sim_core.gd::coverage_ratios()/_coverage_sat_bonus()` + `content_db.gd` 的 `coverage` 透传也在。
 - 机制已下线（内容里没有 `coverage` 字段），但代码还在 —— 留着会让人误以为它还生效。
 
-### P1 · 游商 / 贸易市场（M4，整块未开始）
+### ✅ P1 · 游商 / 贸易市场（M4）
 
 - ⬜ `trade_market` 建筑（8×2，素材 14 已收到但没进内容）
 - ⬜ `state.trade`（`caravans` / `nextWaveDay` / `wave` / `introShown`）+ **存档 v4**
@@ -46,7 +46,7 @@
 - ⬜ `q12_safety`「街上有灯」：治安所 ×1 + 治安满足率 ≥ 50%（第 5 章，蕾娜德）
 - ⬜ 游商的「开市」支线（依赖 P1 的游商）
 
-### P2 · 面板显示
+### ✅ P2 · 面板显示
 
 - ⬜ 统计面板加一行「公共事业补贴」（台账 `publicSubsidy` 已经算好了，只是没显示）
 - ⬜ 三项服务分开显示：治安 / 医疗 / 教育 各自"日产量 / 买入量 / 满足率"

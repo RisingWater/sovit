@@ -719,6 +719,25 @@ func _finance_tab() -> void:
 		_cell(g2, String(it[2]), Color(0.55, 0.42, 0.30), 60.0)
 		_cell(g2, String(it[3]), Color(0.55, 0.42, 0.30), 0.0)
 
+	# 公共事业补贴（2026-10）：公共建筑当晚的工资支出，台账口径（国库本来就付了这笔钱）
+	var subsidy := float((s.get("ledgerToday", {}) as Dictionary).get("publicSubsidy", 0.0))
+	_section("公共事业（今日台账）")
+	var gs := _grid(3)
+	_cell(gs, "项目", HEAD_COL, 110.0)
+	_cell(gs, "今日", HEAD_COL, 90.0, true)
+	_cell(gs, "说明", HEAD_COL, 0.0)
+	_cell(gs, "补贴", UIKit.FG_HEAD, 110.0)
+	_cell(gs, "¥%.1f" % subsidy, UIKit.FG_DARK, 90.0, true)
+	_cell(gs, "研究所/建筑工坊/医院/学校/治安所的工资", Color(0.55, 0.42, 0.30), 0.0)
+	# 三项服务**分开**显示（用户 2026-10："这个还是要分开算的"）
+	var produced: Dictionary = (s.get("ledgerToday", {}) as Dictionary).get("produced", {})
+	var bought: Dictionary = (s.get("ledgerToday", {}) as Dictionary).get("bought", {})
+	for row in [["治安", "safety"], ["医疗", "medical_service"], ["教育", "education"]]:
+		_cell(gs, String(row[0]), UIKit.FG_HEAD, 110.0)
+		_cell(gs, "产 %.1f / 买 %.1f" % [float(produced.get(String(row[1]), 0.0)),
+			float(bought.get(String(row[1]), 0.0))], UIKit.FG_DARK, 90.0, true)
+		_cell(gs, "点数商品（当日归零）", Color(0.55, 0.42, 0.30), 0.0)
+
 	_section("税收结构")
 	var g3 := _grid(3)
 	_cell(g3, "档位", HEAD_COL, 90.0)

@@ -3010,6 +3010,17 @@ func _split_sentences(text: String) -> Array:
 func quest_talks_pending() -> Array:
 	var out := []
 	var shown: Dictionary = (s["quests"] as Dictionary).get("shown", {})
+	# 游商首遇（M4）：第一次有游商在场时播一段薇拉的汇报（只播一次）
+	if not bool(shown.get("cv:intro", false)) and not (_trade()["caravans"] as Array).is_empty():
+		out.append({
+			"key": "cv:intro", "kind": "trade", "id": "cv:intro", "chapter": 3,
+			"speaker": "vila", "portrait": "vila_smile",
+			"lines": [
+				"殿下，门口来了一队车马——打的是南边的旗子。",
+				"领头的说他们走了一个月，只听说这里「有粮、有布、还有个肯说话的领主」。",
+				"属下查过了，是正经商队，不是探子。要不要见？",
+			],
+		})
 	var done: Dictionary = s["quests"]["done"]
 	var chapters: Dictionary = s["quests"]["chapters"]
 	for ch in db.chapters:
@@ -3052,6 +3063,8 @@ func quest_talk_mark_shown(key: String) -> void:
 	if not (s["quests"].get("shown", null) is Dictionary):
 		s["quests"]["shown"] = {}
 	s["quests"]["shown"][key] = true
+	if key == "cv:intro":
+		_trade()["introShown"] = true
 
 ## 某一章的主线是不是都结算过了（章节奖励记在 `quests.chapters` 上）。
 func quest_chapter_done(cid: int) -> bool:
