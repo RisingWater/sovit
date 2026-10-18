@@ -732,6 +732,22 @@ func _chip_tip(gid: String, amt: float, rsv: float, s: Dictionary) -> String:
 		var tb := float(gd.get("toolBonus", 0.0))
 		if tb > 0.0:
 			lines.append("工具：已装配的工坊产出 ×%.2f（投入不变）" % (1.0 + tb))
+			# 消耗率写在提示里（用户 2026-10："一个工人 10 天消耗 1 工具"）：
+			# 只说"×1.25"玩家会一直以为工具是白嫖的，不会去修工具坊。
+			var per := float(((db.economy.get("tools", {}) as Dictionary).get(
+				"perWorkstation", 0.0)))
+			if per > 0.0:
+				# 只数"真的会吃工具"的工坊：有配方 + 开着工 + 在岗有人
+				var workers := 0
+				for shop in (s["shops"] as Array):
+					var sd: Dictionary = shop
+					var sdef = db.buildings.get(String(sd.get("defId", "")), null)
+					if sdef == null or not sdef.has("recipe") or not bool(sd.get("active", false)):
+						continue
+					if runner != null and runner.sim != null:
+						workers += int(runner.sim._assigned_workers(String(sd["id"])))
+				lines.append("消耗：一个工人 %d 天 1 件（在岗 %d 人 → 约 %.1f 件/日）" % [
+					int(round(1.0 / per)), workers, per * float(workers)])
 		# 住房：说明能住多少人
 		if db.housing.has(gid):
 			lines.append("住房：可住 %d 人/座" % int(db.housing[gid]["capacity"]))

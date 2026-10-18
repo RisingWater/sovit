@@ -2,7 +2,7 @@ import type { GameState, LogEntry } from '../types.ts'
 import type { ContentContext } from '../content/index.ts'
 import { ALL_GOODS } from '../content/index.ts'
 import { ECONOMY } from '../config.ts'
-import { round2 } from '../util.ts'
+import { round2, round4 } from '../util.ts'
 import { assignedWorkers } from './labor.ts'
 
 // ---------------------------------------------------------------------------
@@ -10,6 +10,10 @@ import { assignedWorkers } from './labor.ts'
 //
 // 工坊按**在岗工位**每日消耗工具，换来**产出 ×(1 + toolBonus)、投入不变**
 // —— 单位原料的成品率提高，多出来的部分是"虚空产量"（灵感来自《戴森球计划》增产剂）。
+//
+// 消耗率 = `economy.tools.perWorkstation`（2026-10 用户："一个工人 10 天消耗 1 工具"
+// → **0.1 件/人/日**）。农业 / 工业 / 矿场三类**一视同仁**：只要这栋建筑有配方、
+// 且在岗有人，就按人头扣工具、按 `toolBonus` 放大产出（石制工具目前是 +25%）。
 //
 // 分配在**黎明一次性完成**（排产之前），当天不再变，所以只需把结果存进
 // `shop.toolBoost`；生产小时只把它乘在**产出**上（投入一行不动）。
@@ -49,6 +53,9 @@ export function allocateTools(state: GameState, ctx: ContentContext, day: number
       if (!bonus || (state.goods[gid] ?? 0) < need) continue
       state.goods[gid] = round2((state.goods[gid] ?? 0) - need)
       state.ledgerToday.consumed[gid] = round2((state.ledgerToday.consumed[gid] ?? 0) + need)
+      // 台账拆分表：工具是被**这栋建筑**吃掉的（资源页的悬停明细读它）
+      const by = (state.ledgerToday.consumedBy[gid] ??= {})
+      by[shop.defId] = round4((by[shop.defId] ?? 0) + need)
       shop.toolBoost = 1 + bonus
       boosted++
       break

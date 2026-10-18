@@ -45,7 +45,7 @@
     },
 
     "tools": {
-      "perWorkstation": 0.05,
+      "perWorkstation": 0.1,
       "order": ["stone_tools"]
     },
 

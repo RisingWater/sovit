@@ -107,6 +107,7 @@ step "chiptip" "$GODOT_BIN" --headless --path . -s res://tools/chiptip_test.gd
 step "workerdemolish" "$GODOT_BIN" --headless --path . -s res://tools/worker_demolish_test.gd
 step "tech" "$GODOT_BIN" --headless --path . -s res://tools/tech_test.gd
 step "efficiency" "$GODOT_BIN" --headless --path . -s res://tools/efficiency_test.gd
+step "tools" "$GODOT_BIN" --headless --path . -s res://tools/tool_test.gd
 step "sitetip" "$GODOT_BIN" --headless --path . -s res://tools/sitetip_test.gd
 step "keys" "$GODOT_BIN" --headless --path . -s res://tools/keys_test.gd
 step "doortest" "$GODOT_BIN" --headless --path . -s res://tools/door_test.gd

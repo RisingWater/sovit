@@ -637,10 +637,16 @@ for shop in shops:
     for gid in reverse(economy.tools.order):          # 从**最高级**工具往下找
         if goods[gid] >= need:
             goods[gid] -= need ; ledgerToday.consumed[gid] += need
+            ledgerToday.consumedBy[gid][shop.defId] += need
             shop.toolBoost = 1 + ALL_GOODS[gid].toolBonus
             break
 ```
-工具不够时按 `state.shops` 顺序先到先得（确定性，便于对拍）。
+- `economy.tools.perWorkstation = 0.1` → **一个工人 10 天消耗 1 件**（2026-10 用户口径）
+- 农业 / 工业 / 矿场**一视同仁**：只要这栋建筑有配方、且**在岗有人**就按人头扣工具；
+  采集业（农田/伐木场/采石场…）`inputs` 是空的，所以工具给它们的是"零成本 +25%"
+- 工具不够时按 `state.shops` 顺序先到先得（确定性，便于对拍）；不够就是**不装配**，
+  不匀着分、也不欠账
+- 台账的 `consumedBy` 一并记上（资源页「工业消耗」的悬停明细读它）
 
 ### 11.2 生产小时 `runProductionStep`
 ```

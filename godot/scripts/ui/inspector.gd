@@ -671,6 +671,25 @@ func _building_panel() -> void:
 		_kv("制造加成", "%d%%" % int(round(boost_total * 100.0)), UIKit.FG_DARK,
 			"工具 ×%.2f · 本产业科技 ×%.2f（两者相乘，只放大产出、不放大投入）" % [
 				float(boost["tool"]), float(boost["tech"])])
+		# 工具消耗（用户 2026-10："一个工人 10 天消耗 1 工具"）：
+		# 把"本店每天吃多少件、装没装上"直接写在面板上 —— 不然玩家根本不知道该去
+		# 修工具坊、该囤石制工具，只会觉得产出莫名其妙地少。
+		var tper := float((runner.db.economy.get("tools", {}) as Dictionary).get(
+			"perWorkstation", 0.0))
+		if tper > 0.0 and assigned > 0:
+			var daily := tper * float(assigned)
+			var days_per := int(round(1.0 / tper))
+			var have := float(runner.sim.s["goods"].get("stone_tools", 0.0))
+			var ttip := "一个工人 %d 天消耗 1 件石制工具（本店 %d 人 → %.2f 件/日）。" % [
+				days_per, assigned, daily]
+			ttip += "黎明时库存够就自动装配：产出 ×%.2f、投入不变。" % float(boost["tool"])
+			ttip += "现在库存 %.1f 件；工具不够时按建筑列表顺序先到先得。" % have
+			if float(boost["tool"]) > 1.0:
+				_kv("工具", "已装配 ×%.2f · %.2f 件/日" % [float(boost["tool"]), daily],
+					Color(0.18, 0.45, 0.20), ttip)
+			else:
+				_kv("工具", "未装配（缺工具）· 需要 %.2f 件/日" % daily,
+					Color(0.72, 0.35, 0.15), ttip)
 		var profit := float(shop["profit"])
 		_kv_icon("利润", "¥%.2f" % profit, UIKit.stat_icon("money"),
 			Color(0.18, 0.45, 0.20) if profit >= 0.0 else Color(0.60, 0.20, 0.18),

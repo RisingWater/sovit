@@ -2181,6 +2181,9 @@ func _allocate_tools() -> Array:
 			s["goods"][gid] = SimUtil.r2(float(s["goods"].get(gid, 0.0)) - need)
 			s["ledgerToday"]["consumed"][gid] = SimUtil.r2(
 				float(s["ledgerToday"]["consumed"].get(gid, 0.0)) + need)
+			# 台账拆分表：工具是被**这栋建筑**吃掉的（资源页的悬停明细读它）
+			_ledger_add_by(s["ledgerToday"], "consumedBy", gid,
+				String(shop["defId"]), need)
 			shop["toolBoost"] = 1.0 + bonus
 			boosted += 1
 			break
