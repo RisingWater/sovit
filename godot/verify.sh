@@ -102,6 +102,7 @@ step "daylight" "$GODOT_BIN" --headless --path . -s res://tools/daylight_test.gd
 step "bartab" "$GODOT_BIN" --headless --path . -s res://tools/bartab_test.gd
 step "buildlock" "$GODOT_BIN" --headless --path . -s res://tools/buildlock_test.gd
 step "panel" "$GODOT_BIN" --headless --path . -s res://tools/panel_test.gd
+step "consumetip" "$GODOT_BIN" --headless --path . -s res://tools/consumetip_test.gd
 step "chiptip" "$GODOT_BIN" --headless --path . -s res://tools/chiptip_test.gd
 step "workerdemolish" "$GODOT_BIN" --headless --path . -s res://tools/worker_demolish_test.gd
 step "tech" "$GODOT_BIN" --headless --path . -s res://tools/tech_test.gd

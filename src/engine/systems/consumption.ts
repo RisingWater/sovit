@@ -106,6 +106,10 @@ export function runConsumption(
           }
           r.account.bought[target] = round2((r.account.bought[target] ?? 0) + sold)
           state.ledgerToday.bought[target] = round2((state.ledgerToday.bought[target] ?? 0) + sold)
+          // 台账里的**阶层拆分**（哪一等的居民买走了它）—— 面板 tooltip 直接读
+          // （用户 2026-10："中产 x11 消耗多少资源"）。
+          const byClass = (state.ledgerToday.boughtBy[target] ??= {})
+          byClass[r.classId] = round2((byClass[r.classId] ?? 0) + sold)
         }
 
         if (isFood) {

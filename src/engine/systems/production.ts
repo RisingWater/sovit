@@ -112,18 +112,26 @@ export function runProductionStep(state: GameState, ctx: ContentContext, fractio
     if (!recipe) continue
 
     const batches = shop.planned * fraction
+    // 台账里的**来源拆分**（哪个建筑吃掉了它）：面板 tooltip 直接读这张表，
+    // 所以必须在**真正扣料的这一处**累加（用户 2026-10："面粉都是面包房消耗"）。
+    const addBy = (g: string, qty: number): void => {
+      const by = (state.ledgerToday.consumedBy[g] ??= {})
+      by[shop.defId] = round4((by[shop.defId] ?? 0) + qty)
+    }
     for (const [g, q] of Object.entries(recipe.inputs)) {
       if (q && q > 0) {
         state.goods[g] = (state.goods[g] ?? 0) - q * batches
         state.reserved[g] = Math.max(0, (state.reserved[g] ?? 0) - q * batches)
         // 当日台账：实际工业消耗（小时累计）
         state.ledgerToday.consumed[g] = round4((state.ledgerToday.consumed[g] ?? 0) + q * batches)
+        addBy(g, q * batches)
       }
     }
     if (recipe.fuel && recipe.fuel > 0) {
       state.goods['firewood'] = (state.goods['firewood'] ?? 0) - recipe.fuel * batches
       state.reserved['firewood'] = Math.max(0, (state.reserved['firewood'] ?? 0) - recipe.fuel * batches)
       state.ledgerToday.consumed['firewood'] = round4((state.ledgerToday.consumed['firewood'] ?? 0) + recipe.fuel * batches)
+      addBy('firewood', recipe.fuel * batches)
     }
     // 只放大**产出**，投入（上面两段）完全不动 —— 这就是"虚空产量"。
     // 倍率 = 工具（+25%）× 该产业的效率科技加成（1 + techBonuses()[def.sector]），两者**相乘**；

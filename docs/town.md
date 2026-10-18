@@ -2098,6 +2098,36 @@ bash godot/verify.sh       # 最后一行要是 ALL CHECKS PASSED
    门槛 `panel_test` 用**真入口** `world.start_new_game()` 验这条（直接 `sim.new_game()`
    是同一个对象，测不出来 —— 第一版测试就是这么假绿的）。
 
+10. **「工业消耗 / 居民消耗」带悬停明细**（用户 2026-10）：
+
+    > "资源面板里面，不是有工业消耗和居民消耗吗？我希望鼠标移过去可以看到，工业消耗是哪类
+    > 建筑多少个消耗了多少，比如面粉都是面包房消耗，写面包房 x3 消耗了 xx 面粉。
+    > 居民消耗应该是哪个等级的居民消耗了多少，比如中产 x11 消耗多少资源。"
+
+    那两行的**文字和数字**都挂了 tooltip（`panel_stats._good_detail()`），内容是：
+
+    ```
+    小麦 · 工业消耗 16.0 / 日
+      粗面粉磨坊 ×2　9.7
+      精面粉磨坊 ×1　6.3
+
+    粗面包 · 居民消耗 40.4 / 日
+      穷人 ×53　40.4
+    ```
+
+    - 数字来自**台账的拆分表**：`DayLedger.consumedBy`（`goodId -> defId -> 量`，由
+      `runProductionStep` 在**真正扣料的那一处**写）与 `DayLedger.boughtBy`
+      （`goodId -> classId -> 量`，由 `runConsumption` 在**成交那一处**写）。
+      两个引擎同口径（`sim_core._ledger_add_by()` / TS 的内联累加）。
+    - 「×N」是村里**真有的**座数 / 人数（`GameStats.shop_count_by_def` / `class_count`，
+      结构性数据，现算）
+    - UI **只排序 + 拼字**（`GameStats.industrial_tip()` / `resident_tip()`），不重算公式 ——
+      这是本项目的老规矩（面板不自己算口径，见 `game_stats.gd` 顶部那段）
+    - 台账里没有那一天（开局第一天还没结算）→ 退化成「（这一天的台账还没有来源明细 ——
+      再跑一天就有了）」；确实没人消耗 → 「（昨天没有工坊吃它）」
+    - 门槛 `consumetip`（`godot/tools/consumetip_test.gd`）：跑真局 → 拆分表**加起来等于总量**
+      → 面板上那两个标签**真的挂着** tooltip → tooltip 里的建筑名 × 座数、阶层名 × 人数
+      与村里实际一致。截图模式 `consumetip` 把两条原文摆在资源页上（headless 没法真悬停）
 ## 二十三、数字的字体与字号
 
 用户 2026-10："资源面板右侧数字用的是什么字体？非常符合像素画风，把整个游戏的所有数字

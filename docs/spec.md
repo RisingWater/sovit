@@ -650,6 +650,12 @@ ledgerToday.produced[g] += 同上
 ```
 效果即"投入不变、产出 ×1.25" —— 单位原料成品率提高（"虚空产量"）。
 
+**台账的拆分表**（2026-10，面板 tooltip 用）：扣投入与燃料的那两处**同时**往
+`ledgerToday.consumedBy[goodId][defId]` 累加（谁吃掉了它）；`runConsumption` 在成交那一处
+往 `ledgerToday.boughtBy[goodId][classId]` 累加（哪一等居民买走的）。
+两条都是**可加总回到总量**的（`consumed` / `bought`），门槛 `consumetip` 钉着这一条 ——
+它们只进台账（存档），**不参与任何计算**，黄金摘要也不读它们。
+
 ## 12. 初始状态 `createInitialState`
 
 - 商品/价格/住房取自 `ctx.pack.goods` / `pack.housing`，数量取自 `pack.start`。

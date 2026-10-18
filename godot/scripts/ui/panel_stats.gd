@@ -371,13 +371,27 @@ func _good_detail(right: VBoxContainer) -> void:
 		["工位总数", "%d" % int(r["slots"]), UIKit.FG_DARK],
 		["在岗工人", "%d" % int(r["workers"]), UIKit.FG_DARK],
 	]
-	for row in rows:
+	# 「工业消耗 / 居民消耗」两行带悬停明细（用户 2026-10）：
+	#   工业消耗 → 哪类建筑各吃掉多少（面包房 ×3　12.0）
+	#   居民消耗 → 哪一等居民各买走多少（中产 ×11　8.0）
+	# 数字来自台账的拆分表，`GameStats` 只排序拼字，不重算公式。
+	for i in rows.size():
+		var row: Array = rows[i]
+		var tip := ""
+		if i == 2:
+			tip = stats.industrial_tip(_sel_good)
+		elif i == 3:
+			tip = stats.resident_tip(_sel_good)
 		var kl := UIKit.label(String(row[0]), HEAD_COL)
 		kl.vertical_alignment = VERTICAL_ALIGNMENT_BOTTOM
+		if tip != "":
+			kl.tooltip_text = tip
 		g.add_child(kl)
 		var vl := _big(String(row[1]), row[2])
 		vl.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 		vl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		if tip != "":
+			vl.tooltip_text = tip
 		g.add_child(vl)
 
 ## 大字（12px 像素字体的整数 2 倍）

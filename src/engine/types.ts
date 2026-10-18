@@ -392,6 +392,20 @@ export interface DayLedger {
   consumed: Record<string, number>
   /** 各商品居民购买量合计。 */
   bought: Record<string, number>
+  /**
+   * 工业消耗的**来源拆分**：`goodId -> { defId: 量 }`（谁吃掉了它）。
+   *
+   * 用户 2026-10："工业消耗是哪类建筑多少个消耗了多少，比如面粉都是面包房消耗。
+   * 写面包房 x3 消耗了 xx 面粉。" —— 面板的 tooltip 直接读这张表，
+   * 所以它必须由**真正扣料的那一处**（`runProductionStep`）写，不能在 UI 里重算。
+   */
+  consumedBy: Record<string, Record<string, number>>
+  /**
+   * 居民购买的**阶层拆分**：`goodId -> { classId: 量 }`。
+   *
+   * 用户 2026-10："居民消耗应该是哪个等级的居民消耗了多少，比如中产 x11 消耗多少资源。"
+   */
+  boughtBy: Record<string, Record<string, number>>
 }
 
 export interface Construction {

@@ -44,6 +44,15 @@ var last_produced: Dictionary = {}
 var last_consumed_ind: Dictionary = {}
 var last_consumed_pop: Dictionary = {}
 var last_shop_count: Dictionary = {}
+## gid -> {defId: 量}：这一样东西**被哪些建筑**吃掉了（台账 `consumedBy`，权威）。
+## 用户 2026-10："工业消耗是哪类建筑多少个消耗了多少，比如面粉都是面包房消耗。"
+var last_consumed_by: Dictionary = {}
+## gid -> {classId: 量}：这一样东西**被哪一等居民**买走了（台账 `boughtBy`，权威）。
+var last_bought_by: Dictionary = {}
+## defId -> 座数（结构性数据，现算；tooltip 里的"×3"就是它）
+var shop_count_by_def: Dictionary = {}
+## classId -> 人数（同上；tooltip 里的"×11"）
+var class_count: Dictionary = {}
 var last_slots: Dictionary = {}
 var last_workers: Dictionary = {}
 
@@ -63,7 +72,8 @@ func reset() -> void:
 			wages, tax, rent, sales, build_cost]:
 		(arr as Array).clear()
 	for m in [stock, produced, consumed_ind, consumed_pop, last_produced,
-			last_consumed_ind, last_consumed_pop, last_shop_count, last_slots, last_workers]:
+			last_consumed_ind, last_consumed_pop, last_shop_count, last_slots, last_workers,
+			last_consumed_by, last_bought_by, shop_count_by_def, class_count]:
 		(m as Dictionary).clear()
 	_last_day = -1
 
@@ -128,8 +138,21 @@ func _sample(s: Dictionary) -> void:
 	last_produced.clear()
 	last_consumed_ind.clear()
 	last_consumed_pop.clear()
+	last_consumed_by.clear()
+	last_bought_by.clear()
+	shop_count_by_def.clear()
+	class_count.clear()
 	for gid in goods.keys():
 		_push_map(stock, String(gid), float(goods[gid]))
+
+	# 座数（tooltip 里的"×3"）：**所有** shop 都数，不只是有配方、在产的那些
+	for shop in s["shops"]:
+		var sd := String(shop["defId"])
+		shop_count_by_def[sd] = int(shop_count_by_def.get(sd, 0)) + 1
+	for r in (s["residents"] as Array):
+		var cid := String((r as Dictionary).get("classId", ""))
+		if cid != "":
+			class_count[cid] = int(class_count.get(cid, 0)) + 1
 
 	# 工坊数 / 工位 / 工人：按产出商品归类（结构性数据，不是流量）
 	for shop in s["shops"]:
@@ -160,6 +183,11 @@ func _sample(s: Dictionary) -> void:
 		last_consumed_ind[String(gid)] = float(led["consumed"][gid])
 	for gid in (led.get("bought", {}) as Dictionary).keys():
 		last_consumed_pop[String(gid)] = float(led["bought"][gid])
+	# 拆分表（谁吃掉的 / 谁买走的）：面板 tooltip 直接读，不在这里重算
+	for gid in (led.get("consumedBy", {}) as Dictionary).keys():
+		last_consumed_by[String(gid)] = (led["consumedBy"][gid] as Dictionary).duplicate()
+	for gid in (led.get("boughtBy", {}) as Dictionary).keys():
+		last_bought_by[String(gid)] = (led["boughtBy"][gid] as Dictionary).duplicate()
 
 	for gid in last_produced.keys():
 		_push_map(produced, gid, float(last_produced[gid]))
@@ -206,3 +234,79 @@ func good_row(gid: String) -> Dictionary:
 		"slots": int(last_slots.get(gid, 0)),
 		"workers": int(last_workers.get(gid, 0)),
 	}
+
+# ---------------------------------------------------------------------------
+# 「工业消耗 / 居民消耗」的悬停提示（用户 2026-10）
+#
+#   工业消耗……鼠标移过去 → 「面包房 ×3　12.0」
+#   居民消耗……鼠标移过去 → 「中产 ×11　8.0」
+#
+# 数字全部来自 ledger 的**拆分表**（`consumedBy` / `boughtBy`，由仿真在真正扣料 /
+# 成交的那一处写），这里只做"排序 + 拼字"——**不重算任何公式**。
+# ---------------------------------------------------------------------------
+
+## 数量显示：小的带一位小数，大的取整（与顶栏 chip 同一套口径）。
+func _qty(v: float) -> String:
+	if absf(v) < 100.0 and absf(v - round(v)) > 0.005:
+		return "%.1f" % v
+	return "%.0f" % v
+
+## 「工业消耗」的悬停文案：**哪类建筑各吃掉多少**。
+func industrial_tip(gid: String) -> String:
+	var gname := _good_name(gid)
+	var total := float(last_consumed_ind.get(gid, 0.0))
+	var head := "%s · 工业消耗 %s / 日" % [gname, _qty(total)]
+	var by: Dictionary = last_consumed_by.get(gid, {})
+	if by.is_empty():
+		if total <= 0.0:
+			return head + "\n（昨天没有工坊吃它）"
+		return head + "\n（这一天的台账还没有来源明细 —— 再跑一天就有了）"
+	var rows := []
+	for def_id in by.keys():
+		var q := float(by[def_id])
+		if q <= 0.001:
+			continue
+		rows.append([String(def_id), q])
+	rows.sort_custom(func(a, b): return float(a[1]) > float(b[1]))
+	var lines: Array[String] = [head]
+	for row in rows:
+		var def_id := String(row[0])
+		var cnt := int(shop_count_by_def.get(def_id, 0))
+		var bname := def_id
+		if runner != null and runner.db.buildings.has(def_id):
+			bname = String(runner.db.buildings[def_id].get("nameZh", def_id))
+		lines.append("  %s ×%d　%s" % [bname, cnt, _qty(float(row[1]))])
+	return "\n".join(lines)
+
+## 「居民消耗」的悬停文案：**哪一等居民各买走多少**。
+func resident_tip(gid: String) -> String:
+	var gname := _good_name(gid)
+	var total := float(last_consumed_pop.get(gid, 0.0))
+	var head := "%s · 居民消耗 %s / 日" % [gname, _qty(total)]
+	var by: Dictionary = last_bought_by.get(gid, {})
+	if by.is_empty():
+		if total <= 0.0:
+			return head + "\n（昨天没有居民买它）"
+		return head + "\n（这一天的台账还没有阶层明细 —— 再跑一天就有了）"
+	var rows := []
+	for cid in by.keys():
+		var q := float(by[cid])
+		if q <= 0.001:
+			continue
+		rows.append([String(cid), q])
+	rows.sort_custom(func(a, b): return float(a[1]) > float(b[1]))
+	var lines: Array[String] = [head]
+	for row in rows:
+		var cid := String(row[0])
+		var cnt := int(class_count.get(cid, 0))
+		var cname := cid
+		if runner != null and runner.db.classes.has(cid):
+			cname = String(runner.db.classes[cid].get("nameZh", cid))
+		lines.append("  %s ×%d　%s" % [cname, cnt, _qty(float(row[1]))])
+	return "\n".join(lines)
+
+## 商品的中文名（商品表里没有就退回 id）。
+func _good_name(gid: String) -> String:
+	if runner != null and runner.db.goods.has(gid):
+		return String(runner.db.goods[gid].get("nameZh", gid))
+	return gid

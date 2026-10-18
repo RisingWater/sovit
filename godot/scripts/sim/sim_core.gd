@@ -233,7 +233,9 @@ func _start_techs(pack_id: String) -> Array:
 	return out
 func _empty_ledger(day: int) -> Dictionary:
 	return {"day": day, "wages": 0.0, "tax": 0.0, "rent": 0.0, "sales": 0.0,
-		"produced": {}, "consumed": {}, "bought": {}}
+		"produced": {}, "consumed": {}, "bought": {},
+		# 拆分表：面板 tooltip 用（谁消耗了哪样东西）—— 见 TS 的 DayLedger
+		"consumedBy": {}, "boughtBy": {}}
 
 func _empty_account() -> Dictionary:
 	return {"wage": 0.0, "tax": 0.0, "rent": 0.0, "spent": 0.0,
@@ -614,17 +616,22 @@ func _run_production_step(fraction: float) -> void:
 		var recipe: Dictionary = db.recipes[def["recipe"]]
 		var batches = float(shop["planned"]) * fraction
 		var lt: Dictionary = s["ledgerToday"]
+		var def_id := String(shop["defId"])
 		for g in (recipe["inputs"] as Dictionary).keys():
 			var q = float(recipe["inputs"][g])
 			if q > 0.0:
 				s["goods"][g] = float(s["goods"].get(g, 0.0)) - q * batches
 				s["reserved"][g] = maxf(0.0, float(s["reserved"].get(g, 0.0)) - q * batches)
 				lt["consumed"][g] = _r4(float(lt["consumed"].get(g, 0.0)) + q * batches)
+				# 台账的**来源拆分**（哪个建筑吃掉了它）：面板 tooltip 直接读这张表，
+				# 所以必须在真正扣料的这一处累加（用户 2026-10："面粉都是面包房消耗"）。
+				_ledger_add_by(lt, "consumedBy", String(g), def_id, q * batches)
 		var fuel = float(recipe.get("fuel", 0.0))
 		if fuel > 0.0:
 			s["goods"]["firewood"] = float(s["goods"].get("firewood", 0.0)) - fuel * batches
 			s["reserved"]["firewood"] = maxf(0.0, float(s["reserved"].get("firewood", 0.0)) - fuel * batches)
 			lt["consumed"]["firewood"] = _r4(float(lt["consumed"].get("firewood", 0.0)) + fuel * batches)
+			_ledger_add_by(lt, "consumedBy", "firewood", def_id, fuel * batches)
 		# 只放大**产出**，投入（上面几段）完全不动 —— 这就是"虚空产量"。
 		# 倍率 = 工具（+25%）× 该产业的效率科技加成（见 tech_bonuses()），两者相乘。
 		var boost = _shop_tool_boost(shop) * _sector_output_boost(shop)
@@ -1330,6 +1337,10 @@ func _run_consumption(day: int) -> Dictionary:
 					bought[target] = SimUtil.r2(float(bought.get(target, 0.0)) + sold)
 					var lt: Dictionary = s["ledgerToday"]["bought"]
 					lt[target] = SimUtil.r2(float(lt.get(target, 0.0)) + sold)
+					# 台账的**阶层拆分**（哪一等居民买走了它）—— 面板 tooltip 直接读
+					# （用户 2026-10："中产 x11 消耗多少资源"）。
+					_ledger_add_by(s["ledgerToday"], "boughtBy", String(target),
+						String(r["classId"]), sold, 2)
 				if is_food:
 					food_needed += demand
 					food_consumed += sold
@@ -3037,3 +3048,19 @@ func _check_quests() -> Array:
 
 func _quest_log(day: int, text: String) -> Dictionary:
 	return {"day": day, "kind": "info", "text": text}
+
+## 台账里的"拆分表"累加：`ledger[key][good][bucket] += qty`。
+##
+## `key` = `"consumedBy"`（bucket = 建筑 defId）或 `"boughtBy"`（bucket = 阶层 classId）。
+## 面板的商品 tooltip 直接读这两张表（用户 2026-10："面粉都是面包房消耗" /
+## "中产 x11 消耗多少资源"）—— 所以只能在**真正扣料 / 成交的那一处**写，UI 不许重算。
+func _ledger_add_by(ledger: Dictionary, key: String, good_id: String, bucket: String,
+		qty: float, digits: int = 4) -> void:
+	if not ledger.has(key):
+		ledger[key] = {}
+	var table: Dictionary = ledger[key]
+	if not table.has(good_id):
+		table[good_id] = {}
+	var by: Dictionary = table[good_id]
+	var cur := float(by.get(bucket, 0.0)) + qty
+	by[bucket] = _r4(cur) if digits >= 4 else SimUtil.r2(cur)

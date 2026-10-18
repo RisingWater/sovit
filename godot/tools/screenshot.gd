@@ -742,6 +742,61 @@ func _run() -> void:
 		quit(0)
 		return
 
+	# 「工业消耗 / 居民消耗」的悬停明细（用户 2026-10）：headless 里没法真悬停，
+	# 所以直接把两条 tooltip 的**原文**摆到资源页右侧，当作"鼠标移过去会看到什么"。
+	if mode == "consumetip":
+		var sp = node.get_node_or_null("UI/Root/Stats")
+		if sp != null:
+			# 跑满一天，让夜间结算把台账的拆分表写出来
+			for _h in 26:
+				runner.sim.tick_hour([])
+			sp.open()
+			for _k in 3:
+				await process_frame
+			var hist: Array = runner.sim.s["history"]
+			var led: Dictionary = (hist[hist.size() - 1] as Dictionary).get("ledger", {}) if not hist.is_empty() else {}
+			var pick := ""
+			var best := 0.0
+			for gid in (led.get("consumedBy", {}) as Dictionary).keys():
+				var t := float((led.get("consumed", {}) as Dictionary).get(gid, 0.0))
+				if t > best:
+					best = t
+					pick = String(gid)
+			if pick == "":
+				pick = "coarse_flour"
+			sp._on_pick_good(pick)
+			for _k2 in 3:
+				await process_frame
+			var stats = sp.get("stats")
+			# 居民那半另挑一个"真的被买过"的商品（小麦没人买）
+			var pick2 := ""
+			var best2 := 0.0
+			for gid in (led.get("boughtBy", {}) as Dictionary).keys():
+				var t2 := float((led.get("bought", {}) as Dictionary).get(gid, 0.0))
+				if t2 > best2:
+					best2 = t2
+					pick2 = String(gid)
+			if pick2 == "":
+				pick2 = "coarse_bread"
+			var card := PanelContainer.new()
+			card.add_theme_stylebox_override("panel", UIKit.pad(UIKit.box(UIKit.T_PANEL_CREAM), 10, 8, 10, 8))
+			var vb := VBoxContainer.new()
+			vb.add_theme_constant_override("separation", 8)
+			card.add_child(vb)
+			for tip_text in [stats.industrial_tip(pick), stats.resident_tip(pick2)]:
+				vb.add_child(UIKit.label(String(tip_text), UIKit.FG_DARK))
+				vb.add_child(UIKit.hsep())
+			card.position = Vector2(430, 330)
+			node.get_node("UI/Root").add_child(card)
+			for _k3 in 4:
+				await process_frame
+			await RenderingServer.frame_post_draw
+			var cimg: Image = root.get_texture().get_image()
+			if cimg != null:
+				cimg.save_png(out_path)
+			print("SCREENSHOT consumetip for ", pick, " -> ", out_path)
+		quit(0)
+		return
 	# 只保留"把画布向下平移一段"这条（让一张图里看得到树的上下两端）。
 	# 第 3 个参数是画布的 y 平移量（传正数 = 向下看多少像素），例如 `tech 0` / `tech 520`
 	if mode == "tech" or mode == "techtip":

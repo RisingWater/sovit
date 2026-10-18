@@ -5,7 +5,19 @@ import { createRng } from './rng.ts'
 
 /** 空白台账 / 空白个人账目。逐人账目与每日台账分开放，方便将来做差异化分配。 */
 export function emptyLedger(day: number): DayLedger {
-  return { day, wages: 0, tax: 0, rent: 0, sales: 0, produced: {}, consumed: {}, bought: {} }
+  return {
+    day,
+    wages: 0,
+    tax: 0,
+    rent: 0,
+    sales: 0,
+    produced: {},
+    consumed: {},
+    bought: {},
+    // 拆分表：面板 tooltip 用（谁消耗了哪样东西）—— 见 types.ts::DayLedger
+    consumedBy: {},
+    boughtBy: {},
+  }
 }
 
 // ---------------------------------------------------------------------------

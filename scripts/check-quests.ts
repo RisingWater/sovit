@@ -115,6 +115,8 @@ function stageThroughChapter3(s: GameState): void {
       produced: { coarse_bread: 40, vegetable: 20 },
       consumed: {},
       bought: {},
+      consumedBy: {},
+      boughtBy: {},
     },
   })
 }
