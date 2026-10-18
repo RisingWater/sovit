@@ -1,0 +1,148 @@
+extends SceneTree
+
+# 游商门槛（M4，2026-10）。与 TS `scripts/check-merchant.ts` 同口径。
+#
+# red 的含义：① 第 3 章之前就来了 ② 章节数与队伍数不对
+#              ③ 不是停留 7 天 / 不是每周一批
+#              ④ 报价不是收 4 卖 4，或价格加成不是 1.6 / 1.3
+#              ⑤ 买他的货不会让他现金变多（"买得越多他越有钱收你的货"）
+#              ⑥ 同一状态两次生成不一致（不确定性会毁掉 golden / AI 沙盘）
+#              ⑦ 交易不守恒（库存 / 国库对不上）
+
+const SEED := 20261024
+
+func _init() -> void:
+	call_deferred("_run")
+
+func _fail(msg: String) -> void:
+	print("MERCHANT TEST FAIL: ", msg)
+	quit(1)
+
+func _approx(a: float, b: float, eps: float = 0.02) -> bool:
+	return absf(a - b) <= eps
+
+func _run() -> void:
+	var db = load("res://scripts/core/content_db.gd").load_all()
+	var sim_script = load("res://scripts/sim/sim_core.gd")
+
+	# ---- 1. 章节节奏 ------------------------------------------------------
+	for case in [[2, 0], [3, 1], [4, 2], [5, 3]]:
+		var sim = sim_script.new(db)
+		sim.new_game("v0.3", SEED, 1.0)
+		for i in range(1, int(case[0]) + 1):
+			sim.s["quests"]["chapters"][str(i)] = i
+		sim.s["trade"]["nextWaveDay"] = 1
+		sim._update_caravans(10)
+		var got: int = (sim.s["trade"]["caravans"] as Array).size()
+		if got != int(case[1]):
+			_fail("第 %d 章应当来 %d 队，实际 %d 队" % [case[0], case[1], got])
+			return
+	print("MERCHANT TEST 章节节奏：第 2 章 0 / 第 3 章 1 / 第 4 章 2 / 第 5 章 3 ✅")
+
+	# ---- 2. 停留 7 天 + 每周一批 ------------------------------------------
+	var sim2 = sim_script.new(db)
+	sim2.new_game("v0.3", SEED, 1.0)
+	sim2.s["quests"]["chapters"]["3"] = 3
+	sim2.s["trade"]["nextWaveDay"] = 1
+	sim2._update_caravans(10)
+	var c: Dictionary = (sim2.s["trade"]["caravans"] as Array)[0]
+	if int(c["arriveDay"]) != 10 or int(c["leaveDay"]) != 16:
+		_fail("停留天数不对：%d → %d（应当 10 → 16）" % [int(c["arriveDay"]), int(c["leaveDay"])])
+		return
+	if int(sim2.s["trade"]["nextWaveDay"]) != 17:
+		_fail("下一批 day %d，应当 17" % int(sim2.s["trade"]["nextWaveDay"]))
+		return
+	sim2._update_caravans(16)
+	if (sim2.s["trade"]["caravans"] as Array).size() != 1:
+		_fail("第 16 天（最后一天）人就走了")
+		return
+	sim2._update_caravans(17)
+	for x in (sim2.s["trade"]["caravans"] as Array):
+		if String(x["id"]) == String(c["id"]):
+			_fail("第 17 天黎明他还没走")
+			return
+	print("MERCHANT TEST 停留：第 10 天到、16 天最后一天、17 天离开；下一批 +7 天 ✅")
+
+	# ---- 3. 收 4 卖 4 + 价格加成 ------------------------------------------
+	var sim3 = sim_script.new(db)
+	sim3.new_game("v0.3", SEED, 1.0)
+	sim3.s["quests"]["chapters"]["4"] = 4
+	sim3.s["trade"]["nextWaveDay"] = 1
+	sim3._update_caravans(10)
+	for cv in (sim3.s["trade"]["caravans"] as Array):
+		if (cv["buy"] as Array).size() != 4 or (cv["sell"] as Array).size() != 4:
+			_fail("%s 的报价不是收 4 卖 4（收 %d / 卖 %d）"
+				% [String(cv["id"]), (cv["buy"] as Array).size(), (cv["sell"] as Array).size()])
+			return
+		for o in (cv["sell"] as Array):
+			var base := float(db.goods[String(o["good"])]["baseValue"])
+			if not _approx(float(o["price"]), base * 1.3):
+				_fail("%s 卖价 %.2f，应当是 %.2f" % [String(o["good"]), float(o["price"]), base * 1.3])
+				return
+		for o in (cv["buy"] as Array):
+			var base2 := float(db.goods[String(o["good"])]["baseValue"])
+			if not _approx(float(o["price"]), base2 * 1.6):
+				_fail("%s 收价 %.2f，应当是 %.2f" % [String(o["good"]), float(o["price"]), base2 * 1.6])
+				return
+	print("MERCHANT TEST 报价：每人收 4 卖 4，收价 ×1.6 / 卖价 ×1.3 ✅")
+
+	# ---- 4. 现金池：买他的货 → 他更有钱 -----------------------------------
+	var sim4 = sim_script.new(db)
+	sim4.new_game("v0.3", SEED, 1.0)
+	sim4.s["quests"]["chapters"]["3"] = 3
+	sim4.s["trade"]["nextWaveDay"] = 1
+	sim4._update_caravans(10)
+	var cv4: Dictionary = (sim4.s["trade"]["caravans"] as Array)[0]
+	sim4.s["government"]["money"] = 5000.0
+	var cash0 := float(cv4["cash"])
+	var sell_offer: Dictionary = (cv4["sell"] as Array)[0]
+	if sim4.buy_from_caravan(String(cv4["id"]), String(sell_offer["good"]), 2) != "":
+		_fail("从他买 2 件被拒")
+		return
+	if float(cv4["cash"]) <= cash0:
+		_fail("买他的货之后现金 %.2f → %.2f，应当变多" % [cash0, float(cv4["cash"])])
+		return
+	# 卖给他：国库增、库存减、他现金减
+	var buy_offer: Dictionary = (cv4["buy"] as Array)[0]
+	sim4.s["goods"][String(buy_offer["good"])] = 50.0
+	var money0 := float(sim4.s["government"]["money"])
+	var stock0 := float(sim4.s["goods"][String(buy_offer["good"])])
+	if sim4.sell_to_caravan(String(cv4["id"]), String(buy_offer["good"]), 3) != "":
+		_fail("卖给他 3 件被拒")
+		return
+	if float(sim4.s["government"]["money"]) <= money0:
+		_fail("卖给他之后国库没增加")
+		return
+	if float(sim4.s["goods"][String(buy_offer["good"])]) >= stock0:
+		_fail("卖给他之后库存没减少")
+		return
+	print("MERCHANT TEST 现金池：买他的货 → 他现金 %.0f → %.0f；卖给他 → 国库增 / 库存减 ✅"
+		% [cash0, float(cv4["cash"])])
+
+	# ---- 5. 确定性 -------------------------------------------------------
+	var a = sim_script.new(db)
+	a.new_game("v0.3", SEED, 1.0)
+	a.s["quests"]["chapters"]["4"] = 4
+	a.s["trade"]["nextWaveDay"] = 1
+	a._update_caravans(10)
+	var b = sim_script.new(db)
+	b.new_game("v0.3", SEED, 1.0)
+	b.s["quests"]["chapters"]["4"] = 4
+	b.s["trade"]["nextWaveDay"] = 1
+	b._update_caravans(10)
+	if JSON.stringify(a.s["trade"]["caravans"]) != JSON.stringify(b.s["trade"]["caravans"]):
+		_fail("同一状态两次生成的报价不一样（不确定性会毁掉 golden / AI 沙盘）")
+		return
+	print("MERCHANT TEST 确定性：同一状态两次生成完全一致 ✅")
+
+	# ---- 6. 拒绝理由说人话 -----------------------------------------------
+	if sim4.sell_to_caravan("cv#nope", "wood", 1) == "":
+		_fail("不存在的游商居然能卖")
+		return
+	if sim4.buy_from_caravan(String(cv4["id"]), "no_such_good", 1) == "":
+		_fail("他没带的商品居然能买")
+		return
+	print("MERCHANT TEST 拒绝：不存在的游商 / 没带的商品都给理由 ✅")
+
+	print("MERCHANT TEST RESULT: PASS")
+	quit(0)

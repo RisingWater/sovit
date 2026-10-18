@@ -115,6 +115,7 @@ step "footprint" "$GODOT_BIN" --headless --path . -s res://tools/footprint_test.
 step "iron" "$GODOT_BIN" --headless --path . -s res://tools/iron_test.gd
 step "coal" "$GODOT_BIN" --headless --path . -s res://tools/coal_test.gd
 step "needs" "$GODOT_BIN" --headless --path . -s res://tools/needs_test.gd
+step "merchant" "$GODOT_BIN" --headless --path . -s res://tools/merchant_test.gd
 step "roofclick" "$GODOT_BIN" --headless --path . -s res://tools/roofclick_test.gd
 step "multisite" "$GODOT_BIN" --headless --path . -s res://tools/multisite_test.gd
 step "upgrade" "$GODOT_BIN" --headless --path . -s res://tools/upgrade_test.gd

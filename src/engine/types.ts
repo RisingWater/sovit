@@ -706,6 +706,45 @@ export interface QuestState {  /** questId → 完成那一天。 */
   shown: Record<string, boolean>
 }
 
+/** 游商的一条报价（他卖 / 他收）。 */
+export interface CaravanOffer {
+  good: GoodID
+  /** 单价（他卖 = baseValue×1.3；他收 = baseValue×1.6）。 */
+  price: number
+  /** 剩余可交易量。 */
+  qty: number
+}
+
+/**
+ * 一位游商（2026-10 M4）。
+ *
+ * `cash` = 他能用来收你货的现金；玩家买他的货会让它变大（"你买得越多他越有钱"）。
+ * `goodsValue` = 他带的货值（决定每种商品带多少件）。
+ */
+export interface Caravan {
+  id: string
+  arriveDay: number
+  /** 最后一天（含）；次日黎明离开。 */
+  leaveDay: number
+  cash: number
+  goodsValue: number
+  /** 他卖的（玩家买）。 */
+  sell: CaravanOffer[]
+  /** 他收的（玩家卖）。 */
+  buy: CaravanOffer[]
+}
+
+/** 游商系统的状态（见 `systems/caravan.ts`）。 */
+export interface TradeState {
+  caravans: Caravan[]
+  /** 下一批到货日。 */
+  nextWaveDay: number
+  /** 第几批（用于 id 与确定性种子）。 */
+  wave: number
+  /** 首遇剧情播过没有。 */
+  introShown: boolean
+}
+
 export interface Government {  money: number
   /** 累进所得税税表（可运行时调整）。最后一段 upTo 为 null 表示无上限。 */
   taxBrackets: TaxBracket[]
@@ -830,6 +869,8 @@ export interface GameState {
    * 表现层按它挑贴图（破旧 / 初步修缮 / 修好三张）。
    */
   townCenter: { stage: RepairStage }
+  /** 游商（M4）：在场队伍 / 下一批到达日 / 批次号 / 首遇剧情。见 `systems/caravan.ts`。 */
+  trade: TradeState
 
   /** 当日台账累加器：黎明清零，夜间结算时挂到当天快照上。 */
   ledgerToday: DayLedger
@@ -958,6 +999,8 @@ export type Action =
    * 顺序是硬闸（不能从废墟直接修好）。
    */
   | { type: 'repair_town_center'; stage?: RepairStage }
+  | { type: 'sell_to_caravan'; caravanId: string; goodId: GoodID; qty: number }
+  | { type: 'buy_from_caravan'; caravanId: string; goodId: GoodID; qty: number }
   | { type: 'end_turn' }
 
 export interface AppliedAction {

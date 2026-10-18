@@ -10,6 +10,7 @@ import {
   tryExpand,
   tryUpgradeHousing,
 } from './systems/investment.ts'
+import { buyFromCaravan, sellToCaravan } from './systems/caravan.ts'
 import { effectiveSlots } from './systems/labor.ts'
 import {
   cancelResearch,
@@ -297,6 +298,16 @@ export function applyActions(
         break
       }
 
+      case 'sell_to_caravan': {
+        const why = sellToCaravan(state, action.caravanId, action.goodId, action.qty)
+        applied.push({ type: action.type, ok: why === '', reason: why || undefined })
+        break
+      }
+      case 'buy_from_caravan': {
+        const why = buyFromCaravan(state, action.caravanId, action.goodId, action.qty)
+        applied.push({ type: action.type, ok: why === '', reason: why || undefined })
+        break
+      }
       case 'sell_shop':
       case 'retake_shop': {
         applied.push({ type: action.type, ok: false, reason: 'not_implemented（预留接口）' })

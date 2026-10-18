@@ -18,6 +18,7 @@ import { applyConstructionHours, planConstructionDay, settleConstruction, activa
 import { applyResearchHours, planResearchDay, settleResearch, activateResearch } from './systems/research.ts'
 import { allocateTools } from './systems/tools.ts'
 import { checkQuests } from './systems/quests.ts'
+import { updateCaravans } from './systems/caravan.ts'
 
 // ---------------------------------------------------------------------------
 // 每日结算（小时制）
@@ -97,6 +98,8 @@ export function runDawn(state: GameState, ctx: ContentContext): { logs: LogEntry
   // 任务（引导系统）放在**最后**：完工的建筑、生效的科技、刚放行的人口都已经写进 state，
   // 判定就是"看眼前这个村子有没有"，所以玩家先干了、任务后出现也照样算完成。
   // 见 docs/quests.md。
+  // 游商：到货 / 离开（M4）。放在任务之后：章节奖励刚记上，这批就能按新章节来人。
+  logs.push(...updateCaravans(state, ctx, state.day))
   logs.push(...checkQuests(state, ctx, state.day))
   return { logs, applied }
 }

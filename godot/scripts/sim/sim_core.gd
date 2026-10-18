@@ -190,6 +190,8 @@ func new_game(pack_id: String, seed_value: int, resource_mult: float = 1.0) -> v
 		# ⚠️ 这是**表现层要用的一个开关**，仿真的任何数字都不读它 ——
 		# 和 `prophet` 一样"只记事、不演化"，所以黄金摘要（按字段取的）不受影响。
 		"townCenter": {"stage": "ruined"},
+		# 游商（M4）：在场队伍 / 下一批到达日 / 批次号 / 首遇剧情。见 docs/needs.md §9
+		"trade": {"caravans": [], "nextWaveDay": 1, "wave": 0, "introShown": false},
 		# 科技：开局已研究的来自 pack.start.techs（见 docs/technology.md）
 		"research": {"done": _start_techs(pack_id), "queue": []},
 		# 任务（引导系统）：完成记录 + 章节奖励记录。判定与发钱都在黎明，
@@ -322,6 +324,8 @@ func _run_dawn() -> Array:
 	# 任务（引导系统）放在**最后**：完工的建筑、生效的科技、刚放行的人口都已经写进 state，
 	# 判定就是"看眼前这个村子有没有"，所以玩家先干了、任务后出现也照样算完成。
 	# 契约见 docs/quests.md（TS 侧 src/engine/systems/quests.ts::checkQuests）。
+	# 游商：到货 / 离开（M4）。放在任务之后：章节奖励刚记上，这批就按新章节来人。
+	logs.append_array(_update_caravans(int(s["day"])))
 	logs.append_array(_check_quests())
 	return logs
 
@@ -443,6 +447,14 @@ func _apply_actions(actions: Array) -> Array:
 							s["goods"][gid] = SimUtil.r2(
 								float(s["goods"].get(gid, 0.0)) - float(cost[gid]))
 						s["townCenter"] = {"stage": to_stage}
+			"sell_to_caravan":
+				var why_sell := sell_to_caravan(String(action["caravanId"]), String(action["goodId"]), int(action["qty"]))
+				if why_sell != "":
+					logs.append({"day": int(s["day"]), "kind": "finance", "text": "卖出被拒：" + why_sell})
+			"buy_from_caravan":
+				var why_buy := buy_from_caravan(String(action["caravanId"]), String(action["goodId"]), int(action["qty"]))
+				if why_buy != "":
+					logs.append({"day": int(s["day"]), "kind": "finance", "text": "买入被拒：" + why_buy})
 			"toggle":
 				var shop = _find_shop(String(action["shopId"]))
 				if shop != null:
@@ -3208,3 +3220,186 @@ func _coverage_sat_bonus(cov: Dictionary, class_id: String) -> float:
 		total += float(cov.get("medical", 0.0)) * float(cfg["medical"])
 		total += float(cov.get("education", 0.0)) * float(cfg["education"])
 	return total
+
+# ===========================================================================
+# 游商（M4，2026-10）：第 3 章起每周一批、停留 7 天、收 4 卖 4、现金池
+# 与 TS `systems/caravan.ts` 同口径（见 docs/needs.md §9）
+# ===========================================================================
+
+const CARAVAN_STAY_DAYS := 7
+const CARAVAN_WAVE_PERIOD := 7
+const CARAVAN_BUY_MARKUP := 1.6
+const CARAVAN_SELL_MARKUP := 1.3
+const CARAVAN_OFFERS := 4
+const CARAVAN_QTY := 20
+
+func _trade() -> Dictionary:
+	if not (s as Dictionary).has("trade"):
+		s["trade"] = {"caravans": [], "nextWaveDay": 1, "wave": 0, "introShown": false}
+	return s["trade"]
+
+## 已完成到第几章（章节奖励记录里最大的那章）。
+func completed_chapter() -> int:
+	var mx := 0
+	for k in (s["quests"]["chapters"] as Dictionary).keys():
+		mx = maxi(mx, int(k))
+	return mx
+
+## 这一批同时来几个（第 3 章 1 / 第 4 章 2 / 第 5 章 3）。
+func caravan_wave_size() -> int:
+	var c := completed_chapter()
+	if c >= 5:
+		return 3
+	if c >= 4:
+		return 2
+	if c >= 3:
+		return 1
+	return 0
+
+## 可交易商品：本包内、排除服务 / 军备 / 工具这类非流通品。
+func _tradeable_goods() -> Array:
+	var out := []
+	for gid in _pack()["goods"]:
+		var def = db.goods.get(String(gid), null)
+		if def == null:
+			continue
+		var cat := String(def.get("category", ""))
+		if cat == "service" or cat == "military" or cat == "tool":
+			continue
+		out.append(String(gid))
+	out.sort()
+	return out
+
+## 黎明：到货 / 离开。返回日志。
+func _update_caravans(day: int) -> Array:
+	var logs := []
+	var trade: Dictionary = _trade()
+	var before := (trade["caravans"] as Array).size()
+	var keep := []
+	for c in (trade["caravans"] as Array):
+		if day <= int(c["leaveDay"]):
+			keep.append(c)
+	trade["caravans"] = keep
+	if before > keep.size():
+		logs.append({"day": day, "kind": "finance",
+			"text": "游商离开：%d 队" % (before - keep.size())})
+
+	var want := caravan_wave_size()
+	if want == 0:
+		trade["nextWaveDay"] = day + 1
+		return logs
+	if day < int(trade.get("nextWaveDay", 1)):
+		return logs
+
+	var pool: Array = _tradeable_goods()
+	if pool.size() < CARAVAN_OFFERS * 2:
+		return logs
+
+	trade["wave"] = int(trade.get("wave", 0)) + 1
+	var used := {}
+	for i in want:
+		var rng := RandomNumberGenerator.new()
+		rng.seed = day * 1000 + int(trade["wave"]) * 100 + i
+		var cash := SimUtil.r2(400.0 + rng.randf() * 400.0)
+		var goods_value := SimUtil.r2(600.0 + rng.randf() * 400.0)
+		var free := []
+		for g in pool:
+			if not used.has(g):
+				free.append(g)
+		var sells: Array = _pick_n(rng, free, mini(CARAVAN_OFFERS, free.size()))
+		for g in sells:
+			used[g] = true
+		var free2 := []
+		for g in pool:
+			if not used.has(g):
+				free2.append(g)
+		if free2.size() < CARAVAN_OFFERS:
+			free2 = pool.duplicate()
+		var buys: Array = _pick_n(rng, free2, mini(CARAVAN_OFFERS, free2.size()))
+		var sell_offers := []
+		for g in sells:
+			var def = db.goods.get(String(g), null)
+			var base := float(def["baseValue"]) if def != null else 1.0
+			var price := SimUtil.r2(base * CARAVAN_SELL_MARKUP)
+			var qty := maxi(1, int(floor(goods_value / float(CARAVAN_OFFERS) / maxf(0.01, price))))
+			sell_offers.append({"good": String(g), "price": price, "qty": qty})
+		var buy_offers := []
+		for g in buys:
+			var def2 = db.goods.get(String(g), null)
+			var base2 := float(def2["baseValue"]) if def2 != null else 1.0
+			buy_offers.append({"good": String(g),
+				"price": SimUtil.r2(base2 * CARAVAN_BUY_MARKUP), "qty": CARAVAN_QTY})
+		(trade["caravans"] as Array).append({
+			"id": "cv#%d-%d" % [int(trade["wave"]), i + 1],
+			"arriveDay": day,
+			"leaveDay": day + CARAVAN_STAY_DAYS - 1,
+			"cash": cash,
+			"goodsValue": goods_value,
+			"sell": sell_offers,
+			"buy": buy_offers,
+		})
+	trade["nextWaveDay"] = day + CARAVAN_WAVE_PERIOD
+	logs.append({"day": day, "kind": "finance",
+		"text": "游商到货：%d 队（停留 %d 天）" % [want, CARAVAN_STAY_DAYS]})
+	return logs
+
+func _pick_n(rng: RandomNumberGenerator, arr: Array, n: int) -> Array:
+	var pool := arr.duplicate()
+	var out := []
+	while out.size() < n and not pool.is_empty():
+		out.append(pool.pop_at(rng.randi_range(0, pool.size() - 1)))
+	return out
+
+func _find_caravan(caravan_id: String) -> Variant:
+	for c in (_trade()["caravans"] as Array):
+		if String(c["id"]) == caravan_id:
+			return c
+	return null
+
+## 玩家卖给游商。返回拒绝原因（空串 = 成功）。
+func sell_to_caravan(caravan_id: String, good_id: String, qty: int) -> String:
+	var c: Variant = _find_caravan(caravan_id)
+	if c == null:
+		return "游商不在了"
+	var offer = null
+	for o in (c["buy"] as Array):
+		if String(o["good"]) == good_id:
+			offer = o
+	if offer == null:
+		return "他这次不收这个"
+	var stock := float(s["goods"].get(good_id, 0.0))
+	var price := maxf(0.01, float(offer["price"]))
+	var afford := int(floor(float(c["cash"]) / price))
+	var n := mini(mini(maxi(0, qty), int(offer["qty"])), mini(int(floor(stock)), afford))
+	if n <= 0:
+		return "库存不够 / 他没那么多钱 / 这次不收那么多"
+	var money := SimUtil.r2(float(n) * price)
+	s["goods"][good_id] = SimUtil.r2(stock - float(n))
+	s["government"]["money"] = SimUtil.r2(float(s["government"]["money"]) + money)
+	c["cash"] = SimUtil.r2(float(c["cash"]) - money)
+	offer["qty"] = SimUtil.r2(float(offer["qty"]) - float(n))
+	s["ledgerToday"]["sales"] = SimUtil.r2(float(s["ledgerToday"]["sales"]) + money)
+	return ""
+
+## 玩家从游商买。返回拒绝原因（空串 = 成功）。
+func buy_from_caravan(caravan_id: String, good_id: String, qty: int) -> String:
+	var c: Variant = _find_caravan(caravan_id)
+	if c == null:
+		return "游商不在了"
+	var offer = null
+	for o in (c["sell"] as Array):
+		if String(o["good"]) == good_id:
+			offer = o
+	if offer == null:
+		return "他没带这个"
+	var price := maxf(0.01, float(offer["price"]))
+	var afford := int(floor(float(s["government"]["money"]) / price))
+	var n := mini(mini(maxi(0, qty), int(offer["qty"])), afford)
+	if n <= 0:
+		return "国库不够 / 他卖完了"
+	var money := SimUtil.r2(float(n) * price)
+	s["government"]["money"] = SimUtil.r2(float(s["government"]["money"]) - money)
+	s["goods"][good_id] = SimUtil.r2(float(s["goods"].get(good_id, 0.0)) + float(n))
+	c["cash"] = SimUtil.r2(float(c["cash"]) + money)
+	offer["qty"] = SimUtil.r2(float(offer["qty"]) - float(n))
+	return ""
