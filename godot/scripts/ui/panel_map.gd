@@ -84,13 +84,24 @@ const HOME := {"id": "ashen_vale", "fx": 0.6680, "fy": 0.8530,
 
 var _map: TextureRect
 var _host: Control
-var _marks: Array = []          # [{data, node, tex, tex_hover, icon_h}]
-var _labels: Array = []         # [{node, fx, fy}]
+var _marks: Array = []          # [{data, node, tex, tex_hover}]
+var _labels: Array = []         # [{text, node, fx, fy}]
 var _card: PanelContainer
 var _card_title: Label
 var _card_body: Label
 var _hover := -1
 var _tex_cache: Dictionary = {}
+## 当前底图矩形（`_layout()` 算完存一份，拖拽换算坐标要用）
+var _rect := Rect2()
+## 布置模式：拖图标 / 拖地名，松手自动写盘（用户自己校点位，不必改代码）
+var _edit := false
+var _drag := -1
+## 布置模式下"当前选中的那一个"（据点下标；<= -1000 表示地名 -1000-i），方向键微调它
+var _sel := -1
+var _readout: Label
+var _edit_btn: Button
+## 内置坐标的原始值（"恢复默认"用）
+var _defaults: Dictionary = {}
 
 func setup(r: SimRunner, w: Node) -> void:
 	runner = r
@@ -136,6 +147,36 @@ func _ready() -> void:
 
 	root.add_child(UIKit.hsep())
 
+	# 第二行：**布置工具**（用户 2026-10-20："你能不能让我自己调整城镇的位置，
+	# 有修改坐标什么的，这样我就不用叫你改了"）。
+	# 点「布置城市」→ 图标和地名都能拖，松手**自动存盘**；坐标也手写在 JSON 里。
+	var tools := HBoxContainer.new()
+	tools.add_theme_constant_override("separation", 5)
+	root.add_child(tools)
+	_edit_btn = UIKit.button("布置城市", false)
+	_edit_btn.toggle_mode = true
+	_edit_btn.tooltip_text = "打开后：拖动图标/地名即可改位置，松手自动保存（坐标存在 res://data/map_layout.json，导出后退回 user://）"
+	_edit_btn.toggled.connect(_on_edit_toggled)
+	tools.add_child(_edit_btn)
+	var reload := UIKit.button("重新读入", false)
+	reload.tooltip_text = "比如你在文本编辑器里手改了 JSON —— 点这里马上生效"
+	reload.pressed.connect(func(): _load_layout())
+	tools.add_child(reload)
+	var open_dir := UIKit.button("打开文件夹", false)
+	open_dir.tooltip_text = "在资源管理器里打开那个 JSON 所在的文件夹"
+	open_dir.pressed.connect(_open_layout_dir)
+	tools.add_child(open_dir)
+	var reset := UIKit.button("恢复默认", false)
+	reset.tooltip_text = "删掉自己调过的坐标，回到代码里写的那一套"
+	reset.pressed.connect(_reset_layout)
+	tools.add_child(reset)
+	tools.add_child(UIKit.hsep())
+	_readout = UIKit.label("", UIKit.FG_DIM)
+	_readout.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	tools.add_child(_readout)
+
+	root.add_child(UIKit.hsep())
+
 	# 地图书：底图 + 据点 + 地名，全部手动摆（按比例）
 	_host = Control.new()
 	_host.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -158,15 +199,22 @@ func _ready() -> void:
 	_host.resized.connect(_layout)
 	_layout()
 
-## 区域名：大号褪色，压在底图上，不吃鼠标
+## 区域名：大号淡墨，压在底图上；平时不吃鼠标，**布置模式下可以拖**
 func _build_regions() -> void:
+	var idx := 0
 	for r in REGIONS:
 		var l := UIKit.label(String(r["text"]), INK_DIM)
 		l.add_theme_font_size_override("font_size", int(r["size"]))
 		l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		l.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		# 浅色描边：地名压在深色山体/树林上也读得出来
+		l.add_theme_constant_override("outline_size", 4)
+		l.add_theme_color_override("font_outline_color", Color(0.93, 0.88, 0.76, 0.55))
+		l.gui_input.connect(_on_label_gui_input.bind(idx))
 		_host.add_child(l)
-		_labels.append({"node": l, "fx": float(r["fx"]), "fy": float(r["fy"])})
+		_labels.append({"text": String(r["text"]), "node": l,
+			"fx": float(r["fx"]), "fy": float(r["fy"])})
+		idx += 1
 
 ## 据点：图标（默认/hover 两张）+ 底下的城名
 func _build_marks() -> void:
@@ -182,7 +230,10 @@ func _build_marks() -> void:
 	_home_index = _marks.size() - 1
 
 func _add_mark(m: Dictionary) -> void:
-	var kind := String(m["kind"])
+	# ⚠️ 复制一份：`MARKS` 是 const（只读），布置模式要就地改 fx/fy —— 直接引用会报
+	#    "Cannot modify a read-only dictionary"。
+	var data: Dictionary = m.duplicate(true)
+	var kind := String(data["kind"])
 	var tex := _icon(kind, false)
 	var tex_hover := _icon(kind, true)
 	var btn := TextureButton.new()
@@ -202,10 +253,16 @@ func _add_mark(m: Dictionary) -> void:
 	var i := _marks.size()
 	btn.mouse_entered.connect(_on_mark_enter.bind(i))
 	btn.mouse_exited.connect(_on_mark_exit.bind(i))
+	btn.gui_input.connect(_on_mark_gui_input.bind(i))
 	_host.add_child(btn)
 	# ⚠️ 地图上**不画城名**（用户 2026-10-20："所有城镇地图上不显示名字，城镇名字放在 tip 里"）——
 	# 名字/领主/特产只在 hover 卡片里。
-	_marks.append({"data": m, "node": btn, "tex": tex, "tex_hover": tex_hover})
+	_marks.append({"data": data, "node": btn, "tex": tex, "tex_hover": tex_hover})
+	# 记一份"内置默认值"，以后「恢复默认」要靠它
+	_defaults[String(data["id"])] = {
+		"fx": float(data["fx"]), "fy": float(data["fy"]),
+		"scale": float(data.get("scale", 1.0)),
+	}
 
 ## 我们这座现在是村 / 小城 / 中城（用户 2026-10-20：跟着城镇中心变）
 func _home_kind() -> String:
@@ -246,11 +303,219 @@ func _build_card() -> void:
 func open() -> void:
 	visible = true
 	_refresh_home()
+	_load_layout()
 	_layout()
 	move_to_front()
 
 func close_panel() -> void:
 	visible = false
+
+# ---------------------------------------------------------------------------
+# 布置模式：自己拖点位（2026-10-20 用户："你能不能让我自己调整城镇的位置，
+# 有修改坐标什么的，这样我就不用叫你改了"）
+#
+# · 拖 == 改 `fx` / `fy`（底图上的**比例坐标** 0..1），松手立刻写盘
+# · 存 `user://map_layout.json`（不是 `res://`：不脏仓库、导出后也能写）；
+#   文件不存在时第一次打开会自动导出一份当前坐标当模板
+# · 手改 JSON 之后点「重新读入」就生效，不用重启
+# ---------------------------------------------------------------------------
+# 坐标存哪儿：**优先项目内**（`res://data/map_layout.json`，用编辑器/调试跑时可写，
+# 好处是它就在仓库里，能直接手改、能 git diff、能提交）；导出成 exe 之后 res:// 只读，
+# 自动退回 `user://map_layout.json`。
+const LAYOUT_RES := "res://data/map_layout.json"
+const LAYOUT_USER := "user://map_layout.json"
+## 这次实际用的那个（`_resolve_path()` 决定，UI 上要显示给用户看）
+var _layout_path := LAYOUT_RES
+
+func _resolve_layout_path() -> String:
+	if FileAccess.file_exists(LAYOUT_RES):
+		return LAYOUT_RES
+	if FileAccess.file_exists(LAYOUT_USER):
+		return LAYOUT_USER
+	return LAYOUT_RES      # 都不存在时先试 res://（写不进去再退 user://）
+
+func _on_edit_toggled(on: bool) -> void:
+	_edit = on
+	_drag = -1
+	_edit_btn.text = "布置中（拖吧）" if on else "布置城市"
+	for e in _marks:
+		var b: TextureButton = e["node"]
+		b.mouse_default_cursor_shape = Control.CURSOR_MOVE if on else Control.CURSOR_POINTING_HAND
+	for r in _labels:
+		(r["node"] as Label).mouse_filter = \
+			Control.MOUSE_FILTER_STOP if on else Control.MOUSE_FILTER_IGNORE
+	if on:
+		_readout.text = "拖动图标 / 地名，松手自动保存 → %s" % ProjectSettings.globalize_path(_layout_path)
+	else:
+		_save_layout()
+		_readout.text = "已保存 → %s" % ProjectSettings.globalize_path(_layout_path)
+
+## 鼠标在控件里的位置 → 底图上的比例坐标（夹在 0..1）
+func _to_frac(ctrl: Control, local_in_ctrl: Vector2) -> Vector2:
+	var g := ctrl.get_global_transform() * local_in_ctrl
+	var p := g - _host.global_position
+	if _rect.size.x <= 0.0 or _rect.size.y <= 0.0:
+		return Vector2.ZERO
+	return Vector2(
+		clampf((p.x - _rect.position.x) / _rect.size.x, 0.0, 1.0),
+		clampf((p.y - _rect.position.y) / _rect.size.y, 0.0, 1.0))
+
+func _on_mark_gui_input(event: InputEvent, i: int) -> void:
+	if not _edit or i < 0 or i >= _marks.size():
+		return
+	var e: Dictionary = _marks[i]
+	var btn: TextureButton = e["node"]
+	if event is InputEventMouseButton and (event as InputEventMouseButton).button_index == MOUSE_BUTTON_LEFT:
+		if (event as InputEventMouseButton).pressed:
+			_drag = i
+			_sel = i
+			var d: Dictionary = e["data"]
+			_readout.text = "抓住「%s」—— 也可以按方向键微调" % String(d["name"])
+		else:
+			if _drag == i:
+				_drag = -1
+				_save_layout()
+				var d2: Dictionary = e["data"]
+				_readout.text = "%s → fx %.4f  fy %.4f（已保存）" % [
+					String(d2["name"]), float(d2["fx"]), float(d2["fy"])]
+		btn.accept_event()
+	elif event is InputEventMouseMotion and _drag == i:
+		var d: Dictionary = e["data"]
+		var f := _to_frac(btn, (event as InputEventMouseMotion).position)
+		d["fx"] = f.x
+		d["fy"] = f.y
+		_layout()
+		_readout.text = "%s → fx %.4f  fy %.4f" % [String(d["name"]), f.x, f.y]
+		btn.accept_event()
+
+func _on_label_gui_input(event: InputEvent, i: int) -> void:
+	if not _edit or i < 0 or i >= _labels.size():
+		return
+	var r: Dictionary = _labels[i]
+	var lb: Label = r["node"]
+	if event is InputEventMouseButton and (event as InputEventMouseButton).button_index == MOUSE_BUTTON_LEFT:
+		if (event as InputEventMouseButton).pressed:
+			_drag = -1000 - i
+			_sel = -1000 - i
+			_readout.text = "抓住地名「%s」—— 也可以按方向键微调" % String(r["text"])
+		else:
+			if _drag == -1000 - i:
+				_drag = -1
+				_save_layout()
+				_readout.text = "%s → fx %.4f  fy %.4f（已保存）" % [
+					String(r["text"]), float(r["fx"]), float(r["fy"])]
+		lb.accept_event()
+	elif event is InputEventMouseMotion and _drag == -1000 - i:
+		var f := _to_frac(lb, (event as InputEventMouseMotion).position)
+		r["fx"] = f.x
+		r["fy"] = f.y
+		_layout()
+		_readout.text = "%s → fx %.4f  fy %.4f" % [String(r["text"]), f.x, f.y]
+		lb.accept_event()
+
+## 写盘：把现在所有据点 + 地名的坐标存成 JSON（没有就新建）
+func _save_layout() -> void:
+	var marks := {}
+	for e in _marks:
+		var d: Dictionary = e["data"]
+		var o := {"fx": snappedf(float(d["fx"]), 0.0001), "fy": snappedf(float(d["fy"]), 0.0001)}
+		if d.has("scale"):
+			o["scale"] = float(d["scale"])
+		marks[String(d["id"])] = o
+	var regions := {}
+	for r in _labels:
+		regions[String(r["text"])] = {
+			"fx": snappedf(float(r["fx"]), 0.0001),
+			"fy": snappedf(float(r["fy"]), 0.0001)}
+	if _layout_path == LAYOUT_RES:
+		# `res://data/` 可能还不存在 —— FileAccess 不会自己建目录
+		var dir := ProjectSettings.globalize_path("res://data")
+		if not DirAccess.dir_exists_absolute(dir):
+			DirAccess.make_dir_recursive_absolute(dir)
+	var f := FileAccess.open(_layout_path, FileAccess.WRITE)
+	if f == null and _layout_path == LAYOUT_RES:
+		# 导出后 res:// 只读：退回 user://
+		_layout_path = LAYOUT_USER
+		f = FileAccess.open(_layout_path, FileAccess.WRITE)
+	if f == null:
+		_readout.text = "写不进去：%s" % ProjectSettings.globalize_path(_layout_path)
+		return
+	# `_help` 是写给人看的：JSON 里不能写注释，只好放一个字段
+	f.store_string(JSON.stringify({
+		"version": 1,
+		"_help": [
+			"fx / fy = 这张底图上的**比例坐标**（0..1），锚点是图标脚底中点；x 向右、y 向下。",
+			"marks 里每个 id 对应一座据点（capital=王都、iron_crown=铁王城、jade=翡翠城…）。",
+			"regions 里每个键就是地图上那行英文地名的原文。",
+			"scale 可选：图标放大倍数（王都 1.45）。",
+			"改完存盘 → 游戏里点「重新读入」立刻生效；删掉本文件 = 回到 Godot 脚本里的内置坐标。",
+			"也可以在游戏里点「布置城市」直接拖，松手会自动写回这里。",
+		],
+		"marks": marks,
+		"regions": regions,
+	}, "  "))
+	f.close()
+
+## 读盘（没有就导出一份默认值当模板）
+func _load_layout() -> void:
+	_layout_path = _resolve_layout_path()
+	if not FileAccess.file_exists(_layout_path):
+		_save_layout()
+		if _readout != null:
+			_readout.text = "已导出当前坐标（照着改就行）→ %s" % ProjectSettings.globalize_path(_layout_path)
+		return
+	var txt := FileAccess.get_file_as_string(_layout_path)
+	var j = JSON.parse_string(txt)
+	if typeof(j) != TYPE_DICTIONARY:
+		if _readout != null:
+			_readout.text = "map_layout.json 读不懂（JSON 语法？）"
+		return
+	var n := 0
+	var marks: Dictionary = (j as Dictionary).get("marks", {})
+	for e in _marks:
+		var d: Dictionary = e["data"]
+		var id := String(d["id"])
+		if marks.has(id):
+			var o: Dictionary = marks[id]
+			if o.has("fx"):
+				d["fx"] = float(o["fx"])
+			if o.has("fy"):
+				d["fy"] = float(o["fy"])
+			if o.has("scale"):
+				d["scale"] = float(o["scale"])
+			n += 1
+	var regions: Dictionary = (j as Dictionary).get("regions", {})
+	for r in _labels:
+		var t := String(r["text"])
+		if regions.has(t):
+			r["fx"] = float(regions[t]["fx"])
+			r["fy"] = float(regions[t]["fy"])
+			n += 1
+	if _readout != null:
+		_readout.text = "读入 %d 条自己的坐标 → %s" % [n, ProjectSettings.globalize_path(_layout_path)]
+
+func _open_layout_dir() -> void:
+	OS.shell_open(ProjectSettings.globalize_path(_layout_path.get_base_dir()))
+
+## 删掉自己调过的，回到代码里的内置坐标
+func _reset_layout() -> void:
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(_layout_path))
+	for e in _marks:
+		var d: Dictionary = e["data"]
+		var def: Dictionary = _defaults.get(String(d["id"]), {})
+		if not def.is_empty():
+			d["fx"] = float(def["fx"])
+			d["fy"] = float(def["fy"])
+			if def.has("scale") and is_equal_approx(float(def["scale"]), 1.0) == false:
+				d["scale"] = float(def["scale"])
+	for i in _labels.size():
+		var r: Dictionary = _labels[i]
+		r["fx"] = float(REGIONS[i]["fx"])
+		r["fy"] = float(REGIONS[i]["fy"])
+	_drag = -1
+	_layout()
+	_save_layout()
+	_readout.text = "已恢复内置坐标（并重新导出模板）"
 
 ## 城镇中心修过一段就换一次图标（打开面板时重算，免得读档/修缮之后不更新）
 func _refresh_home() -> void:
@@ -290,6 +555,7 @@ func _layout() -> void:
 		h = vp.y
 		w = h * MAP_ASPECT
 	var rect := Rect2(Vector2((vp.x - w) * 0.5, (vp.y - h) * 0.5), Vector2(w, h))
+	_rect = rect          # 拖拽换算要用（见 `_to_frac()`）
 	_map.position = rect.position
 	_map.size = rect.size
 	# 图标：统一高度缩放，底部中点钉在点位
@@ -341,6 +607,9 @@ func _place_card() -> void:
 func _on_mark_enter(i: int) -> void:
 	if i < 0 or i >= _marks.size():
 		return
+	# 布置模式下不弹卡片：挡着看地形了（拖的时候也碍事）
+	if _edit:
+		return
 	_hover = i
 	var e: Dictionary = _marks[i]
 	var btn: TextureButton = e["node"]
@@ -365,11 +634,44 @@ func _on_mark_exit(i: int) -> void:
 		if _card != null:
 			_card.visible = false
 
-## Esc 关掉（和别的一样：只吃自己开着的那一下）
+## Esc 关掉；布置模式下方向键微调选中的那个（拖是粗调，方向键是精调）
 func _unhandled_input(event: InputEvent) -> void:
 	if not visible:
 		return
-	if event is InputEventKey and (event as InputEventKey).pressed \
-			and (event as InputEventKey).keycode == KEY_ESCAPE:
+	if not (event is InputEventKey) or not (event as InputEventKey).pressed:
+		return
+	var k := (event as InputEventKey).keycode
+	if _edit and _sel != -1 and k in [KEY_LEFT, KEY_RIGHT, KEY_UP, KEY_DOWN]:
+		# Shift = 细调（0.0005），否则 0.002（差不多 2~3 像素）
+		var step := 0.0005 if (event as InputEventKey).shift_pressed else 0.002
+		var dv := Vector2.ZERO
+		match k:
+			KEY_LEFT: dv.x = -step
+			KEY_RIGHT: dv.x = step
+			KEY_UP: dv.y = -step
+			KEY_DOWN: dv.y = step
+		_nudge(dv)
+		get_viewport().set_input_as_handled()
+		return
+	if k == KEY_ESCAPE:
 		get_viewport().set_input_as_handled()
 		close_panel()
+
+## 布置模式下用方向键把选中的那个挪一点点，并写盘
+func _nudge(dv: Vector2) -> void:
+	if _sel >= 0 and _sel < _marks.size():
+		var d: Dictionary = _marks[_sel]["data"]
+		d["fx"] = clampf(float(d["fx"]) + dv.x, 0.0, 1.0)
+		d["fy"] = clampf(float(d["fy"]) + dv.y, 0.0, 1.0)
+		_layout()
+		_readout.text = "%s → fx %.4f  fy %.4f（已保存）" % [
+			String(d["name"]), float(d["fx"]), float(d["fy"])]
+		_save_layout()
+	elif _sel <= -1000 and (-_sel - 1000) < _labels.size():
+		var r: Dictionary = _labels[-_sel - 1000]
+		r["fx"] = clampf(float(r["fx"]) + dv.x, 0.0, 1.0)
+		r["fy"] = clampf(float(r["fy"]) + dv.y, 0.0, 1.0)
+		_layout()
+		_readout.text = "%s → fx %.4f  fy %.4f（已保存）" % [
+			String(r["text"]), float(r["fx"]), float(r["fy"])]
+		_save_layout()
