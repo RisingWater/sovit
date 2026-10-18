@@ -83,7 +83,7 @@ const MAX_WORKERS_CAP = 12
 const QUESTS_SCHEMA_VERSION = 2
 
 const CATEGORIES: readonly GoodCategory[] = [
-  'raw', 'food', 'clothing', 'household', 'fuel', 'material', 'housing', 'investment', 'service', 'entertainment', 'tool',
+  'raw', 'food', 'clothing', 'household', 'fuel', 'material', 'housing', 'investment', 'service', 'entertainment', 'tool', 'military',
 ]
 
 function fail(msg: string): never {

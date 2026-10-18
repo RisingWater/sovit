@@ -92,6 +92,10 @@ const RESEARCH_ORDER: string[] = [
   'hospital_ward', // 医院
   'schooling', // 学校（熟练度成长）
 
+  // ---- 治安与军备（2026-10 第二批）：民兵 → 兵器（治安所吃武器）----
+  'militia',
+  'weaponry',
+
   // ---- 冶金与工具（2026-10 第二批）：铁在砖之后，工具升级紧随其后 ----
   'ironworking', // 冶铁 → 冶炼场
   'iron_tooling', // 铁制工具作坊

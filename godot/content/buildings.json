@@ -410,6 +410,92 @@
       "buildWork": 16
     },
     {
+      "id": "weapon_workshop",
+      "sector": "goods",
+      "nameZh": "武器作坊",
+      "art": {
+        "arch": "sprite",
+        "foot": [
+          4,
+          1
+        ]
+      },
+      "tier": 3,
+      "workers": 3,
+      "maxWorkers": 6,
+      "buildCost": {
+        "wood": 8,
+        "stone": 4,
+        "brick": 4
+      },
+      "recipe": {
+        "inputs": {
+          "iron": 2,
+          "wood": 2
+        },
+        "output": {
+          "weapons": 2
+        },
+        "baseRate": 1
+      },
+      "buildWork": 28
+    },
+    {
+      "id": "guard_station",
+      "sector": "goods",
+      "nameZh": "治安所",
+      "art": {
+        "arch": "sprite",
+        "foot": [
+          4,
+          1
+        ]
+      },
+      "tier": 3,
+      "workers": 2,
+      "maxWorkers": 4,
+      "buildCost": {
+        "wood": 6,
+        "stone": 4
+      },
+      "recipe": {
+        "inputs": {
+          "weapons": 1
+        },
+        "output": {
+          "safety": 20
+        },
+        "baseRate": 1
+      },
+      "buildWork": 16
+    },
+    {
+      "id": "watchtower",
+      "sector": "goods",
+      "nameZh": "瞭望台",
+      "art": {
+        "arch": "sprite",
+        "foot": [
+          3,
+          3
+        ]
+      },
+      "tier": 3,
+      "workers": 1,
+      "maxWorkers": 2,
+      "buildCost": {
+        "wood": 8,
+        "stone": 6
+      },
+      "recipe": {
+        "inputs": {},
+        "output": {
+          "safety": 10
+        },
+        "baseRate": 1
+      },
+      "buildWork": 20
+    },    {
       "id": "herbal_farm",
       "sector": "agri",
       "nameZh": "草药农场",
@@ -481,10 +567,6 @@
       "tier": 3,
       "workers": 2,
       "maxWorkers": 4,
-      "coverage": {
-        "kind": "medical",
-        "people": 50
-      },
       "buildCost": {
         "wood": 6,
         "stone": 4
@@ -494,7 +576,7 @@
           "potion": 1
         },
         "output": {
-          "medical_service": 4
+          "medical_service": 20
         },
         "baseRate": 1
       },
@@ -514,10 +596,6 @@
       "tier": 3,
       "workers": 4,
       "maxWorkers": 8,
-      "coverage": {
-        "kind": "medical",
-        "people": 150
-      },
       "buildCost": {
         "wood": 10,
         "stone": 8,
@@ -529,7 +607,7 @@
           "herbs": 2
         },
         "output": {
-          "medical_service": 14
+          "medical_service": 60
         },
         "baseRate": 1
       },
@@ -549,10 +627,6 @@
       "tier": 3,
       "workers": 3,
       "maxWorkers": 6,
-      "coverage": {
-        "kind": "education",
-        "people": 100
-      },
       "buildCost": {
         "wood": 8,
         "stone": 4,
@@ -561,7 +635,7 @@
       "recipe": {
         "inputs": {},
         "output": {
-          "education": 6
+          "education": 20
         },
         "baseRate": 1
       },

@@ -147,6 +147,23 @@
       "requires": ["construction", "brickmaking"],
       "unlocks": { "buildings": ["school"], "housing": [] }
     },    {
+      "id": "militia",
+      "nameZh": "民兵",
+      "era": 3,
+      "research": 50,
+      "cost": { "goods": { "wood": 30, "stone": 15 } },
+      "requires": ["construction", "stonework"],
+      "unlocks": { "buildings": ["guard_station", "watchtower"], "housing": [] }
+    },
+    {
+      "id": "weaponry",
+      "nameZh": "兵器",
+      "era": 4,
+      "research": 80,
+      "cost": { "goods": { "iron": 20, "wood": 20 } },
+      "requires": ["militia", "ironworking"],
+      "unlocks": { "buildings": ["weapon_workshop"], "housing": [] }
+    },    {
       "id": "pottery",
       "nameZh": "制陶",
       "era": 2,

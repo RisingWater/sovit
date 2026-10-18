@@ -29,6 +29,8 @@ export type GoodCategory =
   | 'entertainment'
   /** 工具：工坊耗材，不是消费品（无阶层需求）。 */
   | 'tool'
+  /** 军备：武器这类（治安所吃它），不是消费品。 */
+  | 'military'
 
 export type BuildingTier = 1 | 2 | 3
 export type ShopStatus = 'green' | 'yellow' | 'red'
@@ -374,6 +376,13 @@ export interface Resident {
   ownedQuality?: number
   /** 房主名下那一栋（`HousingUnit.id`）。 */
   ownedUnitId?: string
+  /**
+   * 当日**全部需求里最差那一项**的满足率（0-1）。晋升要 = 1.0；连续 3 天 < 0.8 会降级。
+   * 由 `runConsumption` 逐项记录（2026-10：需求全部商品化之后，晋升按需求而不再只看存款）。
+   */
+  needsMet?: number
+  /** 连续多少天 needsMet < 0.8（降级宽限期，3 天）。 */
+  lowDays?: number
   /** 当日账目（每个游戏日结算一次，逐人记录）。 */
   account?: ResidentAccount
 }

@@ -40,8 +40,10 @@
     { "id": "entertainment", "nameZh": "娱乐", "tier": 2, "category": "entertainment", "storable": false, "baseValue": 4, "perishRate": 1, "luxury": true },
 
     { "id": "potion", "nameZh": "药水", "tier": 3, "category": "household", "storable": true, "baseValue": 6 },
-    { "id": "medical_service", "nameZh": "医疗服务", "tier": 3, "category": "service", "storable": false, "baseValue": 5, "perishRate": 1 },
-    { "id": "education", "nameZh": "教育", "tier": 3, "category": "service", "storable": false, "baseValue": 5, "perishRate": 1 },
+    { "id": "medical_service", "nameZh": "医疗", "tier": 3, "category": "service", "storable": false, "baseValue": 0.5, "perishRate": 1 },
+    { "id": "safety", "nameZh": "治安", "tier": 3, "category": "service", "storable": false, "baseValue": 0.3, "perishRate": 1 },
+    { "id": "education", "nameZh": "教育", "tier": 3, "category": "service", "storable": false, "baseValue": 0.5, "perishRate": 1 },
+    { "id": "weapons", "nameZh": "武器", "tier": 3, "category": "military", "storable": true, "baseValue": 12 },
     { "id": "stone_tools", "nameZh": "石制工具", "tier": 1, "category": "tool", "storable": true, "baseValue": 4, "toolBonus": 0.25, "durabilityDays": 10 },
     { "id": "iron_tools", "nameZh": "铁制工具", "tier": 3, "category": "tool", "storable": true, "baseValue": 8, "toolBonus": 0.6, "durabilityDays": 15 }
   ]

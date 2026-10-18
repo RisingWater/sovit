@@ -1336,6 +1336,7 @@ func _run_consumption(day: int) -> Dictionary:
 			var price_num = 0.0
 			var price_den = 0.0
 			var spent_by_resident = 0.0
+			var need_ratio := 1.0
 			for need in def["needs"]:
 				var need_good = String(need["good"])
 				var gdef = db.goods.get(need_good, null)
@@ -1375,6 +1376,8 @@ func _run_consumption(day: int) -> Dictionary:
 				r["savings"] = SimUtil.r2(maxf(0.0, float(r["savings"]) - cost))
 				revenue += cost
 				spent_by_resident += cost
+				# 逐项需求的满足率（2026-10）：晋升看"最差那一项"
+				need_ratio = minf(need_ratio, clampf(sold / demand, 0.0, 1.0) if demand > 0.0 else 1.0)
 				if sold > 0.0:
 					if not r.has("account"):
 						r["account"] = _empty_account()
@@ -1410,6 +1413,7 @@ func _run_consumption(day: int) -> Dictionary:
 			if not r.has("account"):
 				r["account"] = _empty_account()
 			var acc: Dictionary = r["account"]
+			r["needsMet"] = floor(need_ratio * 1000.0 + 0.5) / 1000.0
 			acc["foodScore"] = floor(f * 1000.0 + 0.5) / 1000.0
 			acc["comfortScore"] = floor(c * 1000.0 + 0.5) / 1000.0
 			acc["priceScore"] = floor(((price_num / price_den) if price_den > 0.0 else 1.0) * 1000.0 + 0.5) / 1000.0
@@ -1511,12 +1515,25 @@ func _update_classes() -> void:
 	if ladder.is_empty():
 		return
 	ladder.sort_custom(func(a, b): return float(a["wealthThreshold"]) < float(b["wealthThreshold"]))
+	# 2026-10：晋升不再只看存款，而是「本阶层需求全部满足 + 存款够」；
+	# 降级是「连续 3 天需求满足率 < 0.8」。`needsMet` 由消费结算逐项记录（最差那一项）。
+	var demote_days := 3
+	var demote_ratio := 0.8
 	for r in s["residents"]:
-		var cls: Dictionary = ladder[0]
-		for c in ladder:
-			if float(r["savings"]) >= float(c["wealthThreshold"]):
-				cls = c
-		r["classId"] = String(cls["id"])
+		var met := float(r.get("needsMet", 1.0))
+		r["lowDays"] = (int(r.get("lowDays", 0)) + 1) if met < demote_ratio else 0
+		var cur := 0
+		for i in ladder.size():
+			if String(ladder[i]["id"]) == String(r["classId"]):
+				cur = i
+		var nxt: Dictionary = ladder[cur + 1] if cur + 1 < ladder.size() else {}
+		if not nxt.is_empty() and met >= 1.0 and float(r["savings"]) >= float(nxt["wealthThreshold"]):
+			r["classId"] = String(nxt["id"])
+			r["lowDays"] = 0
+			continue
+		if int(r.get("lowDays", 0)) >= demote_days and cur > 0:
+			r["classId"] = String(ladder[cur - 1]["id"])
+			r["lowDays"] = 0
 
 func _update_population(hungry: int, day: int) -> Array:
 	var logs := []

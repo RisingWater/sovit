@@ -272,6 +272,8 @@ const FORCE_HALF: Record<string, true> = {
   smeltery: true,
   iron_tool_workshop: true,
   tool_works: true,
+  weapon_workshop: true,
+  guard_station: true,
   // M2 医疗与教育：草药农场 / 药水工坊 走"小建筑档"；诊所 / 医院 / 学校 走"大建筑档"（不缩小）
   herbal_farm: true,
   potion_workshop: true,
@@ -296,6 +298,7 @@ const FORCE_HALF: Record<string, true> = {
 const FORCE_NATIVE: Record<string, true> = {
   // M2：诊所 / 医院 / 学校**不缩小**（用户 2026-10）
   clinic: true,
+  watchtower: true,
   hospital: true,
   school: true,
   research_institute: true,

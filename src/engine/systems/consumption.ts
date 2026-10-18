@@ -68,6 +68,7 @@ export function runConsumption(
       let priceNum = 0
       let priceDen = 0
       let spentByResident = 0
+      let needRatio = 1
 
       for (const need of def.needs) {
         const isFood = ALL_GOODS[need.good]?.category === 'food'
@@ -112,6 +113,8 @@ export function runConsumption(
           byClass[r.classId] = round2((byClass[r.classId] ?? 0) + sold)
         }
 
+        // 逐项需求的满足率（2026-10）：晋升按"最差那一项"算，所以这里逐项记录
+        needRatio = Math.min(needRatio, clamp(sold / demand, 0, 1))
         if (isFood) {
           foodNeeded += demand
           foodConsumed += sold
@@ -140,6 +143,7 @@ export function runConsumption(
       if (!r.account) {
         r.account = { wage: 0, tax: 0, rent: 0, spent: 0, foodScore: 1, comfortScore: 1, priceScore: 1, hungry: false, bought: {} }
       }
+      r.needsMet = Math.round(needRatio * 1000) / 1000
       r.account.foodScore = Math.round(f * 1000) / 1000
       r.account.comfortScore = Math.round(c * 1000) / 1000
       r.account.priceScore = Math.round((priceDen > 0 ? priceNum / priceDen : 1) * 1000) / 1000

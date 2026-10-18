@@ -39,7 +39,18 @@ function makeResident(state: GameState, rng: Rng, classId: ClassID): Resident {
   }
 }
 
-/** 按财富（存款）分层：依 pack 允许的阶层、按 wealthThreshold 升序逐级上升。 */
+/**
+ * 阶层流动（2026-10 改：不再只看存款）。
+ *
+ * 用户定的规则：
+ *   · **晋升**：当前阶层的**全部需求满足率 = 1.0** 且存款 ≥ 下一阶层的 `wealthThreshold` → 升一档
+ *   · **降级**：**连续 3 天**需求满足率 < 0.8 → 降一档（存款跌破门槛本身不再直接降级）
+ *
+ * `needsMet` 由 `runConsumption` 逐项记录（"最差那一项"）。阶梯顺序仍按 `wealthThreshold`。
+ */
+const DEMOTE_AFTER_DAYS = 3
+const DEMOTE_RATIO = 0.8
+
 function updateClasses(state: GameState, ctx: ContentContext): void {
   const ladder = ctx.pack.classes
     .map((c) => ctx.classes[c])
@@ -47,11 +58,20 @@ function updateClasses(state: GameState, ctx: ContentContext): void {
     .sort((a, b) => a.wealthThreshold - b.wealthThreshold)
   if (ladder.length === 0) return
   for (const r of state.residents) {
-    let cls = ladder[0]!
-    for (const c of ladder) {
-      if (r.savings >= c.wealthThreshold) cls = c
+    const met = r.needsMet ?? 1
+    r.lowDays = met < DEMOTE_RATIO ? (r.lowDays ?? 0) + 1 : 0
+    const idx = ladder.findIndex((c) => c.id === r.classId)
+    const cur = idx >= 0 ? idx : 0
+    const next = ladder[cur + 1]
+    if (next && met >= 1 && r.savings >= next.wealthThreshold) {
+      r.classId = next.id
+      r.lowDays = 0
+      continue
     }
-    r.classId = cls.id
+    if ((r.lowDays ?? 0) >= DEMOTE_AFTER_DAYS && cur > 0) {
+      r.classId = ladder[cur - 1]!.id
+      r.lowDays = 0
+    }
   }
 }
 
