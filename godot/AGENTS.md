@@ -39,7 +39,7 @@
 | `consumetip` | `tools/consumetip_test.gd` | 资源页「工业消耗 / 居民消耗」的悬停明细（2026-10）：台账拆分表 `consumedBy` / `boughtBy` **加起来等于总量**、面板上那两个标签**真的挂着** tooltip 且 `mouse_filter = STOP`（Label 默认 IGNORE，只设 tooltip_text 不会弹）、真鼠标移动过去 `gui_get_hovered_control()` 命中的就是它、tooltip 里的「建筑名 ×座数」「阶层名 ×人数」与村里实际一致 |
 | `tools` | `tools/tool_test.gd` | 工具（石制工具）**消耗换产能**（2026-10）：`perWorkstation = 0.1`（一个工人 10 天 1 件）、农业/工业/矿场三类在黎明都会装配（`toolBoost = 1.25`）、按 `0.1×在岗人数` 扣料且台账总量与 `consumedBy` 一致、**产出 ×1.25 而投入一件不多**、没工具就不加成、空工坊不扣、不够时按 shops 顺序先到先得。与 TS 的 `scripts/check-tools.ts` 同口径同数字 |
 | `coal` | `tools/coal_test.gd` | 煤矿与**燃料**（2026-10）：`GameMap.COAL = 6` / 地形名 "coal" / 生成量与出生点距离 / 贴图索引 54 / 内容（`coal_mine` 建在 `coal`、产煤、矿场页、中文「煤矿」）/ 放置闸 / **有煤先烧煤且只扣煤**、没煤改烧木柴、两种都没有就不排产不产出（不许凭空烧）。与 TS 的 `scripts/check-fuels.ts` 同口径 |
-| `coverage` | `tools/coverage_test.gd` | 人口覆盖（2026-10 第二批）：**服务不是消费品**——诊所/医院/学校/治安所按"一座覆盖 N 人 × 等级"算覆盖率，`min(1, 覆盖/人口)`；**医疗/教育只加中产以上**、治安四阶层都加；排不上产（没药水）就覆盖 0；学校按教育覆盖率加速熟练度成长（满覆盖 ×1.5）；覆盖率**不写进存档**（每次现算）。与 TS `scripts/check-coverage.ts` 同口径 |
+| `needs` | `tools/needs_test.gd` | 需求系统（`docs/needs.md`）：治安/医疗/教育是**三件独立商品**（0.3/0.5/0.5，当日归零）、四阶层需求集合就是晋升阶梯（穷人治安 → 中产医疗 → 富人教育+娱乐 → 老板家政）、单座产能（诊所 20/医院 60/学校 20/治安所 20/瞭望台 10）、**治安所零输入**、岗位工资公共统一 3.6 / 私营按 tier、晋升 1.0 与降级连续 3 天 <0.8。与 TS `scripts/check-needs.ts` 同口径 |
 
 ### 像素字体里没有的字 = 屏幕上什么都没有（而且不报错）
 

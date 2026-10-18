@@ -666,25 +666,22 @@ ledgerToday.produced[g] += 同上
 两条都是**可加总回到总量**的（`consumed` / `bought`），门槛 `consumetip` 钉着这一条 ——
 它们只进台账（存档），**不参与任何计算**，黄金摘要也不读它们。
 
-### 11.2.1 覆盖：医疗 / 教育 / 治安（2026-10 第二批）
+### 11.2.1 服务需求：治安 / 医疗 / 教育（2026-10 定稿）
 
-> 需求的完整清单（四阶层 × 商品需求 + 覆盖需求 + 住房）见 **`docs/needs.md`**。
-
-服务**不是消费品**，而是按人口"覆盖"（用户 2026-10 定的口径）：
+服务**不是覆盖、也不是无成本**：它们是**三件独立商品**，居民按 perCapita 花钱买，
+买不齐就升不了阶层（完整表见 `docs/needs.md`）。
 
 ```
-覆盖人口[kind] = Σ over 在运转的 shop（def.coverage.kind == kind）：coverage.people × shop.level
-覆盖率[kind]   = min(1, 覆盖人口 / 总人口)
-满意度目标值  += 医疗 × 6（仅非穷人） + 教育 × 3（仅非穷人） + 治安 × 4（所有人）
-熟练度成长    += skillGainPerDay × (1 + 0.5 × 教育覆盖率)
+safety(治安) 0.3 / medical_service(医疗) 0.5 / education(教育) 0.5   每点基准价；perishRate 1（当日归零）
+需求：穷人 治安 0.03；中产 +医疗 0.04；富人 +医疗 0.05 +教育 0.05；老板 +医疗 0.06 +教育 0.08
+晋升：本阶层**每项需求满足率 = 1.0** 且存款 ≥ 下一档门槛
+降级：**连续 3 天**每项满足率 < 0.8（`lowDays` 计数；存款跌破门槛不再直接降级）
 ```
 
-- **在运转** 的定义：`active && 在岗人数 > 0 &&（有配方时）planned > 0`
-  —— 缺原料（没药水 / 没武器）就自动不覆盖，不需要额外规则
-- 覆盖率**不进存档**：`coverage.ts::coverageRatios()` / `sim_core.gd::coverage_ratios()` 现算
-- 系数在 `content/economy.json` 的 `coverage`（`medical` / `education` / `safety` / `skillGrowth`）
-- 覆盖率不改变任何产量，只动满意度与熟练度成长
-
+- 逐项判定：`runConsumption` 记录每项需求满足率，取最小值写进 `r.needsMet`
+- 岗位工资：**公共事业统一** `economy.publicServiceWage`（3.6，研究/建造产能 + 医疗/教育/治安/仓储），
+  私营按建筑 tier（3.0 / 3.6 / 4.5）
+- 公共事业补贴：`ledgerToday.publicSubsidy` = 当晚公共建筑的工资支出（台账口径，不参与计算）
 ### 11.3 燃料：煤 / 木柴（2026-10）
 
 `recipe.fuel` 是"每批次烧多少燃料"。**烧哪种**由下面这条顺序决定（两份实现同序）：
