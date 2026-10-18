@@ -494,6 +494,67 @@
       },
       "buildWork": 20
     },    {
+      "id": "armor_workshop",
+      "sector": "goods",
+      "nameZh": "盔甲作坊",
+      "art": {
+        "arch": "sprite",
+        "foot": [
+          4,
+          1
+        ]
+      },
+      "tier": 3,
+      "workers": 3,
+      "maxWorkers": 6,
+      "buildCost": {
+        "wood": 8,
+        "stone": 4,
+        "brick": 4
+      },
+      "recipe": {
+        "inputs": {
+          "iron": 2,
+          "hide": 2
+        },
+        "output": {
+          "armor": 2
+        },
+        "baseRate": 1
+      },
+      "buildWork": 28
+    },
+    {
+      "id": "bow_arrow_workshop",
+      "sector": "goods",
+      "nameZh": "弓箭作坊",
+      "art": {
+        "arch": "sprite",
+        "foot": [
+          4,
+          1
+        ]
+      },
+      "tier": 3,
+      "workers": 2,
+      "maxWorkers": 4,
+      "buildCost": {
+        "wood": 6,
+        "stone": 2,
+        "brick": 2
+      },
+      "recipe": {
+        "inputs": {
+          "iron": 1,
+          "wood": 3
+        },
+        "output": {
+          "bows": 3
+        },
+        "baseRate": 1
+      },
+      "buildWork": 20
+    },    {
       "id": "herbal_farm",
       "sector": "agri",
       "nameZh": "草药农场",

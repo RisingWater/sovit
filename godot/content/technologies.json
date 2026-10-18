@@ -162,7 +162,7 @@
       "research": 80,
       "cost": { "goods": { "iron": 20, "wood": 20 } },
       "requires": ["militia", "ironworking"],
-      "unlocks": { "buildings": ["weapon_workshop"], "housing": [] }
+      "unlocks": { "buildings": ["weapon_workshop", "armor_workshop", "bow_arrow_workshop"], "housing": [] }
     },    {
       "id": "pottery",
       "nameZh": "制陶",

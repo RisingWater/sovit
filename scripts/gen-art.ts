@@ -273,6 +273,8 @@ const FORCE_HALF: Record<string, true> = {
   iron_tool_workshop: true,
   tool_works: true,
   weapon_workshop: true,
+  armor_workshop: true,
+  bow_arrow_workshop: true,
   guard_station: true,
   // M2 医疗与教育：草药农场 / 药水工坊 走"小建筑档"；诊所 / 医院 / 学校 走"大建筑档"（不缩小）
   herbal_farm: true,

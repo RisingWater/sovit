@@ -44,6 +44,8 @@
     { "id": "safety", "nameZh": "治安", "tier": 3, "category": "service", "storable": false, "baseValue": 0.3, "perishRate": 1 },
     { "id": "education", "nameZh": "教育", "tier": 3, "category": "service", "storable": false, "baseValue": 0.5, "perishRate": 1 },
     { "id": "weapons", "nameZh": "武器", "tier": 3, "category": "military", "storable": true, "baseValue": 12 },
+    { "id": "armor", "nameZh": "盔甲", "tier": 3, "category": "military", "storable": true, "baseValue": 14 },
+    { "id": "bows", "nameZh": "弓箭", "tier": 3, "category": "military", "storable": true, "baseValue": 10 },
     { "id": "stone_tools", "nameZh": "石制工具", "tier": 1, "category": "tool", "storable": true, "baseValue": 4, "toolBonus": 0.25, "durabilityDays": 10 },
     { "id": "iron_tools", "nameZh": "铁制工具", "tier": 3, "category": "tool", "storable": true, "baseValue": 8, "toolBonus": 0.6, "durabilityDays": 15 }
   ]

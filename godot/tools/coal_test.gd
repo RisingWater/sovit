@@ -184,18 +184,21 @@ func _run() -> void:
 	var coal0 := float(sim.s["goods"]["coal"])
 	var wood0 := float(sim.s["goods"]["firewood"])
 	sim._run_production_step(1.0)
-	var coal_used := coal0 - float(sim.s["goods"]["coal"])
+	# ⚠️ 口径：**只看这块砖窑自己烧了多少**（台账 `consumedBy`），
+	# 不看"库存净变化" —— 村里别的建筑（煤矿场、其它烧料工坊）也会动煤，
+	# 2026-10 加盔甲/弓箭两件商品时就撞上过：净变化 +0.94，其实砖窑照烧不误。
 	var wood_used := wood0 - float(sim.s["goods"]["firewood"])
-	if coal_used <= 0.0:
-		_fail("砖窑没有烧煤（煤 %.2f → %.2f）" % [coal0, float(sim.s["goods"]["coal"])])
-		return
-	if wood_used > 0.001:
-		_fail("砖窑同时烧了木柴（%.2f）—— 一天只该烧一种燃料" % wood_used)
-		return
 	var led: Dictionary = sim.s["ledgerToday"]
 	var by: Dictionary = (led.get("consumedBy", {}) as Dictionary).get("coal", {})
 	if not by.has("brick_kiln"):
-		_fail("台账 consumedBy[coal] 里没有 brick_kiln（资源页看不到谁烧的煤）")
+		_fail("台账 consumedBy[coal] 里没有 brick_kiln（砖窑没烧煤，或没记账）")
+		return
+	var coal_used := float(by["brick_kiln"])
+	if coal_used <= 0.0:
+		_fail("砖窑烧煤量 %.2f，应当 > 0（煤库存 %.2f → %.2f）" % [coal_used, coal0, float(sim.s["goods"]["coal"])])
+		return
+	if wood_used > 0.001:
+		_fail("砖窑同时烧了木柴（%.2f）—— 一天只该烧一种燃料" % wood_used)
 		return
 	print("COAL TEST 烧煤：有煤 → 挑煤、只扣煤（%.2f），台账记着 brick_kiln ✅" % coal_used)
 
