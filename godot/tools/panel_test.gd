@@ -326,6 +326,36 @@ func _run() -> void:
 		return
 	print("PANEL TEST 空转 12 帧后面板子节点数=%d 未被重建 ✅" % after_ids.size())
 
+	# ---- 页面高度必须占满滚动视口（2026-10 又犯一次）
+	#     `ScrollContainer` 只按**最小高度**摆子节点，所以 `_body` 得有个"和视口一样高"的下限。
+	#     ⚠️ 这个下限必须等布局算完再取：面板刚 `visible = true` 的那一帧 `_scroll_root.size`
+	#     还是 0，照旧写法取到 0 → 下限没设上 → 资源页下半截空一大片，而且只有"下次刷新"
+	#     才会自己好（新开一局、不跑时间、面板开着时就是死的）。
+	#     这里按**用户看到的那条路径**验：新开一局 → open() → 只等一帧就量。
+	world.start_new_game(20261019, 1.0, "布局测试")
+	await process_frame
+	panel.open()
+	await process_frame
+	var body_h := (panel._body as Control).size.y
+	var view_h := (panel._scroll_root as Control).size.y
+	if view_h <= 4.0:
+		_fail("统计面板的滚动视口高度是 0（面板没铺开？）")
+		return
+	if body_h < view_h - 4.0:
+		_fail("资源页内容只有 %.0f 高、滚动视口 %.0f —— 下面会空一大片（下限没生效）"
+			% [body_h, view_h])
+		return
+	print("PANEL TEST 资源页高度 %.0f ≥ 滚动视口 %.0f（下面不空）✅" % [body_h, view_h])
+	for tab in [1, 2, 0]:
+		panel._select_tab(tab)
+		await process_frame
+		await process_frame
+		var bh := (panel._body as Control).size.y
+		if bh < view_h - 4.0:
+			_fail("第 %d 页内容只有 %.0f 高、滚动视口 %.0f —— 下面会空一大片" % [tab, bh, view_h])
+			return
+	print("PANEL TEST 三页内容都撑满滚动视口 ✅")
+
 	print("PANEL TEST RESULT: PASS")
 	quit(0)
 

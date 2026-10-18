@@ -31,6 +31,8 @@ var _scroll_root: ScrollContainer
 var _portrait: PanelPortrait
 var _sel_good := ""
 var _sel_resident := ""
+## 布局还没算完时最多推迟几帧再取高度（见 `_sync_body_height()`）
+var _height_retry := 0
 
 func setup(r: SimRunner, w: Node, st: GameStats) -> void:
 	runner = r
@@ -93,6 +95,8 @@ func _ready() -> void:
 	_body.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_body.add_theme_constant_override("separation", 4)
 	scroll.add_child(_body)
+	# 窗口缩放 / 面板重排之后也要重新量一次（否则下限还是旧视口的高度）
+	scroll.resized.connect(_sync_body_height)
 
 	# 右下角的顾问立绘（用户 2026-10）。**最后加** = 画在最上层 —— 见 panel_portrait.gd。
 	_portrait = PanelPortrait.new()
@@ -136,6 +140,10 @@ func _say_hi() -> void:
 # ---------------------------------------------------------------------------
 func _on_visibility_changed() -> void:
 	UIKit.show_map_chrome(self, not UIKit.any_panel_open(self, visible))
+	# 刚变可见时容器还没排版，`_scroll_root.size` 还是 0 —— 推迟一帧再量高度
+	# （否则页面下半截会空着，见 `_sync_body_height()`）
+	if visible:
+		call_deferred("_sync_body_height")
 
 func _select_tab(i: int) -> void:
 	_tab = i
@@ -172,11 +180,29 @@ func refresh() -> void:
 		0: _resources_tab()
 		1: _people_tab()
 		_: _finance_tab()
-	# ⚠️ ScrollContainer 只按**最小高度**摆子节点 —— 不给 `_body` 一个下限，内容就停在
-	# 面板上半截，下面空一片（用户 2026-10 在资源页 / 人口页各圈出来一块）。
-	# 让它至少和视口一样高，页面里那些 `EXPAND_FILL` 才真的能撑开。
-	if _scroll_root != null and _scroll_root.size.y > 4.0:
-		_body.custom_minimum_size.y = _scroll_root.size.y - 2.0
+	_sync_body_height()
+
+## `ScrollContainer` 只按**最小高度**摆子节点 —— 不给 `_body` 一个下限，内容就停在
+## 面板上半截，下面空一大片（用户 2026-10 在资源页 / 人口页各圈出一块，之后**又犯一次**）。
+##
+## ⚠️ 这个下限必须**等布局算完**再取 `_scroll_root.size`：面板刚 `visible = true` 的那一帧，
+## 容器还没排（size 还是 0），照旧写法取到 0 → 高度根本没设上 → 下面空一片；而且只有
+## "下次有人刷新"才会自己好 —— 新开一局、面板开着、又没在跑时间的时候就一直空着
+## （用户圈出来的就是这张：工坊数 0 / 在岗 0 的新局）。
+## 所以：拿不到有效高度就 `call_deferred` 等下一帧再来；另外窗口缩放（`resized`）
+## 与面板重新可见时也各补一次。
+func _sync_body_height() -> void:
+	if _body == null or _scroll_root == null:
+		return
+	var h := _scroll_root.size.y
+	if h <= 4.0:
+		# 还没排过版：下一帧再来（只有可见时才有意义；隐藏着等 open() 那次刷新）
+		if visible and _height_retry < 60:
+			_height_retry += 1
+			call_deferred("_sync_body_height")
+		return
+	_height_retry = 0
+	_body.custom_minimum_size.y = h - 2.0
 
 # ---------------------------------------------------------------------------
 # 通用小件
