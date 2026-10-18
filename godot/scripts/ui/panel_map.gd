@@ -21,7 +21,7 @@ var runner: SimRunner
 var world: Node
 
 ## 底图（比例 = 1536 : 952）。`_layout()` 按它算居中矩形。
-const MAP_ASPECT := 1536.0 / 1024.0
+const MAP_ASPECT := 1524.0 / 1008.0
 const MAP_PATH := "res://assets/ui/map/kingdom_map_bare.jpg"
 const ICON_DIR := "res://assets/ui/map/"
 ## 据点图标占地图高度的百分比（大城镇画得比村庄大，是**素材自带**的相对大小，
@@ -36,42 +36,42 @@ const INK_DIM := Color(0.36, 0.26, 0.17, 0.55)
 
 ## 区域名：text / fx / fy / size（size = 字号，0 = 默认 12）
 const REGIONS := [
-	{"text": "圣辉教国", "fx": 0.470, "fy": 0.0511, "size": 22},
-	{"text": "瓦尔登王国", "fx": 0.640, "fy": 0.1766, "size": 26},
-	{"text": "翡翠海", "fx": 0.880, "fy": 0.3114, "size": 22},
-	{"text": "铁峰公国", "fx": 0.080, "fy": 0.2278, "size": 20},
-	{"text": "灰岩山脉", "fx": 0.300, "fy": 0.3421, "size": 18},
-	{"text": "瓦尔河", "fx": 0.612, "fy": 0.4695, "size": 14},
-	{"text": "沙海汗国", "fx": 0.085, "fy": 0.8507, "size": 20},
+	{"text": "圣辉教国", "fx": 0.3020, "fy": 0.0620, "size": 22},
+	{"text": "瓦尔登王国", "fx": 0.7180, "fy": 0.1320, "size": 26},
+	{"text": "翡翠海", "fx": 0.8830, "fy": 0.3084, "size": 22},
+	{"text": "铁峰公国", "fx": 0.0767, "fy": 0.2235, "size": 20},
+	{"text": "灰岩山脉", "fx": 0.2984, "fy": 0.3396, "size": 18},
+	{"text": "瓦尔河", "fx": 0.6129, "fy": 0.4690, "size": 14},
+	{"text": "沙海汗国", "fx": 0.0817, "fy": 0.8563, "size": 20},
 ]
 
 ## 据点：id / kind / fx / fy / 名字 / 领主 / 特产。
 ## 名字与领主见 `docs/story.md` §1.1、§二；特产用国别表里那一列。
 const MARKS := [
-	{"id": "iron_crown", "kind": "town_large", "fx": 0.455, "fy": 0.4304,
+	{"id": "iron_crown", "kind": "town_large", "fx": 0.4546, "fy": 0.4293, "scale": 1.45,
 		"name": "铁王城", "lord": "阿尔伯特（长子）· 兼掌国库", "specialty": "铁、马"},
-	{"id": "iron_rook", "kind": "town_medium", "fx": 0.405, "fy": 0.1999,
+	{"id": "iron_rook", "kind": "town_medium", "fx": 0.4043, "fy": 0.1951,
 		"name": "铁鸦堡", "lord": "伯纳德（次子）", "specialty": "铁、军械"},
-	{"id": "holy_flame", "kind": "town_medium", "fx": 0.565, "fy": 0.3105,
+	{"id": "holy_flame", "kind": "town_medium", "fx": 0.6194, "fy": 0.1617,
 		"name": "圣火城", "lord": "塞德里克（三子）", "specialty": "圣物、香火"},
-	{"id": "dawn", "kind": "town_medium", "fx": 0.675, "fy": 0.2854,
+	{"id": "dawn", "kind": "town_medium", "fx": 0.7835, "fy": 0.5833,
 		"name": "曙光城", "lord": "伊莲娜（长女）", "specialty": "典籍、纸"},
-	{"id": "golden_ear", "kind": "town_medium", "fx": 0.615, "fy": 0.6155,
+	{"id": "golden_ear", "kind": "town_medium", "fx": 0.6159, "fy": 0.6173,
 		"name": "金穗城", "lord": "狄奥多（四子）", "specialty": "粮食、盐"},
-	{"id": "blackstone", "kind": "town_medium", "fx": 0.365, "fy": 0.5197,
+	{"id": "blackstone", "kind": "town_medium", "fx": 0.3639, "fy": 0.5200,
 		"name": "黑石堡", "lord": "弗雷德里克（六子）", "specialty": "铁、煤"},
-	{"id": "peak", "kind": "town_medium", "fx": 0.135, "fy": 0.3347,
+	{"id": "peak", "kind": "town_medium", "fx": 0.0800, "fy": 0.2649,
 		"name": "铁峰城", "lord": "大公 赫尔曼", "specialty": "铁、煤"},
-	{"id": "jade", "kind": "town_large", "fx": 0.862, "fy": 0.5504,
+	{"id": "jade", "kind": "town_large", "fx": 0.8634, "fy": 0.8420,
 		"name": "翡翠城", "lord": "女王 艾瑟琳", "specialty": "香料、丝绸、宝石"},
-	{"id": "holy_see", "kind": "temple", "fx": 0.520, "fy": 0.1673,
+	{"id": "holy_see", "kind": "temple", "fx": 0.4820, "fy": 0.1157,
 		"name": "圣都", "lord": "教皇 格里高利", "specialty": "圣物、书"},
-	{"id": "khan", "kind": "camp", "fx": 0.150, "fy": 0.7530,
+	{"id": "khan", "kind": "camp", "fx": 0.2234, "fy": 0.9117,
 		"name": "汗庭", "lord": "大汗 巴图尔", "specialty": "马匹、盐、皮毛"},
 ]
 
 ## 我们自己的那一座（图标按城镇中心段位换）
-const HOME := {"id": "ashen_vale", "fx": 0.795, "fy": 0.8005,
+const HOME := {"id": "ashen_vale", "fx": 0.6959, "fy": 0.8682,
 	"lord": "你（第七王子）", "specialty": "木材、石块、粘土"}
 
 var _map: TextureRect
@@ -94,12 +94,15 @@ func _ready() -> void:
 	anchor_top = 0.0
 	anchor_right = 1.0
 	anchor_bottom = 1.0
-	offset_top = float(UIKit.BAR_H)
+	# 用户 2026-10-20："这个窗口直接占满了，不要留上面顶栏" —— 地图面板**连顶栏一起盖**。
+	# 于是回到村子只能靠右上角「关闭」或 Esc（两处都在，`main._unhandled_input` 里先关地图）。
+	offset_top = 0.0
 	offset_bottom = 0.0
 	offset_left = 0.0
 	offset_right = 0.0
 	mouse_filter = Control.MOUSE_FILTER_STOP
-	add_theme_stylebox_override("panel", UIKit.pad(UIKit.box(UIKit.T_PANEL_DARK), 14, 10, 14, 12))
+	# 用户 2026-10-20："这里不要是灰色，面板黄色" —— 用和其它面板同一套米黄底
+	add_theme_stylebox_override("panel", UIKit.pad(UIKit.box(UIKit.T_PANEL_CREAM), 14, 10, 14, 12))
 	visible = false
 
 	var root := VBoxContainer.new()
@@ -284,14 +287,17 @@ func _layout() -> void:
 	_map.position = rect.position
 	_map.size = rect.size
 	# 图标：统一高度缩放，底部中点钉在点位
+	# `scale` 是**单店覆盖**（用户 2026-10-20 在图上标了「放大显示」给铁王城）——
+	# 首都本来就该比中城镇显眼，而素材里两者差不多大。
 	var icon_h := rect.size.y * ICON_H
 	for e in _marks:
 		var d: Dictionary = e["data"]
 		var tex: Texture2D = e["tex"]
-		var iw := icon_h
-		var ih := icon_h
+		var k := float(d.get("scale", 1.0))
+		var ih := icon_h * k
+		var iw := ih
 		if tex != null and tex.get_height() > 0:
-			iw = icon_h * float(tex.get_width()) / float(tex.get_height())
+			iw = ih * float(tex.get_width()) / float(tex.get_height())
 		var cx := rect.position.x + float(d["fx"]) * rect.size.x
 		var by := rect.position.y + float(d["fy"]) * rect.size.y
 		var btn: TextureButton = e["node"]

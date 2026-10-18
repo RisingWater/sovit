@@ -47,9 +47,18 @@ func _run() -> void:
 		_fail("RING_D=%d 不是 64 的整数倍，像素会被重采样" % d)
 		return
 
-	# 2b. 日期框与红巾必须叠在圆盘范围内（紧凑排布），不能把挂件撑高
-	if mm.size.y > float(d) + 8.0:
-		_fail("挂件高度 %.0f 超出圆盘 %d —— 日期框/红巾没有叠上去" % [mm.size.y, d])
+	# 2b. 圆盘整体在挂件里，日期框只许压住上面一小截
+	#     （用户 2026-10-20："这个圆形部分显示的太少了，被遮住的太多了，把圆形部分向下移动"）
+	var ring_y: float = float(mm.RING_Y)
+	if not is_equal_approx(mm.size.y, ring_y + float(d)):
+		_fail("挂件高度应当 = RING_Y(%d) + 圆盘(%d)，实际 %.0f" % [int(ring_y), d, mm.size.y])
+		return
+	var covered := maxf(0.0, float(mm.BOX_H) - ring_y)
+	if covered > 16.0:
+		_fail("日期框压住了圆盘上方 %.0f px（最多只许 16）—— 圆盘没往下挪够" % covered)
+		return
+	if ring_y + float(d) - float(mm.RIB_H) - 6.0 < float(d) * 0.6:
+		_fail("圆盘露出来的部分不到 60%（红巾压太多）")
 		return
 
 	# 3. 村名：默认 sovit、能改、长度受限

@@ -88,10 +88,10 @@ func _run() -> void:
 			or not is_equal_approx((panel as Control).anchor_bottom, 1.0):
 		_fail("地图面板应当全屏（anchors 0..1）")
 		return
-	if not is_equal_approx((panel as Control).offset_top, float(UIKit.BAR_H)):
-		_fail("地图面板应当只留顶栏（offset_top = BAR_H），实际 %.0f" % (panel as Control).offset_top)
+	if not is_equal_approx((panel as Control).offset_top, 0.0):
+		_fail("地图面板应当**连顶栏一起盖**（offset_top = 0），实际 %.0f" % (panel as Control).offset_top)
 		return
-	_ok("点小地图打开地图面板：全屏、只留顶栏")
+	_ok("点小地图打开地图面板：真·全屏（顶栏也盖住）")
 
 	# ---- 3. 据点都在图内 ---------------------------------------------------
 	var marks: Array = panel._marks

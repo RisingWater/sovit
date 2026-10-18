@@ -20,6 +20,10 @@ signal map_pressed
 const RING_D := 128                 # 圆环直径，必须是 64 的整数倍（128 = 64 * 2）
 const RING_SRC := 64                # 四块 32x32 拼起来是 64x64
 const RIB_H := 32
+## 圆盘相对挂件顶部的偏移。用户 2026-10-20："这个圆形部分显示的太少了，被遮住的太多了，
+## 把圆形部分向下移动" —— 原来圆盘从 y=0 开始画，日期框（40 高）压掉了它上面 40px，
+## 只剩 62/128 露着。现在圆盘下移到 26，日期框只压住上面 14px（可见 114/128）。
+const RING_Y := 26
 ## 红巾宽度：要装得下 6 个汉字 @ 24px = 144px。圆盘只有 128，所以红巾比圆盘宽，
 ## 两端各探出 16px —— 和圆盘上下的日期框一样属于刻意压边。
 const RIB_W := 160
@@ -75,8 +79,8 @@ func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_STOP
 	mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	tooltip_text = "打开王国地图"
-	# 整块只有圆盘那么大：日期框和红巾都叠在圆盘上，不外扩
-	custom_minimum_size = Vector2(RING_D, RING_D)
+	# 挂件高度 = 圆盘下移量 + 圆盘（日期框只压住上面一小截，红巾压住下面一角）
+	custom_minimum_size = Vector2(RING_D, RING_Y + RING_D)
 	size = custom_minimum_size
 
 	# --- 日期 + 时间框（木框 9-slice）
@@ -107,7 +111,7 @@ func _ready() -> void:
 
 	# --- 村名红巾
 	var rib := HBoxContainer.new()
-	rib.position = Vector2((RING_D - RIB_W) * 0.5, RING_D - RIB_H + 6)
+	rib.position = Vector2((RING_D - RIB_W) * 0.5, RING_Y + RING_D - RIB_H + 6)
 	rib.add_theme_constant_override("separation", 0)
 	rib.mouse_filter = Control.MOUSE_FILTER_STOP
 	rib.tooltip_text = "点击修改村庄名"
@@ -246,7 +250,7 @@ func _draw() -> void:
 	var m = world.map if world != null else null
 	if m == null:
 		return
-	var o := Vector2(PAD, PAD)
+	var o := Vector2(PAD, RING_Y)
 	var c := o + Vector2(RING_D, RING_D) * 0.5
 	var r_out := RING_D * 0.5
 	var n := view_cells()

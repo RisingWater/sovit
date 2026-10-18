@@ -317,9 +317,9 @@ const NAV_BTN := 48
 const NAV_GAP := 10
 ## 距窗体左边缘的留白
 const NAV_LEFT := 10.0
-## 小地图挂件：custom_minimum_size = RING_D(128)，再加下方那条飘带到 ~140。
-## 140 就是"紧贴着小地图下方"。
-const NAV_TOP := 140.0
+## 小地图挂件：custom_minimum_size = RING_Y(26) + RING_D(128) = 154，再加下方那条飘带到 ~168。
+## 168 就是"紧贴着小地图下方"（2026-10-20 圆盘下移 26px，这里跟着下移）。
+const NAV_TOP := 168.0
 ## 圆钮里的图标尺寸。**必须是图标原生尺寸(32)的整数倍**：
 ## 32 = 原生 1 倍。非整数倍会把像素拉得大小不一（项目用 Nearest 过滤，肉眼可见）。
 const NAV_ICON := 32
