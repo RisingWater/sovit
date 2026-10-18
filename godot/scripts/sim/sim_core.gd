@@ -17,11 +17,19 @@ func _init(content: ContentDB) -> void:
 ## 这三条**不花任何资源**（材料是在**开工那一刻**才扣的），只动一条队列，没理由等黎明。
 ## ⚠️ 其余动作（建造 / 拆除 / 改价 / 招工…）仍然**次日黎明生效** —— 那是"一天一结算"的核心
 ## 口径，也是黄金轨迹的确定性来源。TS 侧同一份名单：`tick.ts::IMMEDIATE_ACTIONS`。
-const IMMEDIATE_ACTIONS := ["research", "cancel_research", "move_research"]
+##
+## 2026-10-20 加了 `gift`（用户："提交任务，要马上减少物资怎么能次日生效呢？……提交了任务
+## 直接完成。任务完成不用等到 6:00 吧，这样游戏体验很差。"）：当面交东西 → 货当场扣、
+## 任务当场结算（见 `_apply_immediate` 末尾那一趟 `_check_quests`）。
+const IMMEDIATE_ACTIONS := ["research", "cancel_research", "move_research", "gift"]
 
 ## 当场应用一条动作，并把它的公告并进 `s["log"]`（与 `tick_hour` 末尾同一口径，上限 500）。
+##
+## ⚠️ 应用完**顺手跑一趟任务判定**：玩家刚交完东西，那一条就该当场完成、钱当场到账，
+## 不能等到下一个 6:00。判定是幂等的（只看状态），多跑一趟没有副作用。
 func _apply_immediate(a: Dictionary) -> void:
 	var logs := _apply_actions([a])
+	logs.append_array(_check_quests())
 	if logs.is_empty():
 		return
 	var all_logs: Array = s["log"]
@@ -281,6 +289,12 @@ func tick_hour(pending_actions: Array = []) -> Array:
 		logs.append_array(_apply_research_hours(fraction))
 	if h == int(db.time["settleHour"]):
 		logs.append_array(_run_night())
+	# 任务判定：**每小时都扫一次**（用户 2026-10-20："任务完成不用等到 6:00 吧，
+	# 这样游戏体验很差"）。判定只读状态、幂等，扫一遍很便宜。
+	# 黎明那一趟已经在 `_run_dawn()` 末尾扫过，这里跳过（免得同一小时跑两遍、日志重复）。
+	# TS 侧同一口径（`tick.ts::stepHour`）。
+	if h != int(db.time["dawnHour"]):
+		logs.append_array(_check_quests())
 	s["hour"] = (h + 1) % int(db.time["hoursPerDay"])
 	# 公告（`s["log"]`）**逐小时累积当小时的日志**（黎明 / 白天 / 夜晚三批都算），上限 500。
 	#
@@ -468,15 +482,16 @@ func _apply_actions(actions: Array) -> Array:
 				if why_buy != "":
 					logs.append({"day": int(s["day"]), "kind": "finance", "text": "买入被拒：" + why_buy})
 			"gift":
-				# 送物资（用户 2026-10 · A4）：与建造 / 研究同一拍 —— 次日黎明生效。
-				# 扣货 + 记进 `s["gifts"][to][good]`，任务目标 `gifted` 判的就是这个累计量。
-				# 整单成败：仓库不够就一件都不送（与 TS `actions.ts::gift` 同口径）。
+				# 送物资（用户 2026-10 · A4；2026-10-20 改成**即时生效**）：
+				# 玩家当面交东西，货当场出门、任务当场结算 —— 不能等到次日黎明。
+				# ⚠️ 只能花**没被锁定的**那部分：`reserved` 是当天排产已经计划掉的原料，
+				# 动了它，白天的生产线就会缺料（与 `available()` / `spend()` 同一口径）。
 				# ⚠️ match 分支里不要用 `:=`（GDScript 会报 "Expected end of statement"）。
 				var gift_gid := String(action.get("goodId", ""))
 				var gift_to := String(action.get("to", "")).strip_edges()
 				var gift_qty := int(floor(float(action.get("qty", 0))))
 				if db.goods.has(gift_gid) and gift_qty > 0 and gift_to != "" \
-						and float(s["goods"].get(gift_gid, 0.0)) + 1e-9 >= float(gift_qty):
+						and available(gift_gid) + 1e-9 >= float(gift_qty):
 					s["goods"][gift_gid] = SimUtil.r2(float(s["goods"].get(gift_gid, 0.0)) - float(gift_qty))
 					if not (s.get("gifts", null) is Dictionary):
 						s["gifts"] = {}
@@ -2868,12 +2883,14 @@ func epoch_prefix() -> String:
 	var cal: Dictionary = db.time.get("calendar", {}) if db != null else {}
 	return String(cal.get("epochPrefix", "AE"))
 
-## `AE 312 年 1 月 1 日` —— 顶栏、公告、任务面板、存档、预言 tooltip 都用它。
+## `AE 312年4月20日` —— 顶栏、公告、任务面板、存档、预言 tooltip 都用它。
+## ⚠️ 只有 `AE` 与年份之间留一个空格，其余**不空格**（用户 2026-10-20：
+## 顶栏那个框只有 112px 宽，`AE 312 年 4 月 20 日` 会顶出框外）。
 func date_label(day: int) -> String:
 	var d := date_of(day)
-	return "%s %d 年 %d 月 %d 日" % [epoch_prefix(), int(d["year"]), int(d["month"]), int(d["day"])]
+	return "%s %d年%d月%d日" % [epoch_prefix(), int(d["year"]), int(d["month"]), int(d["day"])]
 
-## `AE 312 年 1 月 1 日 06:00` —— 需要连时刻一起说的地方。
+## `AE 312年4月20日 13:00` —— 需要连时刻一起说的地方。
 func date_time_label(day: int, hour: int) -> String:
 	return "%s %02d:00" % [date_label(day), hour]
 
@@ -2983,7 +3000,15 @@ func _quest_goal_progress(goal: Dictionary) -> Dictionary:
 		var bag: Dictionary = (s.get("gifts", {}) as Dictionary).get(to, {})
 		have = float(bag.get(gid, 0.0))
 		text = "%s 已送出 %d/%d" % [_quest_name("good", gid), _quest_shown(have), int(need)]
-	return {"have": have, "need": need, "met": have + 1e-9 >= need, "text": text}
+	# 连带把目标的"身份"也摊出来：任务面板要在要求后面长一个「提交」按钮
+	# （用户 2026-10-20），它得知道这是哪一类目标、交什么、交给谁、要多少。
+	return {
+		"type": type,
+		"id": gid,
+		"to": String(goal.get("to", "")),
+		"min": need,
+		"have": have, "need": need, "met": have + 1e-9 >= need, "text": text,
+	}
 
 ## 前置是否都完成过。
 func _quest_unlocked(def: Dictionary) -> bool:

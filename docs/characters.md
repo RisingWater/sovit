@@ -533,16 +533,22 @@
 
 | 文件 | 尺寸 | 说明 |
 |---|---|---|
-| `godot/assets/portraits/sebastian.png` | 640×960 | 默认表情 |
-| `godot/assets/portraits/alvin.png` | 640×960 | 默认表情 |
-| `godot/assets/portraits/reynard.png` | 640×960 | 默认表情 |
-| `godot/assets/portraits/isabella.png` | 640×960 | 默认表情 |
-| `godot/assets/portraits/vera.png` | 640×960 | 默认表情 |
-| `godot/assets/portraits/luna.png` | 640×960 | 默认表情 |
-| `godot/assets/portraits/serafina.png` | 640×960 | 默认表情 |
+| `godot/assets/portraits/sebastian.png` | 640×896 | 默认表情 |
+| `godot/assets/portraits/alvin.png` | 640×896 | 默认表情 |
+| `godot/assets/portraits/reynard.png` | 640×896 | 默认表情 |
+| `godot/assets/portraits/isabella.png` | 640×896 | 默认表情 |
+| `godot/assets/portraits/vera.png` | 640×896 | 默认表情 |
+| `godot/assets/portraits/luna.png` | 640×896 | 默认表情 |
+| `godot/assets/portraits/serafina.png` | 640×896 | 默认表情 |
+
+⚠️ **尺寸从 640×960 改成 640×896**（2026-10-20）：出图工具在右下角压了一行
+「AI生成 / WORKBUDDY」水印，四张（`isabella` / `reynard` / `sebastian` / `serafina`）
+**带着它**，所以统一把底部 64px 裁掉 —— 带水印的清掉了，不带的一起裁，
+保证七个人**同尺寸、同纵横比**（面板按宽高比现算宽度，尺寸不一致会让人物忽宽忽窄）。
+以后再出图：**要么别让工具加水印，要么同样从底部裁 64px**。
 
 这套图的构图本来就对齐（人物都在 x 118..904 / y 150..1329 之内），所以**同一套裁切框**裁过去，
-人物大小与站位天然一致。以后补表情也照这个框。
+人物大小与站位天然一致。以后补表情也照这个框（底部仍留 64px 余量）。
 
 ### 6.3 命名与 id
 

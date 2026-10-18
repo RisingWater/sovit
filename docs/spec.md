@@ -739,14 +739,19 @@ out = ((t ^ (t >> 14)) & 0xFFFFFFFF) / 2^32
 > 完整设计（任务树、每条任务为什么存在、UI）见 `docs/quests.md`；内容在 `content/quests.json`。
 > 两份实现：`src/engine/systems/quests.ts` 与 `godot/scripts/sim/sim_core.gd`（同口径、同数字）。
 
-### 16.1 判定 `checkQuests`（黎明，`runDawn` 末尾）
+### 16.1 判定 `checkQuests`（**每小时**，`stepHour` 末尾；黎明那一趟在 `runDawn` 末尾）
+
+> 2026-10-20 用户："提交了任务直接完成。任务完成不用等到 6:00 吧，这样游戏体验很差。"
+> 所以判定从"只在天亮时跑"改成**每小时都跑一次**，另外**即时动作之后**再跑一次
+> （他当面交完东西，那一条必须当场完成 —— 见 §17）。
+> ⚠️ 黎明那一趟**没有**去掉：`runDawn()` 是测试与脚本的直接入口，它自己扫一遍更稳。
 
 ```
 for sweep in range(questIds.size() + 1):          # 反复扫，直到这一轮没有新完成
   for q in questIds:                              # 内容定义顺序（确定性）
     未完成 && requires 全部完成过 && 本章已开（只闸主线） && goals 全为真:
         quests.done[q] = day ; government.money += reward(q) ; 记一条公告
-        若同一次黎明完成多条 → 合并成一条「完成 N 项任务（+M 金）：A、B」（M = 0 时不写金额）
+        若同一趟完成多条 → 合并成一条「完成 N 项任务（+M 金）：A、B」（M = 0 时不写金额）
         并报出被这次结算"顶"出来的新任务：「新任务：…」
 章节奖励：某一章的**主线**（`kind:"main"`）全绿 → quests.chapters[chapter] = day ; money += chapter.reward
 日志：「章节「X」全部完成（+1000 金）」
@@ -754,10 +759,12 @@ for sweep in range(questIds.size() + 1):          # 反复扫，直到这一轮�
 
 `reward(q)`：`kind:"milestone"` 一律 0（内容校验也拦：里程碑不许写 `reward`）。
 
+- **什么时候跑**：`stepHour` 里，除黎明那一小时之外每小时扫一次（黎明由 `runDawn` 扫）；
+  以及**每一条即时动作之后**（`tick.ts::queueActions` / `sim_core::_apply_immediate`）
 - 判定**只看当前状态**（`shops` / `housing` / `residents` / `research.done` / `goods` /
   `history` 台账 / `privateHousing`）—— 所以玩家先干了、任务后出现也**当场算完成**
-- 一次黎明里会**连锁**（反复扫）：刚建好的研究所可以把一条"只差它当前置"的任务一起结算
-- 完成**不回退**（人口掉回去也不算未完成）、**不重复发钱**
+- 一趟里会**连锁**（反复扫）：刚建好的研究所可以把一条"只差它当前置"的任务一起结算
+- 完成**不回退**（人口掉回去也不算未完成）、**不重复发钱**；判定**幂等**，多跑几趟没有副作用
 - 显示文案由**引擎**拼（`goalProgress().text` / `quest_progress()`），数字一律向下取整；
   UI 不许自己拼 —— 否则 TS 与 GDScript 会显示出两种样子
 
@@ -883,21 +890,26 @@ state.prophet = { lastAskDay: int }      # -1 = 这一局还没问过
 - 里程碑**唯一的职责是让追踪条不空**（目标可以设得很远，2000 人到不了也没关系）
 - 校验器拦两条：`kind:"milestone"` 不许写 `reward`；**主线不许 `requires` 支线 / 里程碑**
 
-## 17. 送物资 `gift`（用户 2026-10 · A4）
+## 17. 送物资 `gift`（用户 2026-10 · A4，2026-10-20 改成**即时**）
 
 ```
-命令   { type:"gift", to:"serafina", goodId, qty }     # 与建造 / 研究同一拍：次日黎明生效
-语义   仓库够 → 扣 qty、state.gifts[to][good] += qty、写一条公告「送物资：粗面包 ×20」
-       仓库不够 / qty ≤ 0 / 商品不在本 pack → 整单不做（**没有"送一半"**）
+命令   { type:"gift", to:"serafina", goodId, qty }     # **即时生效**（IMMEDIATE_ACTIONS）
+可用   只能花"**没被锁定的**"：available(gid) = goods[gid] − reserved[gid]
+       （reserved = 当天排产已经计划掉的原料；动了它白天就缺料 —— 与 spend() 同一口径）
+语义   可用量够 → 当场扣 qty、state.gifts[to][good] += qty、写一条公告「送物资：粗面包 ×20」
+       **紧接着跑一趟 checkQuests**：刚交齐的那条任务当场完成、奖励当场进国库（不等 6:00）
+       可用量不够 / qty ≤ 0 / 商品不在本 pack → 整单不做（**没有"送一半"**）
 状态   state.gifts = { 收礼人: { 商品: 累计送出量 } }     # 存档 v5
 判定   任务目标 `gifted` 读它；`good`（库存）读不到"送出过多少"
-入口   预言面板底部一行「送物资」：选商品 + 填数量 + 点「送去」
+入口   ① 任务面板：`gifted` 那条要求的后面长一个「提交」按钮
+          （qty = min(还差多少, **可用量**)；没有可交的就灰着）
+       ② 预言面板底部一行「送物资」：选商品（只列可用量 ≥ 1 的）+ 填数量 + 点「送去」
 ```
 
 ## 18. 历法（`AE` 纪元，用户 2026-10 · B0）
 
 ```
-第 1 天 = AE 312 年 1 月 1 日          # AE = 帝国纪元 = After Empire
+第 1 天 = AE 312年1月1日          # AE = 帝国纪元 = After Empire
 12 个月 × 30 天 = 360 天/年             # 常量在 content/economy.json 的 time.calendar
 year  = epochYear + floor((day-1) / 360)
 month = floor((day-1) / 30) % 12 + 1

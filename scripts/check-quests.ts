@@ -559,6 +559,49 @@ console.log('\n=== 任务系统引擎自检 ===\n')
     String(ctx.questIds.filter((id) => id.startsWith('q_s_sera_')).length))
 }
 
+// ---- 15. 提交要"当场"生效（2026-10-20）----------------------------------
+// 用户："提交任务，要马上减少物资怎么能次日生效呢？……提交了任务直接完成。任务完成不用
+// 等到 6:00 吧，这样游戏体验很差。" 所以：① 只花**没被锁定的**货；② 交完当场结算。
+{
+  // ① 被当天排产锁住的不能动
+  const s = freshState()
+  s.goods['coarse_bread'] = 30
+  s.reserved['coarse_bread'] = 25
+  const r = applyActions(s, ctx, [{ type: 'gift', to: 'serafina', goodId: 'coarse_bread', qty: 10 }])
+  ok('被当天排产锁住的货不能交（可用 = 库存 − 锁定）',
+    !r[0]!.ok && s.goods['coarse_bread'] === 30, String(r[0]!.reason))
+  const r2 = applyActions(s, ctx, [{ type: 'gift', to: 'serafina', goodId: 'coarse_bread', qty: 5 }])
+  ok('可用量够就能交（5 = 库存 30 − 锁定 25）',
+    r2[0]!.ok && s.goods['coarse_bread'] === 25, `bread=${s.goods['coarse_bread']}`)
+
+  // ② 交完当场完成，不用等下一个黎明
+  const s2 = freshState()
+  s2.goods['coarse_bread'] = 100
+  const money0 = s2.government.money
+  const tick = advanceHour(s2, [{ type: 'gift', to: 'serafina', goodId: 'coarse_bread', qty: 20 }])
+  ok('gift 是即时动作：不进待生效队列',
+    tick.state.pending.every((a) => a.type !== 'gift'), JSON.stringify(tick.state.pending))
+  ok('交完当场完成（不用等 6:00）',
+    tick.state.quests.done['q_s_sera_1'] === tick.state.day,
+    `day=${tick.state.quests.done['q_s_sera_1']} / 现在第 ${tick.state.day} 天`)
+  ok('奖励当场进国库（+150）',
+    Math.abs(tick.state.government.money - (money0 + 150)) < 1e-6,
+    `${money0} → ${tick.state.government.money}`)
+  ok('公告里既有"送物资"也有"完成任务"',
+    tick.log.some((l) => l.text.includes('送物资：粗面包')) &&
+      tick.log.some((l) => l.text.includes('完成任务：一趟面包')),
+    tick.log.map((l) => l.text).join(' / '))
+
+  // ③ 其它任务也不等到 6:00：判定**每小时**都跑（`stepHour` 末尾）
+  const s3 = freshState()
+  for (const id of ['wheat_farm', 'coarse_mill', 'coarse_bakery']) addShop(s3, id)
+  ok('（前置）这时候还没结算过', s3.quests.done['q01_bread_chain'] === undefined)
+  const t3 = advanceHour(s3)
+  ok('达成即结算：白天的小时里也会判任务（不必等下一个 6:00）',
+    t3.state.quests.done['q01_bread_chain'] === t3.state.day,
+    `day=${t3.state.quests.done['q01_bread_chain']}（小时 ${t3.state.hour}）`)
+}
+
 console.log('')
 if (failed > 0) {
   console.error(`任务系统自检失败 ${failed} 条 ❌`)

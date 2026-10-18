@@ -33,14 +33,14 @@ const DEFAULT_VISIBLE := ["wood", "stone", "brick", "clay", "firewood",
 ## 快存 / 快读的存档位。
 ##
 ## **故意留成变量而不是直接用 `SaveManager.DEFAULT_PATH`**：门槛 `keys_test.gd`
-## 要真按 F7 / F8（不然测不到这条绑定），而那两个键会真的读写存档 ——
+## 要真按 Ctrl+S / Ctrl+L（不然测不到这条绑定），而那两个键会真的读写存档 ——
 ## 指向测试文件才不会把玩家自己的快存覆盖掉。
 var quick_path: String = SaveManager.DEFAULT_PATH
 
 var _info: Label
 var _notice: Label
 var _speed_btns: Array[Button] = []
-## 左侧圆钮列（顺序 = NAV_ITEMS）。快捷键 F1..F8 按这个顺序取，
+## 左侧圆钮列（顺序 = NAV_ITEMS）。快捷键 F1..F12 按这个顺序取，
 ## 所以以后 `NAV_ITEMS` 里加一项，就自动多一个 F 键，不用改快捷键代码。
 var _nav_btns: Array[Button] = []
 ## 「科技」那个圆钮（研究所建起来之前藏着，见 `refresh_nav_buttons()`）
@@ -54,9 +54,9 @@ var _trade_nav_btn: Button = null
 ## 4x 是最快。与顶栏那排按钮一一对应。
 const SPEEDS := [1.0, 2.0, 4.0]
 
-## 圆钮最多占几个 F 键。**F7 / F8 留给快存 / 快读**（用户："F7快存F8快读"），
+## 圆钮最多占几个 F 键（F1..F12）。
 ## 所以圆钮只认 F1..F6；第 7、8 个圆钮没有快捷键（tooltip 里也不写）。
-const NAV_MAX_KEY := 6
+const NAV_MAX_KEY := 12
 
 var _res_row: HBoxContainer
 var _chip_labels: Dictionary = {}
@@ -128,11 +128,11 @@ func _ready() -> void:
 
 	# 只保留"快存 / 快读"（直接写默认存档位），其余进 ESC 菜单
 	var qs := UIKit.button("快存", true)
-	qs.tooltip_text = "快速保存到默认存档位（F7）"
+	qs.tooltip_text = "快速保存到默认存档位（Ctrl+S）"
 	qs.pressed.connect(quick_save)
 	row.add_child(qs)
 	var ql := UIKit.button("快读", true)
-	ql.tooltip_text = "从默认存档位快速读取（F8）"
+	ql.tooltip_text = "从默认存档位快速读取（Ctrl+L）"
 	ql.pressed.connect(quick_load)
 	row.add_child(ql)
 	# 「统计 / 科技」按钮已移到左侧小地图下方的圆形按钮列（见 _build_nav）
@@ -364,9 +364,9 @@ func _build_nav() -> void:
 		b.name = "Nav_" + ico_name
 		b.custom_minimum_size = Vector2(NAV_BTN, NAV_BTN)
 		b.focus_mode = Control.FOCUS_NONE
-		# F 键提示按**按钮顺序**给：第 1 个圆钮是 F1，第 6 个是 F6。
-		# ⚠️ 只到 F6：**F7 / F8 留给快存 / 快读**（用户定的），所以圆钮就算加到
-		# 第 7、8 个也不给 F 键 —— 提示里不写，用户按不出来才不会以为坏了。
+		# F 键提示按**按钮顺序**给：第 1 个圆钮是 F1，第 7 个是 F7。
+		# 圆钮按顺序吃 F1..F12（2026-10-20 起快存 / 快读改 Ctrl+S / Ctrl+L，
+		# 原来被它们占着的 F7 / F8 也空出来了），超过 `NAV_MAX_KEY` 的那些才不给键。
 		var nav_i := _nav_btns.size() + 1
 		b.tooltip_text = "%s（F%d）" % [label, nav_i] if nav_i <= NAV_MAX_KEY else label
 		var ico := UIKit.stat_icon(ico_name)
@@ -680,7 +680,7 @@ func speed_step(dir: int) -> void:
 
 ## F1..F6：按左侧圆钮列的**第 i 个**（0 起）。返回 false = 没有这个按钮
 ## （现在只有 4 个，F5/F6 落空 —— 调用方据此决定要不要吃掉这个键）。
-## ⚠️ **F7 / F8 不在这里**：那是快存 / 快读（`quick_save` / `quick_load`），
+## ⚠️ 快存 / 快读**不在这里**（Ctrl+S / Ctrl+L，见 `main.gd::_shortcut_input`），
 ## 上限就是 `NAV_MAX_KEY`。
 ## ⚠️ 按钮**藏着**的时候（科技没研究所 / 预言没到第一章收尾）也算"没有这个按钮"：
 ## 否则 F5 会在屏幕上什么都没有的情况下弹出一个面板。
@@ -692,7 +692,7 @@ func activate_nav(i: int) -> bool:
 	_nav_btns[i].pressed.emit()
 	return true
 
-## 左侧圆钮个数（快捷键按 F1..F8 只发前 8 个，越界的直接吃掉不报错）。
+## 左侧圆钮个数（快捷键按 F1..F12 只发前 12 个，越界的直接吃掉不报错）。
 func nav_count() -> int:
 	return _nav_btns.size()
 

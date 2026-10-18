@@ -67,6 +67,16 @@ var _ask_input: LineEdit
 ## 预言页左栏：历史条目的容器 + 当前选中哪一条（-1 = 没选）
 var _hist: VBoxContainer
 var _sel_entry := -1
+## 预言页的两个页签（用户 2026-10-20）：0 = 新预言、1 = 历史预言。
+## 两页各有**自己的**输出区（`_ai_body` / `_hist_body`），翻历史不会顶掉刚问出来的那一卦。
+var _tab := 0
+var _tab_btns: Array[Button] = []
+var _tab_new: VBoxContainer
+var _tab_hist: VBoxContainer
+## 历史页右栏（选中那条的问话 + 原话）
+var _hist_head: Label
+var _hist_body: VBoxContainer
+var _hist_scroll: ScrollContainer
 ## 「送物资」（用户 2026-10 · A4）：选商品 + 填数量 + 送一趟。
 var _gift_box: OptionButton
 var _gift_qty: LineEdit
@@ -129,10 +139,14 @@ func _on_hour_ticked() -> void:
 #   · 顶栏水晶球 / 左侧圆钮「预言」（`open_for_question()`）→ 预言页（全屏）
 #   · ESC 菜单（`open_settings()`）                        → 设置页（浮动对话框）
 # ---------------------------------------------------------------------------
-## 打开**预言**页（全屏）。历史里挑最新那条显示。
+## 打开**预言**页（全屏）。落到第一页「新预言」，右边顺手摊出上一次的进言。
+##
+## ⚠️ 每次打开都回第一页（用户 2026-10-20："第一个 tab 是新预言"）：上回读历史读到一半
+## 关掉，再点水晶球时该是"要问事"的状态，而不是接着上次那页。
 func open() -> void:
 	_cfg = AiConfig.load_cfg()
 	_mode = MODE_PROPHECY
+	_tab = 0
 	visible = true
 	_build()
 	_place()
@@ -266,6 +280,13 @@ func _build() -> void:
 	_ai_body = null
 	_hist = null
 	_test_lb = null
+	# 两个页签的骨架（`_tab` 本身**不重置**：重建后 `open()` 决定落在哪一页）
+	_tab_btns.clear()
+	_tab_new = null
+	_tab_hist = null
+	_hist_head = null
+	_hist_body = null
+	_hist_scroll = null
 
 	var root := VBoxContainer.new()
 	root.add_theme_constant_override("separation", 6)
@@ -335,33 +356,50 @@ func _wrapped(text: String, color: Color = UIKit.FG_DARK, width: float = 0.0) ->
 	return l
 
 # ---------------------------------------------------------------------------
-# 预言页（全屏）
+# 预言页（全屏）—— 两个页签（用户 2026-10-20：「改成两个 tab，第一个是新预言，
+# 第二个是历史预言」）
+#
+#   新预言：左边问话 + 「获取新的预言」+ 送物资；右边她的回答（上一场会话/上一次进言）
+#   历史预言：左边一条一条的历史；右边选中那条的原话
+#
+# 两页各有**自己的**输出区（`_ai_body` / `_hist_body`）：翻历史不会把刚问出来的那段
+# 顶掉，回到第一页还是那一卦。立绘两页共用，画在最上层。
 # ---------------------------------------------------------------------------
+const TAB_NAMES := ["新预言", "历史预言"]
+
 func _build_prophecy(root: VBoxContainer) -> void:
 	_head_row(root, false)
 	root.add_child(UIKit.hsep())
 
+	# 页签（和统计 / 任务面板同一套做法：一排按钮 + 选中换底纹）
+	var tab_row := HBoxContainer.new()
+	tab_row.add_theme_constant_override("separation", 6)
+	root.add_child(tab_row)
+	for i in TAB_NAMES.size():
+		var tb := UIKit.button(String(TAB_NAMES[i]), true)
+		tb.pressed.connect(_switch_tab.bind(i))
+		tab_row.add_child(tb)
+		_tab_btns.append(tb)
+	tab_row.add_child(UIKit.spacer())
+	root.add_child(UIKit.hsep())
+
+	# ---------------- 第一页：新预言
+	_tab_new = _vbox(0)
+	# ⚠️ 页容器**必须撑开**：它现在是 root(VBox) 的直接孩子，不撑开的话两栏会被压成
+	# 一条细带（历史页第一版就是这样：右边的原文只剩一条缝，还硬挤出个滚动条）。
+	_tab_new.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	root.add_child(_tab_new)
 	var body := HBoxContainer.new()
 	body.add_theme_constant_override("separation", 10)
 	body.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	root.add_child(body)
+	_tab_new.add_child(body)
 
-	# ---- 左栏：历史预言 + 问话
 	var left := _vbox(4)
 	left.custom_minimum_size = Vector2(HIST_W, 0)
 	# ⚠️ 不能跟着撑开：`_vbox()` 给的是 EXPAND_FILL，两栏都会去分多出来的宽度，
 	# 左栏会被拉到面板的一半（第一版就是这样：问话栏横了一整条）。
 	left.size_flags_horizontal = Control.SIZE_FILL
 	body.add_child(left)
-	_section(left, "历史预言")
-	var hscroll := ScrollContainer.new()
-	hscroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	hscroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	left.add_child(hscroll)
-	_hist = _vbox(2)
-	hscroll.add_child(_hist)
-
-	left.add_child(UIKit.hsep())
 	var ask_row := HBoxContainer.new()
 	ask_row.add_theme_constant_override("separation", 5)
 	left.add_child(ask_row)
@@ -378,7 +416,7 @@ func _build_prophecy(root: VBoxContainer) -> void:
 	left.add_child(_ask_btn)
 
 	# ---- 送物资（用户 2026-10 · A4）：她住在林子那边，东西得有人送过去。
-	# 走 `gift` 命令（与建造 / 研究同一拍，**次日黎明生效**），扣货并记进
+	# 走 `gift` 命令（**即时生效**：货当场扣），扣货并记进
 	# `state.gifts`；追踪条上那 17 条「送物资」支线判的就是这个累计量。
 	left.add_child(UIKit.hsep())
 	_section(left, "送物资")
@@ -394,27 +432,16 @@ func _build_prophecy(root: VBoxContainer) -> void:
 	_gift_qty = UIKit.input("数量", 5)
 	_gift_qty.text = "10"
 	_gift_qty.custom_minimum_size = Vector2(56, 0)
-	_gift_qty.tooltip_text = "送多少件（次日黎明生效）"
+	_gift_qty.tooltip_text = "送多少件（当场送出）"
 	gift_row.add_child(_gift_qty)
 	var gift_btn := UIKit.button("送去", true)
-	gift_btn.tooltip_text = "把这一份送到林子那边（次日 06:00 生效）"
+	gift_btn.tooltip_text = "把这一份送到林子那边（**当场送出**：货立刻扣）"
 	gift_btn.pressed.connect(_send_gift)
 	left.add_child(gift_btn)
 
-	# ---- 右栏：状态 + 内容
-	# 右边给立绘留出 PORTRAIT_GAP：立绘画在最上层，不给它让位的话数字会跑到脸上。
-	var right_wrap := HBoxContainer.new()
-	right_wrap.add_theme_constant_override("separation", 0)
-	right_wrap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	right_wrap.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	body.add_child(right_wrap)
-	var right := _vbox(4)
-	right.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	right_wrap.add_child(right)
-	var gap := Control.new()
-	gap.custom_minimum_size = Vector2(PORTRAIT_GAP, 0)
-	right_wrap.add_child(gap)
-
+	# 右栏：状态 + 内容。右边给立绘留出 PORTRAIT_GAP：
+	# 立绘画在最上层，不给它让位的话文字会跑到她脸上。
+	var right := _prophecy_right(body)
 	_status = _wrapped("", UIKit.FG_DIM)
 	right.add_child(_status)
 	_ai_head = _wrapped("", UIKit.FG_HEAD)
@@ -428,6 +455,40 @@ func _build_prophecy(root: VBoxContainer) -> void:
 	_ai_body = _vbox(4)
 	cscroll.add_child(_ai_body)
 
+	# ---------------- 第二页：历史预言
+	_tab_hist = _vbox(0)
+	_tab_hist.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	root.add_child(_tab_hist)
+	var body_h := HBoxContainer.new()
+	body_h.add_theme_constant_override("separation", 10)
+	body_h.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_tab_hist.add_child(body_h)
+
+	var left_h := _vbox(4)
+	left_h.custom_minimum_size = Vector2(HIST_W, 0)
+	left_h.size_flags_horizontal = Control.SIZE_FILL
+	body_h.add_child(left_h)
+	# ⚠️ 左栏顶上**不要**再放一条「历史预言」的小标题条：页签已经写着「历史预言」了，
+	# 再来一条深色横条既重复又抢地方（2026-10-20 用户截图里那个黑条就是它）。
+	var hscroll := ScrollContainer.new()
+	hscroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	hscroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	left_h.add_child(hscroll)
+	_hist = _vbox(2)
+	hscroll.add_child(_hist)
+
+	var right_h := _prophecy_right(body_h)
+	_hist_head = _wrapped("", UIKit.FG_HEAD)
+	right_h.add_child(_hist_head)
+	var hcscroll := ScrollContainer.new()
+	hcscroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	hcscroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	hcscroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	right_h.add_child(hcscroll)
+	_hist_scroll = hcscroll
+	_hist_body = _vbox(4)
+	hcscroll.add_child(_hist_body)
+
 	# 立绘：**最后加** = 画在最上层（见 panel_portrait.gd 的注释）
 	_portrait = PanelPortrait.new()
 	_portrait.name = "Portrait"
@@ -438,10 +499,46 @@ func _build_prophecy(root: VBoxContainer) -> void:
 	_refresh_status()
 	_sync_ask_button()
 	_select_latest_entry()
+	# 第一页顺手把"上一次进言"摊出来（用户点顶栏那颗水晶球时想先看到上一卦）
+	_show_live(_sel_entry)
+	_apply_tab()
+
+## 预言页右栏的容器（两页各一份）：内容 VBox + 给立绘让的那块空白。
+func _prophecy_right(host: HBoxContainer) -> VBoxContainer:
+	var wrap := HBoxContainer.new()
+	wrap.add_theme_constant_override("separation", 0)
+	wrap.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	wrap.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	host.add_child(wrap)
+	var right := _vbox(4)
+	right.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	wrap.add_child(right)
+	var gap := Control.new()
+	gap.custom_minimum_size = Vector2(PORTRAIT_GAP, 0)
+	wrap.add_child(gap)
+	return right
+
+## 换页签。两页各有自己的输出区，切过去不会互相顶掉。
+func _switch_tab(i: int) -> void:
+	if _tab == i:
+		return
+	_tab = i
+	UIKit.play_switch()
+	_apply_tab()
+
+## 把 `_tab` 落到界面上（谁可见 + 页签底纹）。
+func _apply_tab() -> void:
+	if _tab_new != null:
+		_tab_new.visible = _tab == 0
+	if _tab_hist != null:
+		_tab_hist.visible = _tab == 1
+	for i in _tab_btns.size():
+		_tab_btns[i].add_theme_stylebox_override("normal",
+			UIKit.box(UIKit.T_BTN_ACTIVE if i == _tab else UIKit.T_BTN))
 
 ## 历史列表：一条一个按钮（第 N 天 + 问的那句话）。选中的那条换底纹。
-## 「送物资」的下拉：只列**仓库里真的有的**（数量 ≥ 1），带上现有件数。
-## 每次打开面板重建一次 —— 库存会变，列一份旧的会让人送不出去还以为是 bug。
+## 「送物资」的下拉：只列**现在真的送得出去的**（可用量 ≥ 1，即库存 − 当天排产锁定的），
+## 带上可送件数。每次打开面板 / 送完一趟都重建一次 —— 数字会变，列一份旧的会让人送不出去。
 func _refresh_gift_box() -> void:
 	if _gift_box == null or runner == null or runner.sim == null:
 		return
@@ -452,16 +549,17 @@ func _refresh_gift_box() -> void:
 	for gid in goods.keys():
 		if not runner.db.goods.has(String(gid)):
 			continue
-		if float(goods[gid]) < 1.0:
+		# ⚠️ 用 `available()`（库存 − 当天锁定的），不是仓库总量：锁着的是白天的生产原料
+		if runner.sim.available(String(gid)) < 1.0:
 			continue
 		ids.append(String(gid))
 	ids.sort()
 	for gid in ids:
 		_gift_box.add_item("%s（%d）" % [runner.sim.good_name(String(gid)),
-			int(float(goods[gid]))])
+			int(runner.sim.available(String(gid)))])
 		_gift_box.set_item_metadata(_gift_box.item_count - 1, String(gid))
 	if _gift_box.item_count == 0:
-		_gift_box.add_item("（仓库里没有可送的东西）")
+		_gift_box.add_item("（暂时没有送得出去的东西）")
 		return
 	if keep != "":
 		for i in _gift_box.item_count:
@@ -476,8 +574,8 @@ func _gift_good_id() -> String:
 	var v = _gift_box.get_item_metadata(_gift_box.selected)
 	return "" if v == null else String(v)
 
-## 「送去」：下一条 `gift` 命令（与建造 / 研究同一拍，次日黎明生效）。
-## 引擎会在黎明扣货、累加 `state.gifts`、写一条公告；这里只负责把话递过去。
+## 「送去」：下一条 `gift` 命令（**即时生效**）。
+## 引擎当场扣货、累加 `state.gifts`、写一条公告、顺手结算相关任务；这里只负责把话递过去。
 func _send_gift() -> void:
 	if runner == null or runner.sim == null:
 		return
@@ -490,7 +588,9 @@ func _send_gift() -> void:
 		_notice("数量要大于 0")
 		return
 	runner.enqueue([{"type": "gift", "to": "serafina", "goodId": gid, "qty": qty}])
-	_notice("已安排：%s ×%d（次日 06:00 送出）" % [runner.sim.good_name(gid), qty])
+	_notice("已送出：%s ×%d" % [runner.sim.good_name(gid), qty])
+	# 送完货会变，下拉里的数字得跟着重列（不然过一会儿显示的还是旧的存量）
+	_refresh_gift_box()
 
 func _rebuild_history() -> void:
 	if _hist == null:
@@ -530,32 +630,57 @@ func _select_entry(i: int) -> void:
 	_rebuild_history()
 	_show_entry(i)
 
-## 把某一条历史画到右栏。
+## 历史页右栏：把选中的那条画出来（**只动历史页那一对控件**）。
 func _show_entry(i: int) -> void:
+	if _hist_body == null:
+		return
+	_clear_container(_hist_body)
+	if _hist_head != null:
+		_hist_head.text = ""
+	if not _render_entry(i, _hist_head, _hist_body):
+		_hist_body.add_child(_wrapped("（还没有过预言）切到「新预言」那一页问她一卦 —— "
+			+ "她说的每一句都会记在这儿，按日期排。", UIKit.FG_DIM))
+		return
+	_scroll_to(_hist_scroll)
+
+## 新预言页右栏：把某一条摊在实况区（打开面板时显示"上一次的进言"）。
+func _show_live(i: int) -> void:
 	if _ai_body == null:
 		return
-	_clear_body()
+	_clear_container(_ai_body)
+	if _render_entry(i, _ai_head, _ai_body):
+		_scroll_to(_scroll)
+		return
+	_show_placeholder()
+
+## 把 `log[i]` 画进指定的那一对控件（两页共用同一套排版）。返回 false = 没有这一条。
+func _render_entry(i: int, head: Label, body: VBoxContainer) -> bool:
 	var log: Array = runner.sim.prophecy_log() if runner != null and runner.sim != null else []
 	if i < 0 or i >= log.size():
-		_show_placeholder()
-		return
+		return false
 	var it: Dictionary = log[i]
 	var q := String(it.get("q", "")).strip_edges()
-	if _ai_head != null:
-		_ai_head.text = "%s · 你问的是「%s」" % [_date(int(it.get("d", 0))),
+	if head != null:
+		head.text = "%s · 你问的是「%s」" % [_date(int(it.get("d", 0))),
 			q if q != "" else DEFAULT_QUESTION]
-	_render_reply(String(it.get("t", "")))
-	_scroll_to_top()
+	_render_reply(String(it.get("t", "")), body)
+	return true
 
 func _scroll_to_top() -> void:
-	if _scroll != null:
-		_scroll.scroll_vertical = 0
+	_scroll_to(_scroll)
+
+func _scroll_to(scroll: ScrollContainer) -> void:
+	if scroll != null:
+		scroll.scroll_vertical = 0
 
 func _clear_body() -> void:
-	if _ai_body == null:
+	_clear_container(_ai_body)
+
+func _clear_container(box: VBoxContainer) -> void:
+	if box == null:
 		return
-	for c in _ai_body.get_children():
-		_ai_body.remove_child(c)
+	for c in box.get_children():
+		box.remove_child(c)
 		c.queue_free()
 
 ## 右栏没有内容时的占位（按"没配好 / 冷却中 / 还没问过"三种情况说不同的话）。
@@ -723,8 +848,10 @@ func _cooldown_left() -> int:
 ## 前缀表里还留着旧的 `征兆`/`应对`/`预言`/`为什么`/`怎么做`/`总结`：模型偶尔不照新格式写，
 ## 画出来也不该变成一坨（旧前缀按暗色处理，无副作用）。
 ## ⚠️ 这个函数**不清空**内容区（调用方负责）。
-func _render_reply(text: String) -> void:
-	if _ai_body == null:
+## `body` = 画进哪个容器（缺省 = 第一页「新预言」的实况区；历史页传自己的那份）。
+func _render_reply(text: String, body: VBoxContainer = null) -> void:
+	var box: VBoxContainer = body if body != null else _ai_body
+	if box == null:
 		return
 	for raw in text.split("\n"):
 		var line := String(raw).strip_edges()
@@ -740,7 +867,7 @@ func _render_reply(text: String) -> void:
 					break
 		if color == UIKit.FG_DARK and line.substr(0, 1).is_valid_int():
 			color = UIKit.FG_HEAD
-		_ai_body.add_child(_wrapped(line, color))
+		box.add_child(_wrapped(line, color))
 
 # ---------------------------------------------------------------------------
 # 提问：一场**多轮试方案**的会话（见 docs/ai-assist.md §四·五）
@@ -919,8 +1046,10 @@ func _finish_session() -> void:
 	_sync_ask_button()
 	_resume_if_auto_paused()
 	if _mode == MODE_PROPHECY:
-		# 新的一条在历史里排最后 —— 选中它，右栏就是刚拿到的这段
+		# 新的一条排进历史（选中它），同时把这一段摊在**第一页**的实况区 ——
+		# 两页各有自己的输出区，玩家翻到历史再翻回来还是这一卦。
 		_select_latest_entry()
+		_show_live(_sel_entry)
 	elif _ai_body != null and _ai_body.get_child_count() == 0:
 		_show_placeholder()
 

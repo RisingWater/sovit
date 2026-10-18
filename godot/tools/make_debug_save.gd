@@ -12,8 +12,8 @@ extends SceneTree
 # **不碰** user://sovit_save.json —— 玩家自己的档别动。
 #
 # 进游戏怎么读：标题页 →「读取进度」→ 选 debug_all_tech.json。
-# （游戏内快读 **F8** 读的是**默认存档位** `user://sovit_save.json`，不是这份 ——
-#   想用 F8 读它就把这份复制成默认存档位。正常流程就是标题页那个按钮。）
+# （游戏内快读 **Ctrl+L** 读的是**默认存档位** `user://sovit_save.json`，不是这份 ——
+#   想用 Ctrl+L 读它就把这份复制成默认存档位。正常流程就是标题页那个按钮。）
 #
 # 这不是引擎里的"作弊模式" —— 它只是一份普通存档，全部靠改 state 字段：
 #   * 科技全开：建筑/住房的解锁锁都在 research.done 上（docs/technology.md）

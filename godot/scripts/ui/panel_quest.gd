@@ -12,7 +12,7 @@ extends PanelContainer
 # 右侧按用户点名的四件事排：**描述 / 要求 / 完成情况 / 第几天完成**。
 #   · 描述 = 内容里的 `brief`，用**老臣（塞巴斯蒂安）**的口吻说明"为什么要做这一条"
 #   · 要求 = 引擎拼好的 `goal.text`（达标变绿）
-#   · 完成情况 = 已完成 k / n 项（+ 已达成未结算时提示次日 06:00 结算）
+#   · 完成情况 = 已完成 k / n 项（已达成但还没结算时提示"马上结算"—— 判定每小时都跑一次）
 #   · 第几天完成 = `s["quests"]["done"][qid]`，写在标题下面那行
 #
 # ⚠️ 渐进显示这条契约在面板上**也要守**（见 docs/quests.md）：
@@ -414,6 +414,11 @@ func _build_detail(j: Array) -> void:
 		_detail.add_child(_wrapped("（没有列出要求）", UIKit.FG_DIM))
 	for g in goals:
 		var met := bool(g["met"])
+		# 「交物资」那一类目标后面直接跟一个「提交」按钮（用户 2026-10-20：
+		# 以后会有很多交东西的任务，所以就在任务页当面交，不必跑去预言面板）。
+		if String(g.get("type", "")) == "gifted":
+			_detail.add_child(_gift_row(g, met))
+			continue
 		_detail.add_child(_wrapped("%s %s" % ["◆" if met else "◇", String(g["text"])],
 			C_OK if met else UIKit.FG_DARK))
 	# hint 放在要求下面：它是"怎么做"，常常是照做要求的具体步骤
@@ -429,7 +434,85 @@ func _build_detail(j: Array) -> void:
 		_detail.add_child(_wrapped("里程碑：不发钱、也不挡剧情 —— 只为把追踪条填住。", UIKit.FG_DIM))
 	else:
 		_detail.add_child(_wrapped("奖励 %d 金%s" % [int(q["reward"]),
-			"（已入国库）" if bool(q["done"]) else "（黎明结算时入国库）"], UIKit.FG_DIM))
+			"（已入国库）" if bool(q["done"]) else "（达成即入国库）"], UIKit.FG_DIM))
+
+# ---------------------------------------------------------------------------
+# 「交物资」目标：要求后面那个「提交」按钮（用户 2026-10-20）
+#
+# 以后会有很多"交东西"的任务（送瑟拉菲娜只是第一批），所以入口做在**任务页**里：
+# 哪一条要求是"交 N 个某商品"，它后面就长一个按钮，点一下 = 下一条 `gift` 命令。
+# ⚠️ 命令是**即时生效**的（用户："提交任务，要马上减少物资怎么能次日生效呢？……
+#    提交了任务直接完成。任务完成不用等到 6:00 吧"）：货当场扣、任务当场结算。
+# ⚠️ 只花**没被锁定的**那一份（库存 − 当天排产已锁）：`SimCore.available()`。
+#    按钮上的数字就是"你现在能交多少"，不是仓库总量。
+# ⚠️ 按钮文案要说清"点下去会发生什么"：能交 → 「提交 N」；仓库里没有可交的 → 灰着，
+#    tooltip 里说还差多少。**不许点了没反应**。
+# ---------------------------------------------------------------------------
+
+## 一条「交物资」要求 = 一行：左半边是引擎拼的进度文案，右半边是按钮。
+func _gift_row(g: Dictionary, met: bool) -> Control:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 8)
+	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var l := UIKit.label("%s %s" % ["◆" if met else "◇", String(g["text"])],
+		C_OK if met else UIKit.FG_DARK)
+	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	l.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	row.add_child(l)
+	var offer := _gift_offer(g)
+	var b := UIKit.button(String(offer["label"]), true)
+	b.tooltip_text = String(offer["tip"])
+	b.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	b.size_flags_horizontal = Control.SIZE_SHRINK_END
+	b.disabled = not bool(offer["ok"])
+	if bool(offer["ok"]):
+		b.pressed.connect(_submit_gift.bind(g, int(offer["qty"])))
+	row.add_child(b)
+	return row
+
+## 这条要求现在能提交多少：{label, tip, ok, qty}。
+## ⚠️ 只认 `gifted`；以后再加别的"交东西"目标类型，往这里加一档就行。
+func _gift_offer(g: Dictionary) -> Dictionary:
+	var gid := String(g.get("id", ""))
+	var to := String(g.get("to", ""))
+	var have := int(g.get("have", 0))
+	var need := int(g.get("need", 0))
+	var remain := maxi(0, need - have)
+	var nm := _good_name(gid)
+	if remain <= 0:
+		return {"label": "已交齐", "tip": "这一条已经交够了", "ok": false, "qty": 0}
+	# ⚠️ 用"可用"（库存 − 当天锁定的），不是仓库总量：锁着的那份是白天的生产原料。
+	var stock := int(floor(runner.sim.available(gid)))
+	if stock <= 0:
+		return {"label": "提交",
+			"tip": "没有可交的%s —— 还差 %d 个（被今天排产锁住的那部分不能动）" % [nm, remain],
+			"ok": false, "qty": 0}
+	var qty := mini(remain, stock)
+	return {"label": "提交 %d" % qty,
+		"tip": "把 %d 个%s交给%s（**当场生效**：货立刻扣、任务立刻结算）" % [
+			qty, nm, Cast.speaker_name(to)],
+		"ok": true, "qty": qty}
+
+## 点「提交」：下一条 `gift` 命令 —— 它是**即时生效**的（`SimCore.IMMEDIATE_ACTIONS`），
+## 所以 `enqueue()` 当场就扣货、当场结算任务；重画面板就是"已交齐 / 已完成"。
+func _submit_gift(g: Dictionary, qty: int) -> void:
+	if qty <= 0 or runner == null or runner.sim == null:
+		return
+	runner.enqueue([{
+		"type": "gift",
+		"to": String(g.get("to", "")),
+		"goodId": String(g.get("id", "")),
+		"qty": qty,
+	}])
+	UIKit.play_switch()
+	_refresh()
+
+## 商品中文名（内容里缺了才退回 id，宁可露出 id 也不要空白）。
+func _good_name(gid: String) -> String:
+	if runner == null or runner.db == null:
+		return gid
+	return String((runner.db.goods.get(gid, {}) as Dictionary).get("nameZh", gid))
 
 ## 右栏文字宽度：窗口宽 - 左树 - 右边的立绘 - 两边的边距与滚动条。
 ## 全屏之后窗口宽是运行时才知道的（1280/1600/1920 都可能），所以现算。
@@ -468,7 +551,7 @@ func _summary_line(q: Dictionary, ch: Dictionary) -> String:
 	if bool(q["done"]):
 		parts.append("%s 完成" % _date(int(q["day"])))
 	elif bool(q["met"]):
-		parts.append("已达成 · 次日 06:00 结算")
+		parts.append("已达成 · 马上结算")
 	else:
 		parts.append("尚未完成")
 	return " · ".join(parts)
@@ -488,7 +571,7 @@ func _detail_lines(q: Dictionary) -> Dictionary:
 	if bool(q["done"]):
 		progress = "已完成，%s 结算。" % _date(int(q["day"]))
 	elif bool(q["met"]):
-		progress = "所有要求都已达成，等下一个黎明的 06:00 自动结算（不用提交）。"
+		progress = "所有要求都已达成，引擎马上就会结算（不用提交）。"
 	else:
 		var miss := PackedStringArray()
 		for g in (q["goals"] as Array):

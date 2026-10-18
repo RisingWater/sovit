@@ -1,7 +1,7 @@
 extends Node2D
 
 # 入口：创建 SimRunner（仿真）+ WorldView（地图/建筑/小人）+ UI。
-# 快捷键集中在 `_shortcut_input`（F7 快存 / F8 快读也在那里），ESC 走 `_unhandled_input`。
+# 快捷键集中在 `_shortcut_input`（Ctrl+S 快存 / Ctrl+L 快读也在那里），ESC 走 `_unhandled_input`。
 
 var runner: SimRunner
 var world
@@ -488,6 +488,18 @@ func _shortcut_input(event: InputEvent) -> void:
 		return
 
 	var k: int = event.keycode
+	# 快存 / 快读 = **Ctrl+S / Ctrl+L**（用户 2026-10-20："快存/快读的快捷键，改成 Ctrl+S，
+	# Ctrl+L，后续我们可能有更多的圆形按钮"）—— 原来占的 F7/F8 让给左侧圆钮。
+	# macOS 上顺手认 Cmd（`meta_pressed`）；带修饰键的组合别的键一概不接（原样放行）。
+	if event.ctrl_pressed or event.meta_pressed:
+		match k:
+			KEY_S:
+				_hud.quick_save()
+				get_viewport().set_input_as_handled()
+			KEY_L:
+				_hud.quick_load()
+				get_viewport().set_input_as_handled()
+		return
 	# 全屏面板（统计 / 科技）盖住了建造栏 → 建造栏的快捷键（Tab / 数字键）
 	# 让路；时间控制（空格 / +/-）不受影响，顶栏一直是露着的。
 	var bar_hidden := _fullscreen_panel_open()
@@ -504,12 +516,6 @@ func _shortcut_input(event: InputEvent) -> void:
 			_bar.cycle_tab(-1 if event.shift_pressed else 1)
 		KEY_H:
 			world.focus_town_center()
-		KEY_F7:
-			# 快存 / 快读走 HUD 自己的函数（和顶栏那两个按钮同一条路），
-			# 目标路径也在 HUD 上（门槛会把它指到测试存档位）。
-			_hud.quick_save()
-		KEY_F8:
-			_hud.quick_load()
 		_:
 			if k >= KEY_1 and k <= KEY_9:
 				# 1..9 = 建造栏当前这一页的第 N 张卡片
@@ -519,8 +525,7 @@ func _shortcut_input(event: InputEvent) -> void:
 				if msg != "":
 					world.notice.emit(msg)
 			elif k >= KEY_F1 and k <= KEY_F1 + int(_hud.NAV_MAX_KEY) - 1:
-				# F1..F6 = 左侧圆钮。**F7 / F8 是快存 / 快读**（用户定的），
-				# 不在这个区间里；没有那个按钮就原样放行这个键。
+				# F1..F12 = 左侧圆钮（现在 7 个）。没有那个按钮就原样放行这个键。
 				if not _hud.activate_nav(k - KEY_F1):
 					return
 			else:

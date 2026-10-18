@@ -37,7 +37,7 @@ func _notice_lines(civic: Node) -> Array:
 	var out := []
 	for l in civic.find_children("*", "Label", true, false):
 		var t := String((l as Label).text)
-		# 公告每行现在是「AE 312 年 1 月 1 日　正文」（用户 2026-10 · B0；
+		# 公告每行现在是「AE 312年1月1日　正文」（用户 2026-10 · B0；
 		# 更早是「第N天」、再早是 [D37] 那种缩写）
 		if t.begins_with("AE") and t.contains("日"):
 			out.append(t)
@@ -199,7 +199,7 @@ func _run() -> void:
 		if t.begins_with("共 ") or t.contains("显示最近"):
 			_fail("公告页不该再有「共 N 条 / 显示最近 N 条」那行：%s" % t)
 			return
-	# 日期写 `AE 312 年 1 月 1 日`（用户 2026-10 · B0），不是「D37」也不是「第 N 天」
+	# 日期写 `AE 312年1月1日`（用户 2026-10 · B0），不是「D37」也不是「第 N 天」
 	var last_lb := String(lines3[lines3.size() - 1])
 	if last_lb != "%s　补的第 30 条" % sim.date_label(int(sim.s["day"])):
 		_fail("公告页末行是「%s」，不是「AE 日期 + 最新那条」" % last_lb)

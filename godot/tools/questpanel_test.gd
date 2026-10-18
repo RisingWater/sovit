@@ -195,7 +195,7 @@ func _run() -> void:
 			"选中已完成的任务后，左树里应当有它：%s" % _texts(panel._tree)):
 		return
 	var done_txt := _texts(panel._detail)
-	# 用户 2026-10（B0）：完成日期写成 `AE 312 年 1 月 7 日`，不再写「第 N 天完成」
+	# 用户 2026-10（B0）：完成日期写成 `AE 312年1月7日`，不再写「第 N 天完成」
 	var want_date := String(runner.sim.date_label(day))
 	if not _chk(done_txt.contains(want_date),
 			"详情里应当写「%s 完成」，实际：%s" % [want_date, done_txt]):
@@ -204,7 +204,73 @@ func _run() -> void:
 		return
 	_ok("已完成的任务留在面板里，详情写着「%s 完成」（追踪条那时已经收掉了）" % want_date)
 
-	# ---- 7. 关得掉 --------------------------------------------------------
+	# ---- 7. 「交物资」要求后面的「提交」按钮（用户 2026-10-20）------------
+	# 以后会有很多交东西的任务，所以入口在**任务页**里，不必跑去预言面板。
+	# ⚠️ 点下去是**即时生效**（货当场扣、任务当场结算），不是排进队列等黎明。
+	var _sera_bread := func() -> float:
+		return float((sim.s["gifts"].get("serafina", {}) as Dictionary).get("coarse_bread", 0.0))
+	var _money := func() -> float:
+		return float(sim.s["government"]["money"])
+	sim.s["goods"]["coarse_bread"] = 5.0
+	sim.s["reserved"]["coarse_bread"] = 3.0       # 锁住 3 个：只有 2 个能交
+	panel.open()
+	await process_frame
+	panel._switch_tab(1)          # 支线页（送物资都在这一页）
+	await process_frame
+	panel._select("q_s_sera_1")
+	await process_frame
+	await process_frame
+	var submit_btn: Button = null
+	for b in panel._detail.find_children("*", "Button", true, false):
+		if String((b as Button).text).begins_with("提交"):
+			submit_btn = b
+	if not _chk(submit_btn != null, "要求后面应当有一个「提交」按钮（%s）"
+			% _texts(panel._detail)):
+		return
+	if not _chk(String(submit_btn.text) == "提交 2",
+			"库存 5 但锁了 3 个时，按钮该写「提交 2」（只花没被锁定的），实际「%s」" % submit_btn.text):
+		return
+	if not _chk(not submit_btn.disabled, "有货却把按钮灰了"):
+		return
+	var money_before := float(_money.call())
+	submit_btn.pressed.emit()
+	await process_frame
+	await process_frame
+	if not _chk(int(_sera_bread.call()) == 2,
+			"点「提交」应当**当场**送出去 2 个（实际 %s）" % str(_sera_bread.call())):
+		return
+	if not _chk((sim.s["pending"] as Array).is_empty(),
+			"提交是即时动作，不该往待生效队列里塞东西：%s" % str(sim.s["pending"])):
+		return
+	if not _chk(absf(float(_money.call()) - money_before) < 0.01,
+			"才交了 2/20，任务没完成，不该发钱"):
+		return
+	# 货给够 → 再交一次 → **当场完成 + 当场发钱**
+	sim.s["goods"]["coarse_bread"] = 18.0
+	sim.s["reserved"]["coarse_bread"] = 0.0
+	panel._refresh()
+	await process_frame
+	var submit2: Button = null
+	for b in panel._detail.find_children("*", "Button", true, false):
+		if String((b as Button).text).begins_with("提交"):
+			submit2 = b
+	if not _chk(submit2 != null and String(submit2.text) == "提交 18",
+			"该提示补齐剩下的 18 个（%s）" % _texts(panel._detail)):
+		return
+	submit2.pressed.emit()
+	await process_frame
+	await process_frame
+	if not _chk(int(_sera_bread.call()) == 20, "两次合计该送出 20 个（%s）" % str(_sera_bread.call())):
+		return
+	if not _chk(int(sim.s["quests"]["done"].get("q_s_sera_1", -1)) == int(sim.s["day"]),
+			"交齐之后任务该**当场**完成（不用等 6:00），done=%s" % str(sim.s["quests"]["done"])):
+		return
+	if not _chk(absf(float(_money.call()) - (money_before + 150.0)) < 0.01,
+			"任务完成该当场发 150 金（%s → %s）" % [str(money_before), str(_money.call())]):
+		return
+	_ok("送物资任务的要求后面有「提交」按钮：只花未锁定的货，点一下当场扣货、当交齐就当场结算")
+
+	# ---- 8. 关得掉 --------------------------------------------------------
 	var close: Button = null
 	for b in panel.find_children("*", "Button", true, false):
 		if (b as Button).text == "关闭":

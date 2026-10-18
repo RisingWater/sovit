@@ -38,12 +38,14 @@ func _ok(msg: String) -> void:
 	print("  · ", msg)
 
 ## 按一下某个键（发 press + release 两个事件），走真实分发链。
-func _key(keycode: int, shift: bool = false) -> void:
+## `ctrl` = 带上 Ctrl（快存 / 快读是 Ctrl+S / Ctrl+L，见 `main.gd::_shortcut_input`）。
+func _key(keycode: int, shift: bool = false, ctrl: bool = false) -> void:
 	for pressed in [true, false]:
 		var ev := InputEventKey.new()
 		ev.keycode = keycode
 		ev.pressed = pressed
 		ev.shift_pressed = shift
+		ev.ctrl_pressed = ctrl
 		root.push_input(ev)
 	await process_frame
 
@@ -142,17 +144,15 @@ func _run() -> void:
 	hud._on_speed(false, 1.0)
 	await process_frame
 
-	# ---- 3. F1..F6 左侧圆钮（F7 / F8 留给快存快读）--------------------------
+	# ---- 3. F1..F12 左侧圆钮（快存 / 快读已改成 Ctrl+S / Ctrl+L）--------------
 	var nav_n: int = hud.nav_count()
 	if nav_n < 1:
 		_fail("左侧一个圆钮都没有（检查 0 个）")
 		return
-	# ⚠️ 圆钮**可以比 F 键多**（用户 2026-10 加了第 7 个「贸易」，而 F7/F8 是快存快读）：
+	# ⚠️ 圆钮个数**可以超过 F 键上限**（`NAV_MAX_KEY` = 12，将来还会有更多圆钮）：
 	# 只要求"有 F 键的那几个"（前 NAV_MAX_KEY 个）都写对，多出来的不许写 F 键。
-	if nav_n < hud.NAV_MAX_KEY:
-		_fail("圆钮只有 %d 个，少于 F 键上限 %d —— 快捷键会落空" % [nav_n, hud.NAV_MAX_KEY])
-		return
-	# tooltip 里的键位提示：前 6 个写 F1..F6，第 7 个起**不许**写（写了玩家会按）
+	# 2026-10-20 起快存 / 快读是 Ctrl+S / Ctrl+L，F7 / F8 不再被它们占着。
+	# tooltip 里的键位提示：前 NAV_MAX_KEY 个写 F1..F12
 	for i in nav_n:
 		var tip := String((hud._nav_btns[i] as Button).tooltip_text)
 		if i < hud.NAV_MAX_KEY:
@@ -160,7 +160,8 @@ func _run() -> void:
 				_fail("第 %d 个圆钮的 tooltip 没写 F%d 键：%s" % [i + 1, i + 1, tip])
 				return
 		elif tip.contains("F%d" % (i + 1)):
-			_fail("第 %d 个圆钮不该写 F%d（F7/F8 是快存快读）：%s" % [i + 1, i + 1, tip])
+			_fail("第 %d 个圆钮超过 F 键上限 %d，不该写 F%d：%s"
+				% [i + 1, hud.NAV_MAX_KEY, i + 1, tip])
 			return
 	await _key(KEY_F1)
 	var stats_panel = _main.get_node_or_null("UI/Root/Stats")
@@ -204,11 +205,11 @@ func _run() -> void:
 	if nav_n < hud.NAV_MAX_KEY and hud.activate_nav(nav_n):
 		_fail("第 %d 个圆钮不存在，activate_nav 却返回了 true" % (nav_n + 1))
 		return
-	# ⚠️ 这里只断言"第 7 个圆钮没有快捷键"，**不真按 F7** —— F7 是快存，
-	# 会写 user:// 的默认存档位。F7/F8 的真按键验证放在最后（那时存档位已被
-	# 指向测试文件，见文件末尾那一节）。
+	# ⚠️ 这里只断言"再往后的 F 键没有按钮"，**不真按 F7 那一类** ——
+	# 那一类现在什么也不做；快存 / 快读的真按键验证放到最后（Ctrl+S / Ctrl+L，
+	# 那时存档位已被指向测试文件，见文件末尾那一节）。
 	if nav_n >= 1 and nav_n < hud.NAV_MAX_KEY:
-		_ok("F%d..F%d 落空时不吃键（也不占 F7/F8 —— 那两个是快存快读）"
+		_ok("F%d..F%d 落空时不吃键（快存 / 快读已经是 Ctrl+S / Ctrl+L）"
 			% [nav_n + 1, hud.NAV_MAX_KEY])
 
 	# ---- 4. 1..9 建造栏卡片 --------------------------------------------------
@@ -402,7 +403,7 @@ func _run() -> void:
 	await process_frame
 	_ok("ESC 菜单开着时快捷键让路")
 
-	# ---- 9. F7 快存 / F8 快读 ------------------------------------------------
+	# ---- 9. Ctrl+S 快存 / Ctrl+L 快读（2026-10-20 从 F7 / F8 改过来）---------
 	#
 	# ⚠️ 这一段会**真的写存档**，所以先把存档位指到测试文件上：
 	#    `hud.quick_path` 就是 HUD 快存 / 快读用的那一个（顶栏两个按钮也走它），
@@ -416,33 +417,33 @@ func _run() -> void:
 	runner.sim.s["day"] = 424242          # 读回来之后这个数必须消失
 	await process_frame
 	hud.set_notice("")
-	await _key(KEY_F7)
+	await _key(KEY_S, false, true)
 	if not FileAccess.file_exists(test_path):
 		hud.quick_path = SaveManager.DEFAULT_PATH
-		_fail("按 F7 没有生成存档文件（%s）—— 快存没接上？" % test_path)
+		_fail("按 Ctrl+S 没有生成存档文件（%s）—— 快存没接上？" % test_path)
 		return
 	if not hud._notice.text.contains("已保存"):
 		hud.quick_path = SaveManager.DEFAULT_PATH
-		_fail("按 F7 之后顶栏提示是「%s」，不像保存成功" % hud._notice.text)
+		_fail("按 Ctrl+S 之后顶栏提示是「%s」，不像保存成功" % hud._notice.text)
 		return
-	# 快读：把当天的天数改脏，再按 F8，应当被存档里的值覆盖回去
+	# 快读：把当天的天数改脏，再按 Ctrl+L，应当被存档里的值覆盖回去
 	runner.sim.s["day"] = 999999
 	await process_frame
 	hud.set_notice("")
-	await _key(KEY_F8)
+	await _key(KEY_L, false, true)
 	if int(runner.sim.s["day"]) == 999999:
 		hud.quick_path = SaveManager.DEFAULT_PATH
-		_fail("按 F8 没把存档读回来（day 还是 999999）—— 快读没接上？")
+		_fail("按 Ctrl+L 没把存档读回来（day 还是 999999）—— 快读没接上？")
 		return
 	if not hud._notice.text.contains("已读取"):
 		hud.quick_path = SaveManager.DEFAULT_PATH
-		_fail("按 F8 之后顶栏提示是「%s」，不像读取成功" % hud._notice.text)
+		_fail("按 Ctrl+L 之后顶栏提示是「%s」，不像读取成功" % hud._notice.text)
 		return
 	# 测试存档用完就删，并把存档位还回去
 	hud.quick_path = SaveManager.DEFAULT_PATH
 	if FileAccess.file_exists(test_path):
 		DirAccess.remove_absolute(abs_path)
-	_ok("F7 = 快存、F8 = 快读（真读真写；门槛用的是测试存档位，没碰玩家自己的快存）")
+	_ok("Ctrl+S = 快存、Ctrl+L = 快读（真读真写；门槛用的是测试存档位，没碰玩家自己的快存）")
 
 	# ---- 收尾 ---------------------------------------------------------------
 	if _checks == 0:

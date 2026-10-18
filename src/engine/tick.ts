@@ -180,6 +180,11 @@ function stepHour(
   if (h === TIME.settleHour) {
     logs.push(...runNight(state, ctx, rng))
   }
+  // 任务判定：**每小时都扫一次**（用户 2026-10-20："提交了任务直接完成。任务完成不用等到
+  // 6:00 吧，这样游戏体验很差"）。判定只读状态、幂等，扫一遍很便宜。
+  // 黎明那一趟已经在 `runDawn` 末尾扫过，这里跳过（免得同一小时跑两遍、日志重复）。
+  // GDScript 侧同一口径（`sim_core.gd::tick_hour`）。
+  if (h !== TIME.dawnHour) logs.push(...checkQuests(state, ctx, state.day))
 
   state.hour = (h + 1) % TIME.hoursPerDay
   // 公告（`state.log`）**逐小时累积当小时的日志**（黎明 / 白天 / 夜晚三批都算），上限 500。
@@ -195,24 +200,32 @@ function stepHour(
 }
 
 /**
- * **即时生效**的动作：研究队列的增 / 撤 / 调序。
+ * **即时生效**的动作：研究队列的增 / 撤 / 调序，以及**送物资**。
  *
  * 用户 2026-10："我白天点了一个研究…结果队列里没有，没有实时出现。要到第二天才能调整顺序
  * 太蠢了。" 这三个动作**不花任何资源**（材料是在**开工那一刻**才扣的），只动一条队列，
  * 所以没有理由等黎明。
  *
+ * 2026-10-20 又加一条（用户："提交任务，要马上减少物资怎么能次日生效呢？……提交了任务
+ * 直接完成。任务完成不用等到 6:00 吧，这样游戏体验很差。"）：`gift` 也走即时 ——
+ * 玩家当面把东西交出去，货当场扣、任务当场结算（见 `queueActions` 里那一趟 `checkQuests`）。
+ *
  * ⚠️ 其余动作（建造 / 拆除 / 改价 / 招工…）仍然**次日黎明生效** —— 那是"一天一结算"的核心口径，
- * 也是黄金轨迹的确定性来源。
+ * 也是黄金轨迹的确定性来源。GDScript 侧同一份名单：`sim_core.gd::IMMEDIATE_ACTIONS`。
  */
 export const IMMEDIATE_ACTIONS: readonly Action['type'][] = [
   'research',
   'cancel_research',
   'move_research',
+  'gift',
 ]
 
 /**
- * 把动作分流：即时生效的当场应用（研究队列那三条），其余进 `pending` 等黎明。
+ * 把动作分流：即时生效的当场应用（研究队列那三条 + 送物资），其余进 `pending` 等黎明。
  * 返回即时那批的 `AppliedAction` / 日志，调用方并进本次 tick 的结果里。
+ *
+ * ⚠️ 即时动作应用完之后**顺手跑一趟任务判定**：玩家刚交完东西，那一条就该当场完成、
+ * 钱当场到账 —— 不能让他等到下一个 6:00。判定是幂等的（只看状态），所以多跑一趟无副作用。
  */
 function queueActions(
   state: GameState,
@@ -226,6 +239,8 @@ function queueActions(
   if (deferred.length > 0) state.pending.push(...deferred)
   if (immediate.length === 0) return []
   const applied = applyActions(state, ctx, immediate, logs)
+  // 即时动作之后当场结算（只结算"刚刚变成已达成"的那些，`checkQuests` 自己幂等）
+  logs.push(...checkQuests(state, ctx, state.day))
   // 公告：即时动作的日志**也**要进 `state.log`（它是公告的唯一真源，见 stepHour 末尾）。
   // 以前取消研究是在黎明应用的，日志跟着黎明那批进；现在当场应用，就得在这儿补一次。
   state.log = [...state.log, ...logs]

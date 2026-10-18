@@ -42,13 +42,18 @@ export function epochPrefix(): string {
   return TIME.calendar.epochPrefix
 }
 
-/** `AE 312 年 1 月 1 日` —— 顶栏、公告、任务面板、存档、预言 tooltip 都用它。 */
+/**
+ * `AE 312年4月20日` —— 顶栏、公告、任务面板、存档、预言 tooltip 都用它。
+ *
+ * ⚠️ 只有 `AE` 与年份之间留一个空格，其余**不空格**（用户 2026-10-20：
+ * 顶栏那个框只有 112px 宽，`AE 312 年 4 月 20 日` 会顶出框外）。
+ */
 export function dateLabel(day: number): string {
   const d = dateOf(day)
-  return `${epochPrefix()} ${d.year} 年 ${d.month} 月 ${d.day} 日`
+  return `${epochPrefix()} ${d.year}年${d.month}月${d.day}日`
 }
 
-/** `AE 312 年 1 月 1 日 06:00` —— 需要连时刻一起说的地方（顶栏时间框的第二行只管时刻）。 */
+/** `AE 312年4月20日 13:00` —— 需要连时刻一起说的地方。 */
 export function dateTimeLabel(day: number, hour: number): string {
   return `${dateLabel(day)} ${String(Math.max(0, Math.floor(hour))).padStart(2, '0')}:00`
 }

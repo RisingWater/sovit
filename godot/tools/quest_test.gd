@@ -489,6 +489,53 @@ func _run() -> void:
 		return
 	_ok("送物资：gift 扣货 + gifts 记账 + gifted 只认送出去的量")
 
+	# ---- 12. 提交要"当场"生效（2026-10-20）------------------------------
+	# 用户："提交任务，要马上减少物资怎么能次日生效呢？……提交了任务直接完成。
+	# 任务完成不用等到 6:00 吧，这样游戏体验很差。"
+	var q1 := _fresh()
+	q1.s["goods"]["coarse_bread"] = 30.0
+	q1.s["reserved"]["coarse_bread"] = 25.0
+	q1._apply_actions([{"type": "gift", "to": "serafina", "goodId": "coarse_bread", "qty": 10}])
+	if not _near(float(q1.s["goods"]["coarse_bread"]), 30.0):
+		_fail("被当天排产锁住的货不该能交（可用 = 库存 − 锁定）")
+		return
+	q1._apply_actions([{"type": "gift", "to": "serafina", "goodId": "coarse_bread", "qty": 5}])
+	if not _near(float(q1.s["goods"]["coarse_bread"]), 25.0):
+		_fail("可用量够就能交（5 = 30 − 25），实际 %s" % str(q1.s["goods"]["coarse_bread"]))
+		return
+	# `enqueue` 走即时通道：当场扣货 + 当场结算，不进 pending
+	var q2 := _fresh()
+	q2.s["goods"]["coarse_bread"] = 100.0
+	var money0 := _money(q2)
+	q2.enqueue([{"type": "gift", "to": "serafina", "goodId": "coarse_bread", "qty": 20}])
+	if not (q2.s["pending"] as Array).is_empty():
+		_fail("gift 是即时动作，不该进待生效队列：%s" % str(q2.s["pending"]))
+		return
+	if int(q2.s["quests"]["done"].get("q_s_sera_1", -1)) != int(q2.s["day"]):
+		_fail("交完应当当场完成（不用等 6:00），done=%s" % str(q2.s["quests"]["done"]))
+		return
+	if absf(_money(q2) - (money0 + 150.0)) > 0.01:
+		_fail("奖励应当当场进国库（%s → %s）" % [str(money0), str(_money(q2))])
+		return
+	var qlogs := ""
+	for l in q2.log_tail(q2.log_size()):
+		qlogs += String(l["text"]) + " / "
+	if not qlogs.contains("送物资：粗面包") or not qlogs.contains("完成任务：一趟面包"):
+		_fail("公告里该既有「送物资」也有「完成任务」：%s" % qlogs)
+		return
+	# 其它任务也不等到 6:00：白天的小时里也会判
+	var q3 := _fresh()
+	for bid in ["wheat_farm", "coarse_mill", "coarse_bakery"]:
+		_add_shop(q3, String(bid))
+	if (q3.s["quests"]["done"] as Dictionary).has("q01_bread_chain"):
+		_fail("（前置）这时候还没结算过")
+		return
+	q3.tick_hour()
+	if int(q3.s["quests"]["done"].get("q01_bread_chain", -1)) != int(q3.s["day"]):
+		_fail("白天的小时里也该判任务（达成即结算）")
+		return
+	_ok("提交当场生效（只花未锁定的货、当场扣货 / 结算 / 发钱），白天也会判任务")
+
 	if _checks == 0:
 		_fail("一条都没检查到（假绿）")
 		return

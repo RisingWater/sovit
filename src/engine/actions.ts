@@ -37,6 +37,17 @@ function sanitizeBrackets(bs: TaxBracket[]): void {
   }
 }
 
+/**
+ * **可用**量 = 库存 − 当天排产已经锁定（`reserved`）的那一份。
+ *
+ * 与 `systems/production.ts` 的 `state.reserved` 同一口径（GDScript 侧是
+ * `sim_core.gd::available()`）。玩家可以花的是这一份：动了被锁定的，白天的生产线就会缺料。
+ */
+export function availableOf(state: GameState, gid: GoodID): number {
+  return (state.goods[gid] ?? 0) - (state.reserved[gid] ?? 0)
+}
+
+
 // ---------------------------------------------------------------------------
 // 动作应用
 //
@@ -309,9 +320,10 @@ export function applyActions(
         break
       }
       case 'gift': {
-        // 送物资（用户 2026-10 · A4）：与建造 / 研究同一拍 —— 次日黎明生效。
-        // 扣货 + 记进 `state.gifts[to][good]`，任务目标 `gifted` 判的就是这个累计量。
-        // 整单成败：仓库不够就一件都不送（不做"送一半"）。
+        // 送物资（用户 2026-10 · A4，2026-10-20 改成**即时生效**）：
+        // 玩家当面交东西，货当场就出门、任务当场结算 —— 不能等到次日黎明。
+        // ⚠️ 只能花**没被锁定的**那部分：`reserved` 是当天排产已经计划掉的原料，
+        // 动了它，白天的生产线就会缺料（与 `spend()` / `availableOf()` 同一口径）。
         const qty = Math.floor(action.qty)
         if (!ctx.goodSet.has(action.goodId)) {
           applied.push({ type: action.type, ok: false, reason: '商品不在当前内容包内' })
@@ -325,12 +337,12 @@ export function applyActions(
           applied.push({ type: action.type, ok: false, reason: '没说送给谁' })
           break
         }
-        const have = state.goods[action.goodId] ?? 0
-        if (have + 1e-9 < qty) {
-          applied.push({ type: action.type, ok: false, reason: '仓库里没这么多' })
+        const free = availableOf(state, action.goodId)
+        if (free + 1e-9 < qty) {
+          applied.push({ type: action.type, ok: false, reason: '没被锁定的没这么多' })
           break
         }
-        state.goods[action.goodId] = round2(have - qty)
+        state.goods[action.goodId] = round2((state.goods[action.goodId] ?? 0) - qty)
         const to = String(action.to)
         const bag = state.gifts[to] ?? {}
         bag[action.goodId] = round2((bag[action.goodId] ?? 0) + qty)
