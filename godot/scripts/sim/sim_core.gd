@@ -956,8 +956,7 @@ func _assign_labor() -> void:
 ## 每日熟练度成长。2026-10：**学校**按覆盖率加速成长（满覆盖 ×1.5）。
 func _grow_skills() -> void:
 	var smax := float(db.economy["skillMax"])
-	var cov: Dictionary = db.economy["coverage"]
-	var mul := 1.0 + float(cov["skillGrowth"]) * float(coverage_ratios()["education"])
+	var mul := 1.0
 	var gain := float(db.economy["skillGainPerDay"]) * mul
 	for r in s["residents"]:
 		if bool(r["employed"]):
@@ -1453,8 +1452,7 @@ func _update_satisfaction(food_score: Dictionary, comfort_score: Dictionary, pri
 	var net_income = ref_wage - _progressive_tax(ref_wage, s["government"]["taxBrackets"])
 	var rent_pressure = clampf(float(s["government"]["rent"]) / maxf(0.1, net_income), 0.0, 1.0)
 	# 覆盖加成（2026-10）：诊所 / 医院 / 学校 / 治安所按覆盖率加满意度（医疗·教育只给中产以上）
-	var cov := coverage_ratios()
-	var cov_cfg: Dictionary = db.economy["coverage"]
+	var cov := {}
 
 	for r in s["residents"]:
 		var cid = String(r["classId"])
@@ -1485,7 +1483,7 @@ func _update_satisfaction(food_score: Dictionary, comfort_score: Dictionary, pri
 			housing_adj = -rent_pressure * float(db.economy["rentSatPenalty"])
 		housing_adj += quality_penalty
 		var class_bonus = float(db.classes[cid].get("satBonus", 0.0))
-		var cov_bonus := _coverage_sat_bonus(cov, cid)
+		var cov_bonus := 0.0
 		var target = clampf(base + housing_adj + class_bonus + cov_bonus, 0.0, 100.0)
 		r["satisfaction"] = clampf(float(r["satisfaction"]) + (target - float(r["satisfaction"])) * smoothing, 0.0, 100.0)
 

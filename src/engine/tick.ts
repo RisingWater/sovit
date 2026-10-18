@@ -135,7 +135,7 @@ export function runNight(state: GameState, ctx: ContentContext, rng: ReturnType<
   // 仓储超限丢弃：紧接损耗之后（见 docs/town.md §3.3）——
   // 先损耗、后判上限，损耗腾出来的空间能救下本来会被丢掉的货
   logs.push(...applyStorageCap(state, ctx, day))
-  growSkills(state, ctx)
+  growSkills(state, consumption.needScores['education'] ?? 0)
   computeArrivals(state)
   state.reserved = {}
 

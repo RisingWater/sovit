@@ -198,21 +198,6 @@ export interface StorageDef {
   storagePerLevel: number
 }
 
-/** 覆盖类型：医疗 / 教育 / 治安（2026-10）。 */
-export type CoverageKind = 'medical' | 'education' | 'safety'
-
-/**
- * 「一座建筑覆盖多少人」——诊所 / 医院 / 学校 / 治安所 / 瞭望台。
- *
- * 与 `recipe` 无关：覆盖不看产量，只看**在岗且在运转**（有配方时还要排得上产）。
- * 覆盖率 = min(1, Σ覆盖人口 / 总人口)，夜里按覆盖率加满意度（医疗/教育只惠及中产以上）。
- */
-export interface CoverageDef {
-  kind: CoverageKind
-  /** 满岗时覆盖的人数（× 建筑等级）。 */
-  people: number
-}
-
 export interface BuildingDef {
   id: BuildingID
   nameZh: string
@@ -229,8 +214,6 @@ export interface BuildingDef {
    * 无 recipe 的建筑缺省 → 倍率恒为 1。
    */
   sector?: Sector
-  /** 人口覆盖（2026-10）：诊所 / 医院 / 学校 / 治安所 / 瞭望台用，见 `CoverageDef`。 */
-  coverage?: CoverageDef
   /** 施工工时（建造力 / 人·天）。设计见 docs/construction.md。 */
   buildWork: number
   /** 产能参数（只有不产商品的建筑有）；缺省表示它靠 recipe 产商品。 */

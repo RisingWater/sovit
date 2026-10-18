@@ -2,7 +2,7 @@ import type { GameState, BuildingDef } from '../types.ts'
 import type { ContentContext } from '../content/index.ts'
 import { ALL_GOODS } from '../content/index.ts'
 import { ECONOMY, TUNING } from '../config.ts'
-import { coverageRatios, coverageSkillMultiplier } from './coverage.ts'
+
 import { round2 } from '../util.ts'
 
 // ---------------------------------------------------------------------------
@@ -150,10 +150,13 @@ export function assignLabor(state: GameState, ctx: ContentContext): void {
  * 每日熟练度成长。
  *
  * 2026-10：**学校**按覆盖率加速成长（"学校增加居民熟练度提升速度和满意度"）——
- * 满覆盖 ×1.5（`economy.coverage.skillGrowth`）。覆盖率每次现算（`coverage.ts`）。
+ * 满满足率 ×1.5（`EDUCATION_GROWTH_BONUS`，数值来自消费结算的 `needScores.education`）。
  */
-export function growSkills(state: GameState, ctx: ContentContext): void {
-  const mul = coverageSkillMultiplier(coverageRatios(state, ctx).education)
+/** 教育的成长加成（满满足率 = +50%）。 */
+export const EDUCATION_GROWTH_BONUS = 0.5
+
+export function growSkills(state: GameState, educationScore = 0): void {
+  const mul = 1 + EDUCATION_GROWTH_BONUS * Math.min(1, Math.max(0, educationScore))
   const gain = ECONOMY.skillGainPerDay * mul
   for (const r of state.residents) {
     if (r.employed) r.skill = Math.min(ECONOMY.skillMax, r.skill + gain)

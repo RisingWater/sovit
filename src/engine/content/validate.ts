@@ -163,7 +163,6 @@ function asNumEnum<T extends number>(v: unknown, allowed: readonly T[], p: strin
 
 const SECTORS = ['agri', 'goods', 'material'] as const
 /** 覆盖类型：医疗 / 教育 / 治安（一处定义，引擎与 UI 共用）。 */
-const COVERAGE_KINDS = ['medical', 'education', 'safety'] as const
 const TECH_EFFECT_KEYS: readonly TechEffectKey[] = ['agri', 'goods', 'material', 'research', 'build', 'toolLife']
 
 function asSector(v: unknown, p: string): Sector {
@@ -505,16 +504,6 @@ function parseBuildings(
       fail(`${p} 既没有 recipe、也没有 capacity / storage：建筑总得产出点什么`)
     }
 
-    // 覆盖（2026-10 第二批）：诊所 / 医院 / 学校 / 治安所 / 瞭望台"一座覆盖 N 人"。
-    // 与配方不同：覆盖不看产量，只看**在岗且在运转**（见 `systems/coverage.ts`）。
-    let coverage: BuildingDef['coverage']
-    if (o.coverage !== undefined) {
-      const c = asObj(o.coverage, `${p}.coverage`)
-      coverage = {
-        kind: asEnum(c.kind, COVERAGE_KINDS, `${p}.coverage.kind`),
-        people: Math.round(asPos(c.people, `${p}.coverage.people`)),
-      }
-    }
     buildings[id] = {
       id,
       nameZh: asStr(o.nameZh, `${p}.nameZh`),
@@ -528,7 +517,6 @@ function parseBuildings(
       buildWork,
       ...(Object.keys(buildCost).length > 0 ? { buildCost } : {}),
       ...(art !== undefined ? { art } : {}),
-      ...(coverage !== undefined ? { coverage } : {}),
     }
     ids.push(id)
   })
@@ -747,7 +735,6 @@ function parseEconomy(
   const c = asObj(e.construction, 'economy.construction')
   const rc = asObj(e.research, 'economy.research')
   const toolsCfg = asObj(e.tools, 'economy.tools')
-  const covCfg = asObj(e.coverage, 'economy.coverage')
 
   const economy: EconomyConfig = {
     refWage: asNonNeg(e.refWage, 'economy.refWage'),
@@ -793,12 +780,6 @@ function parseEconomy(
     },
     research: {
       baseRate: asNonNeg(rc.baseRate, 'economy.research.baseRate'),
-    },
-    coverage: {
-      medical: asNonNeg(covCfg.medical, 'economy.coverage.medical'),
-      education: asNonNeg(covCfg.education, 'economy.coverage.education'),
-      safety: asNonNeg(covCfg.safety, 'economy.coverage.safety'),
-      skillGrowth: asNonNeg(covCfg.skillGrowth, 'economy.coverage.skillGrowth'),
     },
     tools: {
       perWorkstation: asNonNeg(toolsCfg.perWorkstation, 'economy.tools.perWorkstation'),

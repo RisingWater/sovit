@@ -50,12 +50,6 @@
       "order": ["stone_tools", "iron_tools"]
     },
 
-    "coverage": {
-      "medical": 6,
-      "education": 3,
-      "safety": 4,
-      "skillGrowth": 0.5
-    },
 
     "defaultRent": 0.05,
     "privateHousingSatBonus": 12,

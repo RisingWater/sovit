@@ -44,11 +44,7 @@ export interface EconomyConfig {
   luxuryElasticity: number
   /** AI / 默认奢侈品的加价倍率。 */
   luxuryPriceMarkup: number
-  /**
-   * 覆盖加成（2026-10 第二批）：诊所 / 医院 / 学校 / 治安所"覆盖到人"时加的满意度点，
-   * 以及学校对熟练度成长的倍率加成（满覆盖 = 1 + skillGrowth）。
-   */
-  coverage: { medical: number; education: number; safety: number; skillGrowth: number }
+
   /** 满意度平滑系数（0-1）。 */
   satisfactionSmoothing: number
   /** 满意度权重（会归一化）。 */

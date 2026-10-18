@@ -3,7 +3,7 @@ import type { ContentContext } from '../content/index.ts'
 import { ECONOMY, TUNING } from '../config.ts'
 import { clamp } from '../util.ts'
 import { progressiveTax } from './finance.ts'
-import { coverageRatios, coverageSatBonus } from './coverage.ts'
+
 
 // ---------------------------------------------------------------------------
 // 满意度
@@ -28,8 +28,7 @@ export function updateSatisfaction(
   for (const s of state.shops) wageByShop.set(s.id, s.wage)
   const netIncome = ECONOMY.refWage - progressiveTax(ECONOMY.refWage, state.government.taxBrackets)
   const rentPressure = clamp(state.government.rent / Math.max(0.1, netIncome), 0, 1)
-  // 覆盖加成（2026-10）：诊所 / 医院 / 学校 / 治安所按覆盖率加满意度（医疗·教育只给中产以上）
-  const cov = coverageRatios(state, ctx)
+
 
   for (const r of state.residents) {
     const food = foodScore[r.classId] ?? 1
@@ -68,8 +67,7 @@ export function updateSatisfaction(
           : -rentPressure * ECONOMY.rentSatPenalty) + qualityPenalty
 
     const classBonus = ctx.classes[r.classId]?.satBonus ?? 0
-    const covBonus = coverageSatBonus(cov, r.classId)
-    const target = clamp(base + housingAdj + classBonus + covBonus, 0, 100)
+    const target = clamp(base + housingAdj + classBonus, 0, 100)
     r.satisfaction = clamp(
       r.satisfaction + (target - r.satisfaction) * satisfactionSmoothing,
       0,

@@ -21,6 +21,8 @@ export interface ConsumptionResult {
   comfortScore: Record<string, number>
   /** 各阶层平均价格分数 0-1。 */
   priceScore: Record<string, number>
+  /** 各**商品**需求的平均满足率（2026-10：教育用它加速熟练度成长）。 */
+  needScores: Record<string, number>
   /** 饥饿人数。 */
   hungry: number
   /** 政府销售回款。 */
@@ -42,6 +44,8 @@ export function runConsumption(
   const comfortScore: Record<string, number> = {}
   const priceScoreMap: Record<string, number> = {}
   const soldByGood: Record<string, number> = {}
+  const needSum: Record<string, number> = {}
+  const needCnt: Record<string, number> = {}
   let hungry = 0
   let revenue = 0
 
@@ -69,6 +73,7 @@ export function runConsumption(
       let priceDen = 0
       let spentByResident = 0
       let needRatio = 1
+      const needScoreLocal: Record<string, number> = {}
 
       for (const need of def.needs) {
         const isFood = ALL_GOODS[need.good]?.category === 'food'
@@ -115,6 +120,7 @@ export function runConsumption(
 
         // 逐项需求的满足率（2026-10）：晋升按"最差那一项"算，所以这里逐项记录
         needRatio = Math.min(needRatio, clamp(sold / demand, 0, 1))
+        needScoreLocal[need.good] = clamp(sold / demand, 0, 1)
         if (isFood) {
           foodNeeded += demand
           foodConsumed += sold
@@ -144,6 +150,10 @@ export function runConsumption(
         r.account = { wage: 0, tax: 0, rent: 0, spent: 0, foodScore: 1, comfortScore: 1, priceScore: 1, hungry: false, bought: {} }
       }
       r.needsMet = Math.round(needRatio * 1000) / 1000
+      for (const gid of Object.keys(needScoreLocal)) {
+        needSum[gid] = (needSum[gid] ?? 0) + needScoreLocal[gid]!
+        needCnt[gid] = (needCnt[gid] ?? 0) + 1
+      }
       r.account.foodScore = Math.round(f * 1000) / 1000
       r.account.comfortScore = Math.round(c * 1000) / 1000
       r.account.priceScore = Math.round((priceDen > 0 ? priceNum / priceDen : 1) * 1000) / 1000
@@ -171,8 +181,11 @@ export function runConsumption(
     })
   }
 
+  const needScores: Record<string, number> = {}
+  for (const gid of Object.keys(needSum)) needScores[gid] = round2(needSum[gid]! / Math.max(1, needCnt[gid]!))
   return {
     foodScore,
+    needScores,
     comfortScore,
     priceScore: priceScoreMap,
     hungry,
