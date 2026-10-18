@@ -38,6 +38,34 @@ interface Item {
   output: Record<string, number>
 }
 
+/**
+ * 燃料的**取料顺序**（2026-10：地图上有了煤矿）。
+ *
+ * 以前燃料写死是木柴（`goods['firewood']`），有了煤之后两者都能烧：
+ * **先煤、后木柴** —— 煤是矿里挖的，木柴要拿木材换，先烧煤更省。
+ * 每座工坊在**黎明排产时**定下今天烧哪种（`shop.fuelGood`），然后全天不变 ——
+ * 这样"排产按哪种燃料算批次"和"执行时扣哪种"永远是同一个答案。
+ *
+ * ⚠️ 与 GDScript `sim_core.gd::FUEL_ORDER` 必须同序（门槛 `coal` 钉着）。
+ */
+export const FUEL_ORDER: readonly string[] = ['coal', 'firewood']
+
+/**
+ * 给这座工坊挑今天烧的燃料：
+ * 1. 按 `FUEL_ORDER` 找第一个**够用**的（`stock >= need`）
+ * 2. 都不够 → 挑**存量最多**的那个（让排产按它打折，而不是直接摆烂）
+ * 3. 这个内容包里一个都没有 → 返回空串（老内容包只有木柴时不会出问题）
+ */
+function pickFuel(state: GameState, need: number): string {
+  let fallback = ''
+  for (const gid of FUEL_ORDER) {
+    if (!(gid in state.goods)) continue
+    if ((state.goods[gid] ?? 0) + 1e-9 >= need) return gid
+    if (fallback === '' || (state.goods[gid] ?? 0) > (state.goods[fallback] ?? 0)) fallback = gid
+  }
+  return fallback
+}
+
 /** 黎明排产：两阶段公平配给，写入 shop.planned 与 shop.profit。 */
 export function planProduction(state: GameState, ctx: ContentContext): void {
   for (const shop of state.shops) shop.planned = 0
@@ -65,7 +93,11 @@ export function planProduction(state: GameState, ctx: ContentContext): void {
       if (q && q > 0) inputPer[g] = (inputPer[g] ?? 0) + q
     }
     if (recipe.fuel && recipe.fuel > 0) {
-      inputPer['firewood'] = (inputPer['firewood'] ?? 0) + recipe.fuel
+      // 燃料按当天的存量挑（先煤后木柴），挑中的那个记在 shop 上，
+      // 执行时（runProductionStep）照它扣 —— 排产与执行不会各说各话。
+      const fuel = pickFuel(state, recipe.fuel * desired)
+      shop.fuelGood = fuel === '' ? undefined : fuel
+      if (fuel !== '') inputPer[fuel] = (inputPer[fuel] ?? 0) + recipe.fuel
     }
 
     items.push({ shop, desired, inputPer, output: recipe.output as Record<string, number> })
@@ -128,10 +160,12 @@ export function runProductionStep(state: GameState, ctx: ContentContext, fractio
       }
     }
     if (recipe.fuel && recipe.fuel > 0) {
-      state.goods['firewood'] = (state.goods['firewood'] ?? 0) - recipe.fuel * batches
-      state.reserved['firewood'] = Math.max(0, (state.reserved['firewood'] ?? 0) - recipe.fuel * batches)
-      state.ledgerToday.consumed['firewood'] = round4((state.ledgerToday.consumed['firewood'] ?? 0) + recipe.fuel * batches)
-      addBy('firewood', recipe.fuel * batches)
+      // 烧黎明时挑好的那种燃料（老存档 / 老内容里没有 `fuelGood` → 回退木柴）
+      const fuel = shop.fuelGood ?? 'firewood'
+      state.goods[fuel] = (state.goods[fuel] ?? 0) - recipe.fuel * batches
+      state.reserved[fuel] = Math.max(0, (state.reserved[fuel] ?? 0) - recipe.fuel * batches)
+      state.ledgerToday.consumed[fuel] = round4((state.ledgerToday.consumed[fuel] ?? 0) + recipe.fuel * batches)
+      addBy(fuel, recipe.fuel * batches)
     }
     // 只放大**产出**，投入（上面两段）完全不动 —— 这就是"虚空产量"。
     // 倍率 = 工具（+25%）× 该产业的效率科技加成（1 + techBonuses()[def.sector]），两者**相乘**；

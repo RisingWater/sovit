@@ -592,17 +592,23 @@ function bridgeTile(axis: 'h' | 'v'): Canvas {
   return c
 }
 
-/** 地表补丁（矿脉）：石 / 粘土 / **铁矿**（用户 2026-10：「地图上加入铁矿资源」）。 */
+/**
+ * 地表补丁（矿脉）：石 / 粘土 / **铁矿** / **煤矿**（用户 2026-10 两次追加）。
+ * 四种要**一眼分得开**：石=浅灰、粘土=土橙、铁=冷蓝灰+锈斑、煤=近黑+亮灰反光。
+ */
 function patchTile(kind: string): Canvas {
   const base: RGBA = kind === 'stone' ? [168, 168, 172, 255]
     : kind === 'clay' ? [186, 124, 80, 255]
-      : kind === 'iron' ? [104, 106, 122, 255] : [206, 198, 180, 255]
+      : kind === 'iron' ? [104, 106, 122, 255]
+        : kind === 'coal' ? [66, 64, 66, 255] : [206, 198, 180, 255]
   const dark: RGBA = kind === 'stone' ? [136, 136, 142, 255]
     : kind === 'clay' ? [152, 98, 62, 255]
-      : kind === 'iron' ? [70, 72, 88, 255] : [176, 168, 150, 255]
+      : kind === 'iron' ? [70, 72, 88, 255]
+        : kind === 'coal' ? [38, 36, 40, 255] : [176, 168, 150, 255]
   const lit: RGBA = kind === 'stone' ? [196, 196, 200, 255]
     : kind === 'clay' ? [214, 152, 104, 255]
-      : kind === 'iron' ? [158, 160, 178, 255] : [226, 220, 204, 255]
+      : kind === 'iron' ? [158, 160, 178, 255]
+        : kind === 'coal' ? [124, 120, 118, 255] : [226, 220, 204, 255]
   const c = new Canvas(G, G, base)
   for (const [x, y] of [[3, 4], [10, 6], [5, 11], [12, 13]] as const) c.set(x, y, dark)
   for (const [x, y] of [[7, 2], [13, 8], [2, 9], [9, 14]] as const) c.set(x, y, lit)
@@ -612,6 +618,11 @@ function patchTile(kind: string): Canvas {
     // 铁矿的识别色：暗蓝灰岩 + 几粒**锈斑**（不然和石矿在缩略图上分不出来）
     const RUST: RGBA = [186, 104, 54, 255]
     for (const [x, y] of [[4, 6], [9, 9], [11, 12], [6, 13]] as const) c.set(x, y, RUST)
+  }
+  if (kind === 'coal') {
+    // 煤矿：黑底 + 几块**亮面**碎煤（只用黑会像一片阴影，得有一点反光点）
+    const SHINE: RGBA = [170, 166, 162, 255]
+    for (const [x, y] of [[4, 5], [8, 8], [11, 11], [6, 12]] as const) c.set(x, y, SHINE)
   }
   return c
 }
@@ -684,6 +695,7 @@ function terrainAtlas(): Canvas {
   cv.blit(patchTile('stone'), 2 * G, 6 * G)
   cv.blit(patchTile('clay'), 3 * G, 6 * G)
   cv.blit(patchTile('iron'), 5 * G, 6 * G)
+  cv.blit(patchTile('coal'), 6 * G, 6 * G)
   cv.blit(floorTile(), 4 * G, 6 * G)
   return cv
 }
@@ -1124,7 +1136,7 @@ function main(): void {
   console.log(`  商品图标 ${goods.length} 个`)
   console.log(`  速度图标 4 个 + 笔刷缩略图 2 个`)
   console.log(`  角色 ${CLASS_IDS.length} 阶层 x 4 向 x 4 帧`)
-  console.log(`  地形图集 extra.png（道路 16 + 水面 32 + 桥 2 + 补丁 3（石 / 粘土 / 铁）+ 地板 1）`)
+  console.log(`  地形图集 extra.png（道路 16 + 水面 32 + 桥 2 + 补丁 4（石 / 粘土 / 铁 / 煤）+ 地板 1）`)
   console.log(`  装饰图集 deco.png（树 4 种，16x32）`)
 }
 

@@ -314,6 +314,11 @@ export interface Shop {
    * 黎明一次性分配、当天不变（见 docs/technology.md §8.3）。
    */
   toolBoost?: number
+  /**
+   * 今天烧哪种燃料（`coal` / `firewood`）—— 黎明排产时按存量挑一次、全天不变
+   * （见 `production.ts::FUEL_ORDER`）。缺省（老存档）按木柴处理。
+   */
+  fuelGood?: string
 }
 
 export interface Resident {

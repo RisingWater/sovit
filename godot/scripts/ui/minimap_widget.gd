@@ -38,6 +38,7 @@ const TERRAIN_COLORS := [
 	Color(0.69, 0.47, 0.34),   # CLAY
 	Color(0.27, 0.46, 0.67),   # WATER
 	Color(0.42, 0.42, 0.50),   # IRON（铁矿，2026-10：比石矿更暗更冷）
+	Color(0.20, 0.19, 0.21),   # COAL（煤矿，2026-10：近黑）
 ]
 const ROAD_COLOR := Color(0.59, 0.50, 0.38)
 const BUILDING_COLOR := Color(0.72, 0.42, 0.36)

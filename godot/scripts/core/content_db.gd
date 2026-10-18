@@ -212,9 +212,9 @@ func is_luxury(gid: String) -> bool:
 ## 「娱乐」页：产出不是食物，但归到娱乐。
 const CAT_ENTERTAINMENT := ["theater", "domestic_service"]
 ## 「矿场」页里的采集业（产出是原料，按 arch 也推得出来，但狩猎/捕鱼要显式归位）。
-const CAT_MINING := ["lumberjack", "quarry", "clay_pit", "iron_mine", "hunting_camp", "fishery"]
+const CAT_MINING := ["lumberjack", "quarry", "clay_pit", "iron_mine", "coal_mine", "hunting_camp", "fishery"]
 ## 地形 key → 中文。建造栏 tooltip 的「需地形：…」用它（2026-10 加了铁矿）。
-const TERRAIN_ZH := {"grass": "草地", "forest": "林地", "stone": "石矿", "clay": "粘土", "iron": "铁矿", "water": "水面"}
+const TERRAIN_ZH := {"grass": "草地", "forest": "林地", "stone": "石矿", "clay": "粘土", "iron": "铁矿", "coal": "煤矿", "water": "水面"}
 ## 「市政」页：仓库 / 建筑工坊 / 研究所 —— 别让它们掉进「工业」。
 const CAT_CIVIC := ["warehouse", "construction_works", "research_institute"]
 

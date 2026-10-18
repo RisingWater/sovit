@@ -8,6 +8,7 @@
     { "id": "stone", "nameZh": "石块", "tier": 0, "category": "raw", "storable": true, "baseValue": 1.6 },
     { "id": "clay", "nameZh": "粘土", "tier": 0, "category": "raw", "storable": true, "baseValue": 1.2 },
     { "id": "iron_ore", "nameZh": "铁矿石", "tier": 0, "category": "raw", "storable": true, "baseValue": 2.8 },
+    { "id": "coal", "nameZh": "煤", "tier": 0, "category": "fuel", "storable": true, "baseValue": 2.2 },
     { "id": "meat", "nameZh": "肉类", "tier": 0, "category": "food", "storable": false, "baseValue": 3, "perishRate": 0.15 },
     { "id": "fish", "nameZh": "鱼类", "tier": 0, "category": "food", "storable": false, "baseValue": 2.5, "perishRate": 0.15 },
     { "id": "hide", "nameZh": "兽皮", "tier": 0, "category": "raw", "storable": true, "baseValue": 2 },

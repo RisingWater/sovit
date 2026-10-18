@@ -18,6 +18,9 @@ const WATER := 4
 ## 与石矿 / 粘土一样是**地形**，但只服务一座建筑（铁矿场 `iron_mine`，
 ## `content/buildings.json` 里 `terrain:"iron"`），所以点分布更稀、离出生点更远。
 const IRON := 5
+## **煤矿脉**（用户 2026-10：「地图上添加煤矿」）。和铁矿一样是地形，服务 `coal_mine`。
+## 煤是**燃料**（砖窑 / 陶器坊 / 熏鱼房 / 肉干坊都能烧），所以比铁矿常见一点。
+const COAL := 6
 
 var terrain := PackedByteArray()
 var road := PackedByteArray()
@@ -59,6 +62,7 @@ static func terrain_name(t: int) -> String:
 		STONE: return "stone"
 		CLAY: return "clay"
 		IRON: return "iron"
+		COAL: return "coal"
 		WATER: return "water"
 		_: return "grass"
 
@@ -116,6 +120,14 @@ func generate(seed_value: int) -> void:
 	_blob(rng, center.x + 16, center.y - 12, 4, IRON)
 	_blob(rng, center.x - 40, center.y + 28, 6, IRON)
 	_blob(rng, center.x + 36, center.y - 32, 5, IRON)
+
+	# **煤矿脉**（用户 2026-10）：按"燃料矿"的地位给量 —— 野外 5 处（比铁矿多一处、
+	# 半径一样），出生点附近两处（一处 20 格内、一处要往外走）。
+	# ⚠️ 同样必须排在出生点那几片树林与石/粘土之后（见上面铁矿那段）。
+	for i in 5:
+		_blob(rng, rng.randi_range(60, W - 60), rng.randi_range(60, H - 60), 5, COAL)
+	_blob(rng, center.x - 18, center.y + 16, 4, COAL)
+	_blob(rng, center.x + 30, center.y + 34, 5, COAL)
 
 
 	# 仓库区清成草地

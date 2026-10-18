@@ -38,6 +38,7 @@
 | `esc` | `tools/esc_test.gd` | ESC 菜单：**每一行都有图标**（`UIKit.icon_left_button()`：图标贴左边、文字居中）、保存 / 读取开的是自绘对话框而不是 `FileDialog`、顶栏只剩 快存/快读/菜单、圆钮列 5 个且在左侧 |
 | `consumetip` | `tools/consumetip_test.gd` | 资源页「工业消耗 / 居民消耗」的悬停明细（2026-10）：台账拆分表 `consumedBy` / `boughtBy` **加起来等于总量**、面板上那两个标签**真的挂着** tooltip 且 `mouse_filter = STOP`（Label 默认 IGNORE，只设 tooltip_text 不会弹）、真鼠标移动过去 `gui_get_hovered_control()` 命中的就是它、tooltip 里的「建筑名 ×座数」「阶层名 ×人数」与村里实际一致 |
 | `tools` | `tools/tool_test.gd` | 工具（石制工具）**消耗换产能**（2026-10）：`perWorkstation = 0.1`（一个工人 10 天 1 件）、农业/工业/矿场三类在黎明都会装配（`toolBoost = 1.25`）、按 `0.1×在岗人数` 扣料且台账总量与 `consumedBy` 一致、**产出 ×1.25 而投入一件不多**、没工具就不加成、空工坊不扣、不够时按 shops 顺序先到先得。与 TS 的 `scripts/check-tools.ts` 同口径同数字 |
+| `coal` | `tools/coal_test.gd` | 煤矿与**燃料**（2026-10）：`GameMap.COAL = 6` / 地形名 "coal" / 生成量与出生点距离 / 贴图索引 54 / 内容（`coal_mine` 建在 `coal`、产煤、矿场页、中文「煤矿」）/ 放置闸 / **有煤先烧煤且只扣煤**、没煤改烧木柴、两种都没有就不排产不产出（不许凭空烧）。与 TS 的 `scripts/check-fuels.ts` 同口径 |
 
 ### 像素字体里没有的字 = 屏幕上什么都没有（而且不报错）
 

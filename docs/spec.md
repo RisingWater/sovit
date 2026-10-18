@@ -662,6 +662,29 @@ ledgerToday.produced[g] += 同上
 两条都是**可加总回到总量**的（`consumed` / `bought`），门槛 `consumetip` 钉着这一条 ——
 它们只进台账（存档），**不参与任何计算**，黄金摘要也不读它们。
 
+### 11.3 燃料：煤 / 木柴（2026-10）
+
+`recipe.fuel` 是"每批次烧多少燃料"。**烧哪种**由下面这条顺序决定（两份实现同序）：
+
+```
+FUEL_ORDER = ['coal', 'firewood']      # 先煤、后木柴
+```
+
+黎明 `planProduction`：对每座有 `fuel > 0` 的工坊
+```
+need   = fuel × desired
+fuelGood = FUEL_ORDER 里第一个 stock >= need 的；都不够 → 存量最多的那个；一个没有 → ""
+inputPer[fuelGood] += fuel              # 排产按它算需求 / 折扣
+shop.fuelGood = fuelGood                # 全天不变 —— 执行时照它扣
+```
+白天 `runProductionStep`：`gid = shop.fuelGood ?? 'firewood'`，从它扣料、记台账
+（`consumed[gid]`、`consumedBy[gid][defId]`）。
+
+- **排产与执行必须是同一个答案**：所以选择发生在黎明、存在 shop 上，而不是每批现挑
+- 老存档 / 老内容没有 `fuelGood` → 回退 `firewood`（与旧行为一致）
+- 一个燃料都没有时 `planned = 0` —— 不许凭空烧
+- 门槛：`godot verify.sh` 的 `coal`、`npm run check:fuels`（同口径同数字）
+
 ## 12. 初始状态 `createInitialState`
 
 - 商品/价格/住房取自 `ctx.pack.goods` / `pack.housing`，数量取自 `pack.start`。

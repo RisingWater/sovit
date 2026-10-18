@@ -45,7 +45,7 @@ for (const id of PACK_IDS) {
 // ---------------------------------------------------------------------------
 const EXTRACT_CAP = 6
 let cap_failed = 0
-for (const id of ['lumberjack', 'quarry', 'clay_pit', 'iron_mine']) {
+for (const id of ['lumberjack', 'quarry', 'clay_pit', 'iron_mine', 'coal_mine']) {
   const def = ALL_BUILDINGS[id]
   if (!def) {
     console.error(`  ✗ 找不到建筑 ${id}`)
@@ -61,4 +61,4 @@ for (const id of ['lumberjack', 'quarry', 'clay_pit', 'iron_mine']) {
   }
 }
 if (cap_failed > 0) process.exit(1)
-console.log(`用工上限：伐木场 / 采石场 / 粘土坑 / 铁矿场 = ${EXTRACT_CAP}（与农田同档，见 docs/content.md）`)
+console.log(`用工上限：伐木场 / 采石场 / 粘土坑 / 铁矿场 / 煤矿场 = ${EXTRACT_CAP}（与农田同档，见 docs/content.md）`)

@@ -577,7 +577,11 @@ func _plan_production() -> void:
 				input_per[g] = float(input_per.get(g, 0.0)) + q
 		var fuel = float(recipe.get("fuel", 0.0))
 		if fuel > 0.0:
-			input_per["firewood"] = float(input_per.get("firewood", 0.0)) + fuel
+			# 燃料按当天存量挑（先煤后木柴），挑中的记在 shop 上，执行时照它扣
+			var fg := _pick_fuel(fuel * desired)
+			shop["fuelGood"] = fg
+			if fg != "":
+				input_per[fg] = float(input_per.get(fg, 0.0)) + fuel
 		items.append({"shop": shop, "desired": desired, "inputPer": input_per, "output": recipe["output"]})
 		for g in input_per.keys():
 			demand[g] = float(demand.get(g, 0.0)) + float(input_per[g]) * desired
@@ -628,10 +632,14 @@ func _run_production_step(fraction: float) -> void:
 				_ledger_add_by(lt, "consumedBy", String(g), def_id, q * batches)
 		var fuel = float(recipe.get("fuel", 0.0))
 		if fuel > 0.0:
-			s["goods"]["firewood"] = float(s["goods"].get("firewood", 0.0)) - fuel * batches
-			s["reserved"]["firewood"] = maxf(0.0, float(s["reserved"].get("firewood", 0.0)) - fuel * batches)
-			lt["consumed"]["firewood"] = _r4(float(lt["consumed"].get("firewood", 0.0)) + fuel * batches)
-			_ledger_add_by(lt, "consumedBy", "firewood", def_id, fuel * batches)
+			# 烧黎明时挑好的那种燃料（老存档没有 `fuelGood` → 回退木柴）
+			var fgood := String(shop.get("fuelGood", "firewood"))
+			if fgood == "":
+				fgood = "firewood"
+			s["goods"][fgood] = float(s["goods"].get(fgood, 0.0)) - fuel * batches
+			s["reserved"][fgood] = maxf(0.0, float(s["reserved"].get(fgood, 0.0)) - fuel * batches)
+			lt["consumed"][fgood] = _r4(float(lt["consumed"].get(fgood, 0.0)) + fuel * batches)
+			_ledger_add_by(lt, "consumedBy", fgood, def_id, fuel * batches)
 		# 只放大**产出**，投入（上面几段）完全不动 —— 这就是"虚空产量"。
 		# 倍率 = 工具（+25%）× 该产业的效率科技加成（见 tech_bonuses()），两者相乘。
 		var boost = _shop_tool_boost(shop) * _sector_output_boost(shop)
@@ -3067,3 +3075,24 @@ func _ledger_add_by(ledger: Dictionary, key: String, good_id: String, bucket: St
 	var by: Dictionary = table[good_id]
 	var cur := float(by.get(bucket, 0.0)) + qty
 	by[bucket] = _r4(cur) if digits >= 4 else SimUtil.r2(cur)
+
+## 燃料的**取料顺序**（2026-10：地图上有了煤矿）。必须与 TS `production.ts::FUEL_ORDER` 同序。
+##
+## 以前燃料写死木柴；现在煤和木柴都能烧 —— **先煤、后木柴**（煤是矿里挖的，
+## 木柴要拿木材换，先烧煤更省）。每座工坊在**黎明排产时**定下今天烧哪种
+## （`shop["fuelGood"]`），执行时照它扣，排产与执行不会各说各话。
+const FUEL_ORDER := ["coal", "firewood"]
+
+## 给这座工坊挑今天烧的燃料：先找**够用**的，都不够就挑**存量最多**的
+## （让排产按它打折），内容包里一个都没有就返回空串。
+func _pick_fuel(need: float) -> String:
+	var fallback := ""
+	for gid in FUEL_ORDER:
+		if not (s["goods"] as Dictionary).has(gid):
+			continue
+		var have := float(s["goods"].get(gid, 0.0))
+		if have + 1e-9 >= need:
+			return String(gid)
+		if fallback == "" or have > float(s["goods"].get(fallback, 0.0)):
+			fallback = String(gid)
+	return fallback
