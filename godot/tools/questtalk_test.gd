@@ -379,8 +379,8 @@ func _run() -> void:
 	print("QUESTTALK TEST 城镇中心：破旧 → 初步修缮 → 修好，三张贴图各就各位 ✅")
 
 	# ---- 5. 存档版本：2 起不兼容老档 -------------------------------------
-	if SaveManager.SAVE_VERSION != 3:
-		_fail("存档版本应当是 3（住房单体身份；用户：版本更新，存档不跟之前兼容）")
+	if SaveManager.SAVE_VERSION != 4:
+		_fail("存档版本应当是 4（M4 游商；用户：版本更新，存档不跟之前兼容）")
 		return
 	var path := "user://qtt_v1.json"
 	var f := FileAccess.open(path, FileAccess.WRITE)

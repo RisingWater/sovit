@@ -10,7 +10,7 @@ extends RefCounted
 ## 用户 2026-10："版本更新，存档不跟之前兼容" —— 这里**不做旧版迁移**，
 ## 老存档读进来直接拒（`load_into` 版本不符就返回 null，提示由 UI 说）。
 ## 历史：2 = 任务 schema 2（giver / outro / building_repaired）+ 剧情对话记账 + 城镇中心破旧标记。
-const SAVE_VERSION := 3
+const SAVE_VERSION := 4
 const DEFAULT_PATH := "user://sovit_save.json"
 
 static func save_to(path: String, sim: SimCore) -> Error:

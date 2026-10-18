@@ -18,6 +18,7 @@ var _minimap
 var _esc_menu
 var _new_game
 var _save_dialog
+var _panel_trade
 var _panel_civic
 var _panel_quest
 var _ai_panel
@@ -146,6 +147,10 @@ func _ready() -> void:
 	_panel_civic.name = "Civic"
 	_panel_civic.setup(runner, world)
 	root_ui.add_child(_panel_civic)
+	_panel_trade = load("res://scripts/ui/panel_trade.gd").new()
+	_panel_trade.name = "Trade"
+	_panel_trade.setup(runner, world)
+	root_ui.add_child(_panel_trade)
 
 	# 任务面板（见 docs/town.md §十九）：左侧圆钮列第 5 个（F5）打开。
 	# 读的是 `SimCore.quest_journal()`（全部已知任务：已完成 + 已解锁），
@@ -399,6 +404,11 @@ func _on_select_building(id: String) -> void:
 	if def_id == "warehouse":
 		_inspector.clear()
 		_panel_civic.open_warehouse(id)
+		return
+	if def_id == "trade_market":
+		_inspector.clear()
+		_panel_civic.close_panel()
+		_panel_trade.open_trade()
 		return
 	_panel_civic.close_panel()
 	_inspector.show_building(id)

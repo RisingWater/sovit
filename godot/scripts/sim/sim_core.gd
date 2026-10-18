@@ -3403,3 +3403,28 @@ func buy_from_caravan(caravan_id: String, good_id: String, qty: int) -> String:
 	c["cash"] = SimUtil.r2(float(c["cash"]) + money)
 	offer["qty"] = SimUtil.r2(float(offer["qty"]) - float(n))
 	return ""
+
+## 游商面板的只读快照（UI 只画、不算）：在场队伍 + 剩余天数 + 下一批还差几天。
+func trade_snapshot() -> Dictionary:
+	var trade: Dictionary = _trade()
+	var out := []
+	var day := int(s["day"])
+	for c in (trade["caravans"] as Array):
+		out.append({
+			"id": String(c["id"]),
+			"daysLeft": maxi(0, int(c["leaveDay"]) - day + 1),
+			"cash": float(c["cash"]),
+			"sell": (c["sell"] as Array).duplicate(true),
+			"buy": (c["buy"] as Array).duplicate(true),
+		})
+	return {
+		"caravans": out,
+		"waveSize": caravan_wave_size(),
+		"daysToNext": maxi(0, int(trade.get("nextWaveDay", 1)) - day),
+		"money": float(s["government"]["money"]),
+	}
+
+## 商品中文名（面板用）。
+func good_name(good_id: String) -> String:
+	var def = db.goods.get(good_id, null)
+	return String(def["nameZh"]) if def != null else good_id
