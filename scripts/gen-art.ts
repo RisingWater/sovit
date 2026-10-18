@@ -272,6 +272,9 @@ const FORCE_HALF: Record<string, true> = {
   smeltery: true,
   iron_tool_workshop: true,
   tool_works: true,
+  // M2 医疗与教育：草药农场 / 药水工坊 走"小建筑档"；诊所 / 医院 / 学校 走"大建筑档"（不缩小）
+  herbal_farm: true,
+  potion_workshop: true,
   // 用户看过"全部建筑一张图"之后点名的两座：第 4 行第 5 列 建筑工坊、第 5 行第 4 列 砖房
   // —— "太大"。整数倍缩放只有 ×1 / ÷2 两档，要变小就只能 ÷2：
   //   * 建筑工坊 128x84 -> 64x42：和其余二十多座工坊同档了；代价是它不再和
@@ -291,6 +294,10 @@ const FORCE_HALF: Record<string, true> = {
 // 它们的占地在 content 里声明成 8x3，贴图比占地高（最多 36px），往上伸出去，
 // 和身后的建筑按地面线 y 排序遮挡 —— 见 world_view._footprint / _apply_art_offset。
 const FORCE_NATIVE: Record<string, true> = {
+  // M2：诊所 / 医院 / 学校**不缩小**（用户 2026-10）
+  clinic: true,
+  hospital: true,
+  school: true,
   research_institute: true,
   construction_works: true,
   domestic_service: true,

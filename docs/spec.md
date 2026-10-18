@@ -666,6 +666,23 @@ ledgerToday.produced[g] += 同上
 两条都是**可加总回到总量**的（`consumed` / `bought`），门槛 `consumetip` 钉着这一条 ——
 它们只进台账（存档），**不参与任何计算**，黄金摘要也不读它们。
 
+### 11.2.1 覆盖：医疗 / 教育 / 治安（2026-10 第二批）
+
+服务**不是消费品**，而是按人口"覆盖"（用户 2026-10 定的口径）：
+
+```
+覆盖人口[kind] = Σ over 在运转的 shop（def.coverage.kind == kind）：coverage.people × shop.level
+覆盖率[kind]   = min(1, 覆盖人口 / 总人口)
+满意度目标值  += 医疗 × 6（仅非穷人） + 教育 × 3（仅非穷人） + 治安 × 4（所有人）
+熟练度成长    += skillGainPerDay × (1 + 0.5 × 教育覆盖率)
+```
+
+- **在运转** 的定义：`active && 在岗人数 > 0 &&（有配方时）planned > 0`
+  —— 缺原料（没药水 / 没武器）就自动不覆盖，不需要额外规则
+- 覆盖率**不进存档**：`coverage.ts::coverageRatios()` / `sim_core.gd::coverage_ratios()` 现算
+- 系数在 `content/economy.json` 的 `coverage`（`medical` / `education` / `safety` / `skillGrowth`）
+- 覆盖率不改变任何产量，只动满意度与熟练度成长
+
 ### 11.3 燃料：煤 / 木柴（2026-10）
 
 `recipe.fuel` 是"每批次烧多少燃料"。**烧哪种**由下面这条顺序决定（两份实现同序）：

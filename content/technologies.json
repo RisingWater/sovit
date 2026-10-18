@@ -112,6 +112,41 @@
       "unlocks": { "buildings": [], "housing": [] },
       "effects": { "toolLife": 0.5 }
     },    {
+      "id": "herbalism",
+      "nameZh": "草药",
+      "era": 2,
+      "research": 30,
+      "cost": { "goods": { "wood": 20 } },
+      "requires": ["digging"],
+      "unlocks": { "buildings": ["herbal_farm"], "housing": [] }
+    },
+    {
+      "id": "medicine",
+      "nameZh": "医道",
+      "era": 3,
+      "research": 60,
+      "cost": { "goods": { "herbs": 20, "wood": 20 } },
+      "requires": ["herbalism"],
+      "unlocks": { "buildings": ["potion_workshop", "clinic"], "housing": [] }
+    },
+    {
+      "id": "hospital_ward",
+      "nameZh": "病房",
+      "era": 4,
+      "research": 90,
+      "cost": { "goods": { "brick": 20, "potion": 20 } },
+      "requires": ["medicine", "brickmaking"],
+      "unlocks": { "buildings": ["hospital"], "housing": [] }
+    },
+    {
+      "id": "schooling",
+      "nameZh": "学堂",
+      "era": 3,
+      "research": 60,
+      "cost": { "goods": { "wood": 30, "brick": 10 } },
+      "requires": ["construction", "brickmaking"],
+      "unlocks": { "buildings": ["school"], "housing": [] }
+    },    {
       "id": "pottery",
       "nameZh": "制陶",
       "era": 2,

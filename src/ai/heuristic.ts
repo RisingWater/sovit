@@ -86,6 +86,12 @@ const RESEARCH_ORDER: string[] = [
   'workshop_division', // goods +20%
   'kiln_upgrade', // material +20%
 
+  // ---- 医疗与教育（2026-10 第二批）：药圃 → 药水 → 诊所 → 医院；学校在营造之后 ----
+  'herbalism', // 草药农场
+  'medicine', // 药水工坊、诊所
+  'hospital_ward', // 医院
+  'schooling', // 学校（熟练度成长）
+
   // ---- 冶金与工具（2026-10 第二批）：铁在砖之后，工具升级紧随其后 ----
   'ironworking', // 冶铁 → 冶炼场
   'iron_tooling', // 铁制工具作坊

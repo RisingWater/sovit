@@ -8,6 +8,7 @@
     { "id": "stone", "nameZh": "石块", "tier": 0, "category": "raw", "storable": true, "baseValue": 1.6 },
     { "id": "clay", "nameZh": "粘土", "tier": 0, "category": "raw", "storable": true, "baseValue": 1.2 },
     { "id": "iron_ore", "nameZh": "铁矿石", "tier": 0, "category": "raw", "storable": true, "baseValue": 2.8 },
+    { "id": "herbs", "nameZh": "草药", "tier": 1, "category": "raw", "storable": true, "baseValue": 2.4 },
     { "id": "coal", "nameZh": "煤", "tier": 0, "category": "fuel", "storable": true, "baseValue": 2.2 },
     { "id": "iron", "nameZh": "铁锭", "tier": 2, "category": "material", "storable": true, "baseValue": 6 },
     { "id": "meat", "nameZh": "肉类", "tier": 0, "category": "food", "storable": false, "baseValue": 3, "perishRate": 0.15 },
@@ -38,6 +39,9 @@
     { "id": "domestic_service", "nameZh": "家政服务", "tier": 2, "category": "service", "storable": false, "baseValue": 3, "perishRate": 1 },
     { "id": "entertainment", "nameZh": "娱乐", "tier": 2, "category": "entertainment", "storable": false, "baseValue": 4, "perishRate": 1, "luxury": true },
 
+    { "id": "potion", "nameZh": "药水", "tier": 3, "category": "household", "storable": true, "baseValue": 6 },
+    { "id": "medical_service", "nameZh": "医疗服务", "tier": 3, "category": "service", "storable": false, "baseValue": 5, "perishRate": 1 },
+    { "id": "education", "nameZh": "教育", "tier": 3, "category": "service", "storable": false, "baseValue": 5, "perishRate": 1 },
     { "id": "stone_tools", "nameZh": "石制工具", "tier": 1, "category": "tool", "storable": true, "baseValue": 4, "toolBonus": 0.25, "durabilityDays": 10 },
     { "id": "iron_tools", "nameZh": "铁制工具", "tier": 3, "category": "tool", "storable": true, "baseValue": 8, "toolBonus": 0.6, "durabilityDays": 15 }
   ]

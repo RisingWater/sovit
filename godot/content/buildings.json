@@ -410,6 +410,163 @@
       "buildWork": 16
     },
     {
+      "id": "herbal_farm",
+      "sector": "agri",
+      "nameZh": "草药农场",
+      "art": {
+        "arch": "sprite",
+        "foot": [
+          4,
+          1
+        ]
+      },
+      "tier": 2,
+      "workers": 3,
+      "maxWorkers": 6,
+      "buildCost": {
+        "wood": 5,
+        "stone": 2
+      },
+      "recipe": {
+        "inputs": {},
+        "output": {
+          "herbs": 8
+        },
+        "baseRate": 1
+      },
+      "buildWork": 12
+    },
+    {
+      "id": "potion_workshop",
+      "sector": "goods",
+      "nameZh": "药水工坊",
+      "art": {
+        "arch": "sprite",
+        "foot": [
+          4,
+          1
+        ]
+      },
+      "tier": 3,
+      "workers": 3,
+      "maxWorkers": 6,
+      "buildCost": {
+        "wood": 8,
+        "stone": 4,
+        "brick": 3
+      },
+      "recipe": {
+        "inputs": {
+          "herbs": 6,
+          "firewood": 2
+        },
+        "output": {
+          "potion": 3
+        },
+        "baseRate": 1
+      },
+      "buildWork": 24
+    },
+    {
+      "id": "clinic",
+      "sector": "goods",
+      "nameZh": "诊所",
+      "art": {
+        "arch": "sprite",
+        "foot": [
+          8,
+          2
+        ]
+      },
+      "tier": 3,
+      "workers": 2,
+      "maxWorkers": 4,
+      "coverage": {
+        "kind": "medical",
+        "people": 50
+      },
+      "buildCost": {
+        "wood": 6,
+        "stone": 4
+      },
+      "recipe": {
+        "inputs": {
+          "potion": 1
+        },
+        "output": {
+          "medical_service": 4
+        },
+        "baseRate": 1
+      },
+      "buildWork": 16
+    },
+    {
+      "id": "hospital",
+      "sector": "goods",
+      "nameZh": "医院",
+      "art": {
+        "arch": "sprite",
+        "foot": [
+          8,
+          5
+        ]
+      },
+      "tier": 3,
+      "workers": 4,
+      "maxWorkers": 8,
+      "coverage": {
+        "kind": "medical",
+        "people": 150
+      },
+      "buildCost": {
+        "wood": 10,
+        "stone": 8,
+        "brick": 6
+      },
+      "recipe": {
+        "inputs": {
+          "potion": 3,
+          "herbs": 2
+        },
+        "output": {
+          "medical_service": 14
+        },
+        "baseRate": 1
+      },
+      "buildWork": 32
+    },
+    {
+      "id": "school",
+      "sector": "goods",
+      "nameZh": "学校",
+      "art": {
+        "arch": "sprite",
+        "foot": [
+          8,
+          4
+        ]
+      },
+      "tier": 3,
+      "workers": 3,
+      "maxWorkers": 6,
+      "coverage": {
+        "kind": "education",
+        "people": 100
+      },
+      "buildCost": {
+        "wood": 8,
+        "stone": 4,
+        "brick": 4
+      },
+      "recipe": {
+        "inputs": {},
+        "output": {
+          "education": 6
+        },
+        "baseRate": 1
+      },
+      "buildWork": 28
+    },    {
       "id": "hunting_camp",
       "sector": "agri",
       "nameZh": "狩猎营地",

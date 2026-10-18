@@ -91,6 +91,9 @@ func _load() -> void:
 		# terrain 只在存在时写入，避免 has("terrain") 永远为真
 		if it.has("terrain"):
 			bdef["terrain"] = String(it["terrain"])
+		# 人口覆盖（2026-10 第二批）：诊所 / 医院 / 学校 / 治安所 / 瞭望台
+		if it.has("coverage"):
+			bdef["coverage"] = it["coverage"]
 		buildings[String(it["id"])] = bdef
 
 	var c: Dictionary = _read_json("classes.json")
@@ -215,6 +218,9 @@ const CAT_ENTERTAINMENT := ["theater", "domestic_service"]
 const CAT_MINING := ["lumberjack", "quarry", "clay_pit", "iron_mine", "coal_mine", "hunting_camp", "fishery"]
 ## 地形 key → 中文。建造栏 tooltip 的「需地形：…」用它（2026-10 加了铁矿）。
 const TERRAIN_ZH := {"grass": "草地", "forest": "林地", "stone": "石矿", "clay": "粘土", "iron": "铁矿", "coal": "煤矿", "water": "水面"}
+## 「医疗」页（2026-10 第二批）：草药 → 药水 → 诊所 / 医院 → 学校。
+## 不靠 arch 推：这几座都是 sprite 工坊，按 arch 会掉进「工业」。
+const CAT_MEDICAL := ["herbal_farm", "potion_workshop", "clinic", "hospital", "school"]
 ## 「市政」页：仓库 / 建筑工坊 / 研究所 —— 别让它们掉进「工业」。
 const CAT_CIVIC := ["warehouse", "construction_works", "research_institute"]
 
@@ -234,6 +240,8 @@ func build_category(id: String) -> String:
 		return "娱乐"
 	if CAT_MINING.has(id):
 		return "矿场"
+	if CAT_MEDICAL.has(id):
+		return "医疗"
 	if CAT_CIVIC.has(id):
 		return "市政"
 	var b: Dictionary = buildings.get(id, {})

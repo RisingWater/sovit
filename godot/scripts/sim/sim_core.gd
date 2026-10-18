@@ -951,12 +951,49 @@ func _assign_labor() -> void:
 			k += 1
 		shop["skill"] = _avg(skills) if not skills.is_empty() else 0.0
 
+## 每日熟练度成长。2026-10：**学校**按覆盖率加速成长（满覆盖 ×1.5）。
 func _grow_skills() -> void:
-	var smax = float(db.economy["skillMax"])
-	var gain = float(db.economy["skillGainPerDay"])
+	var smax := float(db.economy["skillMax"])
+	var cov: Dictionary = db.economy["coverage"]
+	var mul := 1.0 + float(cov["skillGrowth"]) * float(coverage_ratios()["education"])
+	var gain := float(db.economy["skillGainPerDay"]) * mul
 	for r in s["residents"]:
 		if bool(r["employed"]):
 			r["skill"] = minf(smax, float(r["skill"]) + gain)
+
+## 某种覆盖今天的覆盖人数（"一座覆盖 N 人" × 等级，只算**在运转**的）。
+## 与 TS `coverage.ts::coveredPeople()` 同口径。
+func covered_people(kind: String) -> int:
+	var n := 0
+	for shop in s["shops"]:
+		var def = db.buildings.get(shop["defId"], null)
+		if def == null or not def.has("coverage") or not bool(shop["active"]):
+			continue
+		var c: Dictionary = def["coverage"]
+		if String(c.get("kind", "")) != kind:
+			continue
+		if not _coverage_running(shop, def):
+			continue
+		n += int(c.get("people", 0)) * maxi(1, int(shop.get("level", 1)))
+	return n
+
+## 各覆盖类型的覆盖率（0–1）。纯函数、现算（不存 state）。
+func coverage_ratios() -> Dictionary:
+	var out := {"medical": 0.0, "education": 0.0, "safety": 0.0}
+	var pop := (s["residents"] as Array).size()
+	if pop <= 0:
+		return out
+	for k in out.keys():
+		out[k] = clampf(float(covered_people(String(k))) / float(pop), 0.0, 1.0)
+	return out
+
+## "开着门" = 在岗有人 +（有配方时）当天排得上产。
+func _coverage_running(shop: Dictionary, def: Dictionary) -> bool:
+	if _assigned_workers(shop["id"]) <= 0:
+		return false
+	if def.has("recipe") and float(shop.get("planned", 0.0)) <= 0.0:
+		return false
+	return true
 
 # ===========================================================================
 # 财政
@@ -1403,6 +1440,9 @@ func _update_satisfaction(food_score: Dictionary, comfort_score: Dictionary, pri
 		wage_by_shop[shop["id"]] = float(shop["wage"])
 	var net_income = ref_wage - _progressive_tax(ref_wage, s["government"]["taxBrackets"])
 	var rent_pressure = clampf(float(s["government"]["rent"]) / maxf(0.1, net_income), 0.0, 1.0)
+	# 覆盖加成（2026-10）：诊所 / 医院 / 学校 / 治安所按覆盖率加满意度（医疗·教育只给中产以上）
+	var cov := coverage_ratios()
+	var cov_cfg: Dictionary = db.economy["coverage"]
 
 	for r in s["residents"]:
 		var cid = String(r["classId"])
@@ -1433,7 +1473,8 @@ func _update_satisfaction(food_score: Dictionary, comfort_score: Dictionary, pri
 			housing_adj = -rent_pressure * float(db.economy["rentSatPenalty"])
 		housing_adj += quality_penalty
 		var class_bonus = float(db.classes[cid].get("satBonus", 0.0))
-		var target = clampf(base + housing_adj + class_bonus, 0.0, 100.0)
+		var cov_bonus := _coverage_sat_bonus(cov, cid)
+		var target = clampf(base + housing_adj + class_bonus + cov_bonus, 0.0, 100.0)
 		r["satisfaction"] = clampf(float(r["satisfaction"]) + (target - float(r["satisfaction"])) * smoothing, 0.0, 100.0)
 
 # ===========================================================================
@@ -3123,3 +3164,15 @@ func _tool_per_worker(good_id: String) -> float:
 		return float(db.economy["tools"]["perWorkstation"])
 	var life := 1.0 + float(tech_bonuses().get("toolLife", 0.0))
 	return 1.0 / (days * life)
+
+## 某个阶层能拿到的覆盖满意度加成（单位：满意度点）。
+##
+## 医疗 / 教育只给中产以上（用户 2026-10："中产以上会去消费"）；治安四阶层都有。
+## 与 TS `coverage.ts::coverageSatBonus()` 同口径。
+func _coverage_sat_bonus(cov: Dictionary, class_id: String) -> float:
+	var cfg: Dictionary = db.economy["coverage"]
+	var total := float(cov.get("safety", 0.0)) * float(cfg["safety"])
+	if class_id != "poor":
+		total += float(cov.get("medical", 0.0)) * float(cfg["medical"])
+		total += float(cov.get("education", 0.0)) * float(cfg["education"])
+	return total

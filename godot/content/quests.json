@@ -711,6 +711,50 @@
         }
       ]
     },    {
+      "id": "q12_medicine",
+      "chapter": 5,
+      "giver": "luna",
+      "giverPortrait": "luna_neutral",
+      "title": "病与药",
+      "hint": "研究「草药」「医道」→ 草药农场 + 诊所，让医疗覆盖全村",
+      "brief": "殿下，入秋以后咳的人多了。属下能开方子，可没有药——总不能让人拿命熬。若能有一片药圃、一间诊室，属下保证这村子少死一半的人。",
+      "reward": 800,
+      "requires": [
+        "q10f_townhall_repair"
+      ],
+      "goals": [
+        {
+          "type": "building",
+          "id": "herbal_farm",
+          "min": 1
+        },
+        {
+          "type": "building",
+          "id": "clinic",
+          "min": 1
+        }
+      ]
+    },
+    {
+      "id": "q12_school",
+      "chapter": 5,
+      "giver": "alvin",
+      "giverPortrait": "alvin_neutral",
+      "title": "识字的人",
+      "hint": "研究「学堂」→ 建一座学校，让手艺传得比人快",
+      "brief": "殿下，工坊里的师傅带徒弟，一个人带一个，累死也带不出十个。若办一所学校，把字和手艺一起教下去——十年后这村子会有自己的骨血。",
+      "reward": 800,
+      "requires": [
+        "q10f_townhall_repair"
+      ],
+      "goals": [
+        {
+          "type": "building",
+          "id": "school",
+          "min": 1
+        }
+      ]
+    },    {
       "id": "q11_middle",
       "chapter": 5,
       "giver": "vila",

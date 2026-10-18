@@ -2,7 +2,7 @@ extends PanelContainer
 
 # 底栏：Tab 式建造目录。
 #
-#   [住宅][农场][食品加工][矿场][工业][娱乐][市政][其它]
+#   [住宅][农场][食品加工][矿场][工业][娱乐][市政][医疗][其它]
 #   <该分类的建筑按钮...>                  < 1/3 >
 #
 # 分类由建筑的 art.arch 推导，所以新增建筑只要填 art 就自动归类。
@@ -12,7 +12,7 @@ extends PanelContainer
 var runner: SimRunner
 var world: Node
 
-const TABS := ["住宅", "农场", "食品加工", "矿场", "工业", "娱乐", "市政", "其它"]
+const TABS := ["住宅", "农场", "食品加工", "矿场", "工业", "娱乐", "市政", "医疗", "其它"]
 # ⚠️ 分组规则的**唯一定义已经搬到 `ContentDB.build_category()`**（`scripts/core/content_db.gd`）：
 # AI 辅助（`scripts/sim/advisor.gd`，sim 层、不许引用 UI）也要说"在建造栏哪一页建"，
 # 同一套分组写两份必然漂。这里只保留一个转发，`ENTERTAINMENT/MINING/CIVIC`
