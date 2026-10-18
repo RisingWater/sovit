@@ -2553,10 +2553,19 @@ hover 效果，鼠标移上去显示基本信息（城镇名字，领主，特�
 
   | 层 | 内容 | 来源 |
   |---|---|---|
-  | 区域名（大号淡墨）| **英文**：CHURCH STATE / WALDEN / JADE SEA / IRONPEAK DUCHY / GREYROCK RANGE / VALR RIVER / KHANATE | `REGIONS` |
+  | 区域名（深墨、首字母更大）| **英文**：THE HOLY / WALDEN / JADE SEA / DUCHY / GREYROCK RANGE / VALR RIVER / KHANATE | `REGIONS` |
   | 据点（**只有图标，不画名字**）| 12 座（王都 + 10 座别人的 + 我们那一座）| `MARKS` + `HOME` |
   | hover 卡片 | 城镇名 / 领主 / 特产（**名字只在这里出现**）| 同上 |
 
+  ⚠️ **字号 / 字色 / 首字母**（用户 2026-10-20 第三次返工）：
+  "整体字号加大 1-2 个字号，首字母要再放大 1-2 字号，字为什么有白边？白边去掉，颜色太浅了，加深" ——
+  · 字号整体 +2（WALDEN 30 / JADE SEA 24 / THE HOLY·KHANATE 22 / DUCHY·GREYROCK 18 / VALR RIVER 16）
+  · **首字母比正文大 `FIRST_EXTRA = 2` 号**：每个地名拆成**两块 Label**（首字母 + 其余），
+    共用一个盒高 + `vertical_alignment = BOTTOM`（基线自动对齐），宽度用
+    `Font.get_string_size()` 量，整组按 `fx` 居中
+  · **没有描边**（`outline_size` 那两行删了）
+  · 墨色 `INK_DIM = Color(0.19, 0.11, 0.04, 0.95)` —— 深褐近黑，几乎不透
+  · 西边叫 `DUCHY`、北边叫 `THE HOLY`（原来的 IRONPEAK DUCHY / CHURCH STATE 作废）
   ⚠️ **地图上的字用 Lin Libertine**（`LinLibertine_DR.otf`，用户 2026-10-20 指定）：
   衬线体才有手绘古地图的味道，像素字体做不出那个笔画。字体放在
   `assets/fonts/libertine/`（连同 `OFL.txt` / `LICENCE.txt` / `README.txt` ——

@@ -36,19 +36,24 @@ const HOVER_SCALE := 1.14
 
 ## 城镇名/卡片用的墨色（羊皮纸上的深褐）
 const INK := Color(0.24, 0.16, 0.10)
-const INK_DIM := Color(0.36, 0.26, 0.17, 0.55)
+## 地图地名：深褐近黑、几乎不透（用户 2026-10-20："颜色太浅了，加深" + "白边去掉"）
+const INK_DIM := Color(0.19, 0.11, 0.04, 0.95)
+## 地名的**首字母**比其余字大这么多号（用户："首字母要再放大 1-2 字号"）
+const FIRST_EXTRA := 2
 
-## 区域名：text / fx / fy / size（size = 字号）
+## 区域名：text / fx / fy / size（size = 正文字号，首字母自动 +FIRST_EXTRA）
 ## ⚠️ 2026-10-20 用户："汉字，瓦尔登王国，圣辉教国，沙海汗国，翡翠海，全地图的文字都写英文" ——
 ##    地图上的字**一律英文**（羊皮纸手绘地图的味道），中文只出现在 hover 卡片里。
+## ⚠️ 2026-10-20 又一版："整体字号加大 1-2 个字号"（下面已经是加大后的）、
+##    "西边国家叫做 DUCHY，北边的英文叫 THE HOLY"。
 const REGIONS := [
-	{"text": "CHURCH STATE", "fx": 0.4080, "fy": 0.0620, "size": 20},
-	{"text": "WALDEN", "fx": 0.6820, "fy": 0.2150, "size": 28},
-	{"text": "JADE SEA", "fx": 0.8840, "fy": 0.3150, "size": 22},
-	{"text": "IRONPEAK DUCHY", "fx": 0.1380, "fy": 0.3150, "size": 16},
-	{"text": "GREYROCK RANGE", "fx": 0.3000, "fy": 0.3400, "size": 16},
-	{"text": "VALR RIVER", "fx": 0.6300, "fy": 0.5300, "size": 14},
-	{"text": "KHANATE", "fx": 0.1500, "fy": 0.7950, "size": 20},
+	{"text": "THE HOLY", "fx": 0.4080, "fy": 0.0620, "size": 22},
+	{"text": "WALDEN", "fx": 0.6820, "fy": 0.2150, "size": 30},
+	{"text": "JADE SEA", "fx": 0.8840, "fy": 0.3150, "size": 24},
+	{"text": "DUCHY", "fx": 0.1330, "fy": 0.2560, "size": 18},
+	{"text": "GREYROCK RANGE", "fx": 0.3000, "fy": 0.3400, "size": 18},
+	{"text": "VALR RIVER", "fx": 0.6300, "fy": 0.5300, "size": 16},
+	{"text": "KHANATE", "fx": 0.1500, "fy": 0.7950, "size": 22},
 ]
 
 ## 据点：id / kind / fx / fy / 名字 / 领主 / 特产。
@@ -102,6 +107,9 @@ var _edit := false
 var _drag := -1
 ## 布置模式下"当前选中的那一个"（据点下标；<= -1000 表示地名 -1000-i），方向键微调它
 var _sel := -1
+## 拖拽起点（按下时的比例坐标 + 鼠标在 host 里的像素位置）—— 这样拖谁都不会"跳一下"
+var _grab_frac := Vector2.ZERO
+var _grab_pos := Vector2.ZERO
 var _readout: Label
 var _edit_btn: Button
 ## 布置工具那一整块（默认隐藏，ESC 菜单开了「调试功能」才露）
@@ -211,25 +219,40 @@ func _ready() -> void:
 	_host.resized.connect(_layout)
 	_layout()
 
-## 区域名：大号淡墨，压在底图上；平时不吃鼠标，**布置模式下可以拖**
+## 区域名：深墨衬线体，压在底图上；平时不吃鼠标，**布置模式下可以拖**
+##
+## ⚠️ 每个地名是**两块** Label：首字母（大 `FIRST_EXTRA` 号）+ 其余（正文号）。
+## 手绘古地图上那种"A 比后面的大一圈"的味道，单块 Label 做不出来。
+## 两块用同一个盒高 + 底部对齐 —— 基线就对上了（字号差几号时下沉量差不到 1px）。
 func _build_regions() -> void:
-	var idx := 0
 	var map_font: Font = load(MAP_FONT) if ResourceLoader.exists(MAP_FONT) else null
+	var idx := 0
 	for r in REGIONS:
-		var l := UIKit.label(String(r["text"]), INK_DIM)
-		if map_font != null:
-			l.add_theme_font_override("font", map_font)
-		l.add_theme_font_size_override("font_size", int(r["size"]))
-		l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		l.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		# 浅色描边：地名压在深色山体/树林上也读得出来
-		l.add_theme_constant_override("outline_size", 4)
-		l.add_theme_color_override("font_outline_color", Color(0.93, 0.88, 0.76, 0.55))
-		l.gui_input.connect(_on_label_gui_input.bind(idx))
-		_host.add_child(l)
-		_labels.append({"text": String(r["text"]), "node": l,
-			"fx": float(r["fx"]), "fy": float(r["fy"])})
+		var text := String(r["text"])
+		var size := int(r["size"])
+		var big := size + FIRST_EXTRA
+		var l1 := _region_label(text.substr(0, 1), big, map_font)
+		var l2 := _region_label(text.substr(1), size, map_font)
+		_host.add_child(l1)
+		_host.add_child(l2)
+		l1.gui_input.connect(_on_label_gui_input.bind(idx))
+		l2.gui_input.connect(_on_label_gui_input.bind(idx))
+		_labels.append({"text": text, "nodes": [l1, l2],
+			"fx": float(r["fx"]), "fy": float(r["fy"]), "size": size, "big": big})
 		idx += 1
+
+## 一块地名 Label（**不加描边**：用户 2026-10-20 "字为什么有白边？白边去掉"）
+func _region_label(t: String, fs: int, f: Font) -> Label:
+	var l := Label.new()
+	l.text = t
+	if f != null:
+		l.add_theme_font_override("font", f)
+	l.add_theme_font_size_override("font_size", fs)
+	l.add_theme_color_override("font_color", INK_DIM)
+	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	l.vertical_alignment = VERTICAL_ALIGNMENT_BOTTOM
+	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	return l
 
 ## 据点：图标（默认/hover 两张）+ 底下的城名
 func _build_marks() -> void:
@@ -366,18 +389,22 @@ func _on_edit_toggled(on: bool) -> void:
 		var b: TextureButton = e["node"]
 		b.mouse_default_cursor_shape = Control.CURSOR_MOVE if on else Control.CURSOR_POINTING_HAND
 	for r in _labels:
-		(r["node"] as Label).mouse_filter = \
-			Control.MOUSE_FILTER_STOP if on else Control.MOUSE_FILTER_IGNORE
+		for n in (r["nodes"] as Array):
+			(n as Label).mouse_filter = \
+				Control.MOUSE_FILTER_STOP if on else Control.MOUSE_FILTER_IGNORE
 	if on:
 		_readout.text = "拖动图标 / 地名，松手自动保存 → %s" % ProjectSettings.globalize_path(_layout_path)
 	else:
 		_save_layout()
 		_readout.text = "已保存 → %s" % ProjectSettings.globalize_path(_layout_path)
 
+## 鼠标在控件里的位置 → **`_host` 里的像素坐标**（拖拽用相对位移，不直接跳）
+func _host_pos(ctrl: Control, local_in_ctrl: Vector2) -> Vector2:
+	return ctrl.get_global_transform() * local_in_ctrl - _host.global_position
+
 ## 鼠标在控件里的位置 → 底图上的比例坐标（夹在 0..1）
 func _to_frac(ctrl: Control, local_in_ctrl: Vector2) -> Vector2:
-	var g := ctrl.get_global_transform() * local_in_ctrl
-	var p := g - _host.global_position
+	var p := _host_pos(ctrl, local_in_ctrl)
 	if _rect.size.x <= 0.0 or _rect.size.y <= 0.0:
 		return Vector2.ZERO
 	return Vector2(
@@ -394,6 +421,8 @@ func _on_mark_gui_input(event: InputEvent, i: int) -> void:
 			_drag = i
 			_sel = i
 			var d: Dictionary = e["data"]
+			_grab_frac = Vector2(float(d["fx"]), float(d["fy"]))
+			_grab_pos = _host_pos(btn, (event as InputEventMouseButton).position)
 			_readout.text = "抓住「%s」—— 也可以按方向键微调" % String(d["name"])
 		else:
 			if _drag == i:
@@ -405,22 +434,24 @@ func _on_mark_gui_input(event: InputEvent, i: int) -> void:
 		btn.accept_event()
 	elif event is InputEventMouseMotion and _drag == i:
 		var d: Dictionary = e["data"]
-		var f := _to_frac(btn, (event as InputEventMouseMotion).position)
-		d["fx"] = f.x
-		d["fy"] = f.y
+		var dv := (_host_pos(btn, (event as InputEventMouseMotion).position) - _grab_pos)
+		d["fx"] = clampf(_grab_frac.x + dv.x / maxf(1.0, _rect.size.x), 0.0, 1.0)
+		d["fy"] = clampf(_grab_frac.y + dv.y / maxf(1.0, _rect.size.y), 0.0, 1.0)
 		_layout()
-		_readout.text = "%s → fx %.4f  fy %.4f" % [String(d["name"]), f.x, f.y]
+		_readout.text = "%s → fx %.4f  fy %.4f" % [String(d["name"]), float(d["fx"]), float(d["fy"])]
 		btn.accept_event()
 
 func _on_label_gui_input(event: InputEvent, i: int) -> void:
 	if not _edit or i < 0 or i >= _labels.size():
 		return
 	var r: Dictionary = _labels[i]
-	var lb: Label = r["node"]
+	var lb: Label = (r["nodes"] as Array)[0]
 	if event is InputEventMouseButton and (event as InputEventMouseButton).button_index == MOUSE_BUTTON_LEFT:
 		if (event as InputEventMouseButton).pressed:
 			_drag = -1000 - i
 			_sel = -1000 - i
+			_grab_frac = Vector2(float(r["fx"]), float(r["fy"]))
+			_grab_pos = _host_pos(lb, (event as InputEventMouseButton).position)
 			_readout.text = "抓住地名「%s」—— 也可以按方向键微调" % String(r["text"])
 		else:
 			if _drag == -1000 - i:
@@ -430,11 +461,11 @@ func _on_label_gui_input(event: InputEvent, i: int) -> void:
 					String(r["text"]), float(r["fx"]), float(r["fy"])]
 		lb.accept_event()
 	elif event is InputEventMouseMotion and _drag == -1000 - i:
-		var f := _to_frac(lb, (event as InputEventMouseMotion).position)
-		r["fx"] = f.x
-		r["fy"] = f.y
+		var d := (_host_pos(lb, (event as InputEventMouseMotion).position) - _grab_pos)
+		r["fx"] = clampf(_grab_frac.x + d.x / maxf(1.0, _rect.size.x), 0.0, 1.0)
+		r["fy"] = clampf(_grab_frac.y + d.y / maxf(1.0, _rect.size.y), 0.0, 1.0)
 		_layout()
-		_readout.text = "%s → fx %.4f  fy %.4f" % [String(r["text"]), f.x, f.y]
+		_readout.text = "%s → fx %.4f  fy %.4f" % [String(r["text"]), float(r["fx"]), float(r["fy"])]
 		lb.accept_event()
 
 ## 写盘：把现在所有据点 + 地名的坐标存成 JSON（没有就新建）
@@ -601,13 +632,29 @@ func _layout() -> void:
 		btn.position = Vector2(cx - iw * 0.5, by - ih)
 		# 放大的轴心放在脚底中点：hover 时像是"从地上长出来"，不会飘
 		btn.pivot_offset = Vector2(iw * 0.5, ih)
-	# 区域名：按比例摆在底图上（居中）
+	# 区域名：首字母一块、其余一块，两块**共用一个盒高 + 底部对齐**（基线就齐了），
+	# 宽度用字体的 `get_string_size()` 量，整组按 fx 居中。
 	for r in _labels:
-		var l: Label = r["node"]
-		l.size = Vector2(240.0, 30.0)
-		l.position = Vector2(
-			rect.position.x + float(r["fx"]) * rect.size.x - 120.0,
-			rect.position.y + float(r["fy"]) * rect.size.y - 15.0)
+		var nodes: Array = r["nodes"]
+		var l1: Label = nodes[0]
+		var l2: Label = nodes[1]
+		var font: Font = l1.get_theme_font("font")
+		var s1 := float(r["big"])
+		var s2 := float(r["size"])
+		var w1 := 0.0
+		var w2 := 0.0
+		if font != null:
+			w1 = font.get_string_size(l1.text, HORIZONTAL_ALIGNMENT_LEFT, -1, int(s1)).x
+			w2 = font.get_string_size(l2.text, HORIZONTAL_ALIGNMENT_LEFT, -1, int(s2)).x
+		var box_h := s1 * 1.6
+		var cx := rect.position.x + float(r["fx"]) * rect.size.x
+		var cy := rect.position.y + float(r["fy"]) * rect.size.y
+		var left := cx - (w1 + w2) * 0.5
+		var top := cy - box_h * 0.5
+		l1.size = Vector2(maxf(w1 + 2.0, 8.0), box_h)
+		l1.position = Vector2(left, top)
+		l2.size = Vector2(maxf(w2 + 2.0, 8.0), box_h)
+		l2.position = Vector2(left + w1, top)
 	_place_card()
 
 ## 卡片跟着 hover 的那个据点走（贴在图内，别溢出边界）

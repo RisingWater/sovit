@@ -140,17 +140,36 @@ func _run() -> void:
 		_fail("缺地图字体 res://assets/fonts/libertine/LinLibertine_DR.otf")
 		return
 	var map_font: Font = load("res://assets/fonts/libertine/LinLibertine_DR.otf")
-	var first_label: Label = panel._labels[0]["node"]
+	var first_label: Label = (panel._labels[0]["nodes"] as Array)[0]
 	if first_label.get_theme_font("font") != map_font:
 		_fail("地图地名用的不是 Lin Libertine（实际 %s）" % str(first_label.get_theme_font("font")))
 		return
 	_ok("地图地名用的是 Lin Libertine（衬线体），UI 其余部分仍是像素字体")
-	var region_txt := _texts(panel._host)
-	for need in ["WALDEN", "CHURCH STATE", "IRONPEAK DUCHY", "KHANATE", "JADE SEA", "GREYROCK RANGE"]:
-		if not region_txt.contains(String(need)):
-			_fail("地图上缺区域名「%s」：%s" % [need, region_txt])
+	# 每个地名拆成两块（首字母 + 其余），拼回去比对
+	var region_names := []
+	var first_bigger := true
+	for r in panel._labels:
+		var ns: Array = r["nodes"]
+		var l1: Label = ns[0]
+		var l2: Label = ns[1]
+		region_names.append(String(l1.text) + String(l2.text))
+		if int(r["big"]) <= int(r["size"]):
+			first_bigger = false
+		if l1.get_theme_font_size("font_size") <= l2.get_theme_font_size("font_size"):
+			first_bigger = false
+	for need in ["WALDEN", "THE HOLY", "DUCHY", "KHANATE", "JADE SEA", "GREYROCK RANGE", "VALR RIVER"]:
+		if not region_names.has(String(need)):
+			_fail("地图上缺区域名「%s」：%s" % [need, str(region_names)])
 			return
-	_ok("地图上的字：区域名（英文）都在；城名**不画**（只在 hover 卡片里）")
+	if not first_bigger:
+		_fail("地名首字母应当比正文大（用户要求首字母再放大 1-2 字号）")
+		return
+	_ok("地图上的字：7 个英文区域名都在，且**首字母比正文大**；城名**不画**（只在 hover 卡片里）")
+	# 地名不许有描边（用户："字为什么有白边？白边去掉"）
+	if first_label.get_theme_constant("outline_size") > 0:
+		_fail("地名还带着描边（outline_size = %d）" % first_label.get_theme_constant("outline_size"))
+		return
+	_ok("地名没有描边（白边去掉了）")
 	# 地图上不许出现城名（用户："所有城镇地图上不显示名字，城镇名字放在 tip 里显示"）
 	var on_map := _texts(panel._host)
 	for s in ["王都", "铁王城", "铁鸦堡", "圣火城", "曙光城", "金穗城", "黑石堡", "铁峰城", "翡翠城", "圣都", "汗庭"]:
@@ -271,9 +290,10 @@ func _run() -> void:
 		_fail("点「布置城市」之后应当进布置模式")
 		return
 	for r in panel._labels:
-		if (r["node"] as Label).mouse_filter != Control.MOUSE_FILTER_STOP:
-			_fail("布置模式下地名应当可以拖（mouse_filter = STOP）")
-			return
+		for n in (r["nodes"] as Array):
+			if (n as Label).mouse_filter != Control.MOUSE_FILTER_STOP:
+				_fail("布置模式下地名应当可以拖（mouse_filter = STOP）")
+				return
 	# 拖动第 0 座：按下 → 移动 +120px → 松手
 	var target: Dictionary = panel._marks[0]["data"]
 	var tbtn: TextureButton = panel._marks[0]["node"]
@@ -324,9 +344,10 @@ func _run() -> void:
 	panel._on_edit_toggled(false)
 	await process_frame
 	for r in panel._labels:
-		if (r["node"] as Label).mouse_filter != Control.MOUSE_FILTER_IGNORE:
-			_fail("退出布置模式后地名不该再吃鼠标")
-			return
+		for n in (r["nodes"] as Array):
+			if (n as Label).mouse_filter != Control.MOUSE_FILTER_IGNORE:
+				_fail("退出布置模式后地名不该再吃鼠标")
+				return
 	# 收尾：把用户原来的坐标原样还回去（本来没有就删掉）
 	if had_layout:
 		var fr := FileAccess.open("res://data/map_layout.json", FileAccess.WRITE)
