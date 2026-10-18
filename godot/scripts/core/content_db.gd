@@ -351,3 +351,19 @@ static func validate_doors(art: Dictionary, fp: Vector2i) -> Array:
 			continue
 		seen[xy] = true
 	return errs
+
+## 公共事业（研究/建造产能 + 医疗/教育/治安/仓储）：工资统一，有补贴。
+const PUBLIC_SERVICE := ["town_center", "warehouse", "research_institute", "construction_works",
+	"clinic", "hospital", "school", "guard_station", "watchtower"]
+
+## 私营按建筑档次给的默认工资。
+const TIER_WAGE := {1: 3.0, 2: 3.6, 3: 4.5, 4: 6.0}
+
+## 新建这座建筑时的默认岗位工资（2026-10 用户："公共事业的工资都一样"）。
+## 与 TS `wages.ts::defaultWageFor()` 同口径。
+func default_wage(def_id: String) -> float:
+	if PUBLIC_SERVICE.has(def_id):
+		return float(economy.get("publicServiceWage", 3.6))
+	var b: Dictionary = buildings.get(def_id, {})
+	var tier := int(b.get("tier", 2))
+	return float(TIER_WAGE.get(tier, float(economy["refWage"])))

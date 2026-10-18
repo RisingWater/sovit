@@ -4,6 +4,7 @@ import type { BuildingDef, HousingDef } from '../types.ts'
 import { DEFAULTS, ECONOMY, TUNING } from '../config.ts'
 import { round2, round4 } from '../util.ts'
 import { markConstructionWorkers } from './labor.ts'
+import { defaultWageFor } from './wages.ts'
 import { assignedWorkers } from './labor.ts'
 import { effectiveSlots } from './labor.ts'
 import { techBonuses } from './tech_bonus.ts'
@@ -582,7 +583,7 @@ export function activateCompleted(state: GameState, ctx: ContentContext, day: nu
         defId: c.buildingId,
         owner: 'state',
         targetWorkers: def.workers,
-        wage: ECONOMY.refWage,
+        wage: defaultWageFor(def.id),
         wageCap: ECONOMY.defaultWageCap,
         level: DEFAULTS.newShop.level,
         active: true,

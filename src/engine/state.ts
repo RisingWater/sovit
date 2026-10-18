@@ -2,6 +2,7 @@ import type { DayLedger, GameState, HousingUnit, PackID, Resident, Shop } from '
 import { ALL_BUILDINGS, ALL_GOODS, buildContext } from './content/index.ts'
 import { DEFAULTS, ECONOMY } from './config.ts'
 import { createRng } from './rng.ts'
+import { defaultWageFor } from './systems/wages.ts'
 
 /** 空白台账 / 空白个人账目。逐人账目与每日台账分开放，方便将来做差异化分配。 */
 export function emptyLedger(day: number): DayLedger {
@@ -79,7 +80,7 @@ export function createInitialState(options: CreateOptions = {}): GameState {
         defId,
         owner: 'state',
         targetWorkers: def.workers,
-        wage: ECONOMY.refWage,
+        wage: defaultWageFor(defId),
         wageCap: ECONOMY.defaultWageCap,
         level: DEFAULTS.newShop.level,
         active: true,

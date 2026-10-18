@@ -751,6 +751,7 @@ function parseEconomy(
 
   const economy: EconomyConfig = {
     refWage: asNonNeg(e.refWage, 'economy.refWage'),
+    publicServiceWage: asNonNeg(e.publicServiceWage, 'economy.publicServiceWage'),
     defaultTaxBrackets: asArr(e.defaultTaxBrackets, 'economy.defaultTaxBrackets').map((b, i) => {
       const bp = `economy.defaultTaxBrackets[${i}]`
       const bo = asObj(b, bp)

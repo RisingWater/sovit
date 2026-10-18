@@ -459,9 +459,7 @@
         "stone": 4
       },
       "recipe": {
-        "inputs": {
-          "weapons": 1
-        },
+        "inputs": {},
         "output": {
           "safety": 20
         },

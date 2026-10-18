@@ -12,6 +12,7 @@
 
   "economy": {
     "refWage": 3,
+    "publicServiceWage": 3.6,
     "defaultTaxBrackets": [
       { "upTo": 2, "rate": 0.08 },
       { "upTo": 3.5, "rate": 0.22 },

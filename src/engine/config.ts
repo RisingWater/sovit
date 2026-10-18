@@ -34,6 +34,8 @@ export interface ToolsConfig {
 export interface EconomyConfig {
   /** 工资水平的参照基准。 */
   refWage: number
+  /** 公共事业（研究/建造产能 + 医疗/教育/治安/仓储）的统一岗位工资。 */
+  publicServiceWage: number
   /** 默认累进所得税税表（AI/玩家可运行时调整）。 */
   defaultTaxBrackets: TaxBracket[]
   /** 需求价格弹性：价格越高需求越低。 */
