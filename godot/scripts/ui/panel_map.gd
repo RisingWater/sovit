@@ -21,7 +21,7 @@ var runner: SimRunner
 var world: Node
 
 ## 底图（比例 = 1536 : 952）。`_layout()` 按它算居中矩形。
-const MAP_ASPECT := 1536.0 / 952.0
+const MAP_ASPECT := 1536.0 / 1024.0
 const MAP_PATH := "res://assets/ui/map/kingdom_map_bare.jpg"
 const ICON_DIR := "res://assets/ui/map/"
 ## 据点图标占地图高度的百分比（大城镇画得比村庄大，是**素材自带**的相对大小，
@@ -36,42 +36,42 @@ const INK_DIM := Color(0.36, 0.26, 0.17, 0.55)
 
 ## 区域名：text / fx / fy / size（size = 字号，0 = 默认 12）
 const REGIONS := [
-	{"text": "圣辉教国", "fx": 0.470, "fy": 0.055, "size": 22},
-	{"text": "瓦尔登王国", "fx": 0.640, "fy": 0.190, "size": 26},
-	{"text": "翡翠海", "fx": 0.880, "fy": 0.335, "size": 22},
-	{"text": "铁峰公国", "fx": 0.080, "fy": 0.245, "size": 20},
-	{"text": "灰岩山脉", "fx": 0.300, "fy": 0.368, "size": 18},
-	{"text": "瓦尔河", "fx": 0.612, "fy": 0.505, "size": 14},
-	{"text": "沙海汗国", "fx": 0.085, "fy": 0.915, "size": 20},
+	{"text": "圣辉教国", "fx": 0.470, "fy": 0.0511, "size": 22},
+	{"text": "瓦尔登王国", "fx": 0.640, "fy": 0.1766, "size": 26},
+	{"text": "翡翠海", "fx": 0.880, "fy": 0.3114, "size": 22},
+	{"text": "铁峰公国", "fx": 0.080, "fy": 0.2278, "size": 20},
+	{"text": "灰岩山脉", "fx": 0.300, "fy": 0.3421, "size": 18},
+	{"text": "瓦尔河", "fx": 0.612, "fy": 0.4695, "size": 14},
+	{"text": "沙海汗国", "fx": 0.085, "fy": 0.8507, "size": 20},
 ]
 
 ## 据点：id / kind / fx / fy / 名字 / 领主 / 特产。
 ## 名字与领主见 `docs/story.md` §1.1、§二；特产用国别表里那一列。
 const MARKS := [
-	{"id": "iron_crown", "kind": "town_large", "fx": 0.455, "fy": 0.463,
+	{"id": "iron_crown", "kind": "town_large", "fx": 0.455, "fy": 0.4304,
 		"name": "铁王城", "lord": "阿尔伯特（长子）· 兼掌国库", "specialty": "铁、马"},
-	{"id": "iron_rook", "kind": "town_medium", "fx": 0.405, "fy": 0.215,
+	{"id": "iron_rook", "kind": "town_medium", "fx": 0.405, "fy": 0.1999,
 		"name": "铁鸦堡", "lord": "伯纳德（次子）", "specialty": "铁、军械"},
-	{"id": "holy_flame", "kind": "town_medium", "fx": 0.565, "fy": 0.334,
+	{"id": "holy_flame", "kind": "town_medium", "fx": 0.565, "fy": 0.3105,
 		"name": "圣火城", "lord": "塞德里克（三子）", "specialty": "圣物、香火"},
-	{"id": "dawn", "kind": "town_medium", "fx": 0.675, "fy": 0.307,
+	{"id": "dawn", "kind": "town_medium", "fx": 0.675, "fy": 0.2854,
 		"name": "曙光城", "lord": "伊莲娜（长女）", "specialty": "典籍、纸"},
-	{"id": "golden_ear", "kind": "town_medium", "fx": 0.615, "fy": 0.662,
+	{"id": "golden_ear", "kind": "town_medium", "fx": 0.615, "fy": 0.6155,
 		"name": "金穗城", "lord": "狄奥多（四子）", "specialty": "粮食、盐"},
-	{"id": "blackstone", "kind": "town_medium", "fx": 0.365, "fy": 0.559,
+	{"id": "blackstone", "kind": "town_medium", "fx": 0.365, "fy": 0.5197,
 		"name": "黑石堡", "lord": "弗雷德里克（六子）", "specialty": "铁、煤"},
-	{"id": "peak", "kind": "town_medium", "fx": 0.135, "fy": 0.360,
+	{"id": "peak", "kind": "town_medium", "fx": 0.135, "fy": 0.3347,
 		"name": "铁峰城", "lord": "大公 赫尔曼", "specialty": "铁、煤"},
-	{"id": "jade", "kind": "town_large", "fx": 0.862, "fy": 0.592,
+	{"id": "jade", "kind": "town_large", "fx": 0.862, "fy": 0.5504,
 		"name": "翡翠城", "lord": "女王 艾瑟琳", "specialty": "香料、丝绸、宝石"},
-	{"id": "holy_see", "kind": "temple", "fx": 0.520, "fy": 0.180,
+	{"id": "holy_see", "kind": "temple", "fx": 0.520, "fy": 0.1673,
 		"name": "圣都", "lord": "教皇 格里高利", "specialty": "圣物、书"},
-	{"id": "khan", "kind": "camp", "fx": 0.150, "fy": 0.810,
+	{"id": "khan", "kind": "camp", "fx": 0.150, "fy": 0.7530,
 		"name": "汗庭", "lord": "大汗 巴图尔", "specialty": "马匹、盐、皮毛"},
 ]
 
 ## 我们自己的那一座（图标按城镇中心段位换）
-const HOME := {"id": "ashen_vale", "fx": 0.795, "fy": 0.861,
+const HOME := {"id": "ashen_vale", "fx": 0.795, "fy": 0.8005,
 	"lord": "你（第七王子）", "specialty": "木材、石块、粘土"}
 
 var _map: TextureRect
