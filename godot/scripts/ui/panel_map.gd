@@ -21,7 +21,7 @@ var runner: SimRunner
 var world: Node
 
 ## 底图（比例 = 1536 : 952）。`_layout()` 按它算居中矩形。
-const MAP_ASPECT := 1524.0 / 1008.0
+const MAP_ASPECT := 2048.0 / 1366.0
 const MAP_PATH := "res://assets/ui/map/kingdom_map_bare.jpg"
 const ICON_DIR := "res://assets/ui/map/"
 ## 据点图标占地图高度的百分比（大城镇画得比村庄大，是**素材自带**的相对大小，
