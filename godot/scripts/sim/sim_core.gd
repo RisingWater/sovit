@@ -348,7 +348,7 @@ func _run_night() -> Array:
 	# 仓储超限丢弃：紧接损耗之后（见 docs/town.md §3.3）——
 	# 先损耗、后判上限，损耗腾出来的空间能救下本来会被丢掉的货
 	logs.append_array(apply_storage_cap(day))
-	_grow_skills()
+	_grow_skills(float((cons.get("needScores", {}) as Dictionary).get("education", 0.0)))
 	_compute_arrivals()
 	s["reserved"] = {}
 
@@ -954,9 +954,9 @@ func _assign_labor() -> void:
 		shop["skill"] = _avg(skills) if not skills.is_empty() else 0.0
 
 ## 每日熟练度成长。2026-10：**学校**按覆盖率加速成长（满覆盖 ×1.5）。
-func _grow_skills() -> void:
+func _grow_skills(edu_ratio: float) -> void:
 	var smax := float(db.economy["skillMax"])
-	var mul := 1.0
+	var mul := 1.0 + 0.5 * clampf(edu_ratio, 0.0, 1.0)
 	var gain := float(db.economy["skillGainPerDay"]) * mul
 	for r in s["residents"]:
 		if bool(r["employed"]):
@@ -1308,6 +1308,9 @@ func _run_consumption(day: int) -> Dictionary:
 	var comfort_score := {}
 	var price_score_map := {}
 	var sold_by_good := {}
+	# 每项需求的平均满足率（2026-10：教育用它加速熟练度成长）
+	var need_sum := {}
+	var need_cnt := {}
 	var hungry = 0
 	var revenue = 0.0
 	var good_set = _good_set()
@@ -1378,6 +1381,9 @@ func _run_consumption(day: int) -> Dictionary:
 				var affordable = float(r["savings"]) / price if price > 0.0 else desired
 				var want = minf(desired, affordable)
 				var sold = minf(want, float(s["goods"].get(target, 0.0)))
+				var ratio := clampf(sold / demand, 0.0, 1.0) if demand > 0.0 else 1.0
+				need_sum[need["good"]] = float(need_sum.get(need["good"], 0.0)) + ratio
+				need_cnt[need["good"]] = int(need_cnt.get(need["good"], 0)) + 1
 				s["goods"][target] = SimUtil.r2(float(s["goods"].get(target, 0.0)) - sold)
 				var cost = sold * price
 				r["savings"] = SimUtil.r2(maxf(0.0, float(r["savings"]) - cost))
@@ -1432,7 +1438,10 @@ func _run_consumption(day: int) -> Dictionary:
 
 	s["government"]["money"] = SimUtil.r2(float(s["government"]["money"]) + revenue)
 	s["ledgerToday"]["sales"] = SimUtil.r2(float(s["ledgerToday"]["sales"]) + revenue)
-	return {"foodScore": food_score, "comfortScore": comfort_score, "priceScore": price_score_map, "hungry": hungry, "revenue": SimUtil.r2(revenue), "logs": []}
+	var need_scores := {}
+	for gid in need_sum.keys():
+		need_scores[gid] = SimUtil.r2(float(need_sum[gid]) / float(maxi(1, int(need_cnt[gid]))))
+	return {"foodScore": food_score, "comfortScore": comfort_score, "priceScore": price_score_map, "needScores": need_scores, "hungry": hungry, "revenue": SimUtil.r2(revenue), "logs": []}
 
 # ===========================================================================
 # 满意度

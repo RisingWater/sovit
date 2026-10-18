@@ -10,14 +10,14 @@
 
 ## 一、没做完的（按优先级）
 
-### P0 · 教育成长加成（TS 已改成按需求满足率；GD 仍是 1.0 —— 见下）
+### ✅ P0 · 教育成长加成（TS + GD 都改成按需求满足率）
 
 - 🟡 `labor.ts::growSkills()` 还挂在**已下线的 coverage** 上（覆盖率恒 0 → 倍率恒 1）。
 - 设计（`docs/needs.md` §7）说的是：**教育需求的满足率** → `skillGainPerDay × (1 + 0.5 × 教育满足率)`。
 - 要动：`runConsumption` 额外返回"各商品需求的平均满足率"（`needScores`），
   `growSkills` 读 `education` 那一项；两份引擎同改。
 
-### P0 · 清掉 coverage 残留（死代码）
+### ✅ P0 · 清掉 coverage 残留（死代码）
 
 - 🟡 `src/engine/systems/coverage.ts` 仍在，被 `labor.ts::growSkills()` 引用；
   GD 侧 `sim_core.gd::coverage_ratios()/_coverage_sat_bonus()` + `content_db.gd` 的 `coverage` 透传也在。
@@ -33,7 +33,7 @@
 - ⬜ 首遇 galgame（贸易官**薇拉**报告）+ 播完出「开市」支线
 - ⬜ 确定性（`seed = day × 1000 + 序号`）→ golden / AI 沙盘可复现
 
-### P1 · 军备剩下的两座 + 军事页
+### P1 · 军备剩下的两座 + 军事页（**卡住**：加两件商品会让 `coal` 门槛红）
 
 - 🟡 已有：武器作坊、`weapons`、`military` 类别、`weaponry` 科技
 - ⬜ `armor_workshop` 盔甲作坊（铁锭 2 + 兽皮 2 → 盔甲 2）· 素材 06
