@@ -77,9 +77,6 @@ var _tab_hist: VBoxContainer
 var _hist_head: Label
 var _hist_body: VBoxContainer
 var _hist_scroll: ScrollContainer
-## 「送物资」（用户 2026-10 · A4）：选商品 + 填数量 + 送一趟。
-var _gift_box: OptionButton
-var _gift_qty: LineEdit
 var _portrait: PanelPortrait
 ## 设置页底部那行"测试连接"的结果
 var _test_lb: Label = null
@@ -151,7 +148,6 @@ func open() -> void:
 	_build()
 	_place()
 	_select_latest_entry()
-	_refresh_gift_box()
 	# 右下角那位冒一句话（用户 2026-10）
 	if _portrait != null:
 		_portrait.speak()
@@ -334,14 +330,6 @@ func _head_row(root: VBoxContainer, with_drag: bool) -> void:
 	close.pressed.connect(close_panel)
 	head.add_child(close)
 
-## 小标题条（米黄面板里的深色 section 条，和统计面板同一套）
-func _section(parent: Control, text: String) -> void:
-	var p := UIKit.panel(true)
-	var l := UIKit.label(text, UIKit.FG_LABEL)
-	l.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	p.add_child(l)
-	parent.add_child(p)
-
 func _vbox(sep: int = 4) -> VBoxContainer:
 	var v := VBoxContainer.new()
 	v.add_theme_constant_override("separation", sep)
@@ -359,9 +347,15 @@ func _wrapped(text: String, color: Color = UIKit.FG_DARK, width: float = 0.0) ->
 # 预言页（全屏）—— 两个页签（用户 2026-10-20：「改成两个 tab，第一个是新预言，
 # 第二个是历史预言」）
 #
-#   新预言：左边问话 + 「获取新的预言」+ 送物资；右边她的回答（上一场会话/上一次进言）
+#   新预言（**从上到下竖排**，用户："第一行 现在可以询问瑟拉菲娜，第二行输入框+按钮，
+#           第三行开始是预言"）：
+#           ① 状态行「现在可以询问瑟拉菲娜」
+#           ② 问话输入框 + 「获取瑟拉菲娜的新预言」
+#           ③ 小标题（AE 日期 · 你问的是…）+ 她的回答（占满剩下的高度）
 #   历史预言：左边一条一条的历史；右边选中那条的原话
 #
+# ⚠️ 「送物资」那一行**删掉了**（2026-10-20 用户："这里红色框里面的东西去掉"）：
+#    交东西的入口现在只在任务面板的要求后面（那边是"照单交"，还能看进度）。
 # 两页各有**自己的**输出区（`_ai_body` / `_hist_body`）：翻历史不会把刚问出来的那段
 # 顶掉，回到第一页还是那一卦。立绘两页共用，画在最上层。
 # ---------------------------------------------------------------------------
@@ -383,67 +377,41 @@ func _build_prophecy(root: VBoxContainer) -> void:
 	tab_row.add_child(UIKit.spacer())
 	root.add_child(UIKit.hsep())
 
-	# ---------------- 第一页：新预言
+	# ---------------- 第一页：新预言（竖排）
 	_tab_new = _vbox(0)
-	# ⚠️ 页容器**必须撑开**：它现在是 root(VBox) 的直接孩子，不撑开的话两栏会被压成
+	# ⚠️ 页容器**必须撑开**：它现在是 root(VBox) 的直接孩子，不撑开的话内容会被压成
 	# 一条细带（历史页第一版就是这样：右边的原文只剩一条缝，还硬挤出个滚动条）。
 	_tab_new.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	root.add_child(_tab_new)
-	var body := HBoxContainer.new()
-	body.add_theme_constant_override("separation", 10)
-	body.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	_tab_new.add_child(body)
 
-	var left := _vbox(4)
-	left.custom_minimum_size = Vector2(HIST_W, 0)
-	# ⚠️ 不能跟着撑开：`_vbox()` 给的是 EXPAND_FILL，两栏都会去分多出来的宽度，
-	# 左栏会被拉到面板的一半（第一版就是这样：问话栏横了一整条）。
-	left.size_flags_horizontal = Control.SIZE_FILL
-	body.add_child(left)
+	# ① 状态行：能不能问、还要等几天
+	_status = _wrapped("", UIKit.FG_DIM)
+	_tab_new.add_child(_status)
+
+	# ② 问话输入框 + 按钮（同一行）
 	var ask_row := HBoxContainer.new()
-	ask_row.add_theme_constant_override("separation", 5)
-	left.add_child(ask_row)
+	ask_row.add_theme_constant_override("separation", 6)
+	_tab_new.add_child(ask_row)
 	_ask_input = UIKit.input(DEFAULT_QUESTION, 120)
 	_ask_input.text = DEFAULT_QUESTION
 	_ask_input.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_ask_input.tooltip_text = "想问什么就写一行 —— 例如「我的食物不够了怎么办」「为什么人口一直上不去」"
 	_ask_input.text_submitted.connect(func(_t): ask())
 	ask_row.add_child(_ask_input)
-	_ask_btn = UIKit.button("获取新的预言", false)
+	_ask_btn = UIKit.button("获取瑟拉菲娜的新预言", false)
 	_ask_btn.custom_minimum_size = Vector2(0, UIKit.BTN_H)
 	_ask_btn.tooltip_text = "让瑟拉菲娜拨一次水晶球"
 	_ask_btn.pressed.connect(ask)
-	left.add_child(_ask_btn)
+	ask_row.add_child(_ask_btn)
+	_tab_new.add_child(UIKit.hsep())
 
-	# ---- 送物资（用户 2026-10 · A4）：她住在林子那边，东西得有人送过去。
-	# 走 `gift` 命令（**即时生效**：货当场扣），扣货并记进
-	# `state.gifts`；追踪条上那 17 条「送物资」支线判的就是这个累计量。
-	left.add_child(UIKit.hsep())
-	_section(left, "送物资")
-	var gift_row := HBoxContainer.new()
-	gift_row.add_theme_constant_override("separation", 5)
-	left.add_child(gift_row)
-	_gift_box = OptionButton.new()
-	_gift_box.add_theme_font_override("font", UIKit.pixel_font())
-	_gift_box.add_theme_font_size_override("font_size", UIKit.FS)
-	_gift_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_gift_box.tooltip_text = "要送什么（只列仓库里有的）"
-	gift_row.add_child(_gift_box)
-	_gift_qty = UIKit.input("数量", 5)
-	_gift_qty.text = "10"
-	_gift_qty.custom_minimum_size = Vector2(56, 0)
-	_gift_qty.tooltip_text = "送多少件（当场送出）"
-	gift_row.add_child(_gift_qty)
-	var gift_btn := UIKit.button("送去", true)
-	gift_btn.tooltip_text = "把这一份送到林子那边（**当场送出**：货立刻扣）"
-	gift_btn.pressed.connect(_send_gift)
-	left.add_child(gift_btn)
-
-	# 右栏：状态 + 内容。右边给立绘留出 PORTRAIT_GAP：
-	# 立绘画在最上层，不给它让位的话文字会跑到她脸上。
+	# ③ 从这一行开始就是预言本身：小标题 + 她的回答（给立绘留出右边那条空白）
+	var body := HBoxContainer.new()
+	body.add_theme_constant_override("separation", 0)
+	body.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	body.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_tab_new.add_child(body)
 	var right := _prophecy_right(body)
-	_status = _wrapped("", UIKit.FG_DIM)
-	right.add_child(_status)
 	_ai_head = _wrapped("", UIKit.FG_HEAD)
 	right.add_child(_ai_head)
 	var cscroll := ScrollContainer.new()
@@ -537,61 +505,6 @@ func _apply_tab() -> void:
 			UIKit.box(UIKit.T_BTN_ACTIVE if i == _tab else UIKit.T_BTN))
 
 ## 历史列表：一条一个按钮（第 N 天 + 问的那句话）。选中的那条换底纹。
-## 「送物资」的下拉：只列**现在真的送得出去的**（可用量 ≥ 1，即库存 − 当天排产锁定的），
-## 带上可送件数。每次打开面板 / 送完一趟都重建一次 —— 数字会变，列一份旧的会让人送不出去。
-func _refresh_gift_box() -> void:
-	if _gift_box == null or runner == null or runner.sim == null:
-		return
-	var keep := _gift_good_id()
-	_gift_box.clear()
-	var goods: Dictionary = runner.sim.s["goods"]
-	var ids: Array = []
-	for gid in goods.keys():
-		if not runner.db.goods.has(String(gid)):
-			continue
-		# ⚠️ 用 `available()`（库存 − 当天锁定的），不是仓库总量：锁着的是白天的生产原料
-		if runner.sim.available(String(gid)) < 1.0:
-			continue
-		ids.append(String(gid))
-	ids.sort()
-	for gid in ids:
-		_gift_box.add_item("%s（%d）" % [runner.sim.good_name(String(gid)),
-			int(runner.sim.available(String(gid)))])
-		_gift_box.set_item_metadata(_gift_box.item_count - 1, String(gid))
-	if _gift_box.item_count == 0:
-		_gift_box.add_item("（暂时没有送得出去的东西）")
-		return
-	if keep != "":
-		for i in _gift_box.item_count:
-			if String(_gift_box.get_item_metadata(i)) == keep:
-				_gift_box.selected = i
-				break
-
-## 下拉里选中的商品 id（"" = 没有可送的）。
-func _gift_good_id() -> String:
-	if _gift_box == null or _gift_box.item_count == 0 or _gift_box.selected < 0:
-		return ""
-	var v = _gift_box.get_item_metadata(_gift_box.selected)
-	return "" if v == null else String(v)
-
-## 「送去」：下一条 `gift` 命令（**即时生效**）。
-## 引擎当场扣货、累加 `state.gifts`、写一条公告、顺手结算相关任务；这里只负责把话递过去。
-func _send_gift() -> void:
-	if runner == null or runner.sim == null:
-		return
-	var gid := _gift_good_id()
-	if gid == "":
-		_notice("仓库里没有可送的东西")
-		return
-	var qty := int(_gift_qty.text.strip_edges()) if _gift_qty != null else 0
-	if qty <= 0:
-		_notice("数量要大于 0")
-		return
-	runner.enqueue([{"type": "gift", "to": "serafina", "goodId": gid, "qty": qty}])
-	_notice("已送出：%s ×%d" % [runner.sim.good_name(gid), qty])
-	# 送完货会变，下拉里的数字得跟着重列（不然过一会儿显示的还是旧的存量）
-	_refresh_gift_box()
-
 func _rebuild_history() -> void:
 	if _hist == null:
 		return
