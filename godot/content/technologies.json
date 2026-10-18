@@ -112,6 +112,15 @@
       "unlocks": { "buildings": [], "housing": [] },
       "effects": { "toolLife": 0.5 }
     },    {
+      "id": "trade",
+      "nameZh": "通商",
+      "era": 3,
+      "research": 50,
+      "cost": { "goods": { "wood": 30, "pottery": 10 } },
+      "requires": ["pottery"],
+      "unlocks": { "buildings": ["trade_market"], "housing": [] }
+    },
+    {
       "id": "herbalism",
       "nameZh": "草药",
       "era": 2,

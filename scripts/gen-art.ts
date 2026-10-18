@@ -300,6 +300,7 @@ const FORCE_HALF: Record<string, true> = {
 const FORCE_NATIVE: Record<string, true> = {
   // M2：诊所 / 医院 / 学校**不缩小**（用户 2026-10）
   clinic: true,
+  trade_market: true,
   watchtower: true,
   hospital: true,
   school: true,

@@ -91,6 +91,7 @@ const RESEARCH_ORDER: string[] = [
   'medicine', // 药水工坊、诊所
   'hospital_ward', // 医院
   'schooling', // 学校（熟练度成长）
+  'trade', // 通商 → 贸易市场（游商）
 
   // ---- 治安与军备（2026-10 第二批）：民兵 → 兵器（治安所吃武器）----
   'militia',
