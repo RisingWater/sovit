@@ -244,9 +244,11 @@
         "clay": 150,
         "coal": 0,
         "iron_ore": 0,
+        "iron": 0,
         "firewood": 40,
         "brick": 40,
-        "stone_tools": 0
+        "stone_tools": 0,
+        "iron_tools": 0
       },
       "prices": {
         "wheat": 1,
@@ -281,9 +283,11 @@
         "clay": 1.2,
         "coal": 2.2,
         "iron_ore": 2.8,
+        "iron": 6,
         "firewood": 1.6,
         "brick": 3,
         "stone_tools": 4,
+        "iron_tools": 8,
         "hut": 10,
         "wooden_house": 25,
         "brick_house": 50
@@ -343,9 +347,11 @@
         "clay": 150,
         "coal": 0,
         "iron_ore": 0,
+        "iron": 0,
         "firewood": 40,
         "brick": 40,
-        "stone_tools": 0
+        "stone_tools": 0,
+        "iron_tools": 0
       },
       "prices": {
         "wheat": 1,
@@ -380,9 +386,11 @@
         "clay": 1.2,
         "coal": 2.2,
         "iron_ore": 2.8,
+        "iron": 6,
         "firewood": 1.6,
         "brick": 3,
         "stone_tools": 4,
+        "iron_tools": 8,
         "hut": 10,
         "wooden_house": 25,
         "brick_house": 50
@@ -442,9 +450,11 @@
         "clay": 150,
         "coal": 0,
         "iron_ore": 0,
+        "iron": 0,
         "firewood": 40,
         "brick": 40,
-        "stone_tools": 0
+        "stone_tools": 0,
+        "iron_tools": 0
       },
       "prices": {
         "wheat": 1,
@@ -479,9 +489,11 @@
         "clay": 1.2,
         "coal": 2.2,
         "iron_ore": 2.8,
+        "iron": 6,
         "firewood": 1.6,
         "brick": 3,
         "stone_tools": 4,
+        "iron_tools": 8,
         "hut": 10,
         "wooden_house": 25,
         "brick_house": 50
@@ -548,9 +560,11 @@
         "clay": 150,
         "coal": 0,
         "iron_ore": 0,
+        "iron": 0,
         "firewood": 40,
         "brick": 40,
-        "stone_tools": 0
+        "stone_tools": 0,
+        "iron_tools": 0
       },
       "prices": {
         "wheat": 1,
@@ -585,9 +599,11 @@
         "clay": 1.2,
         "coal": 2.2,
         "iron_ore": 2.8,
+        "iron": 6,
         "firewood": 1.6,
         "brick": 3,
         "stone_tools": 4,
+        "iron_tools": 8,
         "hut": 10,
         "wooden_house": 25,
         "brick_house": 50
@@ -654,9 +670,11 @@
         "clay": 150,
         "coal": 0,
         "iron_ore": 0,
+        "iron": 0,
         "firewood": 40,
         "brick": 40,
-        "stone_tools": 0
+        "stone_tools": 0,
+        "iron_tools": 0
       },
       "prices": {
         "wheat": 1,
@@ -691,9 +709,11 @@
         "clay": 1.2,
         "coal": 2.2,
         "iron_ore": 2.8,
+        "iron": 6,
         "firewood": 1.6,
         "brick": 3,
         "stone_tools": 4,
+        "iron_tools": 8,
         "hut": 10,
         "wooden_house": 25,
         "brick_house": 50
@@ -767,9 +787,11 @@
         "clay": 150,
         "coal": 0,
         "iron_ore": 0,
+        "iron": 0,
         "firewood": 40,
         "brick": 40,
-        "stone_tools": 0
+        "stone_tools": 0,
+        "iron_tools": 0
       },
       "prices": {
         "wheat": 1,
@@ -804,9 +826,11 @@
         "clay": 1.2,
         "coal": 2.2,
         "iron_ore": 2.8,
+        "iron": 6,
         "firewood": 1.6,
         "brick": 3,
         "stone_tools": 4,
+        "iron_tools": 8,
         "hut": 10,
         "wooden_house": 25,
         "brick_house": 50
@@ -880,9 +904,11 @@
         "clay": 150,
         "coal": 0,
         "iron_ore": 0,
+        "iron": 0,
         "firewood": 40,
         "brick": 40,
-        "stone_tools": 0
+        "stone_tools": 0,
+        "iron_tools": 0
       },
       "prices": {
         "wheat": 1,
@@ -917,9 +943,11 @@
         "clay": 1.2,
         "coal": 2.2,
         "iron_ore": 2.8,
+        "iron": 6,
         "firewood": 1.6,
         "brick": 3,
         "stone_tools": 4,
+        "iron_tools": 8,
         "hut": 10,
         "wooden_house": 25,
         "brick_house": 50
@@ -993,9 +1021,11 @@
         "clay": 150,
         "coal": 0,
         "iron_ore": 0,
+        "iron": 0,
         "firewood": 40,
         "brick": 40,
-        "stone_tools": 0
+        "stone_tools": 0,
+        "iron_tools": 0
       },
       "prices": {
         "wheat": 1,
@@ -1030,9 +1060,11 @@
         "clay": 1.2,
         "coal": 2.2,
         "iron_ore": 2.8,
+        "iron": 6,
         "firewood": 1.6,
         "brick": 3,
         "stone_tools": 4,
+        "iron_tools": 8,
         "hut": 10,
         "wooden_house": 25,
         "brick_house": 50
@@ -1106,9 +1138,11 @@
         "clay": 150,
         "coal": 0,
         "iron_ore": 0,
+        "iron": 0,
         "firewood": 40,
         "brick": 40,
-        "stone_tools": 0
+        "stone_tools": 0,
+        "iron_tools": 0
       },
       "prices": {
         "wheat": 1,
@@ -1143,9 +1177,11 @@
         "clay": 1.2,
         "coal": 2.2,
         "iron_ore": 2.8,
+        "iron": 6,
         "firewood": 1.6,
         "brick": 3,
         "stone_tools": 4,
+        "iron_tools": 8,
         "hut": 10,
         "wooden_house": 25,
         "brick_house": 50
@@ -1219,9 +1255,11 @@
         "clay": 150,
         "coal": 0,
         "iron_ore": 0,
+        "iron": 0,
         "firewood": 40,
         "brick": 40,
-        "stone_tools": 0
+        "stone_tools": 0,
+        "iron_tools": 0
       },
       "prices": {
         "wheat": 1,
@@ -1256,9 +1294,11 @@
         "clay": 1.2,
         "coal": 2.2,
         "iron_ore": 2.8,
+        "iron": 6,
         "firewood": 1.6,
         "brick": 3,
         "stone_tools": 4,
+        "iron_tools": 8,
         "hut": 10,
         "wooden_house": 25,
         "brick_house": 50
@@ -1332,9 +1372,11 @@
         "clay": 150,
         "coal": 0,
         "iron_ore": 0,
+        "iron": 0,
         "firewood": 40,
         "brick": 40,
-        "stone_tools": 0
+        "stone_tools": 0,
+        "iron_tools": 0
       },
       "prices": {
         "wheat": 1,
@@ -1369,9 +1411,11 @@
         "clay": 1.2,
         "coal": 2.2,
         "iron_ore": 2.8,
+        "iron": 6,
         "firewood": 1.6,
         "brick": 3,
         "stone_tools": 4,
+        "iron_tools": 8,
         "hut": 10,
         "wooden_house": 25,
         "brick_house": 50
@@ -1452,9 +1496,11 @@
         "clay": 150,
         "coal": 0,
         "iron_ore": 0,
+        "iron": 0,
         "firewood": 40,
         "brick": 40,
-        "stone_tools": 0
+        "stone_tools": 0,
+        "iron_tools": 0
       },
       "prices": {
         "wheat": 1,
@@ -1489,9 +1535,11 @@
         "clay": 1.2,
         "coal": 2.2,
         "iron_ore": 2.8,
+        "iron": 6,
         "firewood": 1.6,
         "brick": 3,
         "stone_tools": 4,
+        "iron_tools": 8,
         "hut": 10,
         "wooden_house": 25,
         "brick_house": 50
@@ -1572,9 +1620,11 @@
         "clay": 150,
         "coal": 0,
         "iron_ore": 0,
+        "iron": 0,
         "firewood": 40,
         "brick": 40,
-        "stone_tools": 0
+        "stone_tools": 0,
+        "iron_tools": 0
       },
       "prices": {
         "wheat": 1,
@@ -1609,9 +1659,11 @@
         "clay": 1.2,
         "coal": 2.2,
         "iron_ore": 2.8,
+        "iron": 6,
         "firewood": 1.6,
         "brick": 3,
         "stone_tools": 4,
+        "iron_tools": 8,
         "hut": 10,
         "wooden_house": 25,
         "brick_house": 50
@@ -1692,9 +1744,11 @@
         "clay": 150,
         "coal": 0,
         "iron_ore": 0,
+        "iron": 0,
         "firewood": 40,
         "brick": 40,
-        "stone_tools": 0
+        "stone_tools": 0,
+        "iron_tools": 0
       },
       "prices": {
         "wheat": 1,
@@ -1729,9 +1783,11 @@
         "clay": 1.2,
         "coal": 2.2,
         "iron_ore": 2.8,
+        "iron": 6,
         "firewood": 1.6,
         "brick": 3,
         "stone_tools": 4,
+        "iron_tools": 8,
         "hut": 10,
         "wooden_house": 25,
         "brick_house": 50
@@ -1812,9 +1868,11 @@
         "clay": 150,
         "coal": 0,
         "iron_ore": 0,
+        "iron": 0,
         "firewood": 40,
         "brick": 40,
-        "stone_tools": 0
+        "stone_tools": 0,
+        "iron_tools": 0
       },
       "prices": {
         "wheat": 1,
@@ -1849,9 +1907,11 @@
         "clay": 1.2,
         "coal": 2.2,
         "iron_ore": 2.8,
+        "iron": 6,
         "firewood": 1.6,
         "brick": 3,
         "stone_tools": 4,
+        "iron_tools": 8,
         "hut": 10,
         "wooden_house": 25,
         "brick_house": 50
@@ -1932,9 +1992,11 @@
         "clay": 150,
         "coal": 0,
         "iron_ore": 0,
+        "iron": 0,
         "firewood": 40,
         "brick": 40,
-        "stone_tools": 0
+        "stone_tools": 0,
+        "iron_tools": 0
       },
       "prices": {
         "wheat": 1,
@@ -1969,9 +2031,11 @@
         "clay": 1.2,
         "coal": 2.2,
         "iron_ore": 2.8,
+        "iron": 6,
         "firewood": 1.6,
         "brick": 3,
         "stone_tools": 4,
+        "iron_tools": 8,
         "hut": 10,
         "wooden_house": 25,
         "brick_house": 50
@@ -2052,9 +2116,11 @@
         "clay": 150,
         "coal": 0,
         "iron_ore": 0,
+        "iron": 0,
         "firewood": 40,
         "brick": 40,
-        "stone_tools": 0
+        "stone_tools": 0,
+        "iron_tools": 0
       },
       "prices": {
         "wheat": 1,
@@ -2089,9 +2155,11 @@
         "clay": 1.2,
         "coal": 2.2,
         "iron_ore": 2.8,
+        "iron": 6,
         "firewood": 1.6,
         "brick": 3,
         "stone_tools": 4,
+        "iron_tools": 8,
         "hut": 10,
         "wooden_house": 25,
         "brick_house": 50
@@ -2172,9 +2240,11 @@
         "clay": 150,
         "coal": 0,
         "iron_ore": 0,
+        "iron": 0,
         "firewood": 40,
         "brick": 40,
-        "stone_tools": 0
+        "stone_tools": 0,
+        "iron_tools": 0
       },
       "prices": {
         "wheat": 1,
@@ -2209,9 +2279,11 @@
         "clay": 1.2,
         "coal": 2.2,
         "iron_ore": 2.8,
+        "iron": 6,
         "firewood": 1.6,
         "brick": 3,
         "stone_tools": 4,
+        "iron_tools": 8,
         "hut": 10,
         "wooden_house": 25,
         "brick_house": 50
@@ -2292,9 +2364,11 @@
         "clay": 150,
         "coal": 0,
         "iron_ore": 0,
+        "iron": 0,
         "firewood": 40,
         "brick": 40,
-        "stone_tools": 0
+        "stone_tools": 0,
+        "iron_tools": 0
       },
       "prices": {
         "wheat": 1,
@@ -2329,9 +2403,11 @@
         "clay": 1.2,
         "coal": 2.2,
         "iron_ore": 2.8,
+        "iron": 6,
         "firewood": 1.6,
         "brick": 3,
         "stone_tools": 4,
+        "iron_tools": 8,
         "hut": 10,
         "wooden_house": 25,
         "brick_house": 50
@@ -2412,9 +2488,11 @@
         "clay": 150,
         "coal": 0,
         "iron_ore": 0,
+        "iron": 0,
         "firewood": 40,
         "brick": 40,
-        "stone_tools": 0
+        "stone_tools": 0,
+        "iron_tools": 0
       },
       "prices": {
         "wheat": 1,
@@ -2449,9 +2527,11 @@
         "clay": 1.2,
         "coal": 2.2,
         "iron_ore": 2.8,
+        "iron": 6,
         "firewood": 1.6,
         "brick": 3,
         "stone_tools": 4,
+        "iron_tools": 8,
         "hut": 10,
         "wooden_house": 25,
         "brick_house": 50
@@ -2532,9 +2612,11 @@
         "clay": 150,
         "coal": 0,
         "iron_ore": 0,
+        "iron": 0,
         "firewood": 40,
         "brick": 40,
-        "stone_tools": 0
+        "stone_tools": 0,
+        "iron_tools": 0
       },
       "prices": {
         "wheat": 1,
@@ -2569,9 +2651,11 @@
         "clay": 1.2,
         "coal": 2.2,
         "iron_ore": 2.8,
+        "iron": 6,
         "firewood": 1.6,
         "brick": 3,
         "stone_tools": 4,
+        "iron_tools": 8,
         "hut": 10,
         "wooden_house": 25,
         "brick_house": 50

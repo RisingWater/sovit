@@ -319,6 +319,66 @@
       "buildWork": 16
     },
     {
+      "id": "smeltery",
+      "sector": "goods",
+      "nameZh": "冶炼场",
+      "art": {
+        "arch": "sprite",
+        "foot": [
+          4,
+          1
+        ]
+      },
+      "tier": 2,
+      "workers": 3,
+      "maxWorkers": 6,
+      "buildCost": {
+        "wood": 8,
+        "stone": 6
+      },
+      "recipe": {
+        "inputs": {
+          "iron_ore": 2,
+          "coal": 1
+        },
+        "output": {
+          "iron": 2
+        },
+        "baseRate": 1
+      },
+      "buildWork": 20
+    },
+    {
+      "id": "iron_tool_workshop",
+      "sector": "goods",
+      "nameZh": "铁制工具作坊",
+      "art": {
+        "arch": "sprite",
+        "foot": [
+          4,
+          1
+        ]
+      },
+      "tier": 3,
+      "workers": 3,
+      "maxWorkers": 6,
+      "buildCost": {
+        "wood": 8,
+        "stone": 4,
+        "brick": 3
+      },
+      "recipe": {
+        "inputs": {
+          "iron": 2,
+          "wood": 3
+        },
+        "output": {
+          "iron_tools": 2
+        },
+        "baseRate": 1
+      },
+      "buildWork": 24
+    },    {
       "id": "coal_mine",
       "sector": "material",
       "nameZh": "煤矿场",
@@ -1021,14 +1081,12 @@
     {
       "id": "tool_works",
       "sector": "goods",
-      "nameZh": "工具坊",
+      "nameZh": "石制工具作坊",
       "art": {
-        "arch": "workshop",
-        "roof": "red",
-        "wall": "plank",
-        "w": 4,
-        "feat": [
-          "rocks"
+        "arch": "sprite",
+        "foot": [
+          4,
+          2
         ]
       },
       "tier": 2,

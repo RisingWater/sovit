@@ -75,6 +75,43 @@
       "unlocks": { "buildings": ["brick_kiln", "iron_mine", "coal_mine"], "housing": [] }
     },
     {
+      "id": "ironworking",
+      "nameZh": "冶铁",
+      "era": 2,
+      "research": 40,
+      "cost": { "goods": { "wood": 20, "brick": 10 } },
+      "requires": ["brickmaking", "stonework"],
+      "unlocks": { "buildings": ["smeltery"], "housing": [] }
+    },
+    {
+      "id": "iron_tooling",
+      "nameZh": "铁制工具",
+      "era": 3,
+      "research": 60,
+      "cost": { "goods": { "wood": 30, "iron": 10 } },
+      "requires": ["ironworking", "toolmaking"],
+      "unlocks": { "buildings": ["iron_tool_workshop"], "housing": [] }
+    },
+    {
+      "id": "tempering",
+      "nameZh": "淬火",
+      "era": 3,
+      "research": 50,
+      "cost": { "goods": { "wood": 20, "iron": 10 } },
+      "requires": ["iron_tooling"],
+      "unlocks": { "buildings": [], "housing": [] },
+      "effects": { "toolLife": 0.2 }
+    },
+    {
+      "id": "refining",
+      "nameZh": "精炼",
+      "era": 4,
+      "research": 80,
+      "cost": { "goods": { "iron": 20, "brick": 20 } },
+      "requires": ["tempering"],
+      "unlocks": { "buildings": [], "housing": [] },
+      "effects": { "toolLife": 0.5 }
+    },    {
       "id": "pottery",
       "nameZh": "制陶",
       "era": 2,

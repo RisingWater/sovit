@@ -377,6 +377,30 @@
       ]
     },
     {
+      "id": "q05f_tools",
+      "chapter": 3,
+      "giver": "sebastian",
+      "giverPortrait": "sebastian_neutral",
+      "title": "凿子崩了三把",
+      "hint": "研究「石制工具」→ 建一座石制工具作坊，攒到 10 件石制工具",
+      "brief": "殿下，墙是垒起来了，可凿子崩了三把。石料硬，木柄软——这活总得有人专门做。老臣想请您拨一处地方，让石匠带两个徒弟，专打石制工具。往后砌墙、开矿，都使得上。",
+      "reward": 500,
+      "requires": [
+        "q05a_stone"
+      ],
+      "goals": [
+        {
+          "type": "building",
+          "id": "tool_works",
+          "min": 1
+        },
+        {
+          "type": "good",
+          "id": "stone_tools",
+          "min": 10
+        }
+      ]
+    },    {
       "id": "q06_pop50",
       "chapter": 3,
       "giver": "luna",
@@ -658,6 +682,35 @@
       ]
     },
     {
+      "id": "q10g_iron",
+      "chapter": 4,
+      "giver": "sebastian",
+      "giverPortrait": "sebastian_smile",
+      "title": "铁水",
+      "hint": "研究「冶铁」「铁制工具」→ 冶炼场 ×1，攒 20 铁锭与 5 件铁制工具",
+      "brief": "殿下见过铁水么？石头里烧出来的那一线红，比金子还好看。有了它，凿子能多凿十年，犁能犁得更深。",
+      "reward": 1000,
+      "requires": [
+        "q10f_townhall_repair"
+      ],
+      "goals": [
+        {
+          "type": "building",
+          "id": "smeltery",
+          "min": 1
+        },
+        {
+          "type": "good",
+          "id": "iron",
+          "min": 20
+        },
+        {
+          "type": "good",
+          "id": "iron_tools",
+          "min": 5
+        }
+      ]
+    },    {
       "id": "q11_middle",
       "chapter": 5,
       "giver": "vila",

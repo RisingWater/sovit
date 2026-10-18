@@ -19,6 +19,8 @@ import type { ContentContext } from '../content/index.ts'
 
 /** 五个加成键的固定顺序（只用于遍历；求和与顺序无关）。 */
 const EFFECT_KEYS: readonly TechEffectKey[] = ['agri', 'goods', 'material', 'research', 'build']
+/** 这些键**取最高**（不是加法叠加）——工具寿命（2026-10：+20% 与 +50% 两档，取高的那一档）。 */
+const MAX_KEYS: readonly TechEffectKey[] = ['toolLife']
 
 export interface TechBonuses {
   /** 农业建筑产出加成（加法小数）。 */
@@ -31,19 +33,24 @@ export interface TechBonuses {
   research: number
   /** 建造速度加成：`constructionRate()` **整个返回值** × (1 + build)。 */
   build: number
+  /** 工具寿命加成（**取最高**，不叠加）：工具有效天数 × (1 + toolLife)。 */
+  toolLife: number
 }
 
 /**
  * 已研究科技的效率加成合计。
  *
- * 遍历 `state.research.done`，把每项科技 `effects` 的每个键**加法**求和；
- * 没研究的 / 没有 `effects` 的 / 未定义的科技一律跳过。五个键缺省 0。
+ * 遍历 `state.research.done`，把每项科技 `effects` 的每个键求和；
+ * 没研究的 / 没有 `effects` 的 / 未定义的科技一律跳过。缺省 0。
+ *
+ * ⚠️ `MAX_KEYS`（目前只有 `toolLife`）**取最高**而不是求和：
+ * 用户 2026-10 定的"工具寿命两档 +20% / +50%，取最高"，不是叠到 +70%。
  *
  * 注意这里**不做 round**：加成是小数量级，四舍五入到两位会把 0.05 抹成 0.05
  * 之外的东西，且没必要 —— 它只是个乘数，最终速率各自照常 round2。
  */
 export function techBonuses(state: GameState, ctx: ContentContext): TechBonuses {
-  const out: TechBonuses = { agri: 0, goods: 0, material: 0, research: 0, build: 0 }
+  const out: TechBonuses = { agri: 0, goods: 0, material: 0, research: 0, build: 0, toolLife: 0 }
   for (const tid of state.research.done) {
     const tech = ctx.technologies[tid]
     const effects = tech?.effects
@@ -52,6 +59,10 @@ export function techBonuses(state: GameState, ctx: ContentContext): TechBonuses 
     for (const k of EFFECT_KEYS) {
       const v = effects[k]
       if (v !== undefined) out[k] += v
+    }
+    for (const k of MAX_KEYS) {
+      const v = effects[k]
+      if (v !== undefined) out[k] = Math.max(out[k], v)
     }
   }
   return out

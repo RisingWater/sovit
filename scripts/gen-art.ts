@@ -265,6 +265,13 @@ const FORCE_HALF: Record<string, true> = {
   firewood_works: true,
   // 采集类，和伐木场对齐
   clay_pit: true,
+  // 第二批（冶炼 / 工具 / 矿场换皮）：用户 2026-10 "都除以2（学校/贸易市场/诊所/医院 除外）"
+  // —— 同一批素材必须同档，否则 79px 的煤矿留在 128 宽、82px 的铁矿被 ÷2，一半大一半小。
+  iron_mine: true,
+  coal_mine: true,
+  smeltery: true,
+  iron_tool_workshop: true,
+  tool_works: true,
   // 用户看过"全部建筑一张图"之后点名的两座：第 4 行第 5 列 建筑工坊、第 5 行第 4 列 砖房
   // —— "太大"。整数倍缩放只有 ×1 / ÷2 两档，要变小就只能 ÷2：
   //   * 建筑工坊 128x84 -> 64x42：和其余二十多座工坊同档了；代价是它不再和
@@ -1113,6 +1120,21 @@ function main(): void {
   const goods = (JSON.parse(readFileSync('content/goods.json', 'utf8')) as { goods: { id: string }[] }).goods
   for (const g of goods) writeFileSync(`${ROOT}/goods/${g.id}.png`, goodIcon(g.id).toPng())
 
+  // 科技图标：**素材包里有就用素材**（`assets/ui/tech/<id>.png` 是外部导入的），
+  // 没有的（新增科技）在这里补一个 32×32 的简笔图标 —— 否则科技卡片是空白的，
+  // 门槛 `tech` 会红（"卡片没有图标"）。只补**缺的**，不覆盖导入的。
+  const techs = (JSON.parse(readFileSync('content/technologies.json', 'utf8')) as {
+    technologies: { id: string }[]
+  }).technologies
+  let madeIcons = 0
+  for (const t of techs) {
+    const dst = `${ROOT}/ui/tech/${t.id}.png`
+    if (existsSync(dst)) continue
+    writeFileSync(dst, techIcon(t.id).toPng())
+    madeIcons += 1
+  }
+  if (madeIcons > 0) console.log(`  科技图标：补了 ${madeIcons} 个（素材包里没有的）`)
+
   // 速度控制图标 + 笔刷卡片缩略图
   for (const k of ['pause', '1x', '2x', '4x']) {
     writeFileSync(`${ROOT}/ui/speed_${k}.png`, speedIcon(k).toPng())
@@ -1141,3 +1163,55 @@ function main(): void {
 }
 
 main()
+
+/**
+ * 新增科技的**兜底图标**（32×32）。素材包里没有对应科技图时用（`main()` 里只在文件缺失时写）。
+ *
+ * 只画"一眼能认出来"的简笔：铁匠炉 / 锤子 / 水滴+汽 / 铁锭。颜色沿用 `goodIcon` 那套。
+ * 有正式素材时**放到 `assets/ui/tech/<id>.png` 即可**，这里不会覆盖。
+ */
+function techIcon(id: string): Canvas {
+  const c = new Canvas(G * 2, G * 2) // 科技图标原生 32×32
+  const K = 2 // 坐标按 16 的设计画，整体 ×2（整数倍，像素不糊）
+  const put2 = (x: number, y: number, col: RGBA): void => {
+    for (let dy = 0; dy < K; dy++) for (let dx = 0; dx < K; dx++) c.set(x * K + dx, y * K + dy, col)
+  }
+  const box = (x: number, y: number, w: number, h: number, col: RGBA): void => {
+    for (let yy = 0; yy < h; yy++) for (let xx = 0; xx < w; xx++) put2(x + xx, y + yy, col)
+  }
+  if (id === 'ironworking') {
+    // 铁匠炉：砖身 + 炉口红光 + 一点火星
+    box(3, 6, 10, 8, I_STONE)
+    box(3, 6, 10, 1, I_STONE_L)
+    box(6, 9, 4, 5, I_DARK)
+    box(7, 10, 2, 3, I_RED)
+    put2(9, 11, I_GOLD)
+    put2(6, 5, I_GOLD)
+  } else if (id === 'iron_tooling') {
+    // 锤子：木柄 + 铁头
+    box(7, 8, 2, 7, I_WOOD)
+    box(4, 4, 8, 3, I_STONE)
+    box(4, 4, 8, 1, I_STONE_L)
+    box(4, 3, 2, 1, I_STONE)
+    box(10, 3, 2, 1, I_STONE)
+  } else if (id === 'tempering') {
+    // 淬火：水滴 + 白汽
+    box(7, 4, 2, 2, I_CREAM)
+    box(6, 6, 4, 2, I_CREAM)
+    box(6, 8, 4, 4, I_STONE_L)
+    box(7, 9, 2, 2, I_CREAM)
+    put2(4, 7, I_CREAM)
+    put2(11, 10, I_CREAM)
+  } else if (id === 'refining') {
+    // 精炼：铁锭（梯形）+ 高光
+    box(4, 9, 8, 4, I_STONE)
+    box(5, 8, 6, 1, I_STONE_L)
+    box(5, 10, 2, 1, I_STONE_L)
+    put2(10, 11, I_GOLD)
+  } else {
+    // 兜底：一个小方块 + 一点高光（至少不是空白）
+    box(5, 5, 6, 6, I_STONE)
+    box(5, 5, 6, 1, I_STONE_L)
+  }
+  return c
+}

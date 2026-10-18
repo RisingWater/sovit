@@ -86,6 +86,12 @@ const RESEARCH_ORDER: string[] = [
   'workshop_division', // goods +20%
   'kiln_upgrade', // material +20%
 
+  // ---- 冶金与工具（2026-10 第二批）：铁在砖之后，工具升级紧随其后 ----
+  'ironworking', // 冶铁 → 冶炼场
+  'iron_tooling', // 铁制工具作坊
+  'tempering', // 工具寿命 +20%
+  'refining', // 工具寿命 +50%（取最高，不叠加）
+
   // ---- 纪元 3 其余解锁：精粮、纺织、腌熏、娱乐（`carpentry` 已提到前面） ----
   'fine_milling',
   'white_baking',

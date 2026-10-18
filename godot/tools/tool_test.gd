@@ -45,19 +45,44 @@ func _run() -> void:
 	var db = runner.db
 	var sim = runner.sim
 
-	# ---- 1. 汇率：一个工人 10 天 1 件 ---------------------------------------
-	var per := float(db.economy["tools"]["perWorkstation"])
-	if not _approx(per, 0.1):
-		_fail("perWorkstation 是 %.3f，应当是 0.1（一个工人 10 天 1 件）" % per)
+	# ---- 1. 耐久：石 10 天 / 铁 15 天；科技"寿命"取最高 ---------------------
+	if int(db.goods.get("stone_tools", {}).get("durabilityDays", 0)) != 10:
+		_fail("石制工具的 durabilityDays 应当是 10（实际 %s）"
+			% str(db.goods.get("stone_tools", {}).get("durabilityDays")))
 		return
-	if int(round(1.0 / per)) != 10:
-		_fail("换算成天数不是 10 天 1 件（1/%.3f = %.1f）" % [per, 1.0 / per])
+	if int(db.goods.get("iron_tools", {}).get("durabilityDays", 0)) != 15:
+		_fail("铁制工具的 durabilityDays 应当是 15（实际 %s）"
+			% str(db.goods.get("iron_tools", {}).get("durabilityDays")))
 		return
-	if db.tool_bonus("stone_tools") <= 0.0:
-		_fail("石制工具没有 toolBonus（工具就没有意义了）")
+	if db.tool_bonus("iron_tools") <= db.tool_bonus("stone_tools"):
+		_fail("铁制工具的加成 %.2f 应当高于石制 %.2f"
+			% [db.tool_bonus("iron_tools"), db.tool_bonus("stone_tools")])
 		return
-	print("TOOL TEST 汇率：perWorkstation=%.2f → 一个工人 %d 天 1 件，产出 ×%.2f ✅" % [
-		per, int(round(1.0 / per)), 1.0 + db.tool_bonus("stone_tools")])
+	if not _approx(sim._tool_per_worker("stone_tools"), 0.1):
+		_fail("石制：每工人日耗 %.4f，应当是 0.1（10 天 1 件）" % sim._tool_per_worker("stone_tools"))
+		return
+	if not _approx(sim._tool_per_worker("iron_tools"), 1.0 / 15.0, 0.0005):
+		_fail("铁制：每工人日耗 %.4f，应当是 %.4f（15 天 1 件）"
+			% [sim._tool_per_worker("iron_tools"), 1.0 / 15.0])
+		return
+	# 科技：淬火 +20%、精炼 +50%，**取最高**（都研究 = +50%，不是 +70%）
+	sim.s["research"]["done"] = ["tempering"]
+	if not _approx(sim._tool_per_worker("iron_tools"), 1.0 / 18.0, 0.0005):
+		_fail("淬火后铁制日耗 %.4f，应当是 %.4f（15→18 天）"
+			% [sim._tool_per_worker("iron_tools"), 1.0 / 18.0])
+		return
+	sim.s["research"]["done"] = ["tempering", "refining"]
+	if not _approx(float(sim.tech_bonuses()["toolLife"]), 0.5):
+		_fail("两档都研究时 toolLife = %.2f，应当是 0.5（取最高）"
+			% float(sim.tech_bonuses()["toolLife"]))
+		return
+	if not _approx(sim._tool_per_worker("iron_tools"), 1.0 / 22.5, 0.0005):
+		_fail("精炼后铁制日耗 %.4f，应当是 %.4f（15→22.5 天）"
+			% [sim._tool_per_worker("iron_tools"), 1.0 / 22.5])
+		return
+	sim.s["research"]["done"] = []
+	print("TOOL TEST 耐久：石 10 天 / 铁 15 天（+%.0f%% 加成），寿命科技取最高 +50%% → 22.5 天 ✅"
+		% (db.tool_bonus("iron_tools") * 100.0))
 
 	# ---- 2/3. 三类各建一座，给足工具，过一个黎明 ----------------------------
 	# agri = 小麦农场（农田）、goods = 粗面包房、material = 采石场（要建在石矿上）
@@ -103,7 +128,7 @@ func _run() -> void:
 				% [def_id, String(db.buildings[def_id]["sector"]), tb])
 			return
 		boosted += 1
-		consumed_by += per * float(workers)
+		consumed_by += sim._tool_per_worker("stone_tools") * float(workers)
 	if boosted < 3:
 		_fail("农业 / 工业 / 矿场三类没有全部装配上工具（只装配了 %d 座）" % boosted)
 		return
@@ -190,7 +215,7 @@ func _run() -> void:
 	for sh in (s3.s["shops"] as Array):
 		if String(sh["id"]) == String(made["wheat_farm"]):
 			var w: int = int(s3._assigned_workers(String(sh["id"])))
-			s3.s["goods"]["stone_tools"] = per * float(w) + 0.05
+			s3.s["goods"]["stone_tools"] = sim._tool_per_worker("stone_tools") * float(w) + 0.05
 	s3._run_dawn()
 	var farm_boost := 1.0
 	for sh in (s3.s["shops"] as Array):

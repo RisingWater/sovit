@@ -9,6 +9,7 @@
     { "id": "clay", "nameZh": "粘土", "tier": 0, "category": "raw", "storable": true, "baseValue": 1.2 },
     { "id": "iron_ore", "nameZh": "铁矿石", "tier": 0, "category": "raw", "storable": true, "baseValue": 2.8 },
     { "id": "coal", "nameZh": "煤", "tier": 0, "category": "fuel", "storable": true, "baseValue": 2.2 },
+    { "id": "iron", "nameZh": "铁锭", "tier": 2, "category": "material", "storable": true, "baseValue": 6 },
     { "id": "meat", "nameZh": "肉类", "tier": 0, "category": "food", "storable": false, "baseValue": 3, "perishRate": 0.15 },
     { "id": "fish", "nameZh": "鱼类", "tier": 0, "category": "food", "storable": false, "baseValue": 2.5, "perishRate": 0.15 },
     { "id": "hide", "nameZh": "兽皮", "tier": 0, "category": "raw", "storable": true, "baseValue": 2 },
@@ -37,6 +38,7 @@
     { "id": "domestic_service", "nameZh": "家政服务", "tier": 2, "category": "service", "storable": false, "baseValue": 3, "perishRate": 1 },
     { "id": "entertainment", "nameZh": "娱乐", "tier": 2, "category": "entertainment", "storable": false, "baseValue": 4, "perishRate": 1, "luxury": true },
 
-    { "id": "stone_tools", "nameZh": "石制工具", "tier": 1, "category": "tool", "storable": true, "baseValue": 4, "toolBonus": 0.25 }
+    { "id": "stone_tools", "nameZh": "石制工具", "tier": 1, "category": "tool", "storable": true, "baseValue": 4, "toolBonus": 0.25, "durabilityDays": 10 },
+    { "id": "iron_tools", "nameZh": "铁制工具", "tier": 3, "category": "tool", "storable": true, "baseValue": 8, "toolBonus": 0.6, "durabilityDays": 15 }
   ]
 }

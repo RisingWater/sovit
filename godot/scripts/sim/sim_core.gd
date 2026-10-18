@@ -2164,7 +2164,8 @@ func _activate_research() -> Array:
 # ===========================================================================
 func _allocate_tools() -> Array:
 	var logs := []
-	var per = float(db.economy["tools"]["perWorkstation"])
+	# ⚠️ `per` 只作**兜底**：工具自己有 `durabilityDays` 时按它算（`_tool_per_worker()`）
+	var per := float(db.economy["tools"]["perWorkstation"])
 	var order: Array = db.economy["tools"]["order"]
 	var boosted = 0
 
@@ -2177,14 +2178,16 @@ func _allocate_tools() -> Array:
 		var workers = _assigned_workers(shop["id"])
 		if workers <= 0:
 			continue
-		var need = SimUtil.r2(per * float(workers))
-		if need <= 0.0:
-			continue
 		# 由低到高排列，这里从**最高级**往下找第一个够用的
 		for i in range(order.size() - 1, -1, -1):
 			var gid = String(order[i])
 			var bonus = db.tool_bonus(gid)
-			if bonus <= 0.0 or float(s["goods"].get(gid, 0.0)) < need:
+			if bonus <= 0.0:
+				continue
+			# 每种工具按**自己的耐久**算消耗（2026-10：石 10 天 / 铁 15 天），
+			# 科技"工具寿命"取最高加成 —— 见 `_tool_per_worker()`
+			var need := SimUtil.r2(_tool_per_worker(gid) * float(workers))
+			if need <= 0.0 or float(s["goods"].get(gid, 0.0)) < need:
 				continue
 			s["goods"][gid] = SimUtil.r2(float(s["goods"].get(gid, 0.0)) - need)
 			s["ledgerToday"]["consumed"][gid] = SimUtil.r2(
@@ -2215,16 +2218,26 @@ func _shop_tool_boost(shop: Dictionary) -> float:
 ## ⚠️ **加法**叠加（+10% +15% +20% = +45%），不是连乘 —— 连乘后期滚雪球，
 ## 而且玩家在面板上没法一眼算出"我现在是多少"。口径与 TS `techBonuses()` 一致，
 ## 契约见 docs/spec.md。
+## 工具寿命的加成键：**取最高**、不叠加（用户 2026-10："两档 +20% / +50%，取最高"）。
+## 与 TS `tech_bonus.ts::MAX_KEYS` 同一份名单。
+const MAX_EFFECT_KEYS := ["toolLife"]
+
 func tech_bonuses() -> Dictionary:
-	var out := {"agri": 0.0, "goods": 0.0, "material": 0.0, "research": 0.0, "build": 0.0}
+	var out := {"agri": 0.0, "goods": 0.0, "material": 0.0, "research": 0.0, "build": 0.0,
+		"toolLife": 0.0}
 	for tid in (s["research"]["done"] as Array):
 		var t = db.techs.get(String(tid), null)
 		if t == null:
 			continue
 		for k in (t.get("effects", {}) as Dictionary).keys():
 			var key := String(k)
-			if out.has(key):
-				out[key] = float(out[key]) + float(t["effects"][k])
+			if not out.has(key):
+				continue
+			var v := float(t["effects"][k])
+			if MAX_EFFECT_KEYS.has(key):
+				out[key] = maxf(float(out[key]), v)
+			else:
+				out[key] = float(out[key]) + v
 	return out
 
 ## 某座商店的**产业**产出加成：1 + tech_bonuses()[该建筑的 sector]。
@@ -3096,3 +3109,17 @@ func _pick_fuel(need: float) -> String:
 		if fallback == "" or have > float(s["goods"].get(fallback, 0.0)):
 			fallback = String(gid)
 	return fallback
+
+## 某件工具**每工人每天**的消耗量（= 1 / 有效天数）。
+##
+## 2026-10：工具消耗不再是一个全局速率，而是**每种工具按自己的耐久**：
+##   · `content/goods.json` 的 `durabilityDays`（石制 10 天 / 铁制 15 天）
+##   · 科技"工具寿命"加成 `tech_bonuses()["toolLife"]`（**取最高**：淬火 +20% / 精炼 +50%）
+## 没写 `durabilityDays` 的老内容退回 `economy.tools.perWorkstation`（行为不变）。
+## 与 TS `tools.ts::toolPerWorker()` 同口径。
+func _tool_per_worker(good_id: String) -> float:
+	var days := float(db.goods.get(good_id, {}).get("durabilityDays", 0.0))
+	if days <= 0.0:
+		return float(db.economy["tools"]["perWorkstation"])
+	var life := 1.0 + float(tech_bonuses().get("toolLife", 0.0))
+	return 1.0 / (days * life)

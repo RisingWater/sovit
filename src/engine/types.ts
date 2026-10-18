@@ -40,7 +40,10 @@ export type ShopStatus = 'green' | 'yellow' | 'red'
 export type Sector = 'agri' | 'goods' | 'material'
 
 /** 效率科技加成的 5 个可用键（产出的三个 = `Sector`）。 */
-export type TechEffectKey = Sector | 'research' | 'build'
+/**
+ * 效率科技能影响的键。	oolLife 是**取最高**（不是加法叠加）：见 	ech_bonus.ts。
+ */
+export type TechEffectKey = Sector | 'research' | 'build' | 'toolLife'
 
 /**
  * 效率科技的效果：**加法**叠加的加成小数（`0.10` = +10%），不是倍率。
@@ -70,6 +73,13 @@ export interface GoodDef {
    * 只有 category = 'tool' 的商品该有此项。见 docs/technology.md §八。
    */
   toolBonus?: number
+  /**
+   * 工具的**耐久**：一件能用几天（2026-10）。
+   *
+   * 每工人每日消耗 = `1 / (durabilityDays × (1 + 工具寿命科技加成))`；
+   * 没写就退回 `economy.tools.perWorkstation`（老内容兼容）。
+   */
+  durabilityDays?: number
 }
 
 export interface NeedDef {

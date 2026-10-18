@@ -98,6 +98,21 @@ function stageThroughChapter3(s: GameState): void {
   s.goods['brick'] = 100
   // 城镇中心：第 3 章多了「初步修缮」那条任务（q05e），先把这一步做掉
   s.townCenter = { stage: 'patched' }
+  // 第 3 章多了「凿子崩了三把」（q05f_tools）：要有石制工具作坊 + 10 件石制工具
+  s.shops.push({
+    id: 'tool_works#probe',
+    defId: 'tool_works',
+    owner: 'state',
+    targetWorkers: 0,
+    wage: 3,
+    wageCap: 6,
+    level: 1,
+    active: true,
+    profit: 0,
+    skill: 50,
+    planned: 0,
+  } as GameState['shops'][number])
+  s.goods['stone_tools'] = 10
   // 单日产能看的是**台账**（history），不是库存 —— 所以这儿得塞一天的历史
   s.history.push({
     day: 1,
@@ -220,8 +235,8 @@ console.log('\n=== 任务系统引擎自检 ===\n')
   runDawn(s2, ctx)
   ok('前置齐了 → 人口早过 50 也当场算完成（可追溯）',
     s2.quests.done['q06_pop50'] === s2.day, `第 ${s2.quests.done['q06_pop50']} 天`)
-  ok('同一次黎明把 1~3 章主线连锁结算完（13 条任务 + 3 个章节奖励）',
-    s2.government.money - moneyA === 13 * 500 + 3 * 1000, `+${s2.government.money - moneyA} 金`)
+  ok('同一次黎明把 1~3 章主线连锁结算完（14 条任务 + 3 个章节奖励）',
+    s2.government.money - moneyA === 14 * 500 + 3 * 1000, `+${s2.government.money - moneyA} 金`)
   const doneDay = s2.quests.done['q06_pop50']
   s2.residents.length = 10
   runDawn(s2, ctx)

@@ -18,7 +18,8 @@ import { createInitialState } from '../src/engine/index.ts'
 import type { GameState } from '../src/engine/index.ts'
 import { assignLabor, assignedWorkers } from '../src/engine/systems/labor.ts'
 import { runProductionStep } from '../src/engine/systems/production.ts'
-import { allocateTools } from '../src/engine/systems/tools.ts'
+import { allocateTools, toolPerWorker } from '../src/engine/systems/tools.ts'
+import { techBonuses } from '../src/engine/systems/tech_bonus.ts'
 import { round2 } from '../src/engine/util.ts'
 
 let failed = 0
@@ -94,12 +95,29 @@ function produceOnce(
   return { out: (s.goods[gid] ?? 0) - before, inputs }
 }
 
-// ---- 1. 汇率：一个工人 10 天 1 件 -----------------------------------------
+// ---- 1. 耐久：石 10 天 / 铁 15 天；科技"寿命"取最高 ------------------------
 {
-  const per = ECONOMY.tools.perWorkstation
-  check(near(per, 0.1), `perWorkstation = ${per}（应当 0.1 = 一个工人 10 天 1 件）`)
-  check(Math.round(1 / per) === 10, `1/${per} = ${Math.round(1 / per)} 天 1 件（应当 10）`)
-  check((ALL_GOODS['stone_tools']?.toolBonus ?? 0) > 0, '石制工具有 toolBonus（否则装了也白装）')
+  const stone = ALL_GOODS['stone_tools']
+  const iron = ALL_GOODS['iron_tools']
+  check(stone?.durabilityDays === 10, `石制工具耐久 = ${stone?.durabilityDays} 天（应当 10）`)
+  check(iron?.durabilityDays === 15, `铁制工具耐久 = ${iron?.durabilityDays} 天（应当 15）`)
+  check((iron?.toolBonus ?? 0) > (stone?.toolBonus ?? 0),
+    `铁制工具加成 ${iron?.toolBonus} > 石制 ${stone?.toolBonus}（更耐用也更强）`)
+  check(ECONOMY.tools.perWorkstation === 0.1, `perWorkstation 仍作兜底 = ${ECONOMY.tools.perWorkstation}（应当 0.1）`)
+
+  const s = fresh()
+  // 没人上工时 techBonuses 也要能算：直接看每工人日耗
+  check(near(toolPerWorker(s, ctx, 'stone_tools'), 0.1), '石制：0.1 件/人/日（= 10 天 1 件）')
+  check(near(toolPerWorker(s, ctx, 'iron_tools'), 1 / 15), `铁制：${toolPerWorker(s, ctx, 'iron_tools').toFixed(4)} 件/人/日（= 15 天 1 件）`)
+
+  // 科技「淬火」+20%：寿命 ×1.2
+  s.research.done.push('tempering' as never)
+  check(near(toolPerWorker(s, ctx, 'iron_tools'), 1 / 18), `淬火后铁制 = ${(1 / 18).toFixed(4)}（15→18 天）`)
+  // 科技「精炼」+50%：**取最高**，不是 +70%
+  s.research.done.push('refining' as never)
+  check(near(techBonuses(s, ctx).toolLife, 0.5), `两档都研究：toolLife = ${techBonuses(s, ctx).toolLife}（应当 0.5，取最高）`)
+  check(near(toolPerWorker(s, ctx, 'iron_tools'), 1 / 22.5), `精炼后铁制 = ${(1 / 22.5).toFixed(4)}（15→22.5 天）`)
+  check(near(toolPerWorker(s, ctx, 'stone_tools'), 1 / 15), `精炼后石制 = ${(1 / 15).toFixed(4)}（10→15 天）`)
 }
 
 // ---- 2/3. 农业 / 工业 / 矿场：黎明装配 + 扣料 + 台账拆分 -------------------

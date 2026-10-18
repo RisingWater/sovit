@@ -162,7 +162,7 @@ function asNumEnum<T extends number>(v: unknown, allowed: readonly T[], p: strin
 // ---------------------------------------------------------------------------
 
 const SECTORS = ['agri', 'goods', 'material'] as const
-const TECH_EFFECT_KEYS: readonly TechEffectKey[] = ['agri', 'goods', 'material', 'research', 'build']
+const TECH_EFFECT_KEYS: readonly TechEffectKey[] = ['agri', 'goods', 'material', 'research', 'build', 'toolLife']
 
 function asSector(v: unknown, p: string): Sector {
   return asEnum(v, SECTORS, p)
@@ -371,6 +371,12 @@ function parseGoods(raw: unknown): { goods: Record<GoodID, GoodDef>; ids: GoodID
     if (category !== 'tool' && toolBonus !== undefined) {
       fail(`${p}（${id}）非 tool 商品不能有 toolBonus`)
     }
+    // 工具**耐久**（2026-10）：每件能用几天（消耗率 = 1 / 有效天数）。
+    // 只有 tool 能带；没写就退回 `economy.tools.perWorkstation`（老内容兼容）。
+    const durabilityDays = o.durabilityDays === undefined ? undefined : asPos(o.durabilityDays, `${p}.durabilityDays`)
+    if (category !== 'tool' && durabilityDays !== undefined) {
+      fail(`${p}（${id}）非 tool 商品不能有 durabilityDays`)
+    }
     goods[id] = {
       id,
       nameZh: asStr(o.nameZh, `${p}.nameZh`),
@@ -381,6 +387,7 @@ function parseGoods(raw: unknown): { goods: Record<GoodID, GoodDef>; ids: GoodID
       luxury: o.luxury === undefined ? false : asBool(o.luxury, `${p}.luxury`),
       ...(perishRate !== undefined ? { perishRate } : {}),
       ...(toolBonus !== undefined ? { toolBonus } : {}),
+      ...(durabilityDays !== undefined ? { durabilityDays } : {}),
     }
     ids.push(id)
   })

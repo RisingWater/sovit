@@ -21,7 +21,7 @@ extends SceneTree
 ## 建房走的是 `build_housing` 动作。见 docs/technology.md。
 ## **刻意写死**而不是取 `db.tech_ids.size()`：这样"某项科技莫名消失/多出来"
 ## 才会被这条门抓住 —— 用 size 就等于把断言变成恒真式。
-const EXPECTED_TECHS := 42
+const EXPECTED_TECHS := 46
 
 func _init() -> void:
 	call_deferred("_run")

@@ -46,7 +46,7 @@
 
     "tools": {
       "perWorkstation": 0.1,
-      "order": ["stone_tools"]
+      "order": ["stone_tools", "iron_tools"]
     },
 
     "defaultRent": 0.05,
