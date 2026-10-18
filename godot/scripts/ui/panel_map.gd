@@ -38,8 +38,8 @@ const HOVER_SCALE := 1.14
 const INK := Color(0.24, 0.16, 0.10)
 ## 地图地名：深褐近黑、几乎不透（用户 2026-10-20："颜色太浅了，加深" + "白边去掉"）
 const INK_DIM := Color(0.19, 0.11, 0.04, 0.95)
-## 地名的**首字母**比其余字大这么多号（用户："首字母要再放大 1-2 字号"）
-const FIRST_EXTRA := 2
+## 地名的**首字母**比其余字大这么多号（用户 2026-10-20："首字母再加两个字号" → 2 → 4）
+const FIRST_EXTRA := 4
 
 ## 区域名：text / fx / fy / size（size = 正文字号，首字母自动 +FIRST_EXTRA）
 ## ⚠️ 2026-10-20 用户："汉字，瓦尔登王国，圣辉教国，沙海汗国，翡翠海，全地图的文字都写英文" ——
@@ -224,6 +224,9 @@ func _ready() -> void:
 ## ⚠️ 每个地名是**两块** Label：首字母（大 `FIRST_EXTRA` 号）+ 其余（正文号）。
 ## 手绘古地图上那种"A 比后面的大一圈"的味道，单块 Label 做不出来。
 ## 两块用同一个盒高 + 底部对齐 —— 基线就对上了（字号差几号时下沉量差不到 1px）。
+## ⚠️ 布置模式下拖的不是那两块字本身，而是盖在它们上面的一块**透明命中框**
+##    （`_label_hits`）：字是镂空的，点空白就漏过去太难拖了（用户 2026-10-20：
+##    "字能不能和城镇一样移动"）。命中框只在布置模式吃鼠标。
 func _build_regions() -> void:
 	var map_font: Font = load(MAP_FONT) if ResourceLoader.exists(MAP_FONT) else null
 	var idx := 0
@@ -235,9 +238,13 @@ func _build_regions() -> void:
 		var l2 := _region_label(text.substr(1), size, map_font)
 		_host.add_child(l1)
 		_host.add_child(l2)
-		l1.gui_input.connect(_on_label_gui_input.bind(idx))
-		l2.gui_input.connect(_on_label_gui_input.bind(idx))
-		_labels.append({"text": text, "nodes": [l1, l2],
+		var hit := Control.new()
+		hit.name = "RegionHit%d" % idx
+		hit.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		hit.mouse_default_cursor_shape = Control.CURSOR_MOVE
+		hit.gui_input.connect(_on_label_gui_input.bind(idx, hit))
+		_host.add_child(hit)
+		_labels.append({"text": text, "nodes": [l1, l2], "hit": hit,
 			"fx": float(r["fx"]), "fy": float(r["fy"]), "size": size, "big": big})
 		idx += 1
 
@@ -389,9 +396,8 @@ func _on_edit_toggled(on: bool) -> void:
 		var b: TextureButton = e["node"]
 		b.mouse_default_cursor_shape = Control.CURSOR_MOVE if on else Control.CURSOR_POINTING_HAND
 	for r in _labels:
-		for n in (r["nodes"] as Array):
-			(n as Label).mouse_filter = \
-				Control.MOUSE_FILTER_STOP if on else Control.MOUSE_FILTER_IGNORE
+		var hit: Control = r["hit"]
+		hit.mouse_filter = Control.MOUSE_FILTER_STOP if on else Control.MOUSE_FILTER_IGNORE
 	if on:
 		_readout.text = "拖动图标 / 地名，松手自动保存 → %s" % ProjectSettings.globalize_path(_layout_path)
 	else:
@@ -441,11 +447,11 @@ func _on_mark_gui_input(event: InputEvent, i: int) -> void:
 		_readout.text = "%s → fx %.4f  fy %.4f" % [String(d["name"]), float(d["fx"]), float(d["fy"])]
 		btn.accept_event()
 
-func _on_label_gui_input(event: InputEvent, i: int) -> void:
+func _on_label_gui_input(event: InputEvent, i: int, hit: Control) -> void:
 	if not _edit or i < 0 or i >= _labels.size():
 		return
 	var r: Dictionary = _labels[i]
-	var lb: Label = (r["nodes"] as Array)[0]
+	var lb: Control = hit
 	if event is InputEventMouseButton and (event as InputEventMouseButton).button_index == MOUSE_BUTTON_LEFT:
 		if (event as InputEventMouseButton).pressed:
 			_drag = -1000 - i
@@ -655,6 +661,10 @@ func _layout() -> void:
 		l1.position = Vector2(left, top)
 		l2.size = Vector2(maxf(w2 + 2.0, 8.0), box_h)
 		l2.position = Vector2(left + w1, top)
+		# 透明命中框：只在布置模式吃鼠标，直接拖它（比点镂空的字好抓）
+		var hit: Control = r["hit"]
+		hit.position = Vector2(left - 3.0, top - 3.0)
+		hit.size = Vector2(w1 + w2 + 6.0, box_h + 6.0)
 	_place_card()
 
 ## 卡片跟着 hover 的那个据点走（贴在图内，别溢出边界）

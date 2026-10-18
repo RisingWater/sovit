@@ -290,10 +290,9 @@ func _run() -> void:
 		_fail("点「布置城市」之后应当进布置模式")
 		return
 	for r in panel._labels:
-		for n in (r["nodes"] as Array):
-			if (n as Label).mouse_filter != Control.MOUSE_FILTER_STOP:
-				_fail("布置模式下地名应当可以拖（mouse_filter = STOP）")
-				return
+		if (r["hit"] as Control).mouse_filter != Control.MOUSE_FILTER_STOP:
+			_fail("布置模式下地名应当可以拖（命中框 mouse_filter = STOP）")
+			return
 	# 拖动第 0 座：按下 → 移动 +120px → 松手
 	var target: Dictionary = panel._marks[0]["data"]
 	var tbtn: TextureButton = panel._marks[0]["node"]
@@ -324,6 +323,34 @@ func _run() -> void:
 		return
 	_ok("拖动图标 → fx 变 → 松手自动存盘（%.4f）" % moved)
 
+	# 地名也能拖（用户："字能不能和城镇一样移动？"）
+	var rl: Dictionary = panel._labels[0]
+	var rhit: Control = rl["hit"]
+	var rfy0 := float(rl["fy"])
+	var rpress := InputEventMouseButton.new()
+	rpress.button_index = MOUSE_BUTTON_LEFT
+	rpress.pressed = true
+	rpress.position = rhit.size * 0.5
+	panel._on_label_gui_input(rpress, 0, rhit)
+	var rmv := InputEventMouseMotion.new()
+	rmv.position = rpress.position + Vector2(0, 90)
+	panel._on_label_gui_input(rmv, 0, rhit)
+	var rrel := InputEventMouseButton.new()
+	rrel.button_index = MOUSE_BUTTON_LEFT
+	rrel.pressed = false
+	rrel.position = rmv.position
+	panel._on_label_gui_input(rrel, 0, rhit)
+	await process_frame
+	if absf(float(rl["fy"]) - rfy0) < 0.001:
+		_fail("地名拖不动（fx/fy 没变）")
+		return
+	var jr = JSON.parse_string(FileAccess.get_file_as_string("res://data/map_layout.json"))
+	var saved_rfy := float((jr as Dictionary)["regions"][String(rl["text"])]["fy"])
+	if absf(saved_rfy - float(rl["fy"])) > 0.0002:
+		_fail("地名拖完应当存盘：文件里 %.4f，内存里 %.4f" % [saved_rfy, float(rl["fy"])])
+		return
+	_ok("地名也能拖（和城镇同一套），松手一样自动存盘")
+
 	# 「重新读入」：把内存改脏，再读回来
 	target["fx"] = 0.01
 	panel._load_layout()
@@ -344,10 +371,9 @@ func _run() -> void:
 	panel._on_edit_toggled(false)
 	await process_frame
 	for r in panel._labels:
-		for n in (r["nodes"] as Array):
-			if (n as Label).mouse_filter != Control.MOUSE_FILTER_IGNORE:
-				_fail("退出布置模式后地名不该再吃鼠标")
-				return
+		if (r["hit"] as Control).mouse_filter != Control.MOUSE_FILTER_IGNORE:
+			_fail("退出布置模式后地名不该再吃鼠标")
+			return
 	# 收尾：把用户原来的坐标原样还回去（本来没有就删掉）
 	if had_layout:
 		var fr := FileAccess.open("res://data/map_layout.json", FileAccess.WRITE)
