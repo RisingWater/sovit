@@ -106,6 +106,8 @@ func _stage3(sim) -> void:
 	_add_residents(sim, 60, "poor", 70.0)            # 人口 60 + 满意度均值约 69
 	sim.s["research"]["done"] = ["stonework", "digging", "firewood", "brickmaking", "construction"]
 	sim.s["goods"]["brick"] = 100.0
+	# 城镇中心：第 3 章多了「初步修缮」那条任务（q05e），这一局先把它做掉
+	sim.s["townCenter"] = {"stage": "patched"}
 	# 单日产能看的是**台账**（history），不是库存 —— 所以这儿得塞一天的历史
 	(sim.s["history"] as Array).append({
 		"day": 1, "population": 60, "avgSatisfaction": 70.0, "money": 0.0,
@@ -305,11 +307,11 @@ func _run() -> void:
 	var before6 := _money(s6)
 	s6._run_dawn()
 	var gain6 := _money(s6) - before6
-	if not _near(gain6, 12 * 500.0 + 3 * 1000.0):
-		_fail("1~3 章主线连锁结算应为 +9000，实际 +%s（done=%s）"
+	if not _near(gain6, 13 * 500.0 + 3 * 1000.0):
+		_fail("1~3 章主线连锁结算应为 +9500，实际 +%s（done=%s）"
 			% [str(gain6), str(s6.s["quests"]["done"].keys())])
 		return
-	_ok("同一次黎明把 1~3 章主线连锁结算完（12 条任务 + 3 个章节奖励 = +9000 金）")
+	_ok("同一次黎明把 1~3 章主线连锁结算完（13 条任务 + 3 个章节奖励 = +9500 金）")
 	if int(s6.s["quests"]["done"].get("q06_pop50", -1)) != int(s6.s["day"]):
 		_fail("人口早过 50 却没当场结算")
 		return

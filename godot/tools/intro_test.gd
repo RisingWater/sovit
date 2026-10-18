@@ -153,34 +153,48 @@ func _run() -> void:
 			return
 	print("INTRO TEST 科技圆钮：研究所之前藏着、之后出现 ✅")
 
-	# ---- 城镇中心：一开局是**破旧**的；「修缮」命令在黎明生效、换回好图（用户 2026-10）
+	# ---- 城镇中心：三段（破旧 → 初步修缮 → 修好），换图跟着**段位**走（用户 2026-10）
 	var sim = node.get("runner").sim
-	if not bool((sim.s.get("townCenter", {}) as Dictionary).get("ruined", false)):
+	if sim.town_center_stage() != "ruined":
 		_fail("新开局的城镇中心应当是破旧的（用户：初始城镇中心是破旧的）")
 		return
 	sim.s["goods"]["wood"] = 200.0
 	sim.s["goods"]["stone"] = 200.0
 	sim.s["goods"]["brick"] = 200.0
-	var wood0 := float(sim.s["goods"]["wood"])
-	sim.enqueue([{"type": "repair_town_center"}])
-	sim._run_dawn()
-	if bool((sim.s.get("townCenter", {}) as Dictionary).get("ruined", true)):
-		_fail("下了修缮命令、过一个黎明之后城镇中心还是破旧的")
-		return
-	if float(sim.s["goods"]["wood"]) >= wood0:
-		_fail("修缮没有扣材料（木 %.0f → %.0f）" % [wood0, float(sim.s["goods"]["wood"])])
-		return
-	if (node.get_node("World").town_center_sprite as Sprite2D).texture == null:
-		_fail("城镇中心的贴图没了")
-		return
-	# ⚠️ 换图**不跟着物理标记走**（用户 2026-10）：任务「修复城镇中心」还在第 4 章，
-	# 所以这时候地图上**仍然是破旧的**。换图那一半在 questtalk_test 里验。
 	var world = node.get_node("World")
 	world.refresh_town_center_sprite()
-	var tex: Texture2D = (world.town_center_sprite as Sprite2D).texture
-	if not sim.town_center_ruined_visual() or tex == null or not tex.resource_path.contains("ruined"):
-		_fail("修复任务还没结算，地图上就已经换掉破旧素材了")
+	var tex0: Texture2D = (world.town_center_sprite as Sprite2D).texture
+	if tex0 == null or not tex0.resource_path.contains("ruined"):
+		_fail("开局地图上那座城镇中心用的不是破旧素材")
 		return
-	print("INTRO TEST 城镇中心：开局破旧 → 修缮扣料 → 黎明后物理状态修好（换图等任务）✅")
+	var wood0 := float(sim.s["goods"]["wood"])
+	# 第一步：初步修缮（第三章那条任务的目标段）
+	sim.enqueue([{"type": "repair_town_center", "stage": "patched"}])
+	sim._run_dawn()
+	if sim.town_center_stage() != "patched":
+		_fail("下了初步修缮命令、过一个黎明之后段位是「%s」" % sim.town_center_stage())
+		return
+	if float(sim.s["goods"]["wood"]) >= wood0:
+		_fail("初步修缮没有扣材料（木 %.0f → %.0f）" % [wood0, float(sim.s["goods"]["wood"])])
+		return
+	world.refresh_town_center_sprite()
+	var tex1: Texture2D = (world.town_center_sprite as Sprite2D).texture
+	if tex1 == null or not tex1.resource_path.contains("patched"):
+		_fail("初步修缮之后地图上应当换成 patched 那张（实际 %s）"
+			% ("null" if tex1 == null else tex1.resource_path))
+		return
+	# 第二步：修好（第四章那条任务的目标段）
+	sim.enqueue([{"type": "repair_town_center", "stage": "restored"}])
+	sim._run_dawn()
+	if sim.town_center_stage() != "restored":
+		_fail("下了修缮命令之后段位还是「%s」" % sim.town_center_stage())
+		return
+	world.refresh_town_center_sprite()
+	var tex2: Texture2D = (world.town_center_sprite as Sprite2D).texture
+	if tex2 == null or tex2.resource_path.contains("ruined") or tex2.resource_path.contains("patched"):
+		_fail("修好之后地图上应当换成好图（实际 %s）"
+			% ("null" if tex2 == null else tex2.resource_path))
+		return
+	print("INTRO TEST 城镇中心：破旧 → 初步修缮（换 patched 图）→ 修好（换好图）✅")
 	print("INTRO TEST RESULT: PASS")
 	quit(0)

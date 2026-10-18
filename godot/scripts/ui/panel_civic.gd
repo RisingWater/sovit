@@ -288,39 +288,37 @@ func _refresh() -> void:
 		_: pass
 
 # ---------------------------------------------------------------------------
-# 修缮城镇中心（用户 2026-10：一开局那座是废墟，修好才换回好图）
+# 修缮城镇中心（用户 2026-10：一开局是废墟，第三章**初步修缮**、第四章**修好**）
 #
-# 只在「破旧」时出现；命令进 `runner.enqueue()`，和别的建造一样**次日黎明生效**。
-# 材料不够就当场说明白（不排队、不扣东西）—— 免得玩家排了单又白等一天。
+# 三段：ruined → patched → restored，一次只走一段；命令进 `runner.enqueue()`，
+# 和其它建造一样**次日黎明生效**。材料不够就当场说明白（不排队、不扣东西）。
 #
-# ⚠️ 价格与"破旧/修好"的判据**都不在这儿**：
-#   · 价格 = `SimCore.TOWN_CENTER_REPAIR_COST`（`sim.town_center_repair_cost()`）
-#   · 换图 = 任务 `q10f_townhall_repair` 结算（`sim.town_center_ruined_visual()`）
+# ⚠️ 价格 / 段位判据**都不在这儿**：
+#   · 价格 = `sim.town_center_repair_cost(stage)`
+#   · 能不能走 = `sim.can_repair_town_center(stage)`
 # 这里只画。别在 UI 里再抄一份数字 —— 抄一份就等于两处会漂。
 # ---------------------------------------------------------------------------
 
 func _build_repair() -> void:
-	var tc: Dictionary = runner.sim.s.get("townCenter", {})
-	if not bool(tc.get("ruined", false)):
-		# 已经下过单（或本来就好的）：说清楚现在是什么状态，别留一片空
-		if bool(runner.sim.town_center_ruined_visual()):
-			_body.add_child(UIKit.hsep())
-			_title("修缮城镇中心")
-			_body.add_child(UIKit.label("已下令修缮 —— 等任务「修复城镇中心」结算后才换新貌",
-				UIKit.FG_DIM))
+	var stage := String(runner.sim.town_center_stage())
+	if stage == "restored":
 		return
-	_body.add_child(UIKit.hsep())
-	_title("修缮城镇中心")
-	var cost: Dictionary = runner.sim.town_center_repair_cost()
+	var to := "patched" if stage == "ruined" else "restored"
+	var title := "初步修缮城镇中心" if to == "patched" else "修缮城镇中心"
+	var cost: Dictionary = runner.sim.town_center_repair_cost(to)
 	var parts := PackedStringArray()
 	for gid in ["wood", "stone", "brick"]:
 		if not cost.has(gid):
 			continue
 		parts.append("%s %d" % [_cost_name(gid), int(cost[gid])])
 	var need := " · ".join(parts)
+	_body.add_child(UIKit.hsep())
+	_title(title)
 	_kv("用料", need)
-	_body.add_child(UIKit.label("明日 06:00 完工，之后城镇中心就修好了", UIKit.FG_DIM))
-	var b := UIKit.button("修缮", false)
+	_body.add_child(UIKit.label(
+		("明日 06:00 完工，城镇中心就能挡雨、能进人了" if to == "patched"
+			else "明日 06:00 完工，城镇中心就恢复原来的样子"), UIKit.FG_DIM))
+	var b := UIKit.button("初步修缮" if to == "patched" else "修缮", false)
 	b.tooltip_text = "花 %s，次日黎明完工" % need
 	b.pressed.connect(func():
 		var ok := true
@@ -330,7 +328,7 @@ func _build_repair() -> void:
 		if not ok:
 			_set_sub("材料不够：还差一些" + need)
 			return
-		runner.enqueue([{"type": "repair_town_center"}])
+		runner.enqueue([{"type": "repair_town_center", "stage": to}])
 		_set_sub("已下令修缮 —— 次日 06:00 完工")
 		_refresh())
 	_body.add_child(b)

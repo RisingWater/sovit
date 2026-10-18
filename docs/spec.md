@@ -255,6 +255,25 @@ state.housing / state.privateHousing  # **派生计数**，由 syncHousingCounts
 - 世界层与仿真**一一对应**：地图实例的 `uid` 就是房号（`h#N`），
   所以"哪一栋在改建 / 哪一栋是私产"都是确定的
 
+### 5.6 城镇中心修缮 `repair_town_center`（2026-10）
+
+用户："初始城镇中心是破旧的" → 之后又要"第三章加一个初步修复城镇中心的任务"。于是三段：
+
+```
+state.townCenter = { stage: 'ruined' | 'patched' | 'restored' }      # 开局 ruined
+动作  { type:'repair_town_center', stage?: 'patched' | 'restored' }  # 缺省 restored
+硬闸  canRepairTownCenter()：ruined→patched→restored，**不能跳级**
+成本  patched  : 木 20 + 石 10        （TOWN_CENTER_PATCH_COST）
+      restored : 木 30 + 石 20 + 砖 15（TOWN_CENTER_REPAIR_COST）
+生效  与其它动作一样**次日黎明**（applyActions）；材料不够 → 白下这一单
+任务  第 3 章 q05e_townhall_patch    → building_repaired{id:townhall, stage:patched}
+      第 4 章 q10f_townhall_repair   → building_repaired{id:townhall}（= restored）
+判定  段位序比较（`>=`）：patched 那条在 restored 时也算完成
+```
+
+⚠️ `stage` 是**给表现层**的状态段（三段三张贴图，见 `docs/town.md` §二十六），
+仿真的任何数字都不读它 —— 与 `prophet` / `quests.shown` 同类，黄金摘要不受影响。
+
 
 ## 6. 消费 `runConsumption`（夜晚）
 
@@ -701,7 +720,7 @@ for sweep in range(questIds.size() + 1):          # 反复扫，直到这一轮�
 | `tech` / `tech_count` | 某科技已完成 / 已完成科技数 |
 | `good` / `produced` | 仓库库存不低于 N / **历史单日产量**曾达到 N（看产能不看库存） |
 | `avg_satisfaction` | 全体居民满意度的算术平均 |
-| `building_repaired` | 一座**塌了的**建筑已经修好（`state.townCenter.ruined == false`）；id 写 `townhall` 或 `town_center` 都认。别名写法 `{type:"building", id:"town_center", repaired:true}` 等价 |
+| `building_repaired` | 一座**塌了的**建筑修到了某段位（`state.townCenter.stage`）；id 写 `townhall` 或 `town_center` 都认。`stage` 缺省 = `restored`（已修好），`stage:"patched"` = 至少初步修缮过（三段见 `spec` §5.6 / `docs/town.md` §二十六）。别名写法 `{type:"building", id:"town_center", repaired:true}` 等价（也认 `stage`）|
 
 ### 16.4 面板数据源 `questJournal`（全部**已知**任务）
 

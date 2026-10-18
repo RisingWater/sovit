@@ -2163,35 +2163,56 @@ bash godot/verify.sh       # 最后一行要是 ALL CHECKS PASSED
 ⚠️ 圆钮的**下标不变**（只是 `visible = false`）：`activate_nav(3)`、F4、`esc_test` 里
 "圆钮有几个"那些断言都不受影响。
 
-## 二十六、破旧的城镇中心（开局是废墟，修好才换回好图）
+## 二十六、城镇中心的三段状态（废墟 → 初步修缮 → 修好）
 
-用户 2026-10："初始城镇中心是破旧的"。
+用户 2026-10："初始城镇中心是破旧的"；之后又给了第二张图：
+"任务第三章加一个修复初步修复城镇中心的任务，然后修复完把素材换成这个图片。"
 
-- **两张图**：`assets/buildings/town_center.png`（好）与 `town_center_ruined.png`（破旧，
-  121×160，同一个 121×160 画布、**底边对齐**同一条基线）。破旧那张是从用户给的
-  大图（白底 1024×1024）抠出来缩的：白底→透明、按内容 bbox 裁、按比例缩到 121×160、
-  **底边对齐**再贴回画布（不然房子会浮起来）。
-- **状态**：`s["townCenter"] = {"ruined": true}`（`new_game` 写）。它是**给表现层用的一个开关**，
-  仿真的任何数字都不读 —— 和 `prophet` 一样"只记事、不演化"，黄金摘要（按字段取）不受影响。
-- **换图**：`world_view._texture_for("town_center")` 按这个标记取两张之一（**不进缓存**）。
-  ⚠️ 城镇中心是 `_build_town_center()` **单独建**的节点（不在 `_shop_sprites` 里），
-  原来那里写死了 `load(...town_center.png)` —— 第一版就是这么"改了没生效"的。
-- **修缮**：城镇中心面板（「基本信息」页）最上面一块 —— 用料 **木 30 · 石 20 · 砖 15**
-  （价格只有一份：`SimCore.TOWN_CENTER_REPAIR_COST`，面板读 `sim.town_center_repair_cost()`），
-  按下就是 `runner.enqueue([{"type": "repair_town_center"}])`，**次日黎明**生效
-  （和别的建造一致），材料不够当场说明白、不排队。
-  动作实现在 `SimCore._apply_actions` 与 TS `actions.ts`（两侧同口径，价格在 `investment.ts`）。
-- **换图认任务，不认物理标记**（用户 2026-10 补的那条任务之后）：判据是
-  `SimCore.town_center_ruined_visual()` = **任务 `q10f_townhall_repair` 记过完成没有**。
-  用户原话："这个任务完成之前用破旧城镇中心素材，这个任务完成后使用新的。"
-  所以下单当天 → 次日黎明**物理上**修好（`townCenter.ruined = false`），但地图上还是废墟，
-  直到那条任务在某次黎明结算（任务判定读的就是这个物理标记）。
-- **换完之后**：`runner.hour_ticked` → `world.refresh_town_center_sprite()` 把贴图刷成好的。
-- 存档版本已经升到 2（`quests.json` schema 2 + 剧情对话），v1 老档**直接拒读**；
-  `_sanitize` 里那条 `{"ruined": true}` 只是兜"同版本里残缺的存档"。
-- 门槛 `intro`：新开局是破旧 → 下修缮命令 → 过一个黎明物理修好、材料扣了、**图还是旧的**；
-  门槛 `questtalk`：把那条任务记成完成之后才换成新图。
+所以现在是**三段**，一段一张图（同一个 121×160 画布、**底边对齐**同一条基线）：
 
+| 段位 | 贴图 | 怎么到这一步 |
+|---|---|---|
+| `ruined` | `town_center_ruined.png` | 开局就是（`new_game` 写 `{"stage": "ruined"}`）|
+| `patched` | `town_center_patched.png` | 第 3 章任务「初步修缮」→ 面板「初步修缮」（木 20 · 石 10）|
+| `restored` | `town_center.png` | 第 4 章任务「修复城镇中心」→ 面板「修缮」（木 30 · 石 20 · 砖 15）|
+
+三张图都是从用户给的大图（白底 1024×1024 / JPEG）抠出来缩的：**从四边洪泛**去掉白底
+（只吃与边缘连通的近白像素，建筑内部的白不着）→ 按内容 bbox 裁 → 等比缩到 121×160 里
+→ **底边对齐**再贴回画布（不然房子会浮起来）。`patched` 那张实测缩到 121×149（底边对齐）。
+
+### 状态与动作
+
+- `s["townCenter"] = {"stage": "ruined" | "patched" | "restored"}`，`sim.town_center_stage()` 取；
+  老状态只有 `{ruined: bool}` 时按它换算（`save_manager._sanitize` 也会补）
+- 动作 `{"type": "repair_town_center", "stage": "patched" | "restored"}`：
+  **顺序是硬闸**（`can_repair_town_center()`：废墟只能先初步修缮，不能跳级），
+  用料不够就白下这一单（不扣东西、不发钱），和其它建造一样**次日黎明生效**
+- 用料只有一份：`SimCore.TOWN_CENTER_PATCH_COST` / `TOWN_CENTER_REPAIR_COST`
+  （TS 侧在 `investment.ts`），面板读 `sim.town_center_repair_cost(stage)`
+- 它仍是**给表现层用的状态**：仿真的任何数字都不读 —— 和 `prophet` 一样"只记事、不演化"，
+  黄金摘要（按字段取）不受影响
+
+### 换图
+
+`world_view._texture_for("town_center")` 按段位取三张之一（**不进缓存**）。
+⚠️ 城镇中心是 `_build_town_center()` **单独建**的节点（不在 `_shop_sprites` 里），
+原来那里写死了 `load(...town_center.png)` —— 第一版就是这么"改了没生效"的。
+黎明 `runner.hour_ticked` → `world.refresh_town_center_sprite()` 把贴图换掉。
+
+**换图跟着段位走，不再看任务**（2026-10 第三次改）：段位在黎明翻转、任务也在同一次黎明结算，
+两者本来就在同一拍上；之前那套"认任务完成、不认物理标记"的补丁（`town_center_ruined_visual()`）
+已删除 —— 有了三段状态之后它是多余的一层转译。
+
+### 任务与门槛
+
+- 第 3 章 `q05e_townhall_patch`（发布人 **塞巴斯蒂安**）：目标
+  `{"type": "building_repaired", "id": "townhall", "stage": "patched"}`，进度文案
+  `城镇中心 已初步修复 0/1`
+- 第 4 章 `q10f_townhall_repair`：目标不带 `stage`（= `restored`），文案 `城镇中心 已修复 0/1`
+- 门槛 `intro`：破旧 → 初步修缮（换 `patched` 图）→ 修好（换好图）
+- 门槛 `questtalk`：三张贴图各就各位（直接改段位再 `refresh_town_center_sprite()`）
+- `check:quests`：两条任务的 `stage`、两种进度文案、跳级被拒、两步各扣各的料、
+  两条 `hint` 里的数字与引擎价格逐字对齐
 ## 二十七、剧情对话（任务触发 / 章节收尾）
 
 用户 2026-10："触发任务的时候，时间暂停，然后触发一段 galgame 小对话"；

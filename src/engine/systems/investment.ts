@@ -1,4 +1,4 @@
-import type { Construction, GameState, LogEntry, Shop } from '../types.ts'
+import type { Construction, GameState, LogEntry, RepairStage, Shop } from '../types.ts'
 import type { ContentContext } from '../content/index.ts'
 import type { BuildingDef, HousingDef } from '../types.ts'
 import { DEFAULTS, ECONOMY, TUNING } from '../config.ts'
@@ -344,34 +344,64 @@ export function isCapacityKind(def: BuildingDef, kind: 'build' | 'research'): bo
 }
 
 // ---------------------------------------------------------------------------
-// 修缮城镇中心（用户 2026-10：一开局那座城镇中心是废墟）
+// 修缮城镇中心（用户 2026-10）
+//
+// 三段（`RepairStage`）：`ruined`（开局废墟）→ `patched`（初步修缮）→ `restored`（修好）。
+// 第三章的任务做第一步、第四章做第二步；**一次只走一段，不能跳级**。
 // ---------------------------------------------------------------------------
 
-/**
- * 修缮价：木 30 + 石 20 + 砖 15。
- *
- * ⚠️ 这是**唯一一份**价格：判定够不够、面板上列材料都走它。
- * 内容里 `q10f_townhall_repair.hint` 那句「消耗木材 30 + 石块 20 + 砖 15」是**文字**，
- * 改价时只能人肉对齐（`check-quests.ts` 里有一条把两边对上的断言）。
- */
-export const TOWN_CENTER_REPAIR_COST: Record<string, number> = { wood: 30, stone: 20, brick: 15 }
+/** 城镇中心的三段状态，按顺序（用来比"到没到某一段"）。 */
+export const TOWN_CENTER_STAGES: readonly RepairStage[] = ['ruined', 'patched', 'restored']
 
 /**
- * 修缮城镇中心：扣料 + 把 `townCenter.ruined` 翻成 `false`。
+ * 两步的用料。**唯一一份**：判定够不够、面板上列材料都走它。
+ * ⚠️ 内容里两条任务的 `hint` 写的是**文字**（初步 20/10、修好 30/20/15），
+ * 改价时只能人肉对齐（`check-quests.ts` 里有把两边对上的断言）。
+ */
+export const TOWN_CENTER_PATCH_COST: Record<string, number> = { wood: 20, stone: 10 }
+export const TOWN_CENTER_REPAIR_COST: Record<string, number> = { wood: 30, stone: 20, brick: 15 }
+
+/** 现在到哪一段（老状态只有 `ruined: bool` 时按它换算）。 */
+export function townCenterStage(state: GameState): RepairStage {
+  const st = (state.townCenter as { stage?: string }).stage
+  if (st === 'ruined' || st === 'patched' || st === 'restored') return st
+  return 'ruined'
+}
+
+/** 走这一段要的材料（`patched` / `restored`）。 */
+export function townCenterRepairCost(stage: RepairStage): Record<string, number> {
+  return stage === 'patched' ? TOWN_CENTER_PATCH_COST : TOWN_CENTER_REPAIR_COST
+}
+
+/** 这一步能不能走（顺序是硬闸）。 */
+export function canRepairTownCenter(state: GameState, stage: RepairStage): boolean {
+  const cur = townCenterStage(state)
+  if (stage === 'patched') return cur === 'ruined'
+  if (stage === 'restored') return cur === 'patched'
+  return false
+}
+
+/**
+ * 修缮城镇中心：扣料 + 把 `townCenter.stage` 推到目标段。
  *
  * 材料不够就白下这一单（不扣东西、不发钱）—— 面板上把价写清楚了。
- * ⚠️ 真正的"看上去修好了"要等**黎明**：任务 `q10f_townhall_repair` 黎明结算、
- * 表现层认的是那条任务，不是这个标记（见 `docs/quests.md` §六）。
+ * ⚠️ 和别的命令一样**次日黎明生效**（`applyActions` 在黎明跑）；
+ * 表现层按 `townCenter.stage` 挑贴图（破旧 / 初步修缮 / 修好三张）。
  */
-export function repairTownCenter(state: GameState): AffordResult {
-  if (!state.townCenter.ruined) return { ok: false, reason: '城镇中心已经修好了' }
-  for (const [gid, qty] of Object.entries(TOWN_CENTER_REPAIR_COST)) {
+export function repairTownCenter(state: GameState, stage: RepairStage = 'restored'): AffordResult {
+  if (!canRepairTownCenter(state, stage)) {
+    const cur = townCenterStage(state)
+    if (cur === 'restored') return { ok: false, reason: '城镇中心已经修好了' }
+    return { ok: false, reason: '要先初步修缮才能彻底修好' }
+  }
+  const cost = townCenterRepairCost(stage)
+  for (const [gid, qty] of Object.entries(cost)) {
     if ((state.goods[gid] ?? 0) + 1e-9 < qty) return { ok: false, reason: '材料不够' }
   }
-  for (const [gid, qty] of Object.entries(TOWN_CENTER_REPAIR_COST)) {
+  for (const [gid, qty] of Object.entries(cost)) {
     state.goods[gid] = round2((state.goods[gid] ?? 0) - qty)
   }
-  state.townCenter.ruined = false
+  state.townCenter = { stage }
   return { ok: true }
 }
 

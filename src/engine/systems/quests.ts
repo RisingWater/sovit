@@ -1,6 +1,7 @@
 import type {
   GameState,
   LogEntry,
+  RepairStage,
   QuestChapterDef,
   QuestChoice,
   QuestDef,
@@ -11,6 +12,7 @@ import type {
 } from '../types.ts'
 import type { ContentContext } from '../content/index.ts'
 import { housingCapacity } from './housing.ts'
+import { TOWN_CENTER_STAGES, townCenterStage } from './investment.ts'
 import { round2 } from '../util.ts'
 
 // ---------------------------------------------------------------------------
@@ -40,11 +42,22 @@ function repairTargetBuilding(id: string): string {
   return id === 'townhall' ? 'town_center' : id
 }
 
-/** 这座"塌了的"建筑修好了吗（目前只有城镇中心这一座）。 */
-function repairedOf(state: GameState, id: string): boolean {
+/**
+ * 这座"塌了的"建筑修到了要求的段位吗（目前只有城镇中心这一座）。
+ * `stage` 缺省 = `restored`；`patched` = **至少**初步修缮过（已修好的也算）。
+ * 与 GDScript `sim_core.gd::_quest_repaired` 同口径。
+ */
+function repairedOf(state: GameState, id: string, wantStage: RepairStage = 'restored'): boolean {
   const b = repairTargetBuilding(id)
-  if (b === 'town_center') return state.townCenter?.ruined === false
-  return false
+  if (b !== 'town_center') return false
+  const cur = TOWN_CENTER_STAGES.indexOf(townCenterStage(state))
+  const want = TOWN_CENTER_STAGES.indexOf(wantStage)
+  return cur >= 0 && want >= 0 && cur >= want
+}
+
+/** 进度文案里的那个词（两段不同措辞；GDScript `_repair_stage_word` 必须逐字一致）。 */
+function repairStageWord(wantStage: RepairStage): string {
+  return wantStage === 'patched' ? '已初步修复' : '已修复'
 }
 
 /** 历史上（含今天）某商品的单日产量峰值。 */
@@ -91,9 +104,10 @@ export function goalProgress(state: GameState, ctx: ContentContext, goal: QuestG
     case 'building': {
       // `repaired: true` 换个口径：数的是"这座塌了的建筑修好了吗"，不是"建了几座"。
       if (goal.repaired === true) {
-        have = repairedOf(state, goal.id) ? 1 : 0
+        const want: RepairStage = goal.stage ?? 'restored'
+        have = repairedOf(state, goal.id, want) ? 1 : 0
         need = 1
-        text = `${nameOf(goal.id, 'building')} 已修复 ${have}/${need}`
+        text = `${nameOf(goal.id, 'building')} ${repairStageWord(want)} ${have}/${need}`
         break
       }
       let n = 0
@@ -104,9 +118,11 @@ export function goalProgress(state: GameState, ctx: ContentContext, goal: QuestG
       break
     }
     case 'building_repaired': {
-      have = repairedOf(state, goal.id) ? 1 : 0
+      // `stage` 缺省 = 修好；`patched` = 至少初步修缮过（第三章那条任务）
+      const want: RepairStage = goal.stage ?? 'restored'
+      have = repairedOf(state, goal.id, want) ? 1 : 0
       need = 1
-      text = `${nameOf(repairTargetBuilding(goal.id), 'building')} 已修复 ${have}/${need}`
+      text = `${nameOf(repairTargetBuilding(goal.id), 'building')} ${repairStageWord(want)} ${have}/${need}`
       break
     }
     case 'housing':

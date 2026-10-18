@@ -134,7 +134,7 @@ export function createInitialState(options: CreateOptions = {}): GameState {
     prophet: { lastAskDay: -1 },
     // 城镇中心是不是**破旧**的（用户 2026-10：一开局是废墟，修好才换回好素材）。
     // ⚠️ 仿真的任何数字都不读它 —— 和 `prophet` 一样"只记事、不演化"。
-    townCenter: { ruined: true },
+    townCenter: { stage: 'ruined' },
     ledgerToday: emptyLedger(0),
     // 当日建造力预算：由黎明 planConstructionDay 钉死（开局为 0，黎明那一小时算出来）
     constructionRateToday: 0,

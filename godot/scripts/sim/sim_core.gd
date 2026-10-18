@@ -189,7 +189,7 @@ func new_game(pack_id: String, seed_value: int, resource_mult: float = 1.0) -> v
 		# 城镇中心是不是**破旧**的（用户 2026-10：一开局是废墟，修好才换回好图）。
 		# ⚠️ 这是**表现层要用的一个开关**，仿真的任何数字都不读它 ——
 		# 和 `prophet` 一样"只记事、不演化"，所以黄金摘要（按字段取的）不受影响。
-		"townCenter": {"ruined": true},
+		"townCenter": {"stage": "ruined"},
 		# 科技：开局已研究的来自 pack.start.techs（见 docs/technology.md）
 		"research": {"done": _start_techs(pack_id), "queue": []},
 		# 任务（引导系统）：完成记录 + 章节奖励记录。判定与发钱都在黎明，
@@ -423,11 +423,13 @@ func _apply_actions(actions: Array) -> Array:
 			"set_price":
 				s["prices"][String(action["goodId"])] = SimUtil.r2(maxf(0.01, float(action["value"])))
 			"repair_town_center":
-				# 修缮城镇中心（用户 2026-10：一开局是废墟）。和别的命令一样**次日黎明生效**。
-				# 材料不够就白下这一单（不发钱也不扣东西），面板上写清楚了价。
+				# 修缮城镇中心（用户 2026-10：开局是废墟，第三章先**初步修缮**、第四章再**修好**）。
+				# 和别的命令一样**次日黎明生效**；材料不够就白下这一单。
+				# `stage` = 这一步走到哪：`patched`（初步修缮）/ `restored`（彻底修好，缺省）。
 				# ⚠️ match 分支里不要用 `:=`（GDScript 会报 "Expected end of statement"）。
-				if bool((s.get("townCenter", {}) as Dictionary).get("ruined", false)):
-					var cost: Dictionary = TOWN_CENTER_REPAIR_COST
+				var to_stage := String(action.get("stage", "restored"))
+				if can_repair_town_center(to_stage):
+					var cost: Dictionary = town_center_repair_cost(to_stage)
 					var afford: bool = true
 					for gid in cost.keys():
 						if float(s["goods"].get(gid, 0.0)) < float(cost[gid]):
@@ -436,7 +438,7 @@ func _apply_actions(actions: Array) -> Array:
 						for gid in cost.keys():
 							s["goods"][gid] = SimUtil.r2(
 								float(s["goods"].get(gid, 0.0)) - float(cost[gid]))
-						s["townCenter"] = {"ruined": false}
+						s["townCenter"] = {"stage": to_stage}
 			"toggle":
 				var shop = _find_shop(String(action["shopId"]))
 				if shop != null:
@@ -2606,23 +2608,43 @@ func _build_alerts(hungry: int) -> Array:
 #   4. 显示文案由**引擎**拼（quest_view 里的 text），UI 不要自己拼 —— 两边必须一模一样
 # ===========================================================================
 
-## 修缮城镇中心的材料价（用户 2026-10）。**唯一一份**：
-## 判定够不够、面板上列材料、TS 侧 `TOWN_CENTER_REPAIR_COST` 都是这个数。
-## ⚠️ 内容里 `q10f_townhall_repair.hint` 那句「消耗木材 30 + 石块 20 + 砖 15」是**文字**，
-## 改价只能人肉对齐（`check-quests.ts` 有一条把两边钉死的断言）。
+## 城镇中心的三段状态（用户 2026-10：第三章先「初步修缮」，第四章再「修缮」）。
+##   ruined   开局：塌了半边（`town_center_ruined.png`）
+##   patched  初步修缮：还立着，裂着、爬着藤（`town_center_patched.png`）
+##   restored 修好（`town_center.png`）
+const TOWN_CENTER_STAGES := ["ruined", "patched", "restored"]
+## 初步修缮与彻底修缮的用料。**唯一一份**：判定够不够、面板上列材料、TS 侧
+## `investment.ts` 都是这个数。
+## ⚠️ 内容里两条任务 `hint` 写的数字是**文字**，改价只能人肉对齐
+## （`check-quests.ts` 有两条把两边钉死的断言）。
+const TOWN_CENTER_PATCH_COST := {"wood": 20.0, "stone": 10.0}
 const TOWN_CENTER_REPAIR_COST := {"wood": 30.0, "stone": 20.0, "brick": 15.0}
 
-## 修缮价（UI 读它画材料行，不要自己再抄一份）。
-func town_center_repair_cost() -> Dictionary:
+## 现在到哪一段了（`ruined` / `patched` / `restored`）。
+## 兼容老状态：老存档只有 `{ruined: bool}` → 据此换算。
+func town_center_stage() -> String:
+	var tc: Dictionary = s.get("townCenter", {})
+	var st := String(tc.get("stage", ""))
+	if TOWN_CENTER_STAGES.has(st):
+		return st
+	return "restored" if not bool(tc.get("ruined", true)) else "ruined"
+
+## 这一步的用料（UI 读它画材料行，不要自己再抄一份）。
+## `stage` = 要走到的目标段：`patched` / `restored`。
+func town_center_repair_cost(stage: String = "") -> Dictionary:
+	var to := stage if stage != "" else ("patched" if town_center_stage() == "ruined" else "restored")
+	if to == "patched":
+		return TOWN_CENTER_PATCH_COST.duplicate()
 	return TOWN_CENTER_REPAIR_COST.duplicate()
 
-## **画面上的**城镇中心是不是还是破的（用户 2026-10）。
-##
-## ⚠️ 判据是**任务 `q10f_townhall_repair` 记过完成**，不是 `townCenter.ruined` ——
-## 后者是物理状态（下单当天就翻了），而任务在**黎明**结算。用户的原话是
-## 「这个任务完成之前用破旧素材、完成之后用新的」，所以换图的那一下由任务决定。
-func town_center_ruined_visual() -> bool:
-	return not (s["quests"]["done"] as Dictionary).has("q10f_townhall_repair")
+## 这一步能不能走（顺序是硬闸：ruined → patched → restored，不能跳级）。
+func can_repair_town_center(stage: String) -> bool:
+	var cur := town_center_stage()
+	if stage == "patched":
+		return cur == "ruined"
+	if stage == "restored":
+		return cur == "patched"
+	return false
 
 ## `building_repaired` 的 id 归一：内容里写的是口语名 `townhall`，
 ## 建筑表里叫 `town_center`。两个写法都认，统一成建筑表里那个（用于取中文名）。
@@ -2630,11 +2652,17 @@ func town_center_ruined_visual() -> bool:
 func _repair_target_building(id: String) -> String:
 	return "town_center" if id == "townhall" else id
 
-## 这座"塌了的"建筑修好了吗（目前只有城镇中心这一座）。
-func _quest_repaired(id: String) -> bool:
-	if _repair_target_building(id) == "town_center":
-		return not bool((s.get("townCenter", {}) as Dictionary).get("ruined", true))
-	return false
+## 这座"塌了的"建筑**达到要求的段位**了吗（目前只有城镇中心这一座）。
+func _quest_repaired(id: String, want_stage: String = "restored") -> bool:
+	if _repair_target_building(id) != "town_center":
+		return false
+	var cur := TOWN_CENTER_STAGES.find(town_center_stage())
+	var want := TOWN_CENTER_STAGES.find(want_stage)
+	return cur >= 0 and want >= 0 and cur >= want
+
+## 进度文案里的那个词（两段不同措辞；TS 侧 `repairStageWord` 必须逐字一致）。
+func _repair_stage_word(want_stage: String) -> String:
+	return "已初步修复" if want_stage == "patched" else "已修复"
 
 
 ## 进度数字一律向下取整（对齐 TS `quests.ts::shown` 的 Math.floor）。
@@ -2681,12 +2709,13 @@ func _quest_goal_progress(goal: Dictionary) -> Dictionary:
 	var have := 0.0
 	var text := ""
 	if type == "building" and bool(goal.get("repaired", false)):
-		# `repaired: true` 换个口径：数的是"这座塌了的建筑修好了吗"，不是"建了几座"。
+		# `repaired: true` 换个口径：数的是"这座塌了的建筑修好/初步修好了吗"，不是"建了几座"。
 		# 内容里的主写法是 `building_repaired`，这个别名收着是给换写法用的。
-		have = 1.0 if _quest_repaired(gid) else 0.0
+		var w1 := String(goal.get("stage", "restored"))
+		have = 1.0 if _quest_repaired(gid, w1) else 0.0
 		need = 1.0
-		text = "%s 已修复 %d/%d" % [_quest_name("building", _repair_target_building(gid)),
-			_quest_shown(have), int(need)]
+		text = "%s %s %d/%d" % [_quest_name("building", _repair_target_building(gid)),
+			_repair_stage_word(w1), _quest_shown(have), int(need)]
 	elif type == "building":
 		var n := 0
 		for shop in (s["shops"] as Array):
@@ -2695,11 +2724,13 @@ func _quest_goal_progress(goal: Dictionary) -> Dictionary:
 		have = float(n)
 		text = "%s %d/%d" % [_quest_name("building", gid), _quest_shown(have), int(need)]
 	elif type == "building_repaired":
-		# 一座**塌了的**建筑已经修好（用户 2026-10：修复城镇中心）。
-		have = 1.0 if _quest_repaired(gid) else 0.0
+		# 一座**塌了的**建筑已经修到某个段位（用户 2026-10：第三章初步修缮、第四章修好）。
+		# `stage` 缺省 = "restored"（修好）；"patched" = 至少初步修缮过。
+		var want := String(goal.get("stage", "restored"))
+		have = 1.0 if _quest_repaired(gid, want) else 0.0
 		need = 1.0
-		text = "%s 已修复 %d/%d" % [_quest_name("building", _repair_target_building(gid)),
-			_quest_shown(have), int(need)]
+		text = "%s %s %d/%d" % [_quest_name("building", _repair_target_building(gid)),
+			_repair_stage_word(want), _quest_shown(have), int(need)]
 	elif type == "housing":
 		have = float((s["housing"] as Dictionary).get(gid, 0))
 		text = "%s %d/%d" % [_quest_name("housing", gid), _quest_shown(have), int(need)]

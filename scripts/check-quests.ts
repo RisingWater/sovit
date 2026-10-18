@@ -8,7 +8,11 @@ import {
   markQuestTalkShown,
   splitSentences,
 } from '../src/engine/systems/quests.ts'
-import { TOWN_CENTER_REPAIR_COST } from '../src/engine/systems/investment.ts'
+import {
+  TOWN_CENTER_PATCH_COST,
+  TOWN_CENTER_REPAIR_COST,
+  townCenterStage,
+} from '../src/engine/systems/investment.ts'
 import { runDawn } from '../src/engine/tick.ts'
 import { TIME } from '../src/engine/config.ts'
 
@@ -92,6 +96,8 @@ function stageThroughChapter3(s: GameState): void {
   addResidents(s, 60, 'poor', 70) // 人口 60 + 满意度均值约 69 → 「让人愿意来」/「五十人的村子」
   s.research.done = ['stonework', 'digging', 'firewood', 'brickmaking', 'construction']
   s.goods['brick'] = 100
+  // 城镇中心：第 3 章多了「初步修缮」那条任务（q05e），先把这一步做掉
+  s.townCenter = { stage: 'patched' }
   // 单日产能看的是**台账**（history），不是库存 —— 所以这儿得塞一天的历史
   s.history.push({
     day: 1,
@@ -212,8 +218,8 @@ console.log('\n=== 任务系统引擎自检 ===\n')
   runDawn(s2, ctx)
   ok('前置齐了 → 人口早过 50 也当场算完成（可追溯）',
     s2.quests.done['q06_pop50'] === s2.day, `第 ${s2.quests.done['q06_pop50']} 天`)
-  ok('同一次黎明把 1~3 章主线连锁结算完（12 条任务 + 3 个章节奖励）',
-    s2.government.money - moneyA === 12 * 500 + 3 * 1000, `+${s2.government.money - moneyA} 金`)
+  ok('同一次黎明把 1~3 章主线连锁结算完（13 条任务 + 3 个章节奖励）',
+    s2.government.money - moneyA === 13 * 500 + 3 * 1000, `+${s2.government.money - moneyA} 金`)
   const doneDay = s2.quests.done['q06_pop50']
   s2.residents.length = 10
   runDawn(s2, ctx)
@@ -305,55 +311,86 @@ console.log('\n=== 任务系统引擎自检 ===\n')
     questJournal(cur, ctx).every((q, i, arr) => i === 0 || ctx.questIds.indexOf(arr[i - 1]!.def.id) < ctx.questIds.indexOf(q.def.id)))
 }
 
-// ---- 10. 修缮城镇中心：`building_repaired` 目标 + 修缮动作 -----------------
+// ---- 10. 修缮城镇中心：两段（初步修缮 → 修好）+ `building_repaired.stage` ------
 {
   const s = freshState()
-  const def = ctx.quests['q10f_townhall_repair']!
-  const goalText = (): string => questProgress(s, ctx, def).goals[0]!.text
+  const patchDef = ctx.quests['q05e_townhall_patch']!
+  const fullDef = ctx.quests['q10f_townhall_repair']!
+  const patchText = (): string => questProgress(s, ctx, patchDef).goals[0]!.text
+  const fullText = (): string => questProgress(s, ctx, fullDef).goals[0]!.text
 
-  ok('第 4 章那条「修复城镇中心」用的是 building_repaired 目标',
-    def.goals[0]!.type === 'building_repaired', def.goals[0]!.type)
-  ok('没修之前：0/1、不算达成',
-    goalText() === '城镇中心 已修复 0/1' && !questProgress(s, ctx, def).met, goalText())
+  ok('第 3 章那条是「初步修缮」（building_repaired + stage=patched）',
+    patchDef.goals[0]!.type === 'building_repaired' &&
+      (patchDef.goals[0] as { stage?: string }).stage === 'patched',
+    JSON.stringify(patchDef.goals[0]))
+  ok('第 4 章那条是「修好」（不带 stage = restored）',
+    fullDef.goals[0]!.type === 'building_repaired' &&
+      (fullDef.goals[0] as { stage?: string }).stage === undefined,
+    JSON.stringify(fullDef.goals[0]))
+  ok('两条的进度文案不同：初步 0/1 / 修好 0/1',
+    patchText() === '城镇中心 已初步修复 0/1' && fullText() === '城镇中心 已修复 0/1',
+    `${patchText()} | ${fullText()}`)
 
-  // 材料不够 → 白下这一单（不扣东西、也不修好）
-  s.goods['wood'] = 10
-  s.goods['stone'] = 20
-  s.goods['brick'] = 15
-  applyActions(s, ctx, [{ type: 'repair_town_center' }])
-  ok('材料不够 → 不扣料、不修好',
-    s.townCenter.ruined === true && s.goods['wood'] === 10, `wood=${s.goods['wood']}`)
+  // 材料不够 → 白下这一单
+  s.goods['wood'] = 5
+  s.goods['stone'] = 10
+  applyActions(s, ctx, [{ type: 'repair_town_center', stage: 'patched' }])
+  ok('初步修缮材料不够 → 不扣料、还是废墟',
+    townCenterStage(s) === 'ruined' && s.goods['wood'] === 5, `wood=${s.goods['wood']}`)
 
-  // 材料刚好够 → 修好，且**正好扣光**
+  // 材料刚好够 → patched，且**正好扣光**
+  s.goods['wood'] = TOWN_CENTER_PATCH_COST['wood']!
+  s.goods['stone'] = TOWN_CENTER_PATCH_COST['stone']!
+  const r1 = applyActions(s, ctx, [{ type: 'repair_town_center', stage: 'patched' }])
+  ok('材料够了 → 初步修缮生效', r1[0]!.ok && townCenterStage(s) === 'patched')
+  ok('初步修缮把料正好扣光',
+    s.goods['wood'] === 0 && s.goods['stone'] === 0,
+    `wood=${s.goods['wood']} stone=${s.goods['stone']}`)
+  ok('初步修缮之后：第 3 章那条 1/1 且达成、第 4 章那条还没到',
+    patchText() === '城镇中心 已初步修复 1/1' && questProgress(s, ctx, patchDef).met &&
+      fullText() === '城镇中心 已修复 0/1' && !questProgress(s, ctx, fullDef).met,
+    `${patchText()} | ${fullText()}`)
+
+  // 不能跳级：废墟状态直接点「修好」要被拒
+  const s2 = freshState()
+  s2.goods['wood'] = TOWN_CENTER_REPAIR_COST['wood']!
+  s2.goods['stone'] = TOWN_CENTER_REPAIR_COST['stone']!
+  s2.goods['brick'] = TOWN_CENTER_REPAIR_COST['brick']!
+  const rSkip = applyActions(s2, ctx, [{ type: 'repair_town_center', stage: 'restored' }])
+  ok('废墟状态不能直接修好（要先初步修缮）',
+    !rSkip[0]!.ok && townCenterStage(s2) === 'ruined' &&
+      s2.goods['wood'] === TOWN_CENTER_REPAIR_COST['wood'], String(rSkip[0]!.reason))
+
+  // 第二步：patched → restored
   s.goods['wood'] = TOWN_CENTER_REPAIR_COST['wood']!
   s.goods['stone'] = TOWN_CENTER_REPAIR_COST['stone']!
   s.goods['brick'] = TOWN_CENTER_REPAIR_COST['brick']!
-  const applied = applyActions(s, ctx, [{ type: 'repair_town_center' }])
-  ok('材料够了 → 修缮生效', applied[0]!.ok && s.townCenter.ruined === false)
-  ok('修缮把料正好扣光',
-    s.goods['wood'] === 0 && s.goods['stone'] === 0 && s.goods['brick'] === 0,
-    `wood=${s.goods['wood']} stone=${s.goods['stone']} brick=${s.goods['brick']}`)
-  ok('修好之后：1/1 且达成',
-    goalText() === '城镇中心 已修复 1/1' && questProgress(s, ctx, def).met, goalText())
+  const r2 = applyActions(s, ctx, [{ type: 'repair_town_center', stage: 'restored' }])
+  ok('第二步材料够了 → 修好', r2[0]!.ok && townCenterStage(s) === 'restored')
+  ok('修好之后：两条都达成',
+    fullText() === '城镇中心 已修复 1/1' && questProgress(s, ctx, fullDef).met, fullText())
 
-  // 内容里的 hint 是**文字**，改价只能人肉对齐 —— 所以在这儿钉一条
-  ok('hint 里写的材料与引擎那份价格一致（木 30 / 石 20 / 砖 15）',
-    def.hint.includes(`木材 ${TOWN_CENTER_REPAIR_COST['wood']}`) &&
-      def.hint.includes(`石块 ${TOWN_CENTER_REPAIR_COST['stone']}`) &&
-      def.hint.includes(`砖 ${TOWN_CENTER_REPAIR_COST['brick']}`),
-    def.hint)
+  // 内容里的 hint 是**文字**，改价只能人肉对齐 —— 两条各钉一次
+  ok('初步修缮的 hint 与引擎那份价格一致（木 20 / 石 10）',
+    patchDef.hint.includes(`木材 ${TOWN_CENTER_PATCH_COST['wood']}`) &&
+      patchDef.hint.includes(`石块 ${TOWN_CENTER_PATCH_COST['stone']}`),
+    patchDef.hint)
+  ok('修好的 hint 与引擎那份价格一致（木 30 / 石 20 / 砖 15）',
+    fullDef.hint.includes(`木材 ${TOWN_CENTER_REPAIR_COST['wood']}`) &&
+      fullDef.hint.includes(`石块 ${TOWN_CENTER_REPAIR_COST['stone']}`) &&
+      fullDef.hint.includes(`砖 ${TOWN_CENTER_REPAIR_COST['brick']}`),
+    fullDef.hint)
 
-  // 已经修好了再修一次 → 不重复扣
+  // 已经修好了再点一次 → 不重复扣
   s.goods['wood'] = 50
-  const again = applyActions(s, ctx, [{ type: 'repair_town_center' }])
+  const again = applyActions(s, ctx, [{ type: 'repair_town_center', stage: 'restored' }])
   ok('修好了再点一次不会重复扣料', !again[0]!.ok && s.goods['wood'] === 50)
 
-  // 前置：q11_middle 挂着它（内容里用户指定）
-  ok('q11_middle 的前置就是这条修复任务',
+  // 前置：q11_middle 挂着第 4 章那条（内容里用户指定）
+  ok('q11_middle 的前置就是「修复城镇中心」',
     ctx.quests['q11_middle']!.requires.join(',') === 'q10f_townhall_repair',
     ctx.quests['q11_middle']!.requires.join(','))
 }
-
 // ---- 11. 剧情对话：任务触发 / 章节收尾 -----------------------------------
 {
   const s = freshState()

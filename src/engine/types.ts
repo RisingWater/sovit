@@ -488,6 +488,13 @@ export type QuestID = string
 /** 可修缮的建筑：`townhall` 是内容里用的口语名，`town_center` 是建筑表里的 id。 */
 export type RepairTargetID = 'townhall' | 'town_center'
 
+/**
+ * 城镇中心的三段状态（用户 2026-10：第三章先「初步修缮」，第四章再「修好」）。
+ * `ruined`（开局废墟）→ `patched`（初步修缮）→ `restored`（修好）。
+ * 顺序是硬闸：一次只走一段，不能跳级。
+ */
+export type RepairStage = 'ruined' | 'patched' | 'restored'
+
 /** 任务目标：每种都能算出「当前 / 需要」，用于追踪条上的进度。 */
 export type QuestGoal =
   /**
@@ -496,9 +503,12 @@ export type QuestGoal =
    * `repaired: true` = 换个口径：数的是「这座**已经修好**了吗」（只对 `town_center` 有意义）。
    * 等价于 `building_repaired`，留着是给内容里换个写法用的。
    */
-  | { type: 'building'; id: BuildingID; min: number; repaired?: true }
-  /** 某座**塌了的**建筑已经修好（用户 2026-10：修复城镇中心）。 */
-  | { type: 'building_repaired'; id: RepairTargetID; min: number }
+  | { type: 'building'; id: BuildingID; min: number; repaired?: true; stage?: RepairStage }
+  /**
+   * 某座**塌了的**建筑修到了某个段位（用户 2026-10：第三章初步修缮、第四章修好）。
+   * `stage` 缺省 = `restored`（修好）；`patched` = **至少**初步修缮过（也认已修好的）。
+   */
+  | { type: 'building_repaired'; id: RepairTargetID; min: number; stage?: RepairStage }
   /** 拥有 N 栋某住房（国有 + 私有）。 */
   | { type: 'housing'; id: GoodID; min: number }
   /** 住房总容量不低于 N。 */
@@ -770,13 +780,13 @@ export interface GameState {
    */
   prophet: ProphetState
   /**
-   * 城镇中心的**物理状态**（用户 2026-10：一开局是废墟，修好才换回好素材）。
+   * 城镇中心的**修缮进度**（用户 2026-10）：`ruined` → `patched` → `restored`。
    *
    * ⚠️ 仿真的任何数字都不读它 —— 和 `prophet` 一样"只记事、不演化"，
-   * 所以黄金摘要（按字段取的）不受影响。真正"能看/能点"的判据是任务
-   * `q10f_townhall_repair` 有没有完成（表现层读 `town_center_ruined`）。
+   * 所以黄金摘要（按字段取的）不受影响。修缮命令和其它命令一样**次日黎明生效**，
+   * 表现层按它挑贴图（破旧 / 初步修缮 / 修好三张）。
    */
-  townCenter: { ruined: boolean }
+  townCenter: { stage: RepairStage }
 
   /** 当日台账累加器：黎明清零，夜间结算时挂到当天快照上。 */
   ledgerToday: DayLedger
@@ -897,10 +907,14 @@ export type Action =
    */
   | { type: 'move_research'; id: TechID; delta: number }
   /**
-   * 修缮城镇中心（用户 2026-10：一开局是废墟）。和别的命令一样**次日黎明生效**，
-   * 材料不够就白下这一单。价格见 `TOWN_CENTER_REPAIR_COST`（`systems/investment.ts`）。
+   * 修缮城镇中心（用户 2026-10：开局废墟 → 初步修缮 → 修好）。和别的命令一样**次日黎明生效**，
+   * 材料不够就白下这一单。价格见 `investment.ts` 的 `TOWN_CENTER_PATCH_COST` /
+   * `TOWN_CENTER_REPAIR_COST`。
+   *
+   * `stage` = 这一步走到哪：`patched`（初步修缮，第三章）/ `restored`（修好，第四章，缺省）。
+   * 顺序是硬闸（不能从废墟直接修好）。
    */
-  | { type: 'repair_town_center' }
+  | { type: 'repair_town_center'; stage?: RepairStage }
   | { type: 'end_turn' }
 
 export interface AppliedAction {

@@ -608,18 +608,22 @@ func _place_sprite(spr: Sprite2D, type: String, origin: Vector2i, fp: Vector2i) 
 	spr.offset = Vector2(-spr.texture.get_width() * 0.5, -spr.texture.get_height())
 
 func _texture_for(type: String) -> Texture2D:
-	# 城镇中心分两张：开局是**破旧**的（用户 2026-10），修好之后换回好图。
+	# 城镇中心分**三张**（用户 2026-10）：
+	#   ruined   = 开局那座塌了半边的废墟（`town_center_ruined.png`）
+	#   patched  = 第三章「初步修缮」之后：还立着，裂着、爬着藤（`town_center_patched.png`）
+	#   restored = 第四章「修好」（`town_center.png`）
 	# 所以这一项**不进缓存**（按状态现取，`load()` 自己会缓存资源）。
-	#
-	# ⚠️ 判据是 `sim.town_center_ruined_visual()`（= 任务 `q10f_townhall_repair`
-	# 记过完成没有），**不是** `townCenter.ruined`：下单修缮当天那个标记就翻了，
-	# 而任务要到黎明才结算。用户的原话是"这个任务完成之前用旧素材"。
+	# 三段状态由仿真给（`sim.town_center_stage()`），换图发生在**黎明**（修缮命令次日生效）。
 	if type == "town_center":
-		var ruined := true
+		var stage := "ruined"
 		if runner != null and runner.sim != null:
-			ruined = bool(runner.sim.town_center_ruined_visual())
-		return load("res://assets/buildings/town_center_ruined.png" if ruined
-			else "res://assets/buildings/town_center.png")
+			stage = String(runner.sim.town_center_stage())
+		var path := "res://assets/buildings/town_center.png"
+		if stage == "ruined":
+			path = "res://assets/buildings/town_center_ruined.png"
+		elif stage == "patched":
+			path = "res://assets/buildings/town_center_patched.png"
+		return load(path)
 	if _tex_cache.has(type):
 		return _tex_cache[type]
 	# 成品整图与程序化拼装都落在 assets/buildings/<id>.png，取法一致
@@ -627,7 +631,7 @@ func _texture_for(type: String) -> Texture2D:
 	_tex_cache[type] = tex
 	return tex
 
-## 修缮完成之后把地图上那座城镇中心的贴图换掉（黎明调一次，很便宜）。
+## 城镇中心换阶段之后把地图上的贴图换掉（黎明调一次，很便宜）。
 ## ⚠️ 城镇中心是 `_build_town_center()` 单独建的节点（不在 `_shop_sprites` 里），
 ## 两边都刷一下：万一以后它真变成普通 shop 也不会漏。
 func refresh_town_center_sprite() -> void:

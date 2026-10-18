@@ -1031,7 +1031,17 @@ function parseQuestGoal(v: unknown, p: string, sets: QuestSets): QuestGoal {
       if (id !== 'townhall' && id !== 'town_center') {
         fail(`${p}.id 只能是 townhall 或 town_center（实际 ${id}）`)
       }
-      return { type, id, min: need() }
+      // `stage`：`patched`（初步修缮，第三章）/ 缺省 = `restored`（修好，第四章）
+      const stage = g.stage === undefined ? undefined : asStr(g.stage, `${p}.stage`)
+      if (stage !== undefined && stage !== 'patched' && stage !== 'restored' && stage !== 'ruined') {
+        fail(`${p}.stage 只能是 patched 或 restored（实际 ${stage}）`)
+      }
+      return {
+        type,
+        id,
+        min: need(),
+        ...(stage === undefined ? {} : { stage: stage as 'ruined' | 'patched' | 'restored' }),
+      }
     }
     case 'housing':
       return { type, id: asRef(g.id, sets.housingSet, `${p}.id`, '住房'), min: need() }

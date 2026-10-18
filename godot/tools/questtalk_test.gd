@@ -350,10 +350,10 @@ func _run() -> void:
 		return
 	print("QUESTTALK TEST 圆钮排版：先 5 个（含预言）→ 科技插到第 4 位变 6 个，中间不留洞 ✅")
 
-	# 城镇中心：换图要等**修复城镇中心那条任务**结算
+	# 城镇中心：贴图跟着**段位**走（三张：破旧 / 初步修缮 / 修好）
 	var world = node.get_node("World")
-	if not msim.town_center_ruined_visual():
-		_fail("新开局城镇中心画面上就该是破旧的")
+	if msim.town_center_stage() != "ruined":
+		_fail("新开局城镇中心画面上就该是破旧的（段位 %s）" % msim.town_center_stage())
 		return
 	world.refresh_town_center_sprite()
 	var tex_ruined: Texture2D = (world.town_center_sprite as Sprite2D).texture
@@ -361,17 +361,22 @@ func _run() -> void:
 		_fail("新开局地图上那座城镇中心用的不是破旧素材（%s）"
 			% ("null" if tex_ruined == null else tex_ruined.resource_path))
 		return
-	msim.s["quests"]["done"]["q10f_townhall_repair"] = int(msim.s["day"])
-	if msim.town_center_ruined_visual():
-		_fail("修复任务记过完成之后，画面判据还是「破旧」")
+	msim.s["townCenter"] = {"stage": "patched"}
+	world.refresh_town_center_sprite()
+	var tex_patch: Texture2D = (world.town_center_sprite as Sprite2D).texture
+	if tex_patch == null or not tex_patch.resource_path.contains("patched"):
+		_fail("初步修缮之后用的不是 patched 那张（%s）"
+			% ("null" if tex_patch == null else tex_patch.resource_path))
 		return
+	msim.s["townCenter"] = {"stage": "restored"}
 	world.refresh_town_center_sprite()
 	var tex_ok: Texture2D = (world.town_center_sprite as Sprite2D).texture
-	if tex_ok == null or tex_ok.resource_path.contains("ruined"):
-		_fail("修复任务完成之后地图上还是破旧素材（%s）"
+	if tex_ok == null or tex_ok.resource_path.contains("ruined") \
+			or tex_ok.resource_path.contains("patched"):
+		_fail("修好之后用的不是好图（%s）"
 			% ("null" if tex_ok == null else tex_ok.resource_path))
 		return
-	print("QUESTTALK TEST 城镇中心：修复任务之前用破旧素材 → 之后换新图 ✅")
+	print("QUESTTALK TEST 城镇中心：破旧 → 初步修缮 → 修好，三张贴图各就各位 ✅")
 
 	# ---- 5. 存档版本：2 起不兼容老档 -------------------------------------
 	if SaveManager.SAVE_VERSION != 3:

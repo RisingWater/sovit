@@ -353,6 +353,30 @@
       ]
     },
     {
+      "id": "q05e_townhall_patch",
+      "chapter": 3,
+      "giver": "sebastian",
+      "giverPortrait": "sebastian_neutral",
+      "title": "初步修缮",
+      "hint": "选中地图上那座城镇中心，点「初步修缮」（消耗木材 20 + 石块 10）",
+      "brief": "殿下，如今木也有了、石也有了，老臣想请您先看那座城镇中心——它还立着，可屋顶漏雨、墙根裂到了地基。不必一次修得光鲜：把塌的地方支起来、漏的地方补上，人能进去办事就够了。这活不体面，却是往后一切体面的地方。",
+      "reward": 500,
+      "requires": [
+        "q05a_stone",
+        "q05b_clay",
+        "q05c_firewood",
+        "q05d_brick"
+      ],
+      "goals": [
+        {
+          "type": "building_repaired",
+          "id": "townhall",
+          "min": 1,
+          "stage": "patched"
+        }
+      ]
+    },
+    {
       "id": "q06_pop50",
       "chapter": 3,
       "giver": "luna",
@@ -615,8 +639,8 @@
       "giver": "sebastian",
       "giverPortrait": "sebastian_smile",
       "title": "修复城镇中心",
-      "hint": "选中破旧的城镇中心，点击「修复」（消耗木材 30 + 石块 20 + 砖 15）",
-      "brief": "殿下，砖有了、石有了、人也齐了——那座塌了半边的城镇中心，该修了。它不是一间屋子，是这领地的脸面。修好它，别处的人才会当这里是个正经地方。",
+      "hint": "选中城镇中心，点「修缮」（消耗木材 30 + 石块 20 + 砖 15）",
+      "brief": "殿下，砖有了、石有了、人也齐了——那座只支起半边的城镇中心，该正经修一回了。它不是一间屋子，是这领地的脸面。修好它，别处的人才会当这里是个正经地方。",
       "reward": 1000,
       "requires": [
         "q10a_white_bread",

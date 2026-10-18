@@ -1,4 +1,4 @@
-import type { Action, AppliedAction, GameState, GoodID, LogEntry, TaxBracket } from './types.ts'
+import type { Action, AppliedAction, GameState, GoodID, LogEntry, RepairStage, TaxBracket } from './types.ts'
 import type { ContentContext } from './content/index.ts'
 import { clamp, round2 } from './util.ts'
 import {
@@ -290,8 +290,9 @@ export function applyActions(
       }
 
       case 'repair_town_center': {
-        // 修缮城镇中心（用户 2026-10：一开局是废墟）。材料不够 → 白下这一单。
-        const res = repairTownCenter(state)
+        // 修缮城镇中心（用户 2026-10：开局废墟 → 初步修缮 → 修好）。材料不够 → 白下这一单。
+        // `stage` 缺省 = 彻底修好；面板/内容会带 patched 或 restored。
+        const res = repairTownCenter(state, (action.stage ?? 'restored') as RepairStage)
         applied.push({ type: action.type, ok: res.ok, reason: res.reason })
         break
       }
