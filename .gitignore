@@ -15,6 +15,10 @@ godot/.godot/
 godot/.import/
 godot/reports/
 godot/builds/
+
+# 地图点位的「本地微调层」：默认值在 scripts/ui/panel_map.gd 的 MARKS / REGIONS 里，
+# 这个文件是作者在游戏里拖出来的覆盖（每次拖动都会整份重写）—— 别提交。
+godot/data/map_layout.json
 # 注意：export_presets.cfg 曾经也被忽略，那是错的 ——
 # 它是**构建配置**（源码），不是构建产物。不入库的话别人 clone 下来无法复现打包。
 # 唯一入不了库的情况是里面写了 Android 签名口令；本项目只做桌面导出，没有这个顾虑。

@@ -169,7 +169,7 @@ func _run() -> void:
 	#     图标是按钮的子节点 `Icon`（`UIKit.icon_left_button()`），锚在左边、不参与文字排版 ——
 	#     所以文字能在整条按钮里真居中。这里量三件事：在、靠左、没跟文字挤在一起。
 	var need_icons := ["新游戏…", "保存…", "读取…", "设置资源…", "AI 辅助设置…",
-		"建筑占地：关", "退出游戏"]
+		"调试功能：关", "退出游戏"]
 	for b in menu.find_children("*", "Button", true, false):
 		var btn := b as Button
 		var want := need_icons.has(btn.text) or btn.text.begins_with("音效：") \

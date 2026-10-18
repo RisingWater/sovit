@@ -56,30 +56,30 @@ const REGIONS := [
 const MARKS := [
 	{"id": "capital", "kind": "town_large", "fx": 0.4546, "fy": 0.4293, "scale": 1.45,
 		"name": "王都", "lord": "国王 奥德里克三世（长子阿尔伯特留守）", "specialty": "铁、马"},
-	{"id": "iron_crown", "kind": "town_medium", "fx": 0.5480, "fy": 0.4020,
+	{"id": "iron_crown", "kind": "town_medium", "fx": 0.6058, "fy": 0.3955,
 		"name": "铁王城", "lord": "阿尔伯特（长子）· 掌国库", "specialty": "铁、马"},
-	{"id": "iron_rook", "kind": "town_medium", "fx": 0.4043, "fy": 0.1951,
+	{"id": "iron_rook", "kind": "town_medium", "fx": 0.3908, "fy": 0.2343,
 		"name": "铁鸦堡", "lord": "伯纳德（次子）", "specialty": "铁、军械"},
-	{"id": "holy_flame", "kind": "town_medium", "fx": 0.6194, "fy": 0.1617,
+	{"id": "holy_flame", "kind": "town_medium", "fx": 0.6084, "fy": 0.1914,
 		"name": "圣火城", "lord": "塞德里克（三子）", "specialty": "圣物、香火"},
-	{"id": "dawn", "kind": "town_medium", "fx": 0.7780, "fy": 0.5670,
+	{"id": "dawn", "kind": "town_medium", "fx": 0.7764, "fy": 0.6108,
 		"name": "曙光城", "lord": "伊莲娜（长女）", "specialty": "典籍、纸"},
-	{"id": "golden_ear", "kind": "town_medium", "fx": 0.6159, "fy": 0.6173,
+	{"id": "golden_ear", "kind": "town_medium", "fx": 0.5840, "fy": 0.6562,
 		"name": "金穗城", "lord": "狄奥多（四子）", "specialty": "粮食、盐"},
-	{"id": "blackstone", "kind": "town_medium", "fx": 0.3639, "fy": 0.5200,
+	{"id": "blackstone", "kind": "town_medium", "fx": 0.3572, "fy": 0.5605,
 		"name": "黑石堡", "lord": "弗雷德里克（六子）", "specialty": "铁、煤"},
-	{"id": "peak", "kind": "town_medium", "fx": 0.0800, "fy": 0.2649,
+	{"id": "peak", "kind": "town_medium", "fx": 0.0867, "fy": 0.1914,
 		"name": "铁峰城", "lord": "大公 赫尔曼", "specialty": "铁、煤"},
-	{"id": "jade", "kind": "town_large", "fx": 0.8150, "fy": 0.7000,
+	{"id": "jade", "kind": "town_large", "fx": 0.7453, "fy": 0.7582,
 		"name": "翡翠城", "lord": "女王 艾瑟琳", "specialty": "香料、丝绸、宝石"},
-	{"id": "holy_see", "kind": "temple", "fx": 0.4820, "fy": 0.1157,
+	{"id": "holy_see", "kind": "temple", "fx": 0.4740, "fy": 0.1121,
 		"name": "圣都", "lord": "教皇 格里高利", "specialty": "圣物、书"},
-	{"id": "khan", "kind": "camp", "fx": 0.2234, "fy": 0.9117,
+	{"id": "khan", "kind": "camp", "fx": 0.2035, "fy": 0.9181,
 		"name": "汗庭", "lord": "大汗 巴图尔", "specialty": "马匹、盐、皮毛"},
 ]
 
 ## 我们自己的那一座（图标按城镇中心段位换）
-const HOME := {"id": "ashen_vale", "fx": 0.6680, "fy": 0.8530,
+const HOME := {"id": "ashen_vale", "fx": 0.6823, "fy": 0.8854,
 	"lord": "你（第七王子）", "specialty": "木材、石块、粘土"}
 
 var _map: TextureRect
@@ -100,6 +100,8 @@ var _drag := -1
 var _sel := -1
 var _readout: Label
 var _edit_btn: Button
+## 布置工具那一整块（默认隐藏，ESC 菜单开了「调试功能」才露）
+var _tools_box: VBoxContainer
 ## 内置坐标的原始值（"恢复默认"用）
 var _defaults: Dictionary = {}
 
@@ -150,9 +152,16 @@ func _ready() -> void:
 	# 第二行：**布置工具**（用户 2026-10-20："你能不能让我自己调整城镇的位置，
 	# 有修改坐标什么的，这样我就不用叫你改了"）。
 	# 点「布置城市」→ 图标和地名都能拖，松手**自动存盘**；坐标也手写在 JSON 里。
+	# ⚠️ 这一整块**默认藏起来**（用户 2026-10-20："这四个按钮默认都隐藏掉，
+	# 如果在 esc 把调试开关打开……才显示"）—— 总闸是 `world.debug_footprints`
+	# （ESC 菜单里的「调试功能」，见 `esc_menu.gd::_toggle_debug`）。
+	_tools_box = VBoxContainer.new()
+	_tools_box.add_theme_constant_override("separation", 6)
+	_tools_box.visible = false
+	root.add_child(_tools_box)
 	var tools := HBoxContainer.new()
 	tools.add_theme_constant_override("separation", 5)
-	root.add_child(tools)
+	_tools_box.add_child(tools)
 	_edit_btn = UIKit.button("布置城市", false)
 	_edit_btn.toggle_mode = true
 	_edit_btn.tooltip_text = "打开后：拖动图标/地名即可改位置，松手自动保存（坐标存在 res://data/map_layout.json，导出后退回 user://）"
@@ -174,8 +183,7 @@ func _ready() -> void:
 	_readout = UIKit.label("", UIKit.FG_DIM)
 	_readout.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	tools.add_child(_readout)
-
-	root.add_child(UIKit.hsep())
+	_tools_box.add_child(UIKit.hsep())
 
 	# 地图书：底图 + 据点 + 地名，全部手动摆（按比例）
 	_host = Control.new()
@@ -302,10 +310,19 @@ func _build_card() -> void:
 
 func open() -> void:
 	visible = true
+	# 布置工具只在**调试模式**下露出来（ESC 菜单 →「调试功能」）
+	if _tools_box != null:
+		_tools_box.visible = _debug_on()
+		if not _tools_box.visible and _edit:
+			_on_edit_toggled(false)
 	_refresh_home()
 	_load_layout()
 	_layout()
 	move_to_front()
+
+## 调试总闸（真源是 `world.debug_footprints`，ESC 菜单里的「调试功能」拨它）
+func _debug_on() -> bool:
+	return world != null and bool(world.get("debug_footprints"))
 
 func close_panel() -> void:
 	visible = false

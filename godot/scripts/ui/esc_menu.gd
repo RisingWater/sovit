@@ -13,6 +13,7 @@ extends Control
 var runner: SimRunner
 var world: Node
 var hud: Node
+var _dbg_btn: Button
 var new_game_dialog: Node = null
 var save_dialog: Node = null
 ## AI 辅助面板（由 main 注入）。这里只放一个入口 —— 配置界面在它自己的对话框里。
@@ -91,10 +92,14 @@ func _ready() -> void:
 	b_ai.pressed.connect(_open_ai)
 	vb.add_child(b_ai)
 
-	var b_dbg := UIKit.icon_left_button("建筑占地：关", UIKit.panel_icon("debug"))
-	b_dbg.tooltip_text = "调试：画出每座建筑的占格（同一座同色）。橙框＝门洞与门前通行格 —— 它们被永久保留，所以看着是空地、实际不能建"
-	b_dbg.pressed.connect(func(): _toggle_debug_footprint(b_dbg))
+	# 一个开关管**所有**调试功能（2026-10-20 用户："原来是只显示建筑占地，修改成显示所有调试功能"）：
+	#   · 地图上画建筑占格（橙框＝门洞与门前通行格）
+	#   · 王国地图面板里那一行布置工具（拖图标 / 改坐标）
+	var b_dbg := UIKit.icon_left_button("调试功能：关", UIKit.panel_icon("debug"))
+	b_dbg.tooltip_text = "调试：建筑占格（橙框＝门洞与门前通行格）+ 王国地图面板里的布置工具（拖图标 / 改坐标 / 重新读入）"
+	b_dbg.pressed.connect(func(): _toggle_debug(b_dbg))
 	vb.add_child(b_dbg)
+	_dbg_btn = b_dbg
 
 	vb.add_child(UIKit.hsep())
 	var b_quit := UIKit.icon_left_button("退出游戏", UIKit.panel_icon("exit"))
@@ -112,6 +117,9 @@ func _refresh_labels() -> void:
 		_sfx_btn.text = "音效：%s" % ("关" if (hud != null and hud.sfx != null and hud.sfx.is_muted()) else "开")
 	if _music_btn != null:
 		_music_btn.text = "音乐：%s" % ("关" if (hud != null and hud.music != null and hud.music.is_muted()) else "开")
+	if _dbg_btn != null:
+		var dbg_on := world != null and bool(world.get("debug_footprints"))
+		_dbg_btn.text = "调试功能：%s" % ("开" if dbg_on else "关")
 
 func open() -> void:
 	_refresh_labels()
@@ -166,13 +174,14 @@ func _toggle_music() -> void:
 			hud._refresh_music_btn()
 	_refresh_labels()
 
-## 调试开关：建筑占地方框。"这块地到底占没占"肉眼可查。
-func _toggle_debug_footprint(btn: Button) -> void:
+## 调试开关：**所有**调试功能的总闸（目前两件：建筑占格、地图布置工具）。
+## 真源是 `world.debug_footprints` —— 地图面板打开时会读它决定要不要露那行工具。
+func _toggle_debug(btn: Button) -> void:
 	if world == null or not world.has_method("set_debug_footprints"):
 		return
 	var on := not bool(world.debug_footprints)
 	world.set_debug_footprints(on)
-	btn.text = "建筑占地：%s" % ("开" if on else "关")
+	btn.text = "调试功能：%s" % ("开" if on else "关")
 
 func _open_resources() -> void:
 	if hud != null and hud.has_method("_open_picker"):

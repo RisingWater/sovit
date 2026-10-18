@@ -54,6 +54,7 @@ func _run() -> void:
 		_fail("找不到 MapPanel / Minimap")
 		return
 	var sim = node.get("runner").sim
+	var world = node.get("world")
 
 	# ---- 1. 素材在位 ------------------------------------------------------
 	for kind in ["town_large", "town_medium", "town_small", "village", "camp", "temple"]:
@@ -92,6 +93,27 @@ func _run() -> void:
 		_fail("地图面板应当**连顶栏一起盖**（offset_top = 0），实际 %.0f" % (panel as Control).offset_top)
 		return
 	_ok("点小地图打开地图面板：真·全屏（顶栏也盖住）")
+	# 布置工具默认藏起来（用户 2026-10-20："这四个按钮默认都隐藏掉，如果在 esc 把调试开关
+	# 打开……才显示"），开了「调试功能」才露
+	if panel._tools_box.visible:
+		_fail("布置工具默认应当藏着")
+		return
+	world.set_debug_footprints(true)
+	panel.open()
+	await process_frame
+	if not panel._tools_box.visible:
+		_fail("ESC 菜单开了「调试功能」之后，布置工具应当露出来")
+		return
+	if panel._edit_btn == null or String(panel._edit_btn.text) != "布置城市":
+		_fail("布置工具里没找到「布置城市」按钮")
+		return
+	world.set_debug_footprints(false)
+	panel.open()
+	await process_frame
+	if panel._tools_box.visible:
+		_fail("关掉「调试功能」之后，布置工具应当重新藏起来")
+		return
+	_ok("布置工具只在「调试功能」开着时出现（默认隐藏）")
 
 	# ---- 3. 据点都在图内 ---------------------------------------------------
 	var marks: Array = panel._marks
