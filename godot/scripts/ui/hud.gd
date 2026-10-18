@@ -20,6 +20,9 @@ var ai_panel: Node = null
 var _ai_btn: Button = null
 ## 任务面板（由 main 注入）。左侧圆钮列的第 5 个（F5）就是它的入口。
 var quest_panel: Node = null
+## 贸易面板（由 main 注入）。左侧圆钮第 7 个（**不给 F 键**）开它 ——
+## 以前它只能从地图上的「贸易市场」点进去（用户 2026-10：加个圆钮）。
+var trade_panel: Node = null
 ## 左上角小地图占掉的宽度。顶栏整体右移，文字从小地图右侧开始。
 var left_inset := 0.0
 
@@ -44,6 +47,8 @@ var _nav_btns: Array[Button] = []
 var _tech_nav_btn: Button = null
 ## 「预言」那个圆钮（第一章收尾之前藏着 —— 瑟拉菲娜那时才登场）
 var _prophecy_nav_btn: Button = null
+## 「贸易」那个圆钮（**贸易市场建起来之前藏着**：没有市场就点不进去任何东西）
+var _trade_nav_btn: Button = null
 
 ## 速度档位。`+` / `-` 按它步进；**1x 就是最慢**（用户："减速最快 1x"），
 ## 4x 是最快。与顶栏那排按钮一一对应。
@@ -185,6 +190,13 @@ func _open_quest() -> void:
 	if quest_panel != null and quest_panel.has_method("open"):
 		quest_panel.open()
 
+## 左侧圆钮「贸易」：打开贸易面板（游商页）。与点地图上的「贸易市场」同一个面板。
+func _open_trade() -> void:
+	if trade_panel != null and trade_panel.has_method("open_trade"):
+		trade_panel.open_trade()
+	else:
+		set_notice("还没有贸易市场")
+
 ## 「预言」的两个入口（顶栏那个水晶球、左侧圆钮第 6 个）：都进**全屏预言页**
 ## 并把光标放进问话栏（**不自动发问**，让玩家先写一行字 —— 见 docs/ai-assist.md §六）。
 func _open_ai() -> void:
@@ -224,8 +236,8 @@ func refresh_ai_btn() -> void:
 			+ "告诉你哪条路走得通。"
 	else:
 		UIKit.set_button_icon(_ai_btn, UIKit.panel_icon("ai_assist_off"))
-		_ai_btn.tooltip_text = "预言家在闭门静修 —— 第 %d 天（还有 %d 天）才回得来。" % [
-			int(runner.sim.s["day"]) + left, left] + "\n现在点开能看上一次的进言。"
+		_ai_btn.tooltip_text = "预言家在闭门静修 —— %s（还有 %d 天）才回得来。" % [
+			runner.sim.date_label(int(runner.sim.s["day"]) + left), left] + "\n现在点开能看上一次的进言。"
 
 # ---------------------------------------------------------------------------
 # 顶栏数值行：**只有图标 + 数字，不打中文标签**
@@ -318,6 +330,8 @@ const NAV_TECH := -1
 const NAV_QUEST := -2
 ## 预言（瑟拉菲娜，全屏面板）。顶栏那个水晶球按钮走的是同一个入口。
 const NAV_PROPHECY := -3
+## 贸易（游商面板）。用户 2026-10：它以前只能从地图上的建筑点进去。
+const NAV_TRADE := -4
 const NAV_ITEMS := [
 	["资源", "resource", 0],
 	["人口", "population", 1],
@@ -325,6 +339,7 @@ const NAV_ITEMS := [
 	["科技", "research", NAV_TECH],
 	["任务", "quest_panel", NAV_QUEST],
 	["预言", "ai_assist", NAV_PROPHECY],
+	["贸易", "trade", NAV_TRADE],
 ]
 
 func _build_nav() -> void:
@@ -355,6 +370,10 @@ func _build_nav() -> void:
 		var nav_i := _nav_btns.size() + 1
 		b.tooltip_text = "%s（F%d）" % [label, nav_i] if nav_i <= NAV_MAX_KEY else label
 		var ico := UIKit.stat_icon(ico_name)
+		if ico == null:
+			# 「贸易」没有面板那套图标，但**科技树里那张通商图标**就是它
+			# （`assets/ui/tech/trade.png`）—— 与其让圆钮空着，不如借用它。
+			ico = UIKit.tech_icon(ico_name)
 		if ico != null:
 			b.icon = ico
 			# 图标要**居中**。Button 默认把 icon+text 当一组靠左排，
@@ -374,12 +393,16 @@ func _build_nav() -> void:
 			b.pressed.connect(_open_quest)
 		elif tab == NAV_PROPHECY:
 			b.pressed.connect(_open_ai)
+		elif tab == NAV_TRADE:
+			b.pressed.connect(_open_trade)
 		else:
 			b.pressed.connect(_open_stats_tab.bind(tab))
 		if tab == NAV_TECH:
 			_tech_nav_btn = b
 		elif tab == NAV_PROPHECY:
 			_prophecy_nav_btn = b
+		elif tab == NAV_TRADE:
+			_trade_nav_btn = b
 		col.add_child(b)
 		_nav_btns.append(b)
 	refresh_nav_buttons()
@@ -405,6 +428,15 @@ func refresh_nav_buttons() -> void:
 		_tech_nav_btn.visible = has_inst
 	if _prophecy_nav_btn != null:
 		_prophecy_nav_btn.visible = runner.sim.prophet_unlocked()
+	if _trade_nav_btn != null:
+		# 「贸易」圆钮：**贸易市场建起来之前不出现**（和科技圆钮同一条道理 ——
+		# 一座市场都没有时点进去，面板里什么也做不了）。
+		var has_market := false
+		for sh2 in (runner.sim.s["shops"] as Array):
+			if String((sh2 as Dictionary)["defId"]) == "trade_market":
+				has_market = true
+				break
+		_trade_nav_btn.visible = has_market
 
 ## 圆钮外观：**手绘像素贴图**（不是代码画的几何圆）。
 ##

@@ -39,9 +39,9 @@ func _run() -> void:
 	await process_frame
 	var font := UIKit.pixel_font()
 	var db := ContentDB.load_all()
-	# ---- 1. 内容：giver / giverPortrait / outro / schemaVersion 2 ----------
-	if db.quests_schema_version != 2:
-		_fail("quests.json 的 schemaVersion 应当是 2，实际 %d" % db.quests_schema_version)
+	# ---- 1. 内容：giver / giverPortrait / outro / schemaVersion 3 ----------
+	if db.quests_schema_version != 3:
+		_fail("quests.json 的 schemaVersion 应当是 3，实际 %d" % db.quests_schema_version)
 		return
 	for qid in db.quest_ids:
 		var q: Dictionary = db.quests[qid]
@@ -62,9 +62,12 @@ func _run() -> void:
 	var outro_count := 0
 	for ch in db.chapters:
 		var outro: Dictionary = ch.get("outro", {})
+		# 章 1–6 有收尾戏；章 7–17 的剧情在 C2 那一段里补（现在只有章节表）
 		if outro.is_empty():
-			_fail("第 %d 章没有 outro（章节完成时该弹对话）" % int(ch["id"]))
-			return
+			if int(ch["id"]) <= 6:
+				_fail("第 %d 章没有 outro（章节完成时该弹对话）" % int(ch["id"]))
+				return
+			continue
 		outro_count += 1
 		var sp := String(outro.get("speaker", ""))
 		if Cast.speaker_name(sp) == sp:
@@ -84,17 +87,19 @@ func _run() -> void:
 					_fail("第 %d 章 outro 有像素字体画不出的字：%s（「%s」）" % [int(ch["id"]), ch2, l])
 					return
 	var ch1: Dictionary = db.chapters[0]
+	# 用户 2026-10：第一章收尾那两个选项**删掉**了（她送的预言不许拒绝）——
+	# 后面直接接 5 行固定预言，所以这里应该一个选项都没有、台词 11 页。
 	var choices: Array = (ch1.get("outro", {}) as Dictionary).get("choices", [])
-	if choices.size() != 2:
-		_fail("第一章 outro 应当有 2 个选项，实际 %d" % choices.size())
+	if not choices.is_empty():
+		_fail("第一章 outro 不该再有选项，实际 %d 个" % choices.size())
 		return
-	if String((choices[0] as Dictionary).get("id", "")) != "accept" \
-			or String((choices[0] as Dictionary).get("action", "")) != "free_prophecy":
-		_fail("第一章第一个选项应当是 accept → free_prophecy")
+	var ch1_lines: Array = (ch1.get("outro", {}) as Dictionary).get("lines", [])
+	if ch1_lines.size() != 11:
+		_fail("第一章 outro 应当是 6 行登场 + 5 行固定预言 = 11 行，实际 %d" % ch1_lines.size())
 		return
-	if String((choices[1] as Dictionary).get("id", "")) != "decline" \
-			or String((choices[1] as Dictionary).get("action", "")) != "close":
-		_fail("第一章第二个选项应当是 decline → close")
+	if String(ch1_lines[6]) != "我看见的都不清楚……" \
+			or String(ch1_lines[10]) != "……别问我什么时候。我要是知道，就不会住在这种地方了。":
+		_fail("第一章那条固定预言的头尾不对：%s / %s" % [String(ch1_lines[6]), String(ch1_lines[10])])
 		return
 	print("QUESTTALK TEST 内容：%d 条任务有发布人/立绘、%d 章有 outro、第一章 %d 个选项、缺字 0 ✅" % [
 		db.quest_ids.size(), outro_count, choices.size()])
@@ -103,8 +108,8 @@ func _run() -> void:
 	var sim = SimCore.new(db)
 	sim.new_game("v0.3", 20261016)
 	var pend: Array = sim.quest_talks_pending()
-	if pend.size() != 2:
-		_fail("开局应当有 2 条任务对话（第 1 章两条），实际 %d" % pend.size())
+	if pend.size() != 3:
+		_fail("开局应当有 3 条任务对话（第 1 章两条 + 送物资支线），实际 %d" % pend.size())
 		return
 	var first: Dictionary = pend[0]
 	if String(first["key"]) != "q:q01_bread_chain":
@@ -140,13 +145,13 @@ func _run() -> void:
 		_fail("第 1 章收尾的说话人应当是 seraphina，实际「%s」"
 			% String((pend2[0] as Dictionary)["speaker"]))
 		return
-	if ((pend2[0] as Dictionary)["choices"] as Array).size() != 2:
-		_fail("第 1 章收尾没有把 choices 摊给界面")
+	if not ((pend2[0] as Dictionary)["choices"] as Array).is_empty():
+		_fail("第 1 章收尾不该再摊出选项（玩家不能拒绝）")
 		return
 	if String((pend2[1] as Dictionary)["kind"]) != "quest":
 		_fail("第 1 章收尾之后应当是第 2 章的任务对话")
 		return
-	print("QUESTTALK TEST 引擎：开局 2 条 → 播过不再来 → 章节收尾排在下一章任务之前 ✅")
+	print("QUESTTALK TEST 引擎：开局 3 条 → 播过不再来 → 章节收尾排在下一章任务之前 ✅")
 
 	# ---- 3. 界面：能播、能翻页、能选 --------------------------------------
 	# ⚠️ `host` 必须是**铺满视口**的：对话是 `PRESET_FULL_RECT`，它的尺寸跟着父节点走；
@@ -208,10 +213,21 @@ func _run() -> void:
 		_fail("对话结束之后还看得见")
 		return
 
-	# 带选项的那条：最后一页出两个按钮，点 accept → finished("free_prophecy")
+	# 选项机制本身还得管用（后面几十场分支戏都要靠它）——
+	# 所以这里喂一段**合成**的对话：内容里已经没有带选项的场次了
+	# （用户 2026-10 把第一章那两个删了，见 docs/quests.md §十二）。
 	got["n"] = 0
 	got["action"] = "<none>"
-	talk.play(pend2[0])
+	var synth := {
+		"key": "t:choice", "kind": "outro", "id": "t", "chapter": 1,
+		"speaker": "seraphina", "portrait": "seraphina_hooded",
+		"lines": ["第一页。", "最后一页。"],
+		"choices": [
+			{"id": "accept", "text": "……说下去。", "action": "free_prophecy"},
+			{"id": "decline", "text": "不必了。", "action": "close"},
+		],
+	}
+	talk.play(synth)
 	var row: HBoxContainer = talk.get("_choice_row")
 	for i in 20:
 		if row.visible:
@@ -348,7 +364,7 @@ func _run() -> void:
 		return
 	if not _nav_layout_ok(nav_col, hud, 6):
 		return
-	print("QUESTTALK TEST 圆钮排版：先 5 个（含预言）→ 科技插到第 4 位变 6 个，中间不留洞 ✅")
+	print("QUESTTALK TEST 圆钮排版：先 5 个（含预言；贸易要市场才露）→ 科技插到第 4 位变 6 个，中间不留洞 ✅")
 
 	# 城镇中心：贴图跟着**段位**走（三张：破旧 / 初步修缮 / 修好）
 	var world = node.get_node("World")
@@ -379,7 +395,7 @@ func _run() -> void:
 	print("QUESTTALK TEST 城镇中心：破旧 → 初步修缮 → 修好，三张贴图各就各位 ✅")
 
 	# ---- 5. 存档版本：2 起不兼容老档 -------------------------------------
-	if SaveManager.SAVE_VERSION != 4:
+	if SaveManager.SAVE_VERSION != 5:
 		_fail("存档版本应当是 4（M4 游商；用户：版本更新，存档不跟之前兼容）")
 		return
 	var path := "user://qtt_v1.json"
@@ -393,7 +409,7 @@ func _run() -> void:
 		_fail("v1 老存档居然还能读进来（用户要求不兼容）")
 		return
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
-	print("QUESTTALK TEST 存档：SAVE_VERSION=3，老档被拒 ✅")
+	print("QUESTTALK TEST 存档：SAVE_VERSION=5，老档被拒 ✅")
 
 	print("QUESTTALK TEST RESULT: PASS")
 	quit(0)

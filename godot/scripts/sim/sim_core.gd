@@ -199,6 +199,12 @@ func new_game(pack_id: String, seed_value: int, resource_mult: float = 1.0) -> v
 		# `shown` = 已经播过的剧情对话（`q:<id>` / `c:<章节>`）—— 只记事、不演化，
 		# 和 `prophet` / `townCenter` 同一类；黄金摘要按字段取，碰不到它。
 		"quests": {"done": {}, "chapters": {}, "shown": {}},
+		# 送出去的东西（用户 2026-10 · A4）：`gifts[收礼人][商品] = 累计数量`。
+		# 只由 `gift` 命令往上加；任务目标 `gifted` 读它（见 docs/quests.md §四）。
+		"gifts": {},
+		# 场次（不挂任务的戏，用户 2026-10 · A1）：播过哪几场。
+		# 和 `quests.shown` 同一类东西 —— 读档 / 退出重进都不会重播，也不会漏播。
+		"scenes": {"shown": {}},
 		# 山顶那位预言家（AI 辅助）：`lastAskDay` = 上次问他话是第几天（-1 = 还没问过）。
 		# 冷却 PROPHET_COOLDOWN_DAYS 天，见 docs/ai-assist.md §六。
 		# ⚠️ 这是**唯一一个不参与仿真演化**的状态段：问不问都不改村子的任何数值。
@@ -216,6 +222,8 @@ func new_game(pack_id: String, seed_value: int, resource_mult: float = 1.0) -> v
 		"researchWorkToday": 0.0,
 		"history": [{"day": 0, "population": pop, "avgSatisfaction": float(sd["satisfaction"]), "money": money, "hungry": 0, "employed": 0, "ledger": _empty_ledger(0)}],
 		"log": [], "alerts": [], "arrivals": 0,
+		# 昨夜的需求满足率（派生量、只给面板看；第一个夜晚就会被覆盖）
+		"needScores": {},
 		# 村庄名（可改，随存档保存）。UI 层显示用，不参与任何仿真计算。
 		"villageName": "sovit",
 	}
@@ -343,6 +351,10 @@ func _run_night() -> Array:
 	logs.append_array(_collect_rent(day))
 	var cons = _run_consumption(day)
 	logs.append_array(cons["logs"])
+	# 需求满足率留一份给面板（**派生量、只读**：没人再拿它算东西，见 GameState.needScores）
+	if not (s.get("needScores", null) is Dictionary):
+		s["needScores"] = {}
+	s["needScores"] = (cons.get("needScores", {}) as Dictionary).duplicate()
 	logs.append_array(_run_private_housing_market(day))
 	_assign_tenure()
 	_update_satisfaction(cons["foodScore"], cons["comfortScore"], cons["priceScore"])
@@ -455,6 +467,25 @@ func _apply_actions(actions: Array) -> Array:
 				var why_buy := buy_from_caravan(String(action["caravanId"]), String(action["goodId"]), int(action["qty"]))
 				if why_buy != "":
 					logs.append({"day": int(s["day"]), "kind": "finance", "text": "买入被拒：" + why_buy})
+			"gift":
+				# 送物资（用户 2026-10 · A4）：与建造 / 研究同一拍 —— 次日黎明生效。
+				# 扣货 + 记进 `s["gifts"][to][good]`，任务目标 `gifted` 判的就是这个累计量。
+				# 整单成败：仓库不够就一件都不送（与 TS `actions.ts::gift` 同口径）。
+				# ⚠️ match 分支里不要用 `:=`（GDScript 会报 "Expected end of statement"）。
+				var gift_gid := String(action.get("goodId", ""))
+				var gift_to := String(action.get("to", "")).strip_edges()
+				var gift_qty := int(floor(float(action.get("qty", 0))))
+				if db.goods.has(gift_gid) and gift_qty > 0 and gift_to != "" \
+						and float(s["goods"].get(gift_gid, 0.0)) + 1e-9 >= float(gift_qty):
+					s["goods"][gift_gid] = SimUtil.r2(float(s["goods"].get(gift_gid, 0.0)) - float(gift_qty))
+					if not (s.get("gifts", null) is Dictionary):
+						s["gifts"] = {}
+					if not (s["gifts"].get(gift_to, null) is Dictionary):
+						s["gifts"][gift_to] = {}
+					s["gifts"][gift_to][gift_gid] = SimUtil.r2(
+						float(s["gifts"][gift_to].get(gift_gid, 0.0)) + float(gift_qty))
+					logs.append({"day": int(s["day"]), "kind": "invest",
+						"text": "送物资：%s ×%d" % [_good_name(gift_gid), gift_qty]})
 			"toggle":
 				var shop = _find_shop(String(action["shopId"]))
 				if shop != null:
@@ -999,6 +1030,21 @@ func coverage_ratios() -> Dictionary:
 	for k in out.keys():
 		out[k] = clampf(float(covered_people(String(k))) / float(pop), 0.0, 1.0)
 	return out
+
+## 教育满足率对**熟练度成长**的加成（唯一一份实现）。
+##
+## 满教育满足率 → ×1.5；没学校 / 没满足 → ×1.0（见 `_grow_skills`）。
+## 与 TS `labor.ts::EDUCATION_GROWTH_BONUS` 同值 —— 面板上那个「×1.00–×1.50」
+## 直接读 `education_growth_multiplier()`，UI 不再自己抄一份 0.5。
+const EDUCATION_GROWTH_BONUS := 0.5
+
+## 昨夜的教育满足率（0..1，来自 `s["needScores"]["education"]`）。
+func education_score() -> float:
+	return clampf(float((s.get("needScores", {}) as Dictionary).get("education", 0.0)), 0.0, 1.0)
+
+## 熟练度成长倍率：×1.00（没教育）… ×1.50（教育满足率满）。
+func education_growth_multiplier() -> float:
+	return 1.0 + EDUCATION_GROWTH_BONUS * education_score()
 
 ## "开着门" = 在岗有人 +（有配方时）当天排得上产。
 func _coverage_running(shop: Dictionary, def: Dictionary) -> bool:
@@ -2789,6 +2835,48 @@ func _repair_stage_word(want_stage: String) -> String:
 func _quest_shown(x: float) -> int:
 	return int(floor(x + 1e-9))
 
+# ---------------------------------------------------------------------------
+# 历法（用户 2026-10 · B0 · AE 纪元日期）
+#
+# 玩家看到的时间从「第 37 天」改成 `AE 312 年 2 月 7 日`：
+# 第 1 天 = AE 312 年 1 月 1 日（AE = 帝国纪元 = After Empire）。
+#
+# 三条口径（与 TS `calendar.ts` 同一条）：
+#   1. **纯派生**：`s["day"]` 一个字节都不动 —— 日历只是"把天数读成人话"，
+#      不升存档版本、不影响黄金轨迹。
+#   2. **唯一实现**：这边是 `date_of()` / `date_label()`，TS 是 `calendar.ts`。
+#      UI **一个字都不许自己拼**（拼了就会两边长得不一样）。
+#   3. **日期不驱动剧情**：节奏靠任务与章节间隔（`gapDays`），历法只负责显示。
+# 常量来自 `content/economy.json` 的 `time.calendar`（12 个月 × 30 天 = 360 天/年）。
+# ---------------------------------------------------------------------------
+
+## 第 `day` 天是几月几日（`day` 从 1 起；小于 1 按第 1 天算）。
+func date_of(day: int) -> Dictionary:
+	var cal: Dictionary = db.time.get("calendar", {}) if db != null else {}
+	var dpm := maxi(1, int(cal.get("daysPerMonth", 30)))
+	var mpy := maxi(1, int(cal.get("monthsPerYear", 12)))
+	var epoch := int(cal.get("epochYear", 312))
+	var zero := maxi(0, day - 1)
+	return {
+		"year": epoch + int(floor(float(zero) / float(dpm * mpy))),
+		"month": int(floor(float(zero) / float(dpm))) % mpy + 1,
+		"day": zero % dpm + 1,
+	}
+
+## 纪元前缀（`AE`）。全项目只有 `intro.gd` 那一处写中文全称「帝国纪元（AE）」。
+func epoch_prefix() -> String:
+	var cal: Dictionary = db.time.get("calendar", {}) if db != null else {}
+	return String(cal.get("epochPrefix", "AE"))
+
+## `AE 312 年 1 月 1 日` —— 顶栏、公告、任务面板、存档、预言 tooltip 都用它。
+func date_label(day: int) -> String:
+	var d := date_of(day)
+	return "%s %d 年 %d 月 %d 日" % [epoch_prefix(), int(d["year"]), int(d["month"]), int(d["day"])]
+
+## `AE 312 年 1 月 1 日 06:00` —— 需要连时刻一起说的地方。
+func date_time_label(day: int, hour: int) -> String:
+	return "%s %02d:00" % [date_label(day), hour]
+
 ## 历史上（含今天）某商品的单日产量峰值（"看产能，不看库存"就靠它）。
 func _quest_produced_peak(gid: String) -> float:
 	var today: Dictionary = s.get("ledgerToday", {})
@@ -2889,6 +2977,12 @@ func _quest_goal_progress(goal: Dictionary) -> Dictionary:
 			n3 += int(floor(float(v)))
 		have = float(n3)
 		text = "私有住房 %d/%d 户" % [_quest_shown(have), int(need)]
+	elif type == "gifted":
+		# 判的是"送出去多少"，不是"仓库里有多少"（见 docs/quests.md §四）。
+		var to := String(goal.get("to", ""))
+		var bag: Dictionary = (s.get("gifts", {}) as Dictionary).get(to, {})
+		have = float(bag.get(gid, 0.0))
+		text = "%s 已送出 %d/%d" % [_quest_name("good", gid), _quest_shown(have), int(need)]
 	return {"have": have, "need": need, "met": have + 1e-9 >= need, "text": text}
 
 ## 前置是否都完成过。
@@ -2898,6 +2992,45 @@ func _quest_unlocked(def: Dictionary) -> bool:
 		if not done.has(String(r)):
 			return false
 	return true
+
+## 这一章最早哪一天开（用户 2026-10 · B1 · 剧情时钟）。
+##
+## 口径：`chapters[i].gapDays` = **上一章领奖那天**起再隔几天。
+## 章 1–5 填 0（不闸），章 6 起填 3–5 的固定值。
+## 返回 `0` = 不闸；`0x7FFFFFFF` = 上一章还没收尾，这一章根本还没到点。
+## 与 TS `quests.ts::chapterOpenDay` 同口径。
+func quest_chapter_open_day(cid: int) -> int:
+	var idx := -1
+	for i in db.chapters.size():
+		if int(db.chapters[i]["id"]) == cid:
+			idx = i
+			break
+	if idx <= 0:
+		return 0
+	var gap := int(db.chapters[idx].get("gapDays", 0))
+	if gap <= 0:
+		return 0
+	var prev_id := str(int(db.chapters[idx - 1]["id"]))
+	var chapters: Dictionary = s["quests"]["chapters"]
+	if not chapters.has(prev_id):
+		return 0x7FFFFFFF
+	return int(chapters[prev_id]) + gap
+
+## 这一章开没开（见 `quest_chapter_open_day`）。
+func quest_chapter_open(cid: int) -> bool:
+	return int(s["day"]) >= quest_chapter_open_day(cid)
+
+## 这条任务现在**存在**吗：前置全完成 + 这一章已经开了（只闸主线）。
+##
+## 渐进显示与剧情时钟都收在这一处 —— 追踪条、面板、黎明结算、对话播报四个入口
+## 必须问同一个函数（与 TS `quests.ts::questAvailable` 同口径）。
+func _quest_available(def: Dictionary) -> bool:
+	if not _quest_unlocked(def):
+		return false
+	# 剧情时钟只闸主线：支线（送物资 / 顺手活）与里程碑（填条）不是"下一章"的内容。
+	if String(def.get("kind", "main")) != "main":
+		return true
+	return quest_chapter_open(int(def["chapter"]))
 
 ## 一条任务的进度（只读）。引擎判定与 UI 显示共用这一份。
 func quest_progress(qid: String) -> Dictionary:
@@ -2924,6 +3057,9 @@ func quest_progress(qid: String) -> Dictionary:
 		# 自己回去翻 `db`，那就等于把内容细节漏进表现层了。
 		"brief": String(def.get("brief", "")),
 		"reward": float(def["reward"]),
+		# 种类（用户 2026-10 · B2）：`main` / `side` / `milestone`。
+		# `side` 是给老 UI 留的派生别名（== kind 是 side），新代码只认 kind。
+		"kind": String(def.get("kind", "main")),
 		"side": bool(def.get("side", false)),
 		"goals": goals,
 		"met": met,
@@ -2948,7 +3084,7 @@ func quest_view() -> Array:
 	for qid in db.quest_ids:
 		if done.has(qid):
 			continue
-		if not _quest_unlocked(db.quests[qid]):
+		if not _quest_available(db.quests[qid]):
 			continue
 		out.append(quest_progress(qid))
 	return out
@@ -2967,7 +3103,7 @@ func quest_journal() -> Array:
 	var out := []
 	var done: Dictionary = s["quests"]["done"]
 	for qid in db.quest_ids:
-		if not done.has(qid) and not _quest_unlocked(db.quests[qid]):
+		if not done.has(qid) and not _quest_available(db.quests[qid]):
 			continue
 		out.append(quest_progress(qid))
 	return out
@@ -3023,13 +3159,18 @@ func quest_talks_pending() -> Array:
 		})
 	var done: Dictionary = s["quests"]["done"]
 	var chapters: Dictionary = s["quests"]["chapters"]
-	for ch in db.chapters:
+	for ci in db.chapters.size():
+		var ch: Dictionary = db.chapters[ci]
 		var cid := str(int(ch["id"]))
+		# 场次（用户 2026-10 · A1）：`when.chapter: N` 的场次说的是"第 N 章收尾之后"，
+		# 所以它排在第 N+1 章的任务**之前**（章与章之间那段戏）。
+		if ci > 0:
+			out.append_array(_scenes_after_chapter(int(db.chapters[ci - 1]["id"]), int(ch["id"])))
 		for qid in db.quest_ids:
 			var def: Dictionary = db.quests[qid]
 			if int(def["chapter"]) != int(ch["id"]) or done.has(qid):
 				continue
-			if not _quest_unlocked(def):
+			if not _quest_available(def):
 				continue
 			var key := "q:" + String(qid)
 			if bool(shown.get(key, false)):
@@ -3056,10 +3197,86 @@ func quest_talks_pending() -> Array:
 			"lines": (outro.get("lines", []) as Array).duplicate(),
 			"choices": (outro.get("choices", []) as Array).duplicate(),
 		})
+	# 最后一章收尾之后的场次（之后就没有"下一章"了）
+	if not db.chapters.is_empty():
+		var last_id := int(db.chapters[db.chapters.size() - 1]["id"])
+		out.append_array(_scenes_after_chapter(last_id, last_id))
 	return out
 
+## 某一章收尾**之后**该播的场次（按内容定义顺序）。
+## `near_chapter` = 这段戏"算是哪一章附近"的（只给 UI 一个章节号，不做判定）。
+func _scenes_after_chapter(chapter_id: int, near_chapter: int) -> Array:
+	var out := []
+	var shown: Dictionary = (s.get("scenes", {}) as Dictionary).get("shown", {})
+	for sc in db.scenes:
+		var when: Dictionary = sc.get("when", {})
+		if int(when.get("chapter", 0)) != chapter_id:
+			continue
+		var key := "s:" + String(sc["id"])
+		if bool(shown.get(key, false)):
+			continue
+		if not _scene_ready(sc):
+			continue
+		out.append({
+			"key": key, "kind": "scene", "id": String(sc["id"]),
+			"chapter": near_chapter,
+			"speaker": String(sc.get("speaker", "")),
+			"portrait": String(sc.get("portrait", "")),
+			"lines": (sc.get("lines", []) as Array).duplicate(),
+			"choices": (sc.get("choices", []) as Array).duplicate(),
+		})
+	return out
+
+## 这一场现在该播了吗（与 TS `scenes.ts::sceneReady` 同口径）。
+## `afterDays` 的起算点：有 `chapter` → 那一章**领奖那天**；没有 → 第 1 天。
+func _scene_ready(sc: Dictionary) -> bool:
+	var when: Dictionary = sc.get("when", {})
+	var open_day := 1
+	if when.has("chapter"):
+		var ch_day = (s["quests"]["chapters"] as Dictionary).get(str(int(when["chapter"])), null)
+		if ch_day == null:
+			return false
+		open_day = int(ch_day)
+	open_day += maxi(0, int(when.get("afterDays", 0)))
+	if int(s["day"]) < open_day:
+		return false
+	if when.has("minDay") and int(s["day"]) < int(when["minDay"]):
+		return false
+	if when.has("pop") and (s["residents"] as Array).size() < int(when["pop"]):
+		return false
+	if when.has("building"):
+		var want := String(when["building"])
+		var n := 0
+		for shop in (s["shops"] as Array):
+			if String(shop["defId"]) == want:
+				n += 1
+		if n < 1:
+			return false
+	if when.has("tech") and not (s["research"]["done"] as Array).has(String(when["tech"])):
+		return false
+	if when.has("class"):
+		var need := maxi(1, int(when.get("classMin", 1)))
+		var cnt := 0
+		for r in (s["residents"] as Array):
+			if String(r["classId"]) == String(when["class"]):
+				cnt += 1
+		if cnt < need:
+			return false
+	return true
+
 ## 记一笔"这段播过了"（只记事，不改任何数字）。
+##
+## 键前缀决定记在哪本账上：`s:` 是场次（`scenes.shown`），其余是任务对话
+## （`quests.shown`）。两份账分开是因为场次不属于任务系统，但入口**只有一个** ——
+## 播放器（`quest_talk.gd` / `main.gd`）不需要知道这件事（与 TS 同口径）。
 func quest_talk_mark_shown(key: String) -> void:
+	if key.begins_with("s:"):
+		if not (s.get("scenes", null) is Dictionary):
+			s["scenes"] = {"shown": {}}
+		if not (s["scenes"].get("shown", null) is Dictionary):
+			s["scenes"]["shown"] = {}
+		s["scenes"]["shown"][key] = true
+		return
 	if not (s["quests"].get("shown", null) is Dictionary):
 		s["quests"]["shown"] = {}
 	s["quests"]["shown"][key] = true
@@ -3076,6 +3293,16 @@ func quest_chapter_done(cid: int) -> bool:
 func prophet_unlocked() -> bool:
 	return quest_chapter_done(1)
 
+## 这条任务完成时实际发多少钱。
+##
+## 里程碑一律 0（内容校验也拦：`kind: "milestone"` 不许写 `reward`）。
+## 单独一个函数，是为了让"发了多少"与"公告怎么说"永远同一个数
+## （与 TS `quests.ts::questReward` 同口径）。
+func quest_reward(def: Dictionary) -> float:
+	if String(def.get("kind", "main")) == "milestone":
+		return 0.0
+	return float(def.get("reward", 0.0))
+
 ## 黎明结算：把已经达成的任务记账、发钱、写公告（不用玩家"提交"）。
 ##
 ## 用 `while`/`sweep` 反复扫：同一次黎明里可能**连锁**完成（刚建好的研究所让一条
@@ -3091,19 +3318,19 @@ func _check_quests() -> Array:
 			if done.has(qid):
 				continue
 			var def: Dictionary = db.quests[qid]
-			if not _quest_unlocked(def):
+			if not _quest_available(def):
 				continue
 			if not bool(quest_progress(qid)["met"]):
 				continue
 			done[qid] = day
 			s["government"]["money"] = SimUtil.r2(
-				float(s["government"]["money"]) + float(def["reward"]))
+				float(s["government"]["money"]) + float(quest_reward(def)))
 			finished.append(def)
 			progressed = true
 		if not progressed:
 			break
 
-	# 章节奖励：本章"算数"的任务全绿（支线不影响）
+	# 章节奖励：本章"算数"的任务全绿（支线与里程碑都不算）
 	var chapters: Dictionary = s["quests"]["chapters"]
 	var chapter_done := []
 	for ch in db.chapters:
@@ -3113,7 +3340,7 @@ func _check_quests() -> Array:
 		var list := []
 		for qid in db.quest_ids:
 			var def2: Dictionary = db.quests[qid]
-			if int(def2["chapter"]) != int(ch["id"]) or bool(def2.get("side", false)):
+			if int(def2["chapter"]) != int(ch["id"]) or String(def2.get("kind", "main")) != "main":
 				continue
 			list.append(qid)
 		if list.is_empty():
@@ -3131,17 +3358,26 @@ func _check_quests() -> Array:
 		chapter_done.append(ch)
 
 	if not finished.is_empty():
+		# 里程碑不发钱 —— 公告也就不能写「（+0 金）」，不然玩家会去查账
+		var total := 0
+		for q in finished:
+			total += int(quest_reward(q))
 		if finished.size() == 1:
 			var only: Dictionary = finished[0]
-			logs.append(_quest_log(day, "完成任务：%s（+%d 金）" % [String(only["title"]), int(only["reward"])]))
+			if total > 0:
+				logs.append(_quest_log(day, "完成任务：%s（+%d 金）" % [String(only["title"]), total]))
+			else:
+				logs.append(_quest_log(day, "完成任务：%s" % String(only["title"])))
 		else:
-			var total := 0
 			var titles := PackedStringArray()
 			for q in finished:
-				total += int(q["reward"])
 				titles.append(String(q["title"]))
-			logs.append(_quest_log(day, "完成 %d 项任务（+%d 金）：%s"
-				% [finished.size(), total, "、".join(titles)]))
+			if total > 0:
+				logs.append(_quest_log(day, "完成 %d 项任务（+%d 金）：%s"
+					% [finished.size(), total, "、".join(titles)]))
+			else:
+				logs.append(_quest_log(day, "完成 %d 项任务：%s"
+					% [finished.size(), "、".join(titles)]))
 
 		# 这次结算把哪些任务"顶"了出来 —— 只报这些，别把早就可见的再报一遍
 		var just_done := {}
@@ -3157,7 +3393,7 @@ func _check_quests() -> Array:
 				if just_done.has(String(r)):
 					hit = true
 					break
-			if not hit or not _quest_unlocked(def3):
+			if not hit or not _quest_available(def3):
 				continue
 			opened.append(String(def3["title"]))
 		if not opened.is_empty():

@@ -744,13 +744,15 @@ out = ((t ^ (t >> 14)) & 0xFFFFFFFF) / 2^32
 ```
 for sweep in range(questIds.size() + 1):          # 反复扫，直到这一轮没有新完成
   for q in questIds:                              # 内容定义顺序（确定性）
-    未完成 && requires 全部完成过 && goals 全为真:
-        quests.done[q] = day ; government.money += q.reward ; 记一条公告
-        若同一次黎明完成多条 → 合并成一条「完成 N 项任务（+M 金）：A、B」
+    未完成 && requires 全部完成过 && 本章已开（只闸主线） && goals 全为真:
+        quests.done[q] = day ; government.money += reward(q) ; 记一条公告
+        若同一次黎明完成多条 → 合并成一条「完成 N 项任务（+M 金）：A、B」（M = 0 时不写金额）
         并报出被这次结算"顶"出来的新任务：「新任务：…」
-章节奖励：某一章的**非支线**任务全绿 → quests.chapters[chapter] = day ; money += chapter.reward
+章节奖励：某一章的**主线**（`kind:"main"`）全绿 → quests.chapters[chapter] = day ; money += chapter.reward
 日志：「章节「X」全部完成（+1000 金）」
 ```
+
+`reward(q)`：`kind:"milestone"` 一律 0（内容校验也拦：里程碑不许写 `reward`）。
 
 - 判定**只看当前状态**（`shops` / `housing` / `residents` / `research.done` / `goods` /
   `history` 台账 / `privateHousing`）—— 所以玩家先干了、任务后出现也**当场算完成**
@@ -759,12 +761,20 @@ for sweep in range(questIds.size() + 1):          # 反复扫，直到这一轮�
 - 显示文案由**引擎**拼（`goalProgress().text` / `quest_progress()`），数字一律向下取整；
   UI 不许自己拼 —— 否则 TS 与 GDScript 会显示出两种样子
 
-### 16.2 可见性 `questView`（渐进显示）
+### 16.2 可见性 `questView`（渐进显示 + 剧情时钟）
 
 ```
-返回   未完成但 requires 全完成过的  +  今天刚完成的（done[q] >= day，留一天打勾）
-不返回 还没解锁的（玩家不该知道后面还有什么）、以及昨天以前完成的
+返回   未完成但 **可用**（`questAvailable`）的  +  今天刚完成的（done[q] >= day，留一天打勾）
+不返回 还没解锁的（玩家不该知道后面还有什么）、还没到点的、以及昨天以前完成的
+
+questAvailable(q) = requires 全部完成过
+                    && （q.kind != "main"  或  本章已开）        # 剧情时钟只闸主线
+本章已开(ch)      = gapDays(ch) == 0  或  day >= chapters[上一章] + gapDays(ch)
 ```
+
+`chapters[].gapDays` = **上一章领奖那天**起再隔几天（章 1–5 填 0，章 6 起 3–5 的固定值）。
+上一章还没收尾时这一章一律不开；支线（送物资等）与里程碑**不受**它管 —— 它们不是"下一章的内容"。
+同一个 `questAvailable` 被四个入口共用：追踪条、任务面板、黎明结算、剧情对话播报。
 
 ### 16.3 goal 类型（摘要，细节见 docs/quests.md §四）
 
@@ -776,6 +786,7 @@ for sweep in range(questIds.size() + 1):          # 反复扫，直到这一轮�
 | `good` / `produced` | 仓库库存不低于 N / **历史单日产量**曾达到 N（看产能不看库存） |
 | `avg_satisfaction` | 全体居民满意度的算术平均 |
 | `building_repaired` | 一座**塌了的**建筑修到了某段位（`state.townCenter.stage`）；id 写 `townhall` 或 `town_center` 都认。`stage` 缺省 = `restored`（已修好），`stage:"patched"` = 至少初步修缮过（三段见 `spec` §5.6 / `docs/town.md` §二十六）。别名写法 `{type:"building", id:"town_center", repaired:true}` 等价（也认 `stage`）|
+| **`gifted`** | **累计送出**某商品不少于 N（`state.gifts[to][good]`）。⚠️ 判的是"送出去多少"，**不是**库存 —— 所以它糊不了 `good`：东西得真的走 `gift` 命令出门才算数（见 §17）|
 
 ### 16.4 面板数据源 `questJournal`（全部**已知**任务）
 
@@ -854,4 +865,60 @@ state.prophet = { lastAskDay: int }      # -1 = 这一局还没问过
 - 表现层：`godot/scripts/ui/quest_talk.gd`（galgame 框），由 `main.gd` 在
   `hour_ticked` / 开场剧情结束后轮询 `quest_talks_pending()`；对话期间
   `hud.set_paused_external(true)` 暂停时间（纯表现层，不进仿真状态）
-- 选项的 `action` 由 UI 消费：`free_prophecy` → 打开预言面板并**跳过 5 天冷却**问一次
+- 选项的 `action` 由 UI 消费。⚠️ **2026-10-18 起章 1 收尾没有选项**：
+  那 6 行原文保留，后面直接接 **5 行固定预言**（玩家不能拒绝），`free_prophecy` 这个动作
+  与 `ai_panel.open_free_prophecy()` 一并作废。机制本身（`choices` / `action`）保留，
+  留给后面的分支场次（例如章 15「救不救集会」）。
+
+### 16.8 任务种类 `kind`（用户 2026-10 · B2）
+
+| kind | 进追踪条 | 进「支线」页 | 挡剧情时钟 | 算进章节奖励 | 发钱 |
+|---|---|---|---|---|---|
+| `main` | ✅ | — | ✅ | ✅ | ✅ |
+| `side` | ✅ | ✅ | — | — | ✅ |
+| `milestone` | ✅ | —（单独一组）| — | — | ❌ **不发** |
+
+- 内容里 `"kind"` 与老写法 `"side": true` 都收；校验器把两者归成**一份真相**（`kind`），
+  `side` 只是派生别名（GDScript 侧 `quest_provider` 也这么归）
+- 里程碑**唯一的职责是让追踪条不空**（目标可以设得很远，2000 人到不了也没关系）
+- 校验器拦两条：`kind:"milestone"` 不许写 `reward`；**主线不许 `requires` 支线 / 里程碑**
+
+## 17. 送物资 `gift`（用户 2026-10 · A4）
+
+```
+命令   { type:"gift", to:"serafina", goodId, qty }     # 与建造 / 研究同一拍：次日黎明生效
+语义   仓库够 → 扣 qty、state.gifts[to][good] += qty、写一条公告「送物资：粗面包 ×20」
+       仓库不够 / qty ≤ 0 / 商品不在本 pack → 整单不做（**没有"送一半"**）
+状态   state.gifts = { 收礼人: { 商品: 累计送出量 } }     # 存档 v5
+判定   任务目标 `gifted` 读它；`good`（库存）读不到"送出过多少"
+入口   预言面板底部一行「送物资」：选商品 + 填数量 + 点「送去」
+```
+
+## 18. 历法（`AE` 纪元，用户 2026-10 · B0）
+
+```
+第 1 天 = AE 312 年 1 月 1 日          # AE = 帝国纪元 = After Empire
+12 个月 × 30 天 = 360 天/年             # 常量在 content/economy.json 的 time.calendar
+year  = epochYear + floor((day-1) / 360)
+month = floor((day-1) / 30) % 12 + 1
+dom   = (day-1) % 30 + 1
+```
+
+- **纯派生**：`state.day` 一个字节都不动 → 不升存档版本、不动黄金轨迹
+- **唯一实现**：`src/engine/calendar.ts::dateOf()` / `godot/scripts/sim/sim_core.gd::date_of()`；
+  UI（顶栏时间框 / 公告 / 任务面板 / 存档列表 / 预言历史）**一个字都不自己拼**
+- **日期不驱动剧情**：节奏靠任务与 `chapters[].gapDays`，历法只负责显示
+
+## 19. 场次 `scenes`（"不挂任务的戏"，用户 2026-10 · A1）
+
+```
+内容   content/scenes.json: { id, when, speaker, portrait, lines[], choices[]? }
+when   { chapter?, afterDays?, minDay?, pop?, building?, tech?, class?+classMin? }   # 写几个要求几个
+闸     chapter 给了 → 那一章领奖那天 + afterDays（缺省 0）；没给 → 第 1 天 + afterDays
+记账   state.scenes.shown["s:<id>"] = true       # 只记事，进存档（v5）
+顺序   插在 `questTalks` 里：**上一章收尾之后、下一章任务之前**（章与章之间那段戏）
+播放   复用 quest_talk.gd —— `quest_talk_mark_shown("s:…")` 会写进 scenes.shown 而不是 quests.shown
+```
+
+场次**不进追踪条、不进任务面板**（它不是差事，是一段戏）；也不改任何数字 —— 与 `quests.shown`
+同一类"只记事"的状态段。

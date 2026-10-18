@@ -1,10 +1,11 @@
 {
-  "schemaVersion": 2,
+  "schemaVersion": 3,
   "chapters": [
     {
       "id": 1,
       "title": "先吃饱",
       "reward": 1000,
+      "gapDays": 0,
       "outro": {
         "speaker": "seraphina",
         "portrait": "seraphina_hooded",
@@ -14,19 +15,12 @@
           "听说来了个王子，我本来只是想看看热闹。",
           "结果……你连十二个人都快喂不饱了。",
           "这样吧，第一次预言，算我送你的。",
-          "想知道接下来该怎么办吗？"
-        ],
-        "choices": [
-          {
-            "id": "accept",
-            "text": "……说下去。",
-            "action": "free_prophecy"
-          },
-          {
-            "id": "decline",
-            "text": "不必了。",
-            "action": "close"
-          }
+          "想知道接下来该怎么办吗？",
+          "我看见的都不清楚……",
+          "有一顶王冠会落在空处 —— 说它该给谁的人，会先走一步。",
+          "兄弟们的刀不会朝着你，会朝着那把椅子。",
+          "南边的马蹄会先到。再往后……我就看不清了。",
+          "……别问我什么时候。我要是知道，就不会住在这种地方了。"
         ]
       }
     },
@@ -95,6 +89,7 @@
       "id": 6,
       "title": "千人之村",
       "reward": 1000,
+      "gapDays": 5,
       "outro": {
         "speaker": "renard",
         "portrait": "renard_smile",
@@ -105,6 +100,72 @@
           "他选对了人。"
         ]
       }
+    },
+    {
+      "id": 7,
+      "title": "姐姐的信",
+      "reward": 0,
+      "gapDays": 4
+    },
+    {
+      "id": 8,
+      "title": "铁鸦堡南下",
+      "reward": 0,
+      "gapDays": 3
+    },
+    {
+      "id": 9,
+      "title": "割据东南",
+      "reward": 0,
+      "gapDays": 5
+    },
+    {
+      "id": 10,
+      "title": "扩军",
+      "reward": 0,
+      "gapDays": 4
+    },
+    {
+      "id": 11,
+      "title": "翡翠之盟",
+      "reward": 0,
+      "gapDays": 4
+    },
+    {
+      "id": 12,
+      "title": "金穗归顺",
+      "reward": 0,
+      "gapDays": 5
+    },
+    {
+      "id": 13,
+      "title": "传教士的警告",
+      "reward": 0,
+      "gapDays": 3
+    },
+    {
+      "id": 14,
+      "title": "圣战",
+      "reward": 0,
+      "gapDays": 5
+    },
+    {
+      "id": 15,
+      "title": "集会被围",
+      "reward": 0,
+      "gapDays": 4
+    },
+    {
+      "id": 16,
+      "title": "联军",
+      "reward": 0,
+      "gapDays": 3
+    },
+    {
+      "id": 17,
+      "title": "称王",
+      "reward": 0,
+      "gapDays": 5
     }
   ],
   "quests": [
@@ -181,7 +242,7 @@
       "giverPortrait": "sebastian_neutral",
       "title": "按人口配产能",
       "hint": "单日产量要够：粗面包 30、蔬菜 15。再造一条链，或者选中建筑点「升级」（产量随等级翻倍）",
-      "brief": "属下担心的不是今天饿不饿，是下个月。人有嘴，还会越来越多；产能要是停在原地，等来的就是排队领饭。炉子多开一座，比事后赈济便宜得多。",
+      "brief": "老臣担心的不是今天饿不饿，是下个月。人有嘴，还会越来越多；产能要是停在原地，等来的就是排队领饭。炉子多开一座，比事后赈济便宜得多。",
       "reward": 500,
       "requires": [
         "q01_bread_chain",
@@ -483,7 +544,7 @@
       "giverPortrait": "renard_neutral",
       "title": "一百人的村子",
       "hint": "人口到 100 —— 只靠面包和蔬菜，满意度会开始顶不上去",
-      "brief": "殿下，一百个人，就不再是一村老小各干各的了——有人种地，有人烧窑，有人记账。这一步跨过去，村子的增长就靠自己转，不必大人一件件盯着。只是人一多，面包和菜也得跟着多。",
+      "brief": "殿下，一百个人，就不再是一村老小各干各的了——有人种地，有人烧窑，有人记账。这一步跨过去，村子的增长就靠自己转，不必殿下一件件盯着。只是人一多，面包和菜也得跟着多。",
       "reward": 500,
       "requires": [
         "q06_pop50",
@@ -499,8 +560,8 @@
     {
       "id": "q10a_white_bread",
       "chapter": 4,
-      "giver": "isabella",
-      "giverPortrait": "isabella_neutral",
+      "giver": "luna",
+      "giverPortrait": "luna_neutral",
       "title": "白面包",
       "hint": "研究「精磨」「白面包烘焙」→ 精面粉磨坊 + 白面包房（中产吃白面包）",
       "brief": "哼，穷人吃粗面包，中产可不肯。等村里攒下第一批有余钱的人，饭桌就是身份——白面、细点，才是他们愿意留下过的日子。精磨与白烤两道工序一起上，我们才留得住这些人。",
@@ -607,8 +668,8 @@
     {
       "id": "q10d_pottery",
       "chapter": 4,
-      "giver": "isabella",
-      "giverPortrait": "isabella_neutral",
+      "giver": "sebastian",
+      "giverPortrait": "sebastian_neutral",
       "title": "陶器",
       "hint": "研究「制陶」→ 陶器坊，仓库里攒 20 件陶器（耐放的奢侈品）",
       "brief": "陶器耐放、不腐，不会像粮菜那样一夜糟蹋。各家灶上都要用它，攒得住，也经得起囤。我相中的正是这一点：它是这村子第一样能放心存着的家当。",
@@ -636,8 +697,8 @@
     {
       "id": "q10e_theater",
       "chapter": 4,
-      "giver": "isabella",
-      "giverPortrait": "isabella_smile",
+      "giver": "luna",
+      "giverPortrait": "luna_smile",
       "title": "娱乐",
       "hint": "研究「娱乐」→ 造剧院（中产与富人都要娱乐，这是舒适度的大头）",
       "brief": "殿下，只让人吃饱、穿暖，日子还是闷的。人有闲钱之后第一件事就是找乐子——找不到，就搬到找得到的地方去。一座剧院，抵得上几条产线留住的人。",
@@ -801,8 +862,8 @@
     {
       "id": "q13_rich",
       "chapter": 5,
-      "giver": "isabella",
-      "giverPortrait": "isabella_neutral",
+      "giver": "vila",
+      "giverPortrait": "vila_neutral",
       "title": "富人",
       "hint": "让 1 个居民升到富人（存款 120），并造一座砖房（研究「砖石住房」）",
       "brief": "总要有人先富起来，村子才有本金、有税源、有体面。他们挑剔：砖房、细布、好酒，一样不到位就走。你若肯把砖房先备出来，我有信心留住第一批。",
@@ -870,12 +931,13 @@
     {
       "id": "q16_pop500",
       "chapter": 6,
+      "kind": "milestone",
       "giver": "renard",
       "giverPortrait": "renard_neutral",
       "title": "五百人的村子",
       "hint": "人口到 500 —— 食物、材料、就业、满意度，一个都不能掉",
       "brief": "五百人，已经是一个镇了。到这一步，粮食、材料、就业、满意，四条腿哪条断了都会塌。我请以五百口为界，把家底再盘一遍。",
-      "reward": 500,
+      "reward": 0,
       "requires": [
         "q12_pop250"
       ],
@@ -889,12 +951,13 @@
     {
       "id": "q17_output_mid",
       "chapter": 6,
+      "kind": "milestone",
       "giver": "vila",
       "giverPortrait": "vila_neutral",
       "title": "产能体检",
       "hint": "单日产量：粗面包 500、蔬菜 250（差不多是 1000 人的一半）",
       "brief": "人多不算本事，养得住才算。我想先看一眼账：等村子到了千人，一天要五百个粗面包、二百五十筐菜。趁现在把产能练到这个数，往后再翻一倍就不难了。",
-      "reward": 500,
+      "reward": 0,
       "requires": [
         "q12_pop250"
       ],
@@ -921,13 +984,509 @@
       "brief": "殿下，属下跟着您从十二个人干到今天。一千口人——到那时候，这村子就不靠哪一个人撑着，它自己会活。这是属下能想到的、最好的收梢。",
       "reward": 500,
       "requires": [
-        "q16_pop500",
-        "q17_output_mid"
+        "q12_pop250"
       ],
       "goals": [
         {
           "type": "population",
           "min": 1000
+        }
+      ]
+    },
+    {
+      "id": "q45_pop2000",
+      "chapter": 17,
+      "kind": "milestone",
+      "giver": "sebastian",
+      "giverPortrait": "sebastian_smile",
+      "title": "两千人的村子",
+      "hint": "人口到 2000 —— 这一条是留给后面的，到不了也不耽误事",
+      "brief": "殿下，两千人不是一句吉利话：那时候城门口天不亮就有人进出，粮车得排队。老臣这辈子没见过那样的城。您要是真走到那一天，替老臣看一眼。",
+      "reward": 0,
+      "requires": [
+        "q18_pop1000"
+      ],
+      "goals": [
+        {
+          "type": "population",
+          "min": 2000
+        }
+      ]
+    },
+    {
+      "id": "q12_safety",
+      "chapter": 5,
+      "giver": "sebastian",
+      "giverPortrait": "sebastian_neutral",
+      "title": "街上有灯",
+      "hint": "造一座治安所（研究「治安」），并让治安日产量到 20",
+      "brief": "殿下，村子一到两百口，夜里就有人不回家了——不是没地方去，是不敢走。灯要有人点、街要有人巡。一座治安所不算什么，可它一立起来，晚归的人心里就有底。",
+      "reward": 800,
+      "requires": [
+        "q10f_townhall_repair"
+      ],
+      "goals": [
+        {
+          "type": "building",
+          "id": "guard_station",
+          "min": 1
+        },
+        {
+          "type": "produced",
+          "id": "safety",
+          "min": 20
+        }
+      ]
+    },
+    {
+      "id": "q_s_isabella_lamp",
+      "chapter": 4,
+      "kind": "side",
+      "giver": "isabella",
+      "giverPortrait": "isabella_shy",
+      "title": "一盏像样的灯",
+      "hint": "造一座陶器坊，仓库里攒 20 件陶器（她只要一盏，剩下的是给她的面子）",
+      "brief": "我住的那间屋子，晚上黑得看不见自己的手。你们烧的陶器，厚的那几只，我拿来做灯座刚好。别多想，我只是不想把蜡烛插在泥块上。",
+      "reward": 300,
+      "requires": [
+        "q09_pop100"
+      ],
+      "goals": [
+        {
+          "type": "building",
+          "id": "pottery_works",
+          "min": 1
+        },
+        {
+          "type": "good",
+          "id": "pottery",
+          "min": 20
+        }
+      ]
+    },
+    {
+      "id": "q_s_sera_1",
+      "chapter": 1,
+      "kind": "side",
+      "giver": "seraphina",
+      "giverPortrait": "seraphina_hooded",
+      "title": "一趟面包",
+      "hint": "预言面板底部「送物资」：粗面包 20",
+      "brief": "你烤的东西，比我的锅干净。我那一带没什么人烟，能换的东西少得很。往后每个月给我送一趟，我拿它去换我要的。",
+      "reward": 150,
+      "requires": [],
+      "goals": [
+        {
+          "type": "gifted",
+          "to": "serafina",
+          "id": "coarse_bread",
+          "min": 20
+        }
+      ]
+    },
+    {
+      "id": "q_s_sera_2",
+      "chapter": 2,
+      "kind": "side",
+      "giver": "seraphina",
+      "giverPortrait": "seraphina_hooded",
+      "title": "两筐菜",
+      "hint": "预言面板底部「送物资」：蔬菜 25",
+      "brief": "我不吃菜。可我得拿菜去换我要的东西。林子里长不出这个，我又不能进城。两筐就够，多了我背不动。",
+      "reward": 200,
+      "requires": [
+        "q_s_sera_1"
+      ],
+      "goals": [
+        {
+          "type": "gifted",
+          "to": "serafina",
+          "id": "vegetable",
+          "min": 25
+        }
+      ]
+    },
+    {
+      "id": "q_s_sera_3",
+      "chapter": 3,
+      "kind": "side",
+      "giver": "seraphina",
+      "giverPortrait": "seraphina_hooded",
+      "title": "一车柴",
+      "hint": "预言面板底部「送物资」：木柴 30",
+      "brief": "林子湿。我的火总要灭。柴要干的，湿的我不收。一车，够我烧到化冻。",
+      "reward": 250,
+      "requires": [
+        "q_s_sera_2"
+      ],
+      "goals": [
+        {
+          "type": "gifted",
+          "to": "serafina",
+          "id": "firewood",
+          "min": 30
+        }
+      ]
+    },
+    {
+      "id": "q_s_sera_4",
+      "chapter": 4,
+      "kind": "side",
+      "giver": "seraphina",
+      "giverPortrait": "seraphina_hooded",
+      "title": "白面包与布",
+      "hint": "预言面板底部「送物资」：白面包 10、粗布衣 5",
+      "brief": "有人要来。我不能穿得像从沼泽里爬出来的。白面包摆着好看，粗布衣穿着见人不丢脸。两样都要。",
+      "reward": 300,
+      "requires": [
+        "q_s_sera_3"
+      ],
+      "goals": [
+        {
+          "type": "gifted",
+          "to": "serafina",
+          "id": "white_bread",
+          "min": 10
+        },
+        {
+          "type": "gifted",
+          "to": "serafina",
+          "id": "coarse_clothes",
+          "min": 5
+        }
+      ]
+    },
+    {
+      "id": "q_s_sera_5",
+      "chapter": 5,
+      "kind": "side",
+      "giver": "seraphina",
+      "giverPortrait": "seraphina_hooded",
+      "title": "几只陶罐",
+      "hint": "预言面板底部「送物资」：陶器 10",
+      "brief": "装药要用罐子。别拿缺口的糊弄我。陶器耐摔，我要十个。",
+      "reward": 300,
+      "requires": [
+        "q_s_sera_4"
+      ],
+      "goals": [
+        {
+          "type": "gifted",
+          "to": "serafina",
+          "id": "pottery",
+          "min": 10
+        }
+      ]
+    },
+    {
+      "id": "q_s_sera_6",
+      "chapter": 6,
+      "kind": "side",
+      "giver": "seraphina",
+      "giverPortrait": "seraphina_hooded",
+      "title": "存粮",
+      "hint": "预言面板底部「送物资」：粗面包 60、蔬菜 30",
+      "brief": "外面乱了。我得囤点东西，不出林子。面包六十、菜三十。送到就行，不必多说。",
+      "reward": 350,
+      "requires": [
+        "q_s_sera_5"
+      ],
+      "goals": [
+        {
+          "type": "gifted",
+          "to": "serafina",
+          "id": "coarse_bread",
+          "min": 60
+        },
+        {
+          "type": "gifted",
+          "to": "serafina",
+          "id": "vegetable",
+          "min": 30
+        }
+      ]
+    },
+    {
+      "id": "q_s_sera_7",
+      "chapter": 7,
+      "kind": "side",
+      "giver": "seraphina",
+      "giverPortrait": "seraphina_hooded",
+      "title": "草药",
+      "hint": "预言面板底部「送物资」：草药 20",
+      "brief": "你地里长的，比我林子里捡的肥。草药二十捆。我熬东西用得快。",
+      "reward": 350,
+      "requires": [
+        "q_s_sera_6"
+      ],
+      "goals": [
+        {
+          "type": "gifted",
+          "to": "serafina",
+          "id": "herbs",
+          "min": 20
+        }
+      ]
+    },
+    {
+      "id": "q_s_sera_8",
+      "chapter": 8,
+      "kind": "side",
+      "giver": "seraphina",
+      "giverPortrait": "seraphina_hooded",
+      "title": "肉干",
+      "hint": "预言面板底部「送物资」：肉干 15",
+      "brief": "伤兵不止你有。我这边也有人抬进来。肉干耐放，给我十五份。",
+      "reward": 350,
+      "requires": [
+        "q_s_sera_7"
+      ],
+      "goals": [
+        {
+          "type": "gifted",
+          "to": "serafina",
+          "id": "dried_meat",
+          "min": 15
+        }
+      ]
+    },
+    {
+      "id": "q_s_sera_9",
+      "chapter": 9,
+      "kind": "side",
+      "giver": "seraphina",
+      "giverPortrait": "seraphina_hooded",
+      "title": "置办家当",
+      "hint": "预言面板底部「送物资」：陶器 30、粗布衣 15",
+      "brief": "我在这儿住了这么多年，第一次想添点东西。罐子三十个、粗布衣十五件。别问我做什么用。",
+      "reward": 350,
+      "requires": [
+        "q_s_sera_8"
+      ],
+      "goals": [
+        {
+          "type": "gifted",
+          "to": "serafina",
+          "id": "pottery",
+          "min": 30
+        },
+        {
+          "type": "gifted",
+          "to": "serafina",
+          "id": "coarse_clothes",
+          "min": 15
+        }
+      ]
+    },
+    {
+      "id": "q_s_sera_10",
+      "chapter": 10,
+      "kind": "side",
+      "giver": "seraphina",
+      "giverPortrait": "seraphina_hooded",
+      "title": "一批布",
+      "hint": "预言面板底部「送物资」：粗织物 30",
+      "brief": "布我留着。你不必问做什么用。三十匹粗布，什么时候送到都行。",
+      "reward": 350,
+      "requires": [
+        "q_s_sera_9"
+      ],
+      "goals": [
+        {
+          "type": "gifted",
+          "to": "serafina",
+          "id": "coarse_cloth",
+          "min": 30
+        }
+      ]
+    },
+    {
+      "id": "q_s_sera_11",
+      "chapter": 11,
+      "kind": "side",
+      "giver": "seraphina",
+      "giverPortrait": "seraphina_hooded",
+      "title": "细布",
+      "hint": "预言面板底部「送物资」：细织物 20",
+      "brief": "见那种人，总得穿得体面。你的女王也一样。细布二十匹。别拿市面上染坏的给我。",
+      "reward": 400,
+      "requires": [
+        "q_s_sera_10"
+      ],
+      "goals": [
+        {
+          "type": "gifted",
+          "to": "serafina",
+          "id": "fine_cloth",
+          "min": 20
+        }
+      ]
+    },
+    {
+      "id": "q_s_sera_12",
+      "chapter": 12,
+      "kind": "side",
+      "giver": "seraphina",
+      "giverPortrait": "seraphina_hooded",
+      "title": "细点",
+      "hint": "预言面板底部「送物资」：白面包 60、糕点 20",
+      "brief": "不是我要吃。是有个客人，得哄。白面包六十、糕点二十。她吃甜的，话就好说。",
+      "reward": 400,
+      "requires": [
+        "q_s_sera_11"
+      ],
+      "goals": [
+        {
+          "type": "gifted",
+          "to": "serafina",
+          "id": "white_bread",
+          "min": 60
+        },
+        {
+          "type": "gifted",
+          "to": "serafina",
+          "id": "pastry",
+          "min": 20
+        }
+      ]
+    },
+    {
+      "id": "q_s_sera_13",
+      "chapter": 13,
+      "kind": "side",
+      "giver": "seraphina",
+      "giverPortrait": "seraphina_hooded",
+      "title": "药水",
+      "hint": "预言面板底部「送物资」：药水 10",
+      "brief": "我要救人。你送来的药，比我熬得快。药水十瓶。",
+      "reward": 400,
+      "requires": [
+        "q_s_sera_12"
+      ],
+      "goals": [
+        {
+          "type": "gifted",
+          "to": "serafina",
+          "id": "potion",
+          "min": 10
+        }
+      ]
+    },
+    {
+      "id": "q_s_sera_14",
+      "chapter": 14,
+      "kind": "side",
+      "giver": "seraphina",
+      "giverPortrait": "seraphina_hooded",
+      "title": "备战粮",
+      "hint": "预言面板底部「送物资」：熏鱼 40、肉干 30",
+      "brief": "打起来之后，没人有空做饭。熏鱼四十、肉干三十。往前线送。",
+      "reward": 400,
+      "requires": [
+        "q_s_sera_13"
+      ],
+      "goals": [
+        {
+          "type": "gifted",
+          "to": "serafina",
+          "id": "smoked_fish",
+          "min": 40
+        },
+        {
+          "type": "gifted",
+          "to": "serafina",
+          "id": "dried_meat",
+          "min": 30
+        }
+      ]
+    },
+    {
+      "id": "q_s_sera_15",
+      "chapter": 15,
+      "kind": "side",
+      "giver": "seraphina",
+      "giverPortrait": "seraphina_hooded",
+      "title": "救人的东西",
+      "hint": "预言面板底部「送物资」：药水 20、草药 30、弓箭 10",
+      "brief": "这一趟不是我收的。是林子收的。药水二十、草药三十。还有，你那边多余的弓，给我十张。",
+      "reward": 450,
+      "requires": [
+        "q_s_sera_14"
+      ],
+      "goals": [
+        {
+          "type": "gifted",
+          "to": "serafina",
+          "id": "potion",
+          "min": 20
+        },
+        {
+          "type": "gifted",
+          "to": "serafina",
+          "id": "herbs",
+          "min": 30
+        },
+        {
+          "type": "gifted",
+          "to": "serafina",
+          "id": "bows",
+          "min": 10
+        }
+      ]
+    },
+    {
+      "id": "q_s_sera_16",
+      "chapter": 16,
+      "kind": "side",
+      "giver": "seraphina",
+      "giverPortrait": "seraphina_hooded",
+      "title": "联军口粮",
+      "hint": "预言面板底部「送物资」：粗面包 200、熏鱼 60",
+      "brief": "三家的人都要吃饭。你出粮，我出药。粗面包两百、熏鱼六十。",
+      "reward": 450,
+      "requires": [
+        "q_s_sera_15"
+      ],
+      "goals": [
+        {
+          "type": "gifted",
+          "to": "serafina",
+          "id": "coarse_bread",
+          "min": 200
+        },
+        {
+          "type": "gifted",
+          "to": "serafina",
+          "id": "smoked_fish",
+          "min": 60
+        }
+      ]
+    },
+    {
+      "id": "q_s_sera_17",
+      "chapter": 17,
+      "kind": "side",
+      "giver": "seraphina",
+      "giverPortrait": "seraphina_hooded",
+      "title": "一桌席",
+      "hint": "预言面板底部「送物资」：白面包 100、糕点 50",
+      "brief": "我要坐最靠里的那桌。别安排我讲话。白面包一百、糕点五十。到了那天你自然会知道。",
+      "reward": 500,
+      "requires": [
+        "q_s_sera_16"
+      ],
+      "goals": [
+        {
+          "type": "gifted",
+          "to": "serafina",
+          "id": "white_bread",
+          "min": 100
+        },
+        {
+          "type": "gifted",
+          "to": "serafina",
+          "id": "pastry",
+          "min": 50
         }
       ]
     }

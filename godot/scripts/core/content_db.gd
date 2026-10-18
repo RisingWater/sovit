@@ -15,7 +15,11 @@ var tech_ids: Array = []
 var eras: Array = []            # [{id, nameZh}]
 var quests: Dictionary = {}     # id -> QuestDef（任务/引导系统，见 docs/quests.md）
 var quest_ids: Array = []
-var chapters: Array = []        # [{id, title, reward, outro}]
+var chapters: Array = []        # [{id, title, reward, gapDays, outro}]
+## 场次（"不挂任务的戏"，用户 2026-10 · A1）：[ {id, when, speaker, portrait, lines, choices} ]
+## 数据源 `content/scenes.json`，判定与播放在 `sim_core.gd`（`_scene_ready` 等）。
+var scenes: Array = []
+var scene_ids: Array = []
 ## `quests.json` 自己的 schema 版本（2 起有 giver / outro / building_repaired）。
 ## 与 `schema_version`（economy.json，还是 1）分开记，见 docs/quests.md §七。
 var quests_schema_version: int = 0
@@ -144,13 +148,21 @@ func _load() -> void:
 			"id": int(ch["id"]),
 			"title": String(ch["title"]),
 			"reward": float(ch["reward"]),
+			# 剧情时钟（用户 2026-10 · B1）：上一章领奖那天起再隔几天才开这一章。
+			# 缺省 0 = 不闸（章 1–5）；章 6 起填 3–5 的固定值。
+			"gapDays": int(ch.get("gapDays", 0)),
 			"outro": ch.get("outro", {}),
 		})
 	for it in q.get("quests", []):
 		var qid := String(it["id"])
+		# 任务种类（用户 2026-10 · B2）：`main` / `side` / `milestone`。
+		# 老内容写的是 `"side": true` —— 两种写法都收，但只留一份真相（`kind`），
+		# `side` 由它派生，免得引擎里两处判断打架（TS 校验器也这么归的）。
+		var kind := String(it.get("kind", "side" if bool(it.get("side", false)) else "main"))
 		quests[qid] = {
 			"id": qid,
 			"chapter": int(it["chapter"]),
+			"kind": kind,
 			# 发布人 + 立绘（用户 2026-10）：任务一出现就弹一段对话，说话的就是这位。
 			"giver": String(it.get("giver", "")),
 			"giverPortrait": String(it.get("giverPortrait", "")),
@@ -163,9 +175,22 @@ func _load() -> void:
 			"reward": float(it["reward"]),
 			"requires": it.get("requires", []),
 			"goals": it["goals"],
-			"side": bool(it.get("side", false)),
+			"side": kind == "side",
 		}
 		quest_ids.append(qid)
+
+	# 场次（用户 2026-10 · A1）：字段原样保留，判定在 sim_core。
+	var sc: Dictionary = _read_json("scenes.json")
+	for it in sc.get("scenes", []):
+		scenes.append({
+			"id": String(it["id"]),
+			"when": it.get("when", {}),
+			"speaker": String(it.get("speaker", "")),
+			"portrait": String(it.get("portrait", "")),
+			"lines": it.get("lines", []),
+			"choices": it.get("choices", []),
+		})
+		scene_ids.append(String(it["id"]))
 
 	var e: Dictionary = _read_json("economy.json")
 	schema_version = int(e.get("schemaVersion", 0))

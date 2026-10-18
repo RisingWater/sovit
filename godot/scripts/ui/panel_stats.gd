@@ -490,6 +490,31 @@ func _people_tab() -> void:
 	_cell(g, "岗位总量", UIKit.FG_HEAD, 90.0); _cell(g, "%d" % total_slots, UIKit.FG_DARK, 60.0, true)
 	_cell(g, "用工目标", UIKit.FG_HEAD, 90.0); _cell(g, "%d" % total_workers, UIKit.FG_DARK, 60.0, true)
 
+	# 教育（用户 2026-10 · A3）：满足率 → 熟练度成长倍率 → 在校人数。
+	# 三个数都从引擎读，面板**不自己算**（倍率的唯一实现是
+	# `SimCore.education_growth_multiplier()`，与 TS `labor.ts` 同一条公式）。
+	_section("教育")
+	var ge := _grid(4)
+	for h in ["口径", "数值", "口径", "数值"]:
+		var ie := ge.get_child_count()
+		var righte: bool = ie % 2 == 1
+		_cell(ge, h, HEAD_COL, 90.0 if not righte else 60.0, righte)
+	var sim = runner.sim
+	var schools := 0
+	for shop2 in s["shops"]:
+		if String(shop2["defId"]) == "school":
+			schools += 1
+	_cell(ge, "教育满足率", UIKit.FG_HEAD, 90.0)
+	_cell(ge, "%.0f%%" % (sim.education_score() * 100.0), UIKit.FG_DARK, 60.0, true)
+	_cell(ge, "熟练度成长", UIKit.FG_HEAD, 90.0)
+	_cell(ge, "×%.2f" % sim.education_growth_multiplier(), UIKit.FG_DARK, 60.0, true)
+	_cell(ge, "在校人数", UIKit.FG_HEAD, 90.0)
+	_cell(ge, "%d" % sim.covered_people("education"), UIKit.FG_DARK, 60.0, true)
+	_cell(ge, "学校", UIKit.FG_HEAD, 90.0)
+	_cell(ge, "%d 座" % schools, UIKit.FG_DARK, 60.0, true)
+	if schools <= 0:
+		_note("还没有学校 —— 教育满足率会一直是 0，熟练度只能按 ×1.00 慢长。")
+
 	# 左：名单；右：详情。
 	# 用户 2026-10："点名字看详情好像并没有实现，是不是弹到后面去了？"
 	# —— 就是弹到后面去了：原来那段是 append 在**整页最后**的，人多的时候

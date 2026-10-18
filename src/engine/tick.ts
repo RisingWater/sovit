@@ -126,6 +126,8 @@ export function runNight(state: GameState, ctx: ContentContext, rng: ReturnType<
 
   const consumption = runConsumption(state, ctx, day)
   logs.push(...consumption.logs)
+  // 需求满足率留一份给面板（**派生量、只读**：没人再拿它算东西，见 GameState.needScores）
+  state.needScores = { ...consumption.needScores }
 
   logs.push(...runPrivateHousingMarket(state, ctx, day))
   assignTenure(state, ctx)

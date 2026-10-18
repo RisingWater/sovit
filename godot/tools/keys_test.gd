@@ -147,15 +147,20 @@ func _run() -> void:
 	if nav_n < 1:
 		_fail("左侧一个圆钮都没有（检查 0 个）")
 		return
-	if nav_n > hud.NAV_MAX_KEY:
-		_fail("圆钮 %d 个超过快捷键上限 %d —— F7/F8 是快存快读，圆钮拿不到更多 F 键了"
-			% [nav_n, hud.NAV_MAX_KEY])
+	# ⚠️ 圆钮**可以比 F 键多**（用户 2026-10 加了第 7 个「贸易」，而 F7/F8 是快存快读）：
+	# 只要求"有 F 键的那几个"（前 NAV_MAX_KEY 个）都写对，多出来的不许写 F 键。
+	if nav_n < hud.NAV_MAX_KEY:
+		_fail("圆钮只有 %d 个，少于 F 键上限 %d —— 快捷键会落空" % [nav_n, hud.NAV_MAX_KEY])
 		return
-	# tooltip 里的键位提示：前 6 个写 F1..F6
+	# tooltip 里的键位提示：前 6 个写 F1..F6，第 7 个起**不许**写（写了玩家会按）
 	for i in nav_n:
 		var tip := String((hud._nav_btns[i] as Button).tooltip_text)
-		if not tip.contains("F%d" % (i + 1)):
-			_fail("第 %d 个圆钮的 tooltip 没写 F%d 键：%s" % [i + 1, i + 1, tip])
+		if i < hud.NAV_MAX_KEY:
+			if not tip.contains("F%d" % (i + 1)):
+				_fail("第 %d 个圆钮的 tooltip 没写 F%d 键：%s" % [i + 1, i + 1, tip])
+				return
+		elif tip.contains("F%d" % (i + 1)):
+			_fail("第 %d 个圆钮不该写 F%d（F7/F8 是快存快读）：%s" % [i + 1, i + 1, tip])
 			return
 	await _key(KEY_F1)
 	var stats_panel = _main.get_node_or_null("UI/Root/Stats")

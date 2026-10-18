@@ -125,6 +125,7 @@ step "logsave" "$GODOT_BIN" --headless --path . -s res://tools/logsave_test.gd
 step "queue" "$GODOT_BIN" --headless --path . -s res://tools/queue_test.gd
 step "sitecancel" "$GODOT_BIN" --headless --path . -s res://tools/sitecancel_test.gd
 step "quest" "$GODOT_BIN" --headless --path . -s res://tools/quest_test.gd
+step "scene" "$GODOT_BIN" --headless --path . -s res://tools/scene_test.gd
 step "questpanel" "$GODOT_BIN" --headless --path . -s res://tools/questpanel_test.gd
 step "ai" "$GODOT_BIN" --headless --path . -s res://tools/ai_test.gd
 step "glyph" "$GODOT_BIN" --headless --path . -s res://tools/glyph_test.gd

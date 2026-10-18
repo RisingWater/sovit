@@ -19,7 +19,9 @@ const RIB_W := 160
 ## 村名长度上限与 UIKit 共用同一个来源
 const NAME_MAX := UIKit.NAME_MAX
 const BOX_W := 112
-const BOX_H := 26
+## 日期框高度。用户 2026-10（B0）：从一行「第 N 天 06:00」改成**两行**
+## （上面日期、下面时刻），所以 26 → 40（两行 12px 字 + 上下各 4px 内边距）。
+const BOX_H := 40
 const PAD := 0                     # 不再留边：日期框与红巾直接叠在圆盘上
 const UI_DIR := "res://assets/ui/"
 
@@ -163,7 +165,10 @@ func _refresh_time() -> void:
 	if _time_label == null or runner == null or runner.sim == null:
 		return
 	var s: Dictionary = runner.sim.s
-	_time_label.text = "第 %d 天  %02d:00" % [int(s["day"]), int(s["hour"])]
+	# 用户 2026-10（B0）：两行 —— 上面 AE 日期、下面时刻。
+	# ⚠️ 历法一个字都不在这里拼：唯一实现是 `sim_core.gd::date_label()`。
+	_time_label.text = "%s\n%02d:00" % [
+		runner.sim.date_label(int(s["day"])), int(s["hour"])]
 
 func village_name() -> String:
 	if runner == null or runner.sim == null:

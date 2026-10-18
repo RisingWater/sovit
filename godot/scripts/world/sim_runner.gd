@@ -30,8 +30,10 @@ func set_paused(value: bool) -> void:
 func enqueue(actions: Array) -> void:
 	sim.enqueue(actions)
 
+## 顶栏 / tooltip 用的时间字符串（用户 2026-10 · B0：改成 AE 纪元日期）。
+## ⚠️ **一个字都不在这里拼**：历法的唯一实现在 `sim_core.gd::date_time_label()`。
 func time_string() -> String:
-	return "第 %d 天  %02d:00" % [int(sim.s["day"]), int(sim.s["hour"])]
+	return sim.date_time_label(int(sim.s["day"]), int(sim.s["hour"]))
 
 func _process(delta: float) -> void:
 	if paused:

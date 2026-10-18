@@ -151,6 +151,8 @@ func _ready() -> void:
 	_panel_trade.name = "Trade"
 	_panel_trade.setup(runner, world)
 	root_ui.add_child(_panel_trade)
+	# 左侧圆钮第 7 个「贸易」也开这同一个面板（用户 2026-10：它本来只能从建筑点进去）
+	hud.trade_panel = _panel_trade
 
 	# 任务面板（见 docs/town.md §十九）：左侧圆钮列第 5 个（F5）打开。
 	# 读的是 `SimCore.quest_journal()`（全部已知任务：已完成 + 已解锁），

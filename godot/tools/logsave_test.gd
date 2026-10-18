@@ -37,8 +37,9 @@ func _notice_lines(civic: Node) -> Array:
 	var out := []
 	for l in civic.find_children("*", "Label", true, false):
 		var t := String((l as Label).text)
-		# 公告每行现在是「第N天　正文」（原来写 [D37] 那种缩写）
-		if t.begins_with("第") and t.contains("天"):
+		# 公告每行现在是「AE 312 年 1 月 1 日　正文」（用户 2026-10 · B0；
+		# 更早是「第N天」、再早是 [D37] 那种缩写）
+		if t.begins_with("AE") and t.contains("日"):
 			out.append(t)
 	return out
 
@@ -132,7 +133,7 @@ func _run() -> void:
 		_fail("公告页 %d 行，日志总数 %d 条（应全部显示）" % [lines.size(), all_logs.size()])
 		return
 	var last_e: Dictionary = all_logs[all_logs.size() - 1]
-	var want := "第%d天　%s" % [int(last_e.get("day", 0)), String(last_e.get("text", ""))]
+	var want := "%s　%s" % [sim.date_label(int(last_e.get("day", 0))), String(last_e.get("text", ""))]
 	if String(lines[lines.size() - 1]) != want:
 		_fail("公告页最后一行「%s」，应为「%s」" % [lines[lines.size() - 1], want])
 		return
@@ -198,15 +199,15 @@ func _run() -> void:
 		if t.begins_with("共 ") or t.contains("显示最近"):
 			_fail("公告页不该再有「共 N 条 / 显示最近 N 条」那行：%s" % t)
 			return
-	# 日期写「第 N 天」，不是「D37」（用户点名）
+	# 日期写 `AE 312 年 1 月 1 日`（用户 2026-10 · B0），不是「D37」也不是「第 N 天」
 	var last_lb := String(lines3[lines3.size() - 1])
-	if last_lb != "第%d天　补的第 30 条" % int(sim.s["day"]):
-		_fail("公告页末行是「%s」，不是「第N天 + 最新那条」" % last_lb)
+	if last_lb != "%s　补的第 30 条" % sim.date_label(int(sim.s["day"])):
+		_fail("公告页末行是「%s」，不是「AE 日期 + 最新那条」" % last_lb)
 		return
 	if last_lb.begins_with("[D"):
 		_fail("公告页还在写 D%d 那种缩写" % int(sim.s["day"]))
 		return
-	_ok("日志 %d 条时全部列出（末行最新、写「第 N 天」、无「共 N 条」行）" % total3)
+	_ok("日志 %d 条时全部列出（末行最新、写 AE 日期、无「共 N 条」行）" % total3)
 
 	# 测试存档用完就删，别留在玩家的存档目录里
 	if FileAccess.file_exists(SAVE_PATH):

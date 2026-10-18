@@ -13,6 +13,7 @@ import type {
   QuestID,
   RecipeDef,
   RecipeID,
+  SceneDef,
   TechDef,
   TechID,
 } from '../types.ts'
@@ -50,6 +51,8 @@ export const ERA_IDS: number[] = CONTENT.eraIds
 export const ALL_QUESTS: Record<QuestID, QuestDef> = CONTENT.quests
 export const QUEST_IDS: QuestID[] = CONTENT.questIds
 export const QUEST_CHAPTERS: QuestChapterDef[] = CONTENT.chapters
+export const ALL_SCENES: Record<string, SceneDef> = CONTENT.scenes
+export const SCENE_IDS: string[] = CONTENT.sceneIds
 
 /** 某建筑由哪项科技解锁；返回 undefined 表示「开局即可建」（没有科技锁）。 */
 export function techUnlockingBuilding(buildingId: BuildingID): TechID | undefined {
@@ -90,6 +93,9 @@ export interface ContentContext {
   quests: Record<QuestID, QuestDef>
   questIds: QuestID[]
   chapters: QuestChapterDef[]
+  /** 场次（不挂任务的戏，见 `content/scenes.json` 与 `systems/scenes.ts`）。 */
+  scenes: Record<string, SceneDef>
+  sceneIds: string[]
   goodSet: Set<GoodID>
   buildingSet: Set<BuildingID>
   classSet: Set<ClassID>
@@ -109,6 +115,8 @@ export function buildContext(packId: PackID): ContentContext {
     quests: ALL_QUESTS,
     questIds: QUEST_IDS,
     chapters: QUEST_CHAPTERS,
+    scenes: ALL_SCENES,
+    sceneIds: SCENE_IDS,
     goodSet: new Set(pack.goods),
     buildingSet: new Set(pack.buildings),
     classSet: new Set(pack.classes),

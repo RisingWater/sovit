@@ -138,6 +138,18 @@ export interface TuningConfig {
   foodChainSeedClass: ClassID
 }
 
+/** 历法（用户 2026-10：B0 · AE 纪元）。唯一实现是 `calendar.ts::dateOf()`。 */
+export interface CalendarConfig {
+  /** 纪元前缀：`AE`（= 帝国纪元 = After Empire）。 */
+  epochPrefix: string
+  /** 第 1 天是这一年的 1 月 1 日。 */
+  epochYear: number
+  /** 一个月多少天。 */
+  daysPerMonth: number
+  /** 一年多少个月。 */
+  monthsPerYear: number
+}
+
 export interface TimeConfig {
   /** 一天多少小时。 */
   hoursPerDay: number
@@ -150,6 +162,8 @@ export interface TimeConfig {
   settleHour: number
   /** 1 游戏小时 = 多少真实秒（@1x）。 */
   tickSec: number
+  /** 历法常量（AE 312 年 1 月 1 日 = 第 1 天）。纯显示用，不参与任何仿真判定。 */
+  calendar: CalendarConfig
 }
 
 export const ECONOMY: EconomyConfig = CONTENT.economy

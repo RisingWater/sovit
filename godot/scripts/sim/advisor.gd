@@ -37,7 +37,7 @@ const MAX_PLAN := 6
 ## 而且不报错）。门槛 `ai_test.gd` 会拿内容里的全部类型跟这份表对拍。
 const KNOWN_GOAL_TYPES := ["building", "housing", "housing_capacity", "population",
 	"class", "tech", "tech_count", "good", "produced", "avg_satisfaction", "private_housing",
-	"building_repaired"]
+	"building_repaired", "gifted"]
 ## 提示词里"可建清单"最多列几项。
 const MAX_BUILD_LIST := 28
 ## 任务那一段最多细讲几个任务。
@@ -800,6 +800,14 @@ func _quest_goal_suggestion(out: Array, q: Dictionary, g: Dictionary) -> void:
 					_n(float(db.economy["privateHousingNeedThreshold"])),
 					int(db.economy["privateHousingPerDay"])],
 				"所以先抬满意度（见「满意度」那条），房不用你建"])
+		"gifted":
+			# 送物资（用户 2026-10 · A4）：目标数是**送出去的量**，不是库存。
+			# 所以建议只说"去预言面板点送物资"，不能拿"多造几座"糊过去。
+			# ⚠️ 这里不写人名：`advisor` 是 sim 层，`Cast` 是表现层（它拿不到也不该拿）。
+			_add(out, "quest_%s_gift_%s" % [qid, gid], P_HIGH, "任务", lead,
+				"已送出 %s，目标 %s（还差 %s）" % [_n(have), _n(need), _n(need - have)],
+				["送物资走「预言家」面板底部那一行：选 %s、填 %s、点「送去」" % [gname(gid), _n(need - have)],
+				"命令次日黎明生效，扣的是仓库里的货（现在库存 %s）" % _n(float(sim.s["goods"].get(gid, 0.0)))])
 		_:
 			pass
 

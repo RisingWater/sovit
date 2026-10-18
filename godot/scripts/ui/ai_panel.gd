@@ -67,6 +67,9 @@ var _ask_input: LineEdit
 ## 预言页左栏：历史条目的容器 + 当前选中哪一条（-1 = 没选）
 var _hist: VBoxContainer
 var _sel_entry := -1
+## 「送物资」（用户 2026-10 · A4）：选商品 + 填数量 + 送一趟。
+var _gift_box: OptionButton
+var _gift_qty: LineEdit
 var _portrait: PanelPortrait
 ## 设置页底部那行"测试连接"的结果
 var _test_lb: Label = null
@@ -134,6 +137,7 @@ func open() -> void:
 	_build()
 	_place()
 	_select_latest_entry()
+	_refresh_gift_box()
 	# 右下角那位冒一句话（用户 2026-10）
 	if _portrait != null:
 		_portrait.speak()
@@ -373,6 +377,30 @@ func _build_prophecy(root: VBoxContainer) -> void:
 	_ask_btn.pressed.connect(ask)
 	left.add_child(_ask_btn)
 
+	# ---- 送物资（用户 2026-10 · A4）：她住在林子那边，东西得有人送过去。
+	# 走 `gift` 命令（与建造 / 研究同一拍，**次日黎明生效**），扣货并记进
+	# `state.gifts`；追踪条上那 17 条「送物资」支线判的就是这个累计量。
+	left.add_child(UIKit.hsep())
+	_section(left, "送物资")
+	var gift_row := HBoxContainer.new()
+	gift_row.add_theme_constant_override("separation", 5)
+	left.add_child(gift_row)
+	_gift_box = OptionButton.new()
+	_gift_box.add_theme_font_override("font", UIKit.pixel_font())
+	_gift_box.add_theme_font_size_override("font_size", UIKit.FS)
+	_gift_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_gift_box.tooltip_text = "要送什么（只列仓库里有的）"
+	gift_row.add_child(_gift_box)
+	_gift_qty = UIKit.input("数量", 5)
+	_gift_qty.text = "10"
+	_gift_qty.custom_minimum_size = Vector2(56, 0)
+	_gift_qty.tooltip_text = "送多少件（次日黎明生效）"
+	gift_row.add_child(_gift_qty)
+	var gift_btn := UIKit.button("送去", true)
+	gift_btn.tooltip_text = "把这一份送到林子那边（次日 06:00 生效）"
+	gift_btn.pressed.connect(_send_gift)
+	left.add_child(gift_btn)
+
 	# ---- 右栏：状态 + 内容
 	# 右边给立绘留出 PORTRAIT_GAP：立绘画在最上层，不给它让位的话数字会跑到脸上。
 	var right_wrap := HBoxContainer.new()
@@ -412,6 +440,58 @@ func _build_prophecy(root: VBoxContainer) -> void:
 	_select_latest_entry()
 
 ## 历史列表：一条一个按钮（第 N 天 + 问的那句话）。选中的那条换底纹。
+## 「送物资」的下拉：只列**仓库里真的有的**（数量 ≥ 1），带上现有件数。
+## 每次打开面板重建一次 —— 库存会变，列一份旧的会让人送不出去还以为是 bug。
+func _refresh_gift_box() -> void:
+	if _gift_box == null or runner == null or runner.sim == null:
+		return
+	var keep := _gift_good_id()
+	_gift_box.clear()
+	var goods: Dictionary = runner.sim.s["goods"]
+	var ids: Array = []
+	for gid in goods.keys():
+		if not runner.db.goods.has(String(gid)):
+			continue
+		if float(goods[gid]) < 1.0:
+			continue
+		ids.append(String(gid))
+	ids.sort()
+	for gid in ids:
+		_gift_box.add_item("%s（%d）" % [runner.sim.good_name(String(gid)),
+			int(float(goods[gid]))])
+		_gift_box.set_item_metadata(_gift_box.item_count - 1, String(gid))
+	if _gift_box.item_count == 0:
+		_gift_box.add_item("（仓库里没有可送的东西）")
+		return
+	if keep != "":
+		for i in _gift_box.item_count:
+			if String(_gift_box.get_item_metadata(i)) == keep:
+				_gift_box.selected = i
+				break
+
+## 下拉里选中的商品 id（"" = 没有可送的）。
+func _gift_good_id() -> String:
+	if _gift_box == null or _gift_box.item_count == 0 or _gift_box.selected < 0:
+		return ""
+	var v = _gift_box.get_item_metadata(_gift_box.selected)
+	return "" if v == null else String(v)
+
+## 「送去」：下一条 `gift` 命令（与建造 / 研究同一拍，次日黎明生效）。
+## 引擎会在黎明扣货、累加 `state.gifts`、写一条公告；这里只负责把话递过去。
+func _send_gift() -> void:
+	if runner == null or runner.sim == null:
+		return
+	var gid := _gift_good_id()
+	if gid == "":
+		_notice("仓库里没有可送的东西")
+		return
+	var qty := int(_gift_qty.text.strip_edges()) if _gift_qty != null else 0
+	if qty <= 0:
+		_notice("数量要大于 0")
+		return
+	runner.enqueue([{"type": "gift", "to": "serafina", "goodId": gid, "qty": qty}])
+	_notice("已安排：%s ×%d（次日 06:00 送出）" % [runner.sim.good_name(gid), qty])
+
 func _rebuild_history() -> void:
 	if _hist == null:
 		return
@@ -425,13 +505,13 @@ func _rebuild_history() -> void:
 	for i in log.size():
 		var it: Dictionary = log[i]
 		var q := String(it.get("q", "")).strip_edges()
-		var label := "第 %d 天" % int(it.get("d", 0))
+		var label := _date(int(it.get("d", 0)))
 		if q != "":
 			label += "  " + (q if q.length() <= 8 else q.substr(0, 8) + "…")
 		var b := UIKit.button(label, true)
 		b.alignment = HORIZONTAL_ALIGNMENT_LEFT
 		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		b.tooltip_text = "第 %d 天 · %s" % [int(it.get("d", 0)), q if q != "" else "（没写问话）"]
+		b.tooltip_text = "%s · %s" % [_date(int(it.get("d", 0))), q if q != "" else "（没写问话）"]
 		if i == _sel_entry:
 			b.add_theme_stylebox_override("normal", UIKit.box(UIKit.T_BTN_ACTIVE))
 			b.add_theme_color_override("font_color", UIKit.FG_LIGHT)
@@ -462,7 +542,7 @@ func _show_entry(i: int) -> void:
 	var it: Dictionary = log[i]
 	var q := String(it.get("q", "")).strip_edges()
 	if _ai_head != null:
-		_ai_head.text = "第 %d 天 · 你问的是「%s」" % [int(it.get("d", 0)),
+		_ai_head.text = "%s · 你问的是「%s」" % [_date(int(it.get("d", 0))),
 			q if q != "" else DEFAULT_QUESTION]
 	_render_reply(String(it.get("t", "")))
 	_scroll_to_top()
@@ -595,6 +675,14 @@ func _build_settings(root: VBoxContainer) -> void:
 # ---------------------------------------------------------------------------
 # 状态行 / 渲染
 # ---------------------------------------------------------------------------
+## 日期（用户 2026-10 · B0）：`AE 312 年 1 月 1 日`。
+## ⚠️ 历法一个字都不在这里拼：唯一实现是 `sim_core.gd::date_label()`
+## （拿不到 sim 时才退回旧写法，正常路径走不到）。
+func _date(d: int) -> String:
+	if runner == null or runner.sim == null:
+		return "第 %d 天" % d
+	return runner.sim.date_label(d)
+
 ## 状态行：只说**玩家人关心的事** —— 预言家能不能问、还要等几天。
 ## ⚠️ 这里**不写 base_url / model / key**（用户 2026-10："删掉，太出戏了"）。
 func _refresh_status() -> void:
@@ -605,8 +693,8 @@ func _refresh_status() -> void:
 		_status.text = "还没配置（在 ESC 菜单 →「AI 辅助设置」里填）"
 		_status.add_theme_color_override("font_color", C_WARN)
 	elif cool > 0:
-		_status.text = "预言家在闭门静修 —— 第 %d 天（还有 %d 天）才回得来" % [
-			int(runner.sim.s["day"]) + cool, cool]
+		_status.text = "预言家在闭门静修 —— %s（还有 %d 天）才回得来" % [
+			_date(int(runner.sim.s["day"]) + cool), cool]
 		_status.add_theme_color_override("font_color", C_WARN)
 	else:
 		_status.text = "现在可以询问瑟拉菲娜"
@@ -670,8 +758,8 @@ func ask(free: bool = false) -> void:
 	# 冷却（用户："预言家 5 天才能问一次"）。规则在引擎里，这里只读。
 	var left := 0 if free else _cooldown_left()
 	if left > 0:
-		_notice("预言家在闭门静修：还有 %d 天（第 %d 天）才能再问"
-			% [left, int(runner.sim.s["day"]) + left])
+		_notice("预言家在闭门静修：还有 %d 天（%s）才能再问"
+			% [left, _date(int(runner.sim.s["day"]) + left)])
 		_free = false
 		return
 	# 免费的那次不算"问过" —— 冷却、按钮文案都要按没问过算

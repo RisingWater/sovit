@@ -176,6 +176,8 @@ static func list_saves() -> Array:
 		out.append({
 			"path": path, "file": name,
 			"village": meta["village"], "day": meta["day"],
+			# AE 日期（用户 2026-10 · B0）：存档里写好的那个字符串，`_refresh()` 直接用它
+			"date": meta.get("date", ""),
 			"mtime": FileAccess.get_modified_time(path), "ok": meta["ok"],
 		})
 	out.sort_custom(func(a, b): return int(a["mtime"]) > int(b["mtime"]))
@@ -194,6 +196,9 @@ static func _meta(path: String) -> Dictionary:
 		return out
 	out["village"] = String(st.get("villageName", "?"))
 	out["day"] = int(st.get("day", 0))
+	# 存档里写好的 AE 日期（用户 2026-10 · B0，`SaveManager.save_to` 写入时算的）。
+	# 老存档没有这一项 → 退回「第 N 天」，免得对话框自己造一次历法。
+	out["date"] = String(data.get("dateLabel", ""))
 	out["ok"] = true
 	return out
 
@@ -210,8 +215,11 @@ func _refresh() -> void:
 	for s in saves:
 		var path := String(s["path"])
 		var when := Time.get_datetime_dict_from_unix_time(int(s["mtime"]))
-		var label := "%s　·　第 %d 天　·　%02d-%02d %02d:%02d" % [
-			String(s["village"]), int(s["day"]),
+		var stamp := String(s["date"])
+		if stamp == "":
+			stamp = "第 %d 天" % int(s["day"])
+		var label := "%s　·　%s　·　%02d-%02d %02d:%02d" % [
+			String(s["village"]), stamp,
 			int(when["month"]), int(when["day"]), int(when["hour"]), int(when["minute"])]
 		if not bool(s["ok"]):
 			label = "！无法识别　·　" + String(s["file"])

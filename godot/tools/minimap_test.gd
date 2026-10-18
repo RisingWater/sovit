@@ -124,7 +124,9 @@ func _run() -> void:
 
 	# 7. 顶栏不能再显示日期时间 —— 已经移到小地图挂件上，两处重复是多余的
 	var re := RegEx.new()
-	re.compile("第 *[0-9]+ *天")
+	# 用户 2026-10-20（B0）：日期改成 `AE 312 年 1 月 1 日`（上面一行）+ `06:00`（下面一行），
+	# 所以这里按 AE 日期认，不再按「第 N 天」
+	re.compile("AE *[0-9]+ *年 *[0-9]+ *月 *[0-9]+ *日")
 	for l in hud.find_children("*", "Label", true, false):
 		if re.search((l as Label).text) != null:
 			_fail("顶栏里还有日期时间：『%s』" % (l as Label).text)

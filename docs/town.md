@@ -1886,7 +1886,7 @@ bash godot/verify.sh       # 最后一行要是 ALL CHECKS PASSED
     标题栏 + 拖动把手 + 关闭，`KEEP_VISIBLE = 80`，高度跟着内容长。
   - 标题行左边是那张水晶球图标，**按原生 32 显示**（和科技面板标题同一个口径）。
 - **历史预言存在存档里**（`state.prophet.log`，读 `SimCore.prophecy_log()`）：每条
-  `{d: 第几天, q: 问话, t: 她说的原文}`，上限 30 条。
+  `{d: 天数, q: 问话, t: 她说的原文}`，上限 30 条；面板上的日期写 `AE 312 年 1 月 7 日`（2026-10-20 · B0）。
   ⚠️ 只在**真的有回答**时才写这个键（`mark_prophet_asked(q, answer)`）——
   新开局的状态里没有 `log`，所以黄金摘要一个字节都不变；面板不自己攒副本。
   ⚠️ **沙盘数据一条都不画**（用户 2026-10："沙盘（本地引擎跑的）全部去掉，破坏沉浸"）：
@@ -1910,7 +1910,7 @@ bash godot/verify.sh       # 最后一行要是 ALL CHECKS PASSED
   `_client.cancel()` 只取消 HTTP、**不发任何信号** → `_on_replied`/`_on_failed` 都不跑 →
   `_session` 永远是 true → **问话按钮一辈子是灰的**。用户报的"问预言家点不动"就是这个。
 - **冷却 5 天**（口径见 ai-assist.md §六）：按钮文字带天数（「获取新的预言（还有 5 天）」）、
-  状态行写「预言家在闭门静修 —— 第 N 天（还有 N 天）才回得来」。
+  状态行写「预言家在闭门静修 —— AE 312 年 1 月 7 日（还有 N 天）才回得来」。
   冷却只在**收到回答**之后才记。
 - **顶栏那颗水晶球的图标会变**（用户："必须明确告诉用户预言家是否可以用，还有多久回来"）：
   可用 = 彩色 `ai_assist.png`；冷却中 = 灰色 `ai_assist_off.png`，tooltip 写
@@ -1949,21 +1949,30 @@ bash godot/verify.sh       # 最后一行要是 ALL CHECKS PASSED
 - ⚠️ **全屏**（用户 2026-10："其它圆形按钮一样，需要全屏"）：`anchors 0..1` 铺满视口，
   和「统计」「科技」两个圆钮面板同一个口径 —— **不是**浮动对话框，没有拖动把手、
   不按内容改高度（`_fit()` / `H_MIN` / `PANEL_W` / 拖动那一套 2026-10 全删了）。
-- 标题行（图标 + 「任务」+ 弹性空白 + 关闭）；下面左右两栏。
+- 标题行（图标 + 「任务」+ 弹性空白 + 关闭）；下面**页签行**（2026-10-20：`任务` / `支线`），
+  再下面左右两栏。
+- **页签**（用户 2026-10 · A3）：`任务` = 分章 + 单独一组「里程碑」；`支线` = **平铺**所有
+  `kind:"side"` 的任务（17 条送物资 + 石制工具 + 自己的房子 + 一盏像样的灯）。
+  换页签会重选一条（各页只看自己那一类）。
 - **左树**：按章分组，章节行 `▼/▶ 第 N 章 标题 done/total`（领过章节奖励补 `★`），点行展开收起；
-  任务行 = 标题 + 状态（已完成 / 待结算 / 进行中），完成变绿、**选中换底纹**（`T_BTN_ACTIVE`，
-  和面板页签同一套做法）。左栏固定 258 宽、自己滚。
-- **右栏**：标题（大字号，按状态着色）→ 状态行（`第 N 章 · 要求 k/n 项 · 第 N 天完成`）
-  → 描述（`brief`）→ 要求（`◆/◇` + `goal.text`）+ `批示：hint` → 完成情况 → 奖励。
+  任务行 = `支线 · / 里程碑 · ` 前缀 + 标题 + 状态（已完成 / 待结算 / 进行中），
+  完成变绿、**选中换底纹**（`T_BTN_ACTIVE`，和面板页签同一套做法）。左栏固定 258 宽、自己滚。
+  「里程碑」是最后一组（`_open["ms"]`），它不属于任何一章。
+- **右栏**：标题（大字号，按状态着色）→ 状态行（`第 N 章 · 种类 · 要求 k/n 项 · AE 312 年 1 月 9 日 完成`）
+  → 描述（`brief`）→ 要求（`◆/◇` + `goal.text`）+ `批示：hint` → 完成情况 → 奖励
+  （里程碑没有"奖励"那一行，改写「里程碑：不发钱、也不挡剧情」）。
   右栏文字宽度按**窗口宽现算**（`_detail_w()`，夹在 320~1200）—— 全屏之后窗口宽是运行时才知道的。
-- **打开时默认选中第一个未完成的任务**；默认只展开"选中那条所在的章"。
+- **右下角立绘 = 面板主人**（2026-10-20）：章 5 之前是雷纳德，章 5 收尾之后换**伊莎贝拉**
+  （判据 `SimCore.quest_chapter_done(5)`）。
+- **打开时默认选中第一个未完成的任务**；默认只展开"选中那条所在的组"。
 - 刷新挂在 `SimRunner.hour_ticked` 上（可见时才重画）。
 - 实现：`godot/scripts/ui/panel_quest.gd`，`main.gd` 里挂在 `UI/Root/QuestPanel`
   （读的是 `SimCore.quest_journal()`）。
-- 截图：`shots/questpanel.png`（进行中）、`shots/questpaneldone.png`（已完成 + 第几天完成），
+- 截图：`shots/questpanel.png`（进行中）、`shots/questpaneldone.png`（已完成 + 完成日期），
   模式 `questpanel` / `questpaneldone`（`screenshot.gd`）。
-- ⚠️ 左树里的**章节计数只数"已知任务"**：锁着的任务连总数都不该参与
-  （不然 `0/6` 就把后面还有几条泄露了 —— 渐进显示这条契约在面板上同样要守）。
+- ⚠️ 左树里的**章节计数只数"已知主线"**：锁着的任务连总数都不该参与
+  （不然 `0/6` 就把后面还有几条泄露了 —— 渐进显示这条契约在面板上同样要守）；
+  支线与里程碑各有去处，不算进章节的 `done/total`。
 
 ## 二十、标题页（Harvest of Heirs）
 
@@ -2204,11 +2213,14 @@ bash godot/verify.sh       # 最后一行要是 ALL CHECKS PASSED
 
 没有研究所就一点都不出科研力，点进去只有一片"需要先研究"，纯属误导。
 `hud.refresh_nav_buttons()` 看 `shops` 里有没有 `research_institute`，有才显示那个圆钮；
-挂在 `hour_ticked` 上（建筑都在黎明落成）。所以**开局左侧圆钮只有 5 个**，
-第一次开出研究所之后才变回 6 个。
+挂在 `hour_ticked` 上（建筑都在黎明落成）。所以**开局左侧可见圆钮是 6 个**
+（资源/人口/财政/任务/预言/贸易 —— 科技那个藏着），第一次开出研究所之后变 7 个。
 
 ⚠️ 圆钮的**下标不变**（只是 `visible = false`）：`activate_nav(3)`、F4、`esc_test` 里
 "圆钮有几个"那些断言都不受影响。
+
+⚠️ 2026-10-20 加了第 7 个圆钮「贸易」（`NAV_TRADE = -4`，**不给 F 键** —— F7/F8 是快存快读），
+点开的是现有的 `panel_trade.gd`（以前只能从地图上的「贸易市场」进去）。
 
 ## 二十六、城镇中心的三段状态（废墟 → 初步修缮 → 修好）
 
@@ -2276,8 +2288,9 @@ bash godot/verify.sh       # 最后一行要是 ALL CHECKS PASSED
     `MOUSE_FILTER_IGNORE` 的父节点会**整棵子树跳过**，框里的选项按钮会跟着点不动；
   · 所以：`_over_interactive(pos)`（「跳过」+ 选项按钮的全局矩形）→ 让给按钮；
     点在别处（框上 / 立绘上 / 空地）→ 翻页。
-  门槛 `questtalk` 里有两条**真鼠标**断言：点文字框能翻页、点 accept 能出
-  `free_prophecy`（后者要 press + release 都发 —— 按钮是**松开**那一刻发 `pressed` 的）。
+  门槛 `questtalk` 里有两条**真鼠标**断言：点文字框能翻页、点选项按钮能出对应 `action`
+  （后者要 press + release 都发 —— 按钮是**松开**那一刻发 `pressed` 的）。
+  ⚠️ **2026-10-18 起章 1 收尾没有选项**（玩家不能拒绝），这两条断言要改用别的场次验证。
 - **数据全来自引擎**：`SimCore.quest_talks_pending()`（契约见 `docs/spec.md` §16.7、
   `docs/quests.md` §七）。`main.gd` 只做"取第一条 → 暂停 → 播 → 记一笔 → 取下一条"。
 - **驱动时机**：`runner.hour_ticked`（黎明就在小时里，任务与章节都在那时结算）
@@ -2285,8 +2298,9 @@ bash godot/verify.sh       # 最后一行要是 ALL CHECKS PASSED
 - **时间暂停**：走 `hud.set_paused_external(true)`，并记一笔"是我暂停的"——
   玩家本来按着暂停的话，播完**不**替他恢复（`_talk_paused`）。播放期间
   `main._shortcut_input` 全部让路（否则空格会当成"暂停"）。
-- **第一章收尾的 `accept`** → `ai_panel.open_free_prophecy()`：打开预言页、预填默认问句、
-  `ask(true)` 跳过 5 天冷却，答完**不**记 `mark_prophet_asked`。
+- ~~第一章收尾的 `accept` → `open_free_prophecy()`~~ **作废（2026-10-18）**：章 1 收尾改成
+  **没有选项 + 5 行固定预言**，不再调用模型、不预填问句、不碰冷却；
+  「预言」圆钮仍在章 1 收尾之后解锁，玩家第一次自己问才走模型。
 - **预言家入口的出场**：第一章收尾之前，左侧「预言」圆钮（`_prophecy_nav_btn`）与顶栏水晶球
   （`_ai_btn`）都 `visible = false`，`hud.activate_nav()` 对藏着的按钮返回 false
   （F6 不会凭空弹面板）。判据只有一处：`SimCore.prophet_unlocked()`。
@@ -2303,12 +2317,12 @@ bash godot/verify.sh       # 最后一行要是 ALL CHECKS PASSED
   内容里 `renard` / `vila` / `seraphina` 与立绘文件名 `reynard` / `vera` / `serafina` 的差异
   在 `Cast.ALIAS` 里，只此一处；`<人>_<表情>` 先找表情差分、没有就落回默认立绘。
   开场剧情（`intro.gd`）也改成走它，不再自己留一张名字表。
-- 门槛 `questtalk`：内容（每条任务有发布人/立绘、每章有 outro、第一章两个选项、**逐字查缺字**）、
+- 门槛 `questtalk`：内容（每条任务有发布人/立绘、每章有 outro、**第一章收尾无选项**、**逐字查缺字**）、
   引擎（pending 的顺序与记账）、界面（名字/立绘/翻页/选项 → `finished(action)`）、
   解锁（第一章之前藏着、之后出现）、城镇中心认任务、`SAVE_VERSION == 2`。
 
 截图：`shots/questtalk-1.png`（塞巴斯蒂安讲「粗面包链」）、
-`shots/questoutro-1.png`（第一章收尾，瑟拉菲娜登场 + 两个选项）。
+`shots/questoutro-1.png`（第一章收尾，瑟拉菲娜登场；**现在没有选项**，改为固定预言台词）。
 截图模式：`screenshot.gd` 的 `questtalk` / `questoutro`（后者会先摆满第一章四条产线、
 跑一次黎明真结算，再翻到出选项那一页）。
 
@@ -2443,3 +2457,52 @@ FUEL_ORDER = ['coal', 'firewood']            # 先煤、后木柴（煤是挖的
 - TS 与 GD 同序（`production.ts::FUEL_ORDER` / `sim_core.gd::FUEL_ORDER`），
   门槛 `coal` 与 `check:fuels` 两边都钉着
 - 烧燃料的建筑目前是：砖窑 / 陶器坊 / 熏鱼房 / 肉干坊（`recipe.fuel > 0` 的那五处）
+
+## 三十、AE 纪元日期（2026-10-20 · B0）
+
+用户 2026-10："时间显示改成 `AE 312 年 1 月 1 日`"（AE = 帝国纪元 = After Empire）。
+
+- **纯派生**：`state.day` 不动，历法只是"把天数读成人话" → 不升存档、不动 golden。
+  唯一实现是 `src/engine/calendar.ts` 与 `sim_core.gd::date_of()` / `date_label()` /
+  `date_time_label()`；口径写在 `docs/spec.md` §18。
+- **UI 一个字都不自己拼**（拼了就会两边长得不一样）。改造到的显示点：
+
+| 位置 | 改法 |
+|---|---|
+| 左上角小地图日期框（`minimap_widget.gd`）| **两行**：上面 `AE 312 年 1 月 1 日`、下面 `06:00`；`BOX_H` 26 → **40**（宽仍是 112）|
+| 顶栏水晶球 tooltip（`hud.gd`）| 「预言家在闭门静修 —— AE 312 年 1 月 7 日（还有 N 天）才回得来」|
+| 公告页（`panel_civic.gd`）| 每行 `AE 312 年 1 月 1 日　正文` |
+| 任务面板（`panel_quest.gd`）| 状态行 / 完成情况都写 AE 日期 |
+| 存档列表（`save_dialog.gd`）| `SaveManager.save_to()` 写入时就把 `dateLabel` 存进存档；对话框只读它（不自己算历法）|
+| 预言历史（`ai_panel.gd`）| 历史条目 / 标题 / 状态行 / 冷却提示全写 AE 日期 |
+| 开场白（`intro.gd`）| 「帝国纪元（AE）312 年」—— **全局只在这里写中文全称** |
+
+- ⚠️ 日期**不驱动剧情**：节奏靠任务与 `chapters[].gapDays`（`docs/quests.md` §〇）。
+- `SimRunner.time_string()` 也改成 `date_time_label()`，别处要用时间就调它。
+
+## 三十一、统计面板 › 人口页的「教育」块（2026-10-20 · A3）
+
+用户 2026-10："人口页要有教育。" 位置：`panel_stats.gd::_people_tab()`，在「就业与岗位」
+下面、居民名单上面，四格：
+
+| 口径 | 来源 |
+|---|---|
+| 教育满足率 | `SimCore.education_score()`（昨夜 `needScores.education`，0..1）|
+| 熟练度成长 | `SimCore.education_growth_multiplier()` = `1 + 0.5 × 满足率` → ×1.00–×1.50 |
+| 在校人数 | `SimCore.covered_people("education")` |
+| 学校 | 数 `shops` 里 `def_id == "school"` |
+
+- 倍率的唯一实现是 `sim_core.gd::education_growth_multiplier()`（常量
+  `EDUCATION_GROWTH_BONUS = 0.5`，与 TS `labor.ts` 同一条公式）；**UI 不自己乘**。
+- `needScores` 是**派生量**（夜间 `runConsumption` 写到 `s["needScores"]`，只给面板看，
+  不参与任何公式、不进黄金摘要）。
+- 一座学校都没有时补一句「还没有学校 —— 教育满足率会一直是 0，熟练度只能按 ×1.00 慢长」。
+
+## 三十二、预言面板底部的「送物资」（2026-10-20 · A4）
+
+- 位置：`ai_panel.gd::_build_prophecy()` 左栏，「获取新的预言」按钮下面：
+  `送物资` 小标题 + 下拉（只列**仓库里有的**商品，名字后面带现有件数）+ 数量输入框 + 「送去」。
+- 「送去」= `runner.enqueue([{type:"gift", to:"serafina", goodId, qty}])` ——
+  与建造 / 研究同一拍，**次日黎明生效**（扣货、累加 `state.gifts`、写一条公告）。
+- 下拉在**每次打开面板**时重建（`_refresh_gift_box()`）：库存会变，列一份旧的会让人送不出去。
+- 她收下之后不会回货（药剂那部分等 B6 的奖励类型）；任务侧判的是 `gifted`（送出去多少）。

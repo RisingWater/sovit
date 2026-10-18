@@ -3,16 +3,17 @@ import type {
   LogEntry,
   RepairStage,
   QuestChapterDef,
-  QuestChoice,
   QuestDef,
   QuestGoal,
   QuestGoalProgress,
   QuestID,
   QuestProgress,
+  StoryTalk,
 } from '../types.ts'
 import type { ContentContext } from '../content/index.ts'
 import { housingCapacity } from './housing.ts'
 import { TOWN_CENTER_STAGES, townCenterStage } from './investment.ts'
+import { markSceneShown, scenesAfterChapter } from './scenes.ts'
 import { round2 } from '../util.ts'
 
 // ---------------------------------------------------------------------------
@@ -181,6 +182,13 @@ export function goalProgress(state: GameState, ctx: ContentContext, goal: QuestG
       text = `私有住房 ${shown(have)}/${need} 户`
       break
     }
+    case 'gifted': {
+      // 判的是"送出去多少"，不是"仓库里有多少"（见 docs/quests.md §四）。
+      have = state.gifts?.[goal.to]?.[goal.id] ?? 0
+      need = goal.min
+      text = `${nameOf(goal.id, 'good')} 已送出 ${shown(have)}/${need}`
+      break
+    }
   }
 
   return { goal, have, need, met: have + 1e-9 >= need, text }
@@ -204,6 +212,43 @@ export function isUnlocked(state: GameState, def: QuestDef): boolean {
   return def.requires.every((r) => state.quests.done[r] !== undefined)
 }
 
+/**
+ * 这一章最早哪一天开（用户 2026-10 · B1 · 剧情时钟）。
+ *
+ * 口径：`chapters[i].gapDays` = **上一章领奖那天**起再隔几天。
+ * 章 1–5 填 0（等于不闸），章 6 起填 3–5 的固定值。
+ *
+ * 返回 `0` = 不闸；`Infinity` = 上一章还没收尾，这一章根本还没到点。
+ * ⚠️ 只闸 `kind: "main"`：支线与里程碑不受剧情时钟管（见 `questAvailable`）。
+ */
+export function chapterOpenDay(state: GameState, ctx: ContentContext, chapterId: number): number {
+  const i = ctx.chapters.findIndex((c) => c.id === chapterId)
+  if (i <= 0) return 0
+  const gap = Math.max(0, Math.floor(ctx.chapters[i]!.gapDays ?? 0))
+  if (gap <= 0) return 0
+  const prevDay = state.quests.chapters[String(ctx.chapters[i - 1]!.id)]
+  if (prevDay === undefined) return Infinity
+  return prevDay + gap
+}
+
+/** 这一章开没开（见 `chapterOpenDay`）。 */
+export function chapterOpen(state: GameState, ctx: ContentContext, chapterId: number): boolean {
+  return state.day >= chapterOpenDay(state, ctx, chapterId)
+}
+
+/**
+ * 这条任务现在**存在**吗：前置全完成 + 这一章已经开了 + 还没完成。
+ *
+ * 渐进显示与剧情时钟都收在这一处 —— 追踪条、面板、黎明结算、对话播报四个入口
+ * 必须问同一个函数，否则会出现"条上看得见、结算却不算"这种鬼事。
+ */
+export function questAvailable(state: GameState, ctx: ContentContext, def: QuestDef): boolean {
+  if (!isUnlocked(state, def)) return false
+  // 剧情时钟只闸主线：支线（送物资 / 顺手活）与里程碑（填条）不是"下一章"的内容。
+  if (def.kind !== 'main') return true
+  return chapterOpen(state, ctx, def.chapter)
+}
+
 /** 追踪条要显示的东西：**当前可见**的任务（未完成的 + 今天刚完成的）。 */
 export function questView(state: GameState, ctx: ContentContext): QuestProgress[] {
   const out: QuestProgress[] = []
@@ -211,8 +256,8 @@ export function questView(state: GameState, ctx: ContentContext): QuestProgress[
     const def = ctx.quests[id]!
     const day = state.quests.done[id]
     if (day === undefined) {
-      // 没解锁的**不返回** —— 玩家不该看到后面还有什么（见 docs/quests.md）
-      if (!isUnlocked(state, def)) continue
+      // 没解锁的 / 还没到点的**不返回** —— 玩家不该看到后面还有什么（见 docs/quests.md）
+      if (!questAvailable(state, ctx, def)) continue
       out.push(questProgress(state, ctx, def))
     } else if (day >= state.day) {
       // 今天刚完成：留一天，追踪条上打勾变绿
@@ -238,18 +283,28 @@ export function questJournal(state: GameState, ctx: ContentContext): QuestProgre
   const out: QuestProgress[] = []
   for (const id of ctx.questIds) {
     const def = ctx.quests[id]!
-    if (state.quests.done[id] === undefined && !isUnlocked(state, def)) continue
+    if (state.quests.done[id] === undefined && !questAvailable(state, ctx, def)) continue
     out.push(questProgress(state, ctx, def))
   }
   return out
 }
 
-/** 某一章里"算进章节奖励"的任务（支线不算）。 */
+/** 某一章里"算进章节奖励"的任务（支线与里程碑都不算）。 */
 function chapterQuests(ctx: ContentContext, chapter: number): QuestID[] {
   return ctx.questIds.filter((id) => {
     const q = ctx.quests[id]!
-    return q.chapter === chapter && q.side !== true
+    return q.chapter === chapter && q.kind === 'main'
   })
+}
+
+/**
+ * 这条任务完成时实际发多少钱。
+ *
+ * 里程碑一律 0（内容校验也拦：`kind: "milestone"` 不许写 `reward`）。
+ * 单独一个函数，是为了让"发了多少"与"公告怎么说"永远同一个数。
+ */
+export function questReward(def: QuestDef): number {
+  return def.kind === 'milestone' ? 0 : def.reward
 }
 
 /**
@@ -269,10 +324,12 @@ export function checkQuests(state: GameState, ctx: ContentContext, day: number):
     for (const id of ctx.questIds) {
       if (done[id] !== undefined) continue
       const def = ctx.quests[id]!
-      if (!isUnlocked(state, def)) continue
+      if (!questAvailable(state, ctx, def)) continue
       if (!questProgress(state, ctx, def).met) continue
       done[id] = day
-      state.government.money = round2(state.government.money + def.reward)
+      // 里程碑**不发钱**（用户 2026-10 · B2）：它们只是"把追踪条填住"，
+      // 而且目标故意设得很远 —— 发钱会变成一台躺赚的机器。
+      state.government.money = round2(state.government.money + questReward(def))
       finished.push(def)
       progressed = true
     }
@@ -292,14 +349,25 @@ export function checkQuests(state: GameState, ctx: ContentContext, day: number):
   }
 
   if (finished.length > 0) {
+    // 里程碑不发钱 —— 公告也就不能写「（+0 金）」，不然玩家会去查账
+    let sum = 0
+    for (const q of finished) sum += questReward(q)
     if (finished.length === 1) {
       const q = finished[0]!
-      logs.push({ day, kind: 'info', text: `完成任务：${q.title}（+${q.reward} 金）` })
+      logs.push({
+        day,
+        kind: 'info',
+        text: sum > 0 ? `完成任务：${q.title}（+${sum} 金）` : `完成任务：${q.title}`,
+      })
     } else {
-      let sum = 0
-      for (const q of finished) sum += q.reward
       const titles = finished.map((q) => q.title).join('、')
-      logs.push({ day, kind: 'info', text: `完成 ${finished.length} 项任务（+${sum} 金）：${titles}` })
+      logs.push({
+        day,
+        kind: 'info',
+        text: sum > 0
+          ? `完成 ${finished.length} 项任务（+${sum} 金）：${titles}`
+          : `完成 ${finished.length} 项任务：${titles}`,
+      })
     }
 
     // 这次结算把哪些任务"顶"了出来 —— 只报这些，别把早就可见的再报一遍
@@ -309,7 +377,7 @@ export function checkQuests(state: GameState, ctx: ContentContext, day: number):
       if (done[id] !== undefined) continue
       const def = ctx.quests[id]!
       if (!def.requires.some((r) => justDone.has(r))) continue
-      if (!isUnlocked(state, def)) continue
+      if (!questAvailable(state, ctx, def)) continue
       opened.push(def.title)
     }
     if (opened.length > 0) {
@@ -337,21 +405,13 @@ export function checkQuests(state: GameState, ctx: ContentContext, day: number):
 // ⚠️ `shown` 只记事、不参与演化 —— 和 `prophet` / `townCenter` 同一类字段。
 // ---------------------------------------------------------------------------
 
-/** 一段剧情对话（引擎说"该播这个"，UI 只管画）。 */
-export interface QuestTalk {
-  /** 记账键：`q:<questId>` / `c:<chapterId>`。播完调 `markQuestTalkShown()`。 */
-  key: string
-  kind: 'quest' | 'outro'
-  /** 任务 id 或章节 id（数字章节转成字符串）。 */
-  id: string
-  chapter: number
-  /** 说话的 NPC id（`sebastian` / `luna` / `vila` …）。 */
-  speaker: string
-  /** 立绘 id（`<id>_<mood>`）。 */
-  portrait: string
-  lines: string[]
-  choices?: QuestChoice[]
-}
+/**
+ * 一段剧情对话（引擎说"该播这个"，UI 只管画）。
+ *
+ * 形状定义在 `types.ts` 的 `StoryTalk` —— 因为场次（`systems/scenes.ts`）也用它，
+ * 而场次不能反过来 import 这个文件（会成环）。这个名字留着是给读代码的人对口径。
+ */
+export type QuestTalk = StoryTalk
 
 /**
  * 把一段话按**句末标点**切成"一页一句"的台词。
@@ -376,23 +436,29 @@ export function splitSentences(text: string): string[] {
 }
 
 /**
- * 还没播过的对话，**按内容顺序**排好（第 1 章的任务 → 第 1 章收尾 → 第 2 章 …）。
+ * 还没播过的对话，**按内容顺序**排好（章与章之间 → 第 1 章任务 → 第 1 章收尾 → 第 2 章 …）。
  *
  * 为什么按章节交错而不是"先全部任务、再全部收尾"：第一章一结束，第二章的任务
  * 当晚会一起解锁 —— 收尾那段必须**排在**下一章任务之前，不然瑟拉菲娜的登场
  * 会插在露娜的"蔬菜农场"后面。
+ *
+ * 场次（用户 2026-10 · A1）排在下章任务**之前**：`when.chapter: N` 的场次说的是
+ * "第 N 章收尾之后发生的事"，也就是章与章之间那段 —— 它得比下一章的差事先到。
  */
 export function questTalks(state: GameState, ctx: ContentContext): QuestTalk[] {
   const out: QuestTalk[] = []
   const shown = state.quests.shown ?? {}
   const done = state.quests.done
-  for (const ch of ctx.chapters) {
+  for (const [ci, ch] of ctx.chapters.entries()) {
+    // "上一章收尾之后"的场次：排在本章任务前面
+    const prev = ci > 0 ? ctx.chapters[ci - 1]! : undefined
+    if (prev !== undefined) out.push(...scenesAfterChapter(state, ctx, prev.id))
     const cid = String(ch.id)
     for (const id of ctx.questIds) {
       const def = ctx.quests[id]!
       if (def.chapter !== ch.id) continue
       if (done[id] !== undefined) continue
-      if (!isUnlocked(state, def)) continue
+      if (!questAvailable(state, ctx, def)) continue
       const key = `q:${id}`
       if (shown[key] === true) continue
       out.push({
@@ -420,10 +486,23 @@ export function questTalks(state: GameState, ctx: ContentContext): QuestTalk[] {
       ...(ch.outro.choices ? { choices: ch.outro.choices } : {}),
     })
   }
+  // 最后一章收尾之后的场次（之后就没有"下一章"了）
+  const last = ctx.chapters[ctx.chapters.length - 1]
+  if (last !== undefined) out.push(...scenesAfterChapter(state, ctx, last.id))
   return out
 }
 
-/** 记一笔"这段播过了"（只记事，不改任何数字）。 */
+/**
+ * 记一笔"这段播过了"（只记事，不改任何数字）。
+ *
+ * 键前缀决定记在哪本账上：`s:` 是场次（`state.scenes.shown`），其余是任务对话
+ * （`quests.shown`）。两份账分开是因为场次不属于任务系统，但入口**只有一个** ——
+ * 播放器（`quest_talk.gd` / `main.gd`）不需要知道这件事。
+ */
 export function markQuestTalkShown(state: GameState, key: string): void {
+  if (key.startsWith('s:')) {
+    markSceneShown(state, key)
+    return
+  }
   state.quests.shown[key] = true
 }

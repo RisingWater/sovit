@@ -1,0 +1,64 @@
+{
+  "schemaVersion": 1,
+  "scenes": [
+    {
+      "id": "sc_serafina_friend",
+      "when": { "chapter": 2, "afterDays": 1 },
+      "speaker": "seraphina",
+      "portrait": "seraphina_hooded",
+      "lines": [
+        "殿下的村子，这两天有点吵。",
+        "我有个朋友。她不太像人。",
+        "她说想来看看。我拦不住她，就懒得拦了。",
+        "你会见到的。到那时候，别先拔剑。"
+      ]
+    },
+    {
+      "id": "sc_elise_meet",
+      "when": { "chapter": 4, "afterDays": 1 },
+      "speaker": "elise",
+      "portrait": "elise_neutral",
+      "lines": [
+        "瑟拉菲娜说，这村子里有个不肯按规矩活的人。",
+        "我来看看，她到底把什么押在了这儿。",
+        "人类……真有趣。",
+        "别指望我帮你。也别指望我不看着你。"
+      ]
+    },
+    {
+      "id": "sc_milla_arrive",
+      "when": { "chapter": 4, "afterDays": 2 },
+      "speaker": "milla",
+      "portrait": "milla_neutral",
+      "lines": [
+        "殿下，邻邦那边……有些意思。",
+        "翡翠城的商船三年没换过航线，今年换了。",
+        "他们要的东西，恰好我们产得出。",
+        "这条线我记下了。等您哪天想走，我先把人情铺好。"
+      ]
+    },
+    {
+      "id": "sc_gareth_nightwatch",
+      "when": { "chapter": 4, "afterDays": 3 },
+      "speaker": "gareth",
+      "portrait": "gareth_neutral",
+      "lines": [
+        "殿下，山口那边有马蹄印。",
+        "不深，是轻骑。蹄铁不是我们这边的样式。",
+        "今晚我带人守夜。您睡您的。"
+      ]
+    },
+    {
+      "id": "sc_bandit",
+      "when": { "chapter": 5, "afterDays": 0 },
+      "speaker": "gareth",
+      "portrait": "gareth_neutral",
+      "lines": [
+        "猎人把他们赶回去了。",
+        "没打。照了一面，他们就退了。",
+        "可下次呢？猎人不是兵，轮不了几回夜。",
+        "兵器、兵营、操练 —— 这三样，殿下得早作打算。"
+      ]
+    }
+  ]
+}

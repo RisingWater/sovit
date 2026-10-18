@@ -308,6 +308,39 @@ export function applyActions(
         applied.push({ type: action.type, ok: why === '', reason: why || undefined })
         break
       }
+      case 'gift': {
+        // 送物资（用户 2026-10 · A4）：与建造 / 研究同一拍 —— 次日黎明生效。
+        // 扣货 + 记进 `state.gifts[to][good]`，任务目标 `gifted` 判的就是这个累计量。
+        // 整单成败：仓库不够就一件都不送（不做"送一半"）。
+        const qty = Math.floor(action.qty)
+        if (!ctx.goodSet.has(action.goodId)) {
+          applied.push({ type: action.type, ok: false, reason: '商品不在当前内容包内' })
+          break
+        }
+        if (!Number.isFinite(qty) || qty <= 0) {
+          applied.push({ type: action.type, ok: false, reason: '数量要大于 0' })
+          break
+        }
+        if (String(action.to).trim() === '') {
+          applied.push({ type: action.type, ok: false, reason: '没说送给谁' })
+          break
+        }
+        const have = state.goods[action.goodId] ?? 0
+        if (have + 1e-9 < qty) {
+          applied.push({ type: action.type, ok: false, reason: '仓库里没这么多' })
+          break
+        }
+        state.goods[action.goodId] = round2(have - qty)
+        const to = String(action.to)
+        const bag = state.gifts[to] ?? {}
+        bag[action.goodId] = round2((bag[action.goodId] ?? 0) + qty)
+        state.gifts[to] = bag
+        const nm = ctx.goods[action.goodId]?.nameZh ?? action.goodId
+        if (logs) logs.push({ day: state.day, kind: 'invest', text: `送物资：${nm} ×${qty}` })
+        applied.push({ type: action.type, ok: true })
+        break
+      }
+
       case 'sell_shop':
       case 'retake_shop': {
         applied.push({ type: action.type, ok: false, reason: 'not_implemented（预留接口）' })

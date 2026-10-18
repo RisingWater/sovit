@@ -195,12 +195,14 @@ func _run() -> void:
 			"选中已完成的任务后，左树里应当有它：%s" % _texts(panel._tree)):
 		return
 	var done_txt := _texts(panel._detail)
-	if not _chk(done_txt.contains("第 %d 天完成" % day),
-			"详情里应当写「第 %d 天完成」，实际：%s" % [day, done_txt]):
+	# 用户 2026-10（B0）：完成日期写成 `AE 312 年 1 月 7 日`，不再写「第 N 天完成」
+	var want_date := String(runner.sim.date_label(day))
+	if not _chk(done_txt.contains(want_date),
+			"详情里应当写「%s 完成」，实际：%s" % [want_date, done_txt]):
 		return
 	if not _chk(done_txt.contains("已入国库"), "已完成的奖励应当标成已入国库：%s" % done_txt):
 		return
-	_ok("已完成的任务留在面板里，详情写着「第 %d 天完成」（追踪条那时已经收掉了）" % day)
+	_ok("已完成的任务留在面板里，详情写着「%s 完成」（追踪条那时已经收掉了）" % want_date)
 
 	# ---- 7. 关得掉 --------------------------------------------------------
 	var close: Button = null

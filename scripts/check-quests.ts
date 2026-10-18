@@ -7,6 +7,8 @@ import {
   questTalks,
   markQuestTalkShown,
   splitSentences,
+  chapterOpen,
+  questReward,
 } from '../src/engine/systems/quests.ts'
 import {
   TOWN_CENTER_PATCH_COST,
@@ -144,12 +146,13 @@ const texts = (s: GameState, id: string): string[] =>
 
 console.log('\n=== 任务系统引擎自检 ===\n')
 
-// ---- 1. 开局：只看得见两条并行任务，后面的一律不可见 ---------------------
+// ---- 1. 开局：只看得见第 1 章的两条主线（外加一条送物资支线） ------------
 {
   const s = freshState()
   const ids = viewIds(s)
-  ok('开局只看得到第 1 章的两条任务',
-    JSON.stringify(ids) === JSON.stringify(['q01_bread_chain', 'q02_vegetable']), ids.join(' → '))
+  ok('开局只看得到第 1 章的差事 + 一条送物资支线',
+    JSON.stringify(ids) === JSON.stringify(['q01_bread_chain', 'q02_vegetable', 'q_s_sera_1']),
+    ids.join(' → '))
   ok('未解锁的任务不可见（别让玩家知道后面干嘛）',
     !ids.includes('q03a_housing_capacity') && !ids.includes('q04_institute'))
   ok('开局进度文案：住房容量 24/32',
@@ -192,11 +195,12 @@ console.log('\n=== 任务系统引擎自检 ===\n')
   ok('今天刚完成的任务还留在追踪条上（打勾）',
     ids.includes('q01_bread_chain') && ids.includes('q02_vegetable'), ids.join(' → '))
 
-  // 再跑一天：昨天完成的那两条应当消失，只剩第 2 章的三条
+  // 再跑一天：昨天完成的那两条应当消失，只剩第 2 章的三条（+ 送物资支线）
   runDawn(s, ctx)
   const ids2 = viewIds(s)
   ok('隔天之后，已完成的任务从追踪条上收掉',
-    JSON.stringify(ids2) === JSON.stringify(['q03a_housing_capacity', 'q03b_output', 'q03c_satisfaction']),
+    JSON.stringify(ids2) ===
+      JSON.stringify(['q03a_housing_capacity', 'q03b_output', 'q03c_satisfaction', 'q_s_sera_1']),
     ids2.join(' → '))
 }
 
@@ -304,10 +308,12 @@ console.log('\n=== 任务系统引擎自检 ===\n')
   // 面板与追踪条**不是**一回事：追踪条只要"当前该做 / 今天刚做完"，面板要把
   // 做过的历史都留着给玩家翻（用户："此面板记录之前完成的所有任务"）。
   const s = freshState()
-  ok('开局：面板里就是那两条并行任务', questJournal(s, ctx).length === 2,
+  ok('开局：面板里是那两条主线 + 一条送物资支线', questJournal(s, ctx).length === 3,
     questJournal(s, ctx).map((q) => q.def.id).join('、'))
-  ok('每条任务都带 brief（面板右侧的描述）与 reward',
-    questJournal(s, ctx).every((q) => q.def.brief.length > 0 && q.def.reward > 0))
+  ok('每条任务都带 brief（面板右侧的描述）',
+    questJournal(s, ctx).every((q) => q.def.brief.length > 0))
+  ok('里程碑不发钱（reward = 0），其余任务都发',
+    questJournal(s, ctx).every((q) => (q.def.kind === 'milestone' ? q.def.reward === 0 : q.def.reward > 0)))
   ok('锁着的仍然不进面板（渐进显示在面板上也要守）',
     !questJournal(s, ctx).some((q) => q.def.id === 'q04_institute'))
 
@@ -413,8 +419,8 @@ console.log('\n=== 任务系统引擎自检 ===\n')
 {
   const s = freshState()
   const talks = questTalks(s, ctx)
-  ok('开局有两条任务对话要播（第 1 章两条任务）',
-    talks.length === 2 && talks[0]!.key === 'q:q01_bread_chain', talks.map((t) => t.key).join(' → '))
+  ok('开局有三段对话要播（第 1 章两条主线 + 送物资支线）',
+    talks.length === 3 && talks[0]!.key === 'q:q01_bread_chain', talks.map((t) => t.key).join(' → '))
   ok('说话人/立绘取内容里的 giver / giverPortrait',
     talks[0]!.speaker === ctx.quests['q01_bread_chain']!.giver &&
       talks[0]!.portrait === ctx.quests['q01_bread_chain']!.giverPortrait,
@@ -437,15 +443,120 @@ console.log('\n=== 任务系统引擎自检 ===\n')
   ok('第 1 章收尾排在第 2 章任务之前（瑟拉菲娜登场不该被插在后面）',
     t2[0]!.key === 'c:1', t2.map((t) => t.key).join(' → '))
   ok('收尾那段是瑟拉菲娜出场', t2[0]!.speaker === 'seraphina', t2[0]!.speaker)
-  ok('第一章收尾带选项（accept 免费预言 / decline 关闭）',
-    (t2[0]!.choices ?? []).map((c) => c.id).join(',') === 'accept,decline' &&
-      (t2[0]!.choices ?? [])[0]!.action === 'free_prophecy',
+  // 用户 2026-10：那两个选项删了 —— 她送的预言不许拒绝，后面直接接 5 行固定预言
+  ok('第一章收尾**没有**选项了（预言不能拒绝）', (t2[0]!.choices ?? []).length === 0,
     JSON.stringify(t2[0]!.choices ?? []))
+  ok('第一条预言是固定台词：6 行登场 + 5 行含糊预言 = 11 页',
+    t2[0]!.lines.length === 11 && t2[0]!.lines[6] === '我看见的都不清楚……' &&
+      t2[0]!.lines[10] === '……别问我什么时候。我要是知道，就不会住在这种地方了。',
+    `${t2[0]!.lines.length} 页 / 第 7 页「${t2[0]!.lines[6]}」`)
   ok('后面跟着的是第 2 章那三条任务',
     t2.slice(1).every((t) => t.kind === 'quest') && t2.length === 4,
     t2.map((t) => t.key).join(' → '))
   markQuestTalkShown(s, 'c:1')
   ok('收尾播过也不再返回', !questTalks(s, ctx).some((t) => t.key === 'c:1'))
+}
+
+// ---- 12. 剧情时钟（B1）：章与章之间隔 3–5 天 ------------------------------
+{
+  const s = freshState()
+  s.day = 5
+  for (const c of ['1', '2', '3', '4']) s.quests.chapters[c] = 1
+  ok('章 5 还没收尾 → 章 6 一律不开', !chapterOpen(s, ctx, 6))
+  s.quests.chapters['5'] = 1
+  ok('章 5 第 1 天收尾、章 6 的 gapDays = 5 → 第 5 天还没到点',
+    !chapterOpen(s, ctx, 6), `第 ${s.day} 天`)
+  s.day = 6
+  ok('第 6 天开', chapterOpen(s, ctx, 6))
+  ok('章 1–5 的 gapDays 全是 0（前五章不闸）',
+    ctx.chapters.filter((c) => c.id <= 5).every((c) => c.gapDays === 0),
+    ctx.chapters.filter((c) => c.id <= 5).map((c) => `${c.id}:${c.gapDays}`).join(' '))
+  ok('章 6–17 每章都填了 3–5 天（固定值，不随机）',
+    ctx.chapters.filter((c) => c.id >= 6).every((c) => c.gapDays >= 3 && c.gapDays <= 5),
+    ctx.chapters.filter((c) => c.id >= 6).map((c) => `${c.id}:${c.gapDays}`).join(' '))
+
+  // 间隔期：章 6 的主线不下发，但里程碑照样看得见（就是拿来填条的）
+  const s2 = freshState()
+  s2.quests.done['q12_pop250'] = 1
+  for (const c of ['1', '2', '3', '4']) s2.quests.chapters[c] = 1
+  s2.quests.chapters['5'] = 1
+  s2.day = 5
+  ok('间隔期内章 6 的主线不下发', !viewIds(s2).includes('q18_pop1000'), viewIds(s2).join(' → '))
+  ok('间隔期不空：里程碑照样看得见', viewIds(s2).includes('q16_pop500'), viewIds(s2).join(' → '))
+  s2.day = 6
+  ok('隔够天数之后章 6 的主线才下发', viewIds(s2).includes('q18_pop1000'), viewIds(s2).join(' → '))
+}
+
+// ---- 13. 里程碑（B2）：不发钱、不挡剧情 ----------------------------------
+{
+  ok('三条人口 / 产能任务改成了里程碑',
+    ['q16_pop500', 'q17_output_mid', 'q45_pop2000'].every((id) => ctx.quests[id]!.kind === 'milestone'))
+  ok('里程碑不发钱（reward = 0）',
+    ['q16_pop500', 'q17_output_mid', 'q45_pop2000'].every((id) => questReward(ctx.quests[id]!) === 0))
+  ok('千人之村仍是章 6 的主线（不然章 6 永远收不了尾）',
+    ctx.quests['q18_pop1000']!.kind === 'main')
+  ok('主线不许依赖里程碑（里程碑不挡剧情）',
+    ctx.questIds.every((id) => {
+      const d = ctx.quests[id]!
+      if (d.kind !== 'main') return true
+      return d.requires.every((r) => ctx.quests[r]!.kind === 'main')
+    }))
+
+  // 完成一条里程碑：不发钱，公告里也不写金额
+  const s = freshState()
+  for (const id of ctx.questIds) {
+    const d = ctx.quests[id]!
+    if (d.chapter <= 5 && d.kind === 'main') s.quests.done[id] = 1
+  }
+  // 章 1–5 的章节奖励也先记掉，免得那 5 × 1000 混进这一笔账里
+  for (const c of ['1', '2', '3', '4', '5']) s.quests.chapters[c] = 1
+  addResidents(s, 520)
+  const before = s.government.money
+  const { logs } = runDawn(s, ctx)
+  ok('人口过 500 → 里程碑当场完成', s.quests.done['q16_pop500'] === s.day,
+    `第 ${s.quests.done['q16_pop500']} 天`)
+  ok('里程碑完成一分钱不发', s.government.money === before, `${before} → ${s.government.money}`)
+  const txt = logs.map((l) => l.text).join(' / ')
+  ok('公告写「完成任务：五百人的村子」但不带金额',
+    txt.includes('完成任务：五百人的村子') && !txt.includes('五百人的村子（+'), txt)
+}
+
+// ---- 14. 送物资（A4）：gift 命令 + gifted 目标 ---------------------------
+{
+  const def = ctx.quests['q_s_sera_1']!
+  const s = freshState()
+  s.goods['coarse_bread'] = 100
+  const before = s.goods['coarse_bread']!
+  const r = applyActions(s, ctx, [{ type: 'gift', to: 'serafina', goodId: 'coarse_bread', qty: 20 }])
+  ok('送物资：命令生效、当场扣货', r[0]!.ok && s.goods['coarse_bread'] === before - 20,
+    `bread=${s.goods['coarse_bread']}`)
+  ok('送出去的量记在 `gifts` 上', s.gifts['serafina']?.['coarse_bread'] === 20,
+    JSON.stringify(s.gifts))
+  const p = questProgress(s, ctx, def)
+  ok('gifted 只认送出去的量：送 20 → 刚好达成',
+    p.met && p.goals[0]!.text === '粗面包 已送出 20/20', p.goals[0]!.text)
+  ok('再送一趟会累加', (() => {
+    applyActions(s, ctx, [{ type: 'gift', to: 'serafina', goodId: 'coarse_bread', qty: 10 }])
+    return s.gifts['serafina']?.['coarse_bread'] === 30
+  })(), JSON.stringify(s.gifts))
+
+  const s2 = freshState()
+  s2.goods['coarse_bread'] = 999
+  ok('库存再多也不算送出（库存 ≠ 送礼）',
+    !questProgress(s2, ctx, def).met && questProgress(s2, ctx, def).goals[0]!.have === 0)
+
+  const s3 = freshState()
+  s3.goods['coarse_bread'] = 5
+  const r2 = applyActions(s3, ctx, [{ type: 'gift', to: 'serafina', goodId: 'coarse_bread', qty: 20 }])
+  ok('仓库不够 → 整单不送（不退一半）',
+    !r2[0]!.ok && s3.goods['coarse_bread'] === 5 && (s3.gifts['serafina']?.['coarse_bread'] ?? 0) === 0,
+    String(r2[0]!.reason))
+  const r3 = applyActions(s3, ctx, [{ type: 'gift', to: 'serafina', goodId: 'coarse_bread', qty: 0 }])
+  ok('数量 0 → 拒', !r3[0]!.ok, String(r3[0]!.reason))
+  ok('17 条送物资都是支线，且每章一条',
+    ctx.questIds.filter((id) => id.startsWith('q_s_sera_')).length === 17 &&
+      ctx.questIds.filter((id) => id.startsWith('q_s_sera_')).every((id) => ctx.quests[id]!.kind === 'side'),
+    String(ctx.questIds.filter((id) => id.startsWith('q_s_sera_')).length))
 }
 
 console.log('')

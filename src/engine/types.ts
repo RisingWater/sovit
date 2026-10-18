@@ -572,11 +572,30 @@ export type QuestGoal =
   | { type: 'avg_satisfaction'; min: number }
   /** 私有住房不低于 N 户。 */
   | { type: 'private_housing'; min: number }
+  /**
+   * **累计送出**某商品不少于 N（用户 2026-10：给瑟拉菲娜送物资）。
+   *
+   * ⚠️ 判的是"送出去多少"，**不是**"仓库里有多少" —— 所以 `good` 那种口径糊不了这一条：
+   * 东西得真的走 `gift` 命令出门（扣货 + 记进 `state.gifts[to][good]`）才算数。
+   */
+  | { type: 'gifted'; to: string; id: GoodID; min: number }
+
+/**
+ * 一条任务的**种类**（用户 2026-10，B2）。
+ *
+ *   · `main`      —— 主线：进追踪条、参与章节奖励判定（"本章全绿"只数这些）
+ *   · `side`      —— 支线：进「支线」页，不挡任何后续任务、不影响章节奖励
+ *   · `milestone` —— 里程碑：**不发钱**、不参与章节奖励、也不挡剧情。
+ *                    它唯一的职责是"让追踪条不空"（目标可以设得很远）。
+ */
+export type QuestKind = 'main' | 'side' | 'milestone'
 
 export interface QuestDef {
   id: QuestID
-  /** 章节号：整章全绿（不含 `side` 支线）另有一次性奖励。 */
+  /** 章节号：整章全绿（只数 `kind: "main"`）另有一次性奖励。 */
   chapter: number
+  /** 种类（`main` / `side` / `milestone`）。内容里不写就是 `main`。 */
+  kind: QuestKind
   /**
    * 发布这条任务的 NPC（`sebastian` / `luna` / `vila` …）。用户 2026-10：
    * 任务触发时要**暂停时间、弹一段 galgame 对话** —— 说话的就是这位。
@@ -599,7 +618,12 @@ export interface QuestDef {
   /** 前置任务：全部完成过之后，这条才可见、才可能完成。 */
   requires: QuestID[]
   goals: QuestGoal[]
-  /** 支线：不挡任何后续任务，也不影响章节奖励。 */
+  /**
+   * 支线：不挡任何后续任务，也不影响章节奖励。
+   *
+   * ⚠️ 这是 `kind` 的**派生别名**（`kind === 'side'`）。内容里两种写法都收
+   * （老内容写 `"side": true`），但引擎与 UI 只认 `kind` —— 两处判断必须同源。
+   */
   side?: boolean
 }
 
@@ -635,6 +659,15 @@ export interface QuestChapterDef {
   id: number
   title: string
   reward: number
+  /**
+   * **剧情时钟**（用户 2026-10，B1）：上一章领奖那天起，再隔这么多天才开这一章。
+   *
+   *   · 缺省 `0` = 上一章一收尾，这一章的任务当场就在（章 1–5 全是 0）
+   *   · 章 6 起填 3–5 的**固定值**（不随机 —— 黄金轨迹要可复现）
+   *   · 只在"上一章主线全绿"之后才开始计时；玩家拖多久都不催
+   *   · 只闸 `kind: "main"` 的任务：支线与里程碑不受它管
+   */
+  gapDays: number
   /** 章节全部完成时的那段对话（可选）。 */
   outro?: QuestOutro
 }
@@ -703,6 +736,73 @@ export interface QuestState {  /** questId → 完成那一天。 */
    * 只记事、不演化：播没播过都不改村子的任何数字。放在状态里是为了读档 / 退出重进
    * 之后**不重播**，也不会漏播（事件队列会丢，比对状态不会）。
    */
+  shown: Record<string, boolean>
+}
+
+/**
+ * 一段剧情对话（引擎说"该播这个"，UI 只管画）—— 用户 2026-10。
+ *
+ * 三种触发共用这一个形状：任务一出现、一章全绿、以及 `scenes.json` 里那种
+ * "不挂任务的戏"（艾莉丝/米拉/加雷斯的登场）。所以 `kind` 有三档。
+ */
+export interface StoryTalk {
+  /** 记账键：`q:<questId>` / `c:<chapterId>` / `s:<sceneId>`。播完调 `markQuestTalkShown()`。 */
+  key: string
+  kind: 'quest' | 'outro' | 'scene'
+  /** 任务 id / 章节 id（数字章节转成字符串）/ 场次 id。 */
+  id: string
+  chapter: number
+  /** 说话的 NPC id（`sebastian` / `luna` / `sara` …）。 */
+  speaker: string
+  /** 立绘 id（`<id>_<mood>`）。 */
+  portrait: string
+  lines: string[]
+  choices?: QuestChoice[]
+}
+
+/**
+ * 场次的触发条件（用户 2026-10，A1）。全部**可选**，写几个就要求几个。
+ *
+ * 判定口径与任务同一条：**状态比对**，不是事件队列 —— 读档不重播、不漏播。
+ */
+export interface SceneWhen {
+  /** 第 N 章**收尾之后**才播（缺省 = 开局就能播）。 */
+  chapter?: number
+  /** 那一章收尾之后再过 N 天（`chapter` 缺省时等于"开局后第 N 天"）。 */
+  afterDays?: number
+  /** 最早第几天（绝对天数）。 */
+  minDay?: number
+  /** 人口不低于 N。 */
+  pop?: number
+  /** 已经建成某建筑。 */
+  building?: BuildingID
+  /** 已经完成某科技。 */
+  tech?: TechID
+  /** 某阶层至少 N 人（`class` + `classMin`）。 */
+  class?: ClassID
+  classMin?: number
+}
+
+/** 一段"不挂任务的戏"（`content/scenes.json`，用户 2026-10 · A1）。 */
+export interface SceneDef {
+  id: string
+  /** 触发表（见 `SceneWhen`）。 */
+  when: SceneWhen
+  speaker: string
+  portrait: string
+  /** 逐行显示的台词（一行 = 一页）。 */
+  lines: string[]
+  choices?: QuestChoice[]
+}
+
+/**
+ * 场次的记账（只记事，不演化）。
+ *
+ * `shown` 与 `quests.shown` 同一类东西：记"这段播过了"，好让读档 / 退出重进都不重播。
+ * 单独开一段而不是合进 `quests.shown`，是因为场次**不属于任务系统**（`docs/quests.md`
+ * 里那三种触发各记各的账）；存档版本 5 一起加。
+ */
+export interface SceneState {
   shown: Record<string, boolean>
 }
 
@@ -854,6 +954,15 @@ export interface GameState {
   /** 任务（引导系统）：完成记录 + 章节奖励记录。见 docs/quests.md。 */
   quests: QuestState
   /**
+   * 送出去的东西（用户 2026-10 · A4）：`gifts[收礼人][商品] = 累计数量`。
+   *
+   * 只由 `gift` 命令往上加（次日黎明生效、当场扣货），任务目标 `gifted` 读它。
+   * ⚠️ 它是"送出过多少"的账，**不是库存** —— 所以判 `gifted` 不能用 `good` 糊。
+   */
+  gifts: Record<string, Record<GoodID, number>>
+  /** 场次（不挂任务的戏）的记账：播过哪些。见 `systems/scenes.ts`。 */
+  scenes: SceneState
+  /**
    * 山顶那位预言家（AI 辅助）的记账：`lastAskDay` = 上次问他话是第几天（-1 = 还没问过）。
    *
    * ⚠️ 这是**唯一一个不参与仿真演化**的状态段：问不问都不改村子的任何数值，
@@ -908,6 +1017,15 @@ export interface GameState {
   alerts: Alert[]
   /** 本回合"想来"的移民人数（由引擎按满意度等计算）。 */
   arrivals: number
+  /**
+   * 昨夜算出来的「需求满足率」（0..1，键 = `medical` / `education` / `safety` / `food` …）。
+   *
+   * ⚠️ **派生量、只给面板看**：夜间 `runConsumption` 写完，除统计面板没人再读它 ——
+   * 不参与任何公式（教育那一项当场被 `growSkills` 用掉了）。
+   * 放在状态里是为了让面板不必自己再跑一遍需求链（用户 2026-10 · A3 教育页）。
+   * **不进黄金摘要**（`scripts/golden.ts` 的 `summarize()` 不取它）。
+   */
+  needScores: Record<string, number>
 }
 
 // ---------------------------------------------------------------------------
@@ -1001,6 +1119,15 @@ export type Action =
   | { type: 'repair_town_center'; stage?: RepairStage }
   | { type: 'sell_to_caravan'; caravanId: string; goodId: GoodID; qty: number }
   | { type: 'buy_from_caravan'; caravanId: string; goodId: GoodID; qty: number }
+  /**
+   * 送物资（用户 2026-10 · A4）：把仓库里的东西送给某个人。
+   *
+   * 与建造 / 研究同一拍 —— **次日黎明生效**：扣货、累加 `state.gifts[to][good]`、
+   * 写一条公告。任务目标 `gifted` 判的就是这个累计量。
+   *
+   * `to` = 收礼人的 id（`serafina`）；`qty` 取非负整数，仓库不够就整单不做。
+   */
+  | { type: 'gift'; to: string; goodId: GoodID; qty: number }
   | { type: 'end_turn' }
 
 export interface AppliedAction {

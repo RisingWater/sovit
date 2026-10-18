@@ -142,6 +142,12 @@ export function createInitialState(options: CreateOptions = {}): GameState {
     // 任务（引导系统）：一局从零开始记；判定与发钱都在黎明，见 docs/quests.md
     // `shown` = 已经播过的剧情对话（只记事，不改任何数字）
     quests: { done: {}, chapters: {}, shown: {} },
+    // 送出去的东西（用户 2026-10 · A4）：`gifts[收礼人][商品] = 累计`。
+    // 只由 `gift` 命令往上加；任务目标 `gifted` 读它（见 docs/quests.md §四）。
+    gifts: {},
+    // 场次（不挂任务的戏）的记账（用户 2026-10 · A1）：播过哪几场。
+    // 和 `quests.shown` 同一类东西 —— 读档 / 退出重进都不会重播，也不会漏播。
+    scenes: { shown: {} },
     // 山顶那位预言家：`lastAskDay` = 上一次问他话是第几天（-1 = 还没问过）。
     // 冷却 5 天，见 docs/ai-assist.md §六 —— 这条**不参与仿真演化**（问不问都不改村子），
     // 但记在存档里，所以退出再进 / 读档都绕不过冷却。
@@ -171,5 +177,7 @@ export function createInitialState(options: CreateOptions = {}): GameState {
     log: [],
     alerts: [],
     arrivals: 0,
+    // 昨夜的需求满足率（派生量，只给面板看；第一个夜晚就会被覆盖）
+    needScores: {},
   }
 }

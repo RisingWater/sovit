@@ -146,8 +146,8 @@ func _run() -> void:
 	# 面板与追踪条**不是**一回事：追踪条只要"当前该做 / 今天刚做完"，
 	# 面板要把做过的历史都留着给玩家翻（用户："此面板记录之前完成的所有任务"）。
 	var sj := _fresh()
-	if _journal_ids(sj).size() != 2:
-		_fail("开局：面板里应当就是那两条并行任务，实际 %s" % str(_journal_ids(sj)))
+	if _journal_ids(sj).size() != 3:
+		_fail("开局：面板里应当是那两条主线 + 一条送物资支线，实际 %s" % str(_journal_ids(sj)))
 		return
 	var j0 := sj.quest_journal()
 	for q in j0:
@@ -157,7 +157,7 @@ func _run() -> void:
 	if _journal_ids(sj).has("q04_institute"):
 		_fail("锁着的任务不该进面板（渐进显示在面板上也要守）")
 		return
-	_ok("面板：开局两条 + 每条都带 brief / reward，锁着的仍然看不见")
+	_ok("面板：开局三条 + 每条都带 brief / reward，锁着的仍然看不见")
 
 	for bid in ["wheat_farm", "coarse_mill", "coarse_bakery", "vegetable_farm"]:
 		_add_shop(sj, bid, 1)
@@ -186,10 +186,10 @@ func _run() -> void:
 	# ---- 1. 开局：只看得见两条并行任务，后面的一律不可见 -------------------
 	var s1 := _fresh()
 	var ids1 := _view_ids(s1)
-	if ids1 != ["q01_bread_chain", "q02_vegetable"]:
+	if ids1 != ["q01_bread_chain", "q02_vegetable", "q_s_sera_1"]:
 		_fail("开局可见任务不对：%s" % str(ids1))
 		return
-	_ok("开局只看得到第 1 章的两条任务：%s" % str(ids1))
+	_ok("开局只看得到第 1 章的两条任务 + 一条送物资支线：%s" % str(ids1))
 	if ids1.has("q03a_housing_capacity") or ids1.has("q04_institute"):
 		_fail("未解锁的任务不该可见")
 		return
@@ -385,6 +385,109 @@ func _run() -> void:
 		_fail("完成公告在这一天里出现了 %d 次" % hits)
 		return
 	_ok("完成公告在这一天里只出现一次")
+
+	# ---- 9. 剧情时钟（B1）：章与章之间隔 3–5 天 ----------------------------
+	var g1 := _fresh()
+	g1.s["day"] = 5
+	for c in ["1", "2", "3", "4"]:
+		g1.s["quests"]["chapters"][c] = 1
+	if g1.quest_chapter_open(6):
+		_fail("章 5 还没收尾，章 6 不该开")
+		return
+	g1.s["quests"]["chapters"]["5"] = 1
+	if g1.quest_chapter_open(6):
+		_fail("章 5 第 1 天收尾 + gapDays 5 → 第 5 天不该开")
+		return
+	# 间隔期：章 6 的主线不下发，但里程碑照样看得见（就是拿来填条的）
+	g1.s["quests"]["done"]["q12_pop250"] = 1
+	if _view_ids(g1).has("q18_pop1000"):
+		_fail("间隔期内章 6 的主线不该下发：%s" % str(_view_ids(g1)))
+		return
+	if not _view_ids(g1).has("q16_pop500"):
+		_fail("间隔期不该是空的 —— 里程碑要看得见：%s" % str(_view_ids(g1)))
+		return
+	g1.s["day"] = 6
+	if not g1.quest_chapter_open(6):
+		_fail("章 5 第 1 天 + 5 天 → 第 6 天该开")
+		return
+	if not _view_ids(g1).has("q18_pop1000"):
+		_fail("隔够天数之后章 6 的主线才下发：%s" % str(_view_ids(g1)))
+		return
+	var gapbad := 0
+	for ch in db.chapters:
+		var gap := int(ch.get("gapDays", 0))
+		if int(ch["id"]) <= 5 and gap != 0:
+			gapbad += 1
+		if int(ch["id"]) >= 6 and (gap < 3 or gap > 5):
+			gapbad += 1
+	if gapbad != 0:
+		_fail("gapDays 填得不对（章 1–5 = 0，章 6 起 3–5），有 %d 章不对" % gapbad)
+		return
+	_ok("剧情时钟：章 1–5 不闸，章 6 起按 gapDays 3–5 开，间隔期靠里程碑填条")
+
+	# ---- 10. 里程碑（B2）：不发钱、不挡剧情 --------------------------------
+	if String(db.quests["q16_pop500"].get("kind", "")) != "milestone" \
+			or String(db.quests["q17_output_mid"].get("kind", "")) != "milestone" \
+			or String(db.quests["q45_pop2000"].get("kind", "")) != "milestone":
+		_fail("三条人口 / 产能任务应当是里程碑")
+		return
+	if not _near(g1.quest_reward(db.quests["q16_pop500"]), 0.0):
+		_fail("里程碑不该发钱")
+		return
+	if String(db.quests["q18_pop1000"].get("kind", "")) != "main":
+		_fail("千人之村要留在章 6 当主线（不然章 6 永远收不了尾）")
+		return
+	var m1 := _fresh()
+	for qid in db.quest_ids:
+		var d: Dictionary = db.quests[qid]
+		if int(d["chapter"]) <= 5 and String(d.get("kind", "main")) == "main":
+			m1.s["quests"]["done"][qid] = 1
+	for c2 in ["1", "2", "3", "4", "5"]:
+		m1.s["quests"]["chapters"][c2] = 1
+	_add_residents(m1, 520)
+	var mb := _money(m1)
+	var mlogs: Array = m1._run_dawn()
+	if int(m1.s["quests"]["done"].get("q16_pop500", -1)) != int(m1.s["day"]):
+		_fail("人口过 500，里程碑应当当场完成")
+		return
+	if not _near(_money(m1), mb):
+		_fail("里程碑完成不该发钱，实际 %s → %s" % [str(mb), str(_money(m1))])
+		return
+	var mtext := ""
+	for l in mlogs:
+		mtext += String(l["text"]) + " / "
+	if not mtext.contains("完成任务：五百人的村子") or mtext.contains("五百人的村子（+"):
+		_fail("里程碑公告写法不对：%s" % mtext)
+		return
+	_ok("里程碑：不发钱、公告不写金额、千人之村仍是主线")
+
+	# ---- 11. 送物资（A4）：gift 命令 + gifted 目标 -------------------------
+	var f1 := _fresh()
+	f1.s["goods"]["coarse_bread"] = 100.0
+	f1._apply_actions([{"type": "gift", "to": "serafina", "goodId": "coarse_bread", "qty": 20}])
+	if not _near(float(f1.s["goods"]["coarse_bread"]), 80.0):
+		_fail("送物资应当扣货，实际 %s" % str(f1.s["goods"]["coarse_bread"]))
+		return
+	if not _near(float((f1.s["gifts"]["serafina"] as Dictionary).get("coarse_bread", 0.0)), 20.0):
+		_fail("送出去的量应当记在 gifts 上：%s" % str(f1.s["gifts"]))
+		return
+	var fp: Dictionary = f1.quest_progress("q_s_sera_1")
+	if not bool(fp["met"]) or String((fp["goals"] as Array)[0]["text"]) != "粗面包 已送出 20/20":
+		_fail("gifted 文案 / 判定不对：%s" % str(fp["goals"]))
+		return
+	var f2 := _fresh()
+	f2.s["goods"]["coarse_bread"] = 999.0
+	if bool(f2.quest_progress("q_s_sera_1")["met"]):
+		_fail("库存再多也不算送出（库存 ≠ 送礼）")
+		return
+	var f3 := _fresh()
+	f3.s["goods"]["coarse_bread"] = 5.0
+	f3._apply_actions([{"type": "gift", "to": "serafina", "goodId": "coarse_bread", "qty": 20}])
+	if not _near(float(f3.s["goods"]["coarse_bread"]), 5.0) \
+			or not (f3.s["gifts"] as Dictionary).is_empty():
+		_fail("仓库不够时整单不该送出")
+		return
+	_ok("送物资：gift 扣货 + gifts 记账 + gifted 只认送出去的量")
 
 	if _checks == 0:
 		_fail("一条都没检查到（假绿）")

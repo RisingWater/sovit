@@ -833,6 +833,9 @@ func save_to(path: String) -> Error:
 	var data := {
 		"saveVersion": SAVE_VERSION,
 		"mapSeed": _map_seed,
+		# AE 日期（用户 2026-10 · B0）：存档列表要显示"这一局到哪一天了"。
+		# 写入时算好，读的那一头（`save_dialog._meta`）就不必再实现一遍历法。
+		"dateLabel": runner.sim.date_label(int(runner.sim.s["day"])),
 		"sim": {
 			"pack": String(runner.sim.s["pack"]),
 			"seed": int(runner.sim.s["seed"]),

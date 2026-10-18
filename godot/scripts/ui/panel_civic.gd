@@ -478,7 +478,8 @@ func _build_queue() -> void:
 ## 随存档保存）—— 表现层不再自己攒一份副本。以前读的是 `SimRunner.recent_logs`
 ## （只在内存里的环形缓冲），**读档时被清空**，于是"退出再进来公告全没了"。
 ##
-## 日期写「第 N 天」（日志里的 `day` 从 1 开始），不再写 `D37` 那种缩写。
+## 日期写 `AE 312 年 1 月 1 日`（用户 2026-10 · B0），不再写「第 N 天」。
+## ⚠️ 历法一个字都不在这里拼：唯一实现是 `sim_core.gd::date_label()`。
 func _build_notice() -> void:
 	_title("公告")
 	if runner == null or runner.sim == null:
@@ -492,7 +493,7 @@ func _build_notice() -> void:
 		return
 	for e in logs:
 		var d := int((e as Dictionary).get("day", 0))
-		_note("第%d天　%s" % [d, String((e as Dictionary).get("text", ""))])
+		_note("%s　%s" % [runner.sim.date_label(d), String((e as Dictionary).get("text", ""))])
 	_scroll_to_bottom()
 
 ## 滚到最新一条（日志是"老的在上、新的在下"）。

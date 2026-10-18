@@ -95,8 +95,8 @@ func _run() -> void:
 			" / ".join((hud.NAV_ITEMS as Array).map(func(it): return String(it[0]))),
 			nav_btns.size()])
 		return
-	if nav_btns.size() != 6:
-		_fail("圆钮列现在是 6 个（资源/人口/财政/科技/任务/预言），实际 %d" % nav_btns.size())
+	if nav_btns.size() != 7:
+		_fail("圆钮列现在是 7 个（资源/人口/财政/科技/任务/预言/贸易），实际 %d" % nav_btns.size())
 		return
 	for b in nav_btns:
 		if (b as Button).icon == null:

@@ -65,5 +65,15 @@ export {
   questView,
   questJournal,
   isUnlocked as isQuestUnlocked,
+  chapterOpen,
+  chapterOpenDay,
+  questAvailable,
+  questReward,
   checkQuests,
+  questTalks,
+  splitSentences,
+  markQuestTalkShown,
 } from './systems/quests.ts'
+export { sceneReady, scenesAfterChapter, sceneKey, sceneTalk, markSceneShown } from './systems/scenes.ts'
+export { dateOf, dateLabel, dateTimeLabel, epochPrefix } from './calendar.ts'
+export type { GameDate } from './calendar.ts'

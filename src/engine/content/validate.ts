@@ -16,12 +16,16 @@ import type {
   PackID,
   PackStart,
   QuestChapterDef,
+  QuestChoice,
   QuestDef,
   QuestGoal,
   QuestID,
+  QuestKind,
   QuestOutro,
   RecipeDef,
   RecipeID,
+  SceneDef,
+  SceneWhen,
   Sector,
   StorageDef,
   TechDef,
@@ -62,6 +66,8 @@ export interface ParsedContent {
   quests: Record<QuestID, QuestDef>
   questIds: QuestID[]
   chapters: QuestChapterDef[]
+  scenes: Record<string, SceneDef>
+  sceneIds: string[]
 }
 
 const SCHEMA_VERSION = 1
@@ -74,13 +80,19 @@ const SCHEMA_VERSION = 1
  */
 const MAX_WORKERS_CAP = 12
 /**
- * `quests.json` 自己的 schema 版本（用户 2026-10 升到 2）。
+ * `quests.json` 自己的 schema 版本（用户 2026-10 升到 **3**）。
  *
  * 与 `SCHEMA_VERSION` 分开，是因为两个文件各自演进：economy 还是 1，
- * 而 quests 加了 `giver` / `giverPortrait` / `chapters[].outro` / `building_repaired`。
- * ⚠️ 版本一升，老存档就不兼容了 —— 那是有意的（`docs/quests.md` §七）。
+ * 而 quests 加了 `giver` / `giverPortrait` / `chapters[].outro` / `building_repaired`（2），
+ * 这一版又加了 `kind`（主线 / 支线 / 里程碑）、`chapters[].gapDays`（剧情时钟）与
+ * `gifted` 目标（给瑟拉菲娜送物资）（3）。
+ * ⚠️ 文档里写的目标版本是 4 —— 差的这一级是 B6 的 `reward` 对象写法（钱 + 商品），
+ * 那一级还没落地，所以这里仍是 3（`docs/quests.md` §九 记着这件事）。
+ * ⚠️ 版本一升，老存档就不兼容了 —— 那是有意的（`docs/quests.md` §九）。
  */
-const QUESTS_SCHEMA_VERSION = 2
+const QUESTS_SCHEMA_VERSION = 3
+/** `scenes.json` 的 schema 版本（用户 2026-10 · A1）。 */
+const SCENES_SCHEMA_VERSION = 1
 
 const CATEGORIES: readonly GoodCategory[] = [
   'raw', 'food', 'clothing', 'household', 'fuel', 'material', 'housing', 'investment', 'service', 'entertainment', 'tool', 'military',
@@ -717,6 +729,8 @@ function parseEconomy(
     }
   }
   if (workEnd <= workStart) fail('time.workEnd 必须大于 workStart')
+  // 历法（用户 2026-10 · B0）：纯显示用，第 1 天 = AE 312 年 1 月 1 日。
+  const cal = asObj(tc.calendar, 'time.calendar')
   const time: TimeConfig = {
     hoursPerDay,
     dawnHour,
@@ -724,6 +738,12 @@ function parseEconomy(
     workEnd,
     settleHour,
     tickSec: asPos(tc.tickSec, 'time.tickSec'),
+    calendar: {
+      epochPrefix: asStr(cal.epochPrefix, 'time.calendar.epochPrefix'),
+      epochYear: asPos(cal.epochYear, 'time.calendar.epochYear'),
+      daysPerMonth: asPos(cal.daysPerMonth, 'time.calendar.daysPerMonth'),
+      monthsPerYear: asPos(cal.monthsPerYear, 'time.calendar.monthsPerYear'),
+    },
   }
 
   const weights = asObj(e.weights, 'economy.weights')
@@ -1072,9 +1092,41 @@ function parseQuestGoal(v: unknown, p: string, sets: QuestSets): QuestGoal {
       return { type, min: need() }
     case 'private_housing':
       return { type, min: need() }
+    case 'gifted':
+      // 送物资（用户 2026-10 · A4）：判的是**累计送出**的量，不是库存。
+      return {
+        type,
+        to: asStr(g.to, `${p}.to`),
+        id: asRef(g.id, sets.goodSet, `${p}.id`, '商品'),
+        min: need(),
+      }
     default:
       fail(`${p}.type 取值非法：${type}`)
   }
+}
+
+/**
+ * 一段对话里的选项（章节收尾与场次共用）。
+ *
+ * `action` 只有两个合法值：`free_prophecy`（送一次免费预言）/ `close`（关掉，缺省）。
+ * ⚠️ 玩家 2026-10 把第一章收尾那两个选项删了（"她送的预言不许拒绝"），
+ * 机制本身留着 —— 后面的分支剧情还要用（见 `docs/spec.md` §16.7）。
+ */
+function parseChoices(v: unknown, p: string): QuestChoice[] {
+  const cs = asArr(v, p).map((c, i) => {
+    const q = asObj(c, `${p}[${i}]`)
+    const action = q.action === undefined ? undefined : asStr(q.action, `${p}[${i}].action`)
+    if (action !== undefined && action !== 'free_prophecy' && action !== 'close') {
+      fail(`${p}[${i}].action 只能是 free_prophecy 或 close（实际 ${action}）`)
+    }
+    return {
+      id: asStr(q.id, `${p}[${i}].id`),
+      text: asStr(q.text, `${p}[${i}].text`),
+      ...(action ? { action: action as 'free_prophecy' | 'close' } : {}),
+    }
+  })
+  if (cs.length === 0) fail(`${p} 给了就得至少有一个`)
+  return cs
 }
 
 /**
@@ -1093,22 +1145,7 @@ function parseOutro(v: unknown, p: string): QuestOutro {
     portrait: asStr(o.portrait, `${p}.portrait`),
     lines,
   }
-  if (o.choices !== undefined) {
-    const cs = asArr(o.choices, `${p}.choices`).map((c, i) => {
-      const q = asObj(c, `${p}.choices[${i}]`)
-      const action = q.action === undefined ? undefined : asStr(q.action, `${p}.choices[${i}].action`)
-      if (action !== undefined && action !== 'free_prophecy' && action !== 'close') {
-        fail(`${p}.choices[${i}].action 只能是 free_prophecy 或 close（实际 ${action}）`)
-      }
-      return {
-        id: asStr(q.id, `${p}.choices[${i}].id`),
-        text: asStr(q.text, `${p}.choices[${i}].text`),
-        ...(action ? { action: action as 'free_prophecy' | 'close' } : {}),
-      }
-    })
-    if (cs.length === 0) fail(`${p}.choices 给了就得至少有一个`)
-    outro.choices = cs
-  }
+  if (o.choices !== undefined) outro.choices = parseChoices(o.choices, `${p}.choices`)
   return outro
 }
 
@@ -1133,6 +1170,9 @@ function parseQuests(
       id,
       title: asStr(c.title, `${p}.title`),
       reward: asNonNeg(c.reward, `${p}.reward`),
+      // 剧情时钟（用户 2026-10 · B1）：上一章领奖那天起再隔几天才开这一章。
+      // 章 1–5 写 0（或整条省掉）；3–5 是给章 6 之后的固定值（不随机）。
+      gapDays: c.gapDays === undefined ? 0 : asNonNeg(c.gapDays, `${p}.gapDays`),
       ...(c.outro === undefined ? {} : { outro: parseOutro(c.outro, `${p}.outro`) }),
     })
   }
@@ -1149,9 +1189,27 @@ function parseQuests(
     if (!chapterIds.has(chapter)) fail(`${p}.chapter 指向不存在的章节：${chapter}`)
     const rawGoals = asArr(q.goals, `${p}.goals`)
     if (rawGoals.length === 0) fail(`${p}.goals 不能为空`)
+    // 任务种类（用户 2026-10 · B2）：`main` / `side` / `milestone`。
+    // 老内容写的是 `"side": true` —— 两种写法都收，但**只留一份真相**（`kind`），
+    // `side` 由它派生，免得引擎里两处判断打架。
+    let kind: QuestKind = 'main'
+    if (q.kind !== undefined) {
+      kind = asEnum(q.kind, ['main', 'side', 'milestone'] as const, `${p}.kind`)
+      if (q.side === true && kind !== 'side') {
+        fail(`${p}: kind = ${kind} 与 side: true 打架（支线只写一种）`)
+      }
+    } else if (q.side === true) {
+      kind = 'side'
+    }
+    const reward = asNonNeg(q.reward, `${p}.reward`)
+    // 里程碑**不发钱**（用户 2026-10 · B2）：目标故意设得很远，发钱就成了躺赚。
+    if (kind === 'milestone' && reward > 0) {
+      fail(`${p}.reward：里程碑不发钱（kind = milestone 时必须是 0 或整条省掉）`)
+    }
     quests[id] = {
       id,
       chapter,
+      kind,
       // 发布人 + 立绘（用户 2026-10）：任务触发时要暂停时间、弹一段 galgame 对话，
       // 说话的就是这位。**必填** —— 少了就是"任务静静地出现"，没人会注意到。
       giver: asStr(q.giver, `${p}.giver`),
@@ -1161,12 +1219,12 @@ function parseQuests(
       // 任务面板右侧的描述（智囊口吻）。**必填**：漏了的话面板上会空一块，
       // 而那是"没人会注意到"的一类问题 —— 所以让内容校验器直接拦下来。
       brief: asStr(q.brief, `${p}.brief`),
-      reward: asNonNeg(q.reward, `${p}.reward`),
+      reward,
       requires: asArr(q.requires ?? [], `${p}.requires`).map((r, j) =>
         asStr(r, `${p}.requires[${j}]`),
       ),
       goals: rawGoals.map((g, j) => parseQuestGoal(g, `${p}.goals[${j}]`, sets)),
-      side: q.side === true ? true : undefined,
+      side: kind === 'side' ? true : undefined,
     }
     questIds.push(id)
   }
@@ -1188,17 +1246,74 @@ function parseQuests(
   }
   for (const id of questIds) visit(id, [])
 
-  // 支线不挡任何东西：别人不能依赖它，否则「章节全绿」的语义会被支线拖死
+  // 支线与里程碑不挡任何东西：**主线**不能依赖它们，否则「章节全绿」的语义会被拖死。
+  // 支线之间可以互相串（17 条送物资就是一条链），但那不叫"挡主线"。
   for (const id of questIds) {
-    if (quests[id]!.side !== true) continue
-    for (const other of questIds) {
-      if (quests[other]!.requires.includes(id)) {
-        fail(`quests.${other}.requires 依赖了支线任务 ${id}（支线不能挡主线）`)
+    const kind = quests[id]!.kind
+    if (kind === 'side' || kind === 'milestone') continue
+    for (const pre of quests[id]!.requires) {
+      const pk = quests[pre]!.kind
+      if (pk === 'side' || pk === 'milestone') {
+        fail(`quests.${id}.requires 依赖了${pk === 'side' ? '支线' : '里程碑'}任务 ${pre}（它们不挡主线）`)
       }
     }
   }
 
   return { quests, questIds, chapters }
+}
+
+/**
+ * 场次（"不挂任务的戏"，用户 2026-10 · A1）—— `content/scenes.json`。
+ *
+ * 契约见 `docs/quests.md` §八。校验盯三件事：
+ *   1. `id` 不重复（记账键是 `s:<id>`，重了就永远播不到第二条）
+ *   2. `when` 里引用的建筑 / 科技 / 阶层必须存在
+ *   3. `lines` 不能为空（空台词会让播放器当场关掉，看起来像"没播"）
+ */
+function parseScenes(
+  raw: unknown,
+  sets: QuestSets,
+): { scenes: Record<string, SceneDef>; sceneIds: string[] } {
+  const root = asObj(raw, 'scenes.json')
+  if (root.schemaVersion !== SCENES_SCHEMA_VERSION) {
+    fail(`scenes.json.schemaVersion 必须是 ${SCENES_SCHEMA_VERSION}（实际 ${String(root.schemaVersion)}）`)
+  }
+  const scenes: Record<string, SceneDef> = {}
+  const sceneIds: string[] = []
+  for (const [i, v] of asArr(root.scenes, 'scenes.json.scenes').entries()) {
+    const p = `scenes.json.scenes[${i}]`
+    const o = asObj(v, p)
+    const id = asStr(o.id, `${p}.id`)
+    if (scenes[id] !== undefined) fail(`${p}.id 重复：${id}`)
+    const w = o.when === undefined ? {} : asObj(o.when, `${p}.when`)
+    const when: SceneWhen = {}
+    if (w.chapter !== undefined) when.chapter = asNum(w.chapter, `${p}.when.chapter`)
+    if (w.afterDays !== undefined) when.afterDays = asNonNeg(w.afterDays, `${p}.when.afterDays`)
+    if (w.minDay !== undefined) when.minDay = asNum(w.minDay, `${p}.when.minDay`)
+    if (w.pop !== undefined) when.pop = asNonNeg(w.pop, `${p}.when.pop`)
+    if (w.building !== undefined) {
+      when.building = asRef(w.building, sets.buildingSet, `${p}.when.building`, '建筑') as BuildingID
+    }
+    if (w.tech !== undefined) {
+      when.tech = asRef(w.tech, sets.techIds, `${p}.when.tech`, '科技') as TechID
+    }
+    if (w.class !== undefined) {
+      when.class = asRef(w.class, sets.classSet, `${p}.when.class`, '阶层') as ClassID
+      when.classMin = w.classMin === undefined ? 1 : asPos(w.classMin, `${p}.when.classMin`)
+    }
+    const lines = asArr(o.lines, `${p}.lines`).map((l, j) => asStr(l, `${p}.lines[${j}]`))
+    if (lines.length === 0) fail(`${p}.lines 不能为空`)
+    scenes[id] = {
+      id,
+      when,
+      speaker: asStr(o.speaker, `${p}.speaker`),
+      portrait: asStr(o.portrait, `${p}.portrait`),
+      lines,
+      ...(o.choices === undefined ? {} : { choices: parseChoices(o.choices, `${p}.choices`) }),
+    }
+    sceneIds.push(id)
+  }
+  return { scenes, sceneIds }
 }
 
 /**
@@ -1244,6 +1359,13 @@ export function parseContent(files: RawContent): ParsedContent {
     housingSet,
     techIds: new Set(techIds),
   })
+  const { scenes, sceneIds } = parseScenes(files.scenes, {
+    goodSet,
+    buildingSet,
+    classSet,
+    housingSet,
+    techIds: new Set(techIds),
+  })
 
   if (packIds.length === 0) fail('packs.json 至少要有一个内容包')
 
@@ -1257,5 +1379,6 @@ export function parseContent(files: RawContent): ParsedContent {
     economy, defaults, tuning, time,
     technologies, techIds, eraIds,
     quests, questIds, chapters,
+    scenes, sceneIds,
   }
 }

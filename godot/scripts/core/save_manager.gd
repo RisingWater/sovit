@@ -4,13 +4,13 @@ extends RefCounted
 # 存档：JSON 快照 + 版本号 + 备份恢复。
 # 由于仿真确定性，也可只存 (pack, seed, 命令日志) 做回放；此处提供状态快照。
 
-## 存档版本。**3** = 住房加了**单体身份**（`housingUnits`：一栋一个 `h#N`，
-## 改建换房型不换 id；`housing` / `privateHousing` 退化成派生计数）。
+## 存档版本。**5** = 场次（`scenes.shown`，不挂任务的戏）+ 送出去的东西（`gifts`）。
 ##
 ## 用户 2026-10："版本更新，存档不跟之前兼容" —— 这里**不做旧版迁移**，
 ## 老存档读进来直接拒（`load_into` 版本不符就返回 null，提示由 UI 说）。
-## 历史：2 = 任务 schema 2（giver / outro / building_repaired）+ 剧情对话记账 + 城镇中心破旧标记。
-const SAVE_VERSION := 4
+## 历史：4 = 游商 + 城镇中心三段修缮 + 贸易面板；3 = 住房单体身份；
+##       2 = 任务 schema 2（giver / outro / building_repaired）+ 剧情对话记账。
+const SAVE_VERSION := 5
 const DEFAULT_PATH := "user://sovit_save.json"
 
 static func save_to(path: String, sim: SimCore) -> Error:
@@ -19,6 +19,9 @@ static func save_to(path: String, sim: SimCore) -> Error:
 		"pack": String(sim.s["pack"]),
 		"seed": int(sim.s["seed"]),
 		"rngState": sim.rng.state,
+		# 存档列表要显示"这一局到哪一天了"。日期在**写入时**算好（用户 2026-10 · B0），
+		# 这样存档对话框不必自己再实现一遍历法（历法只有 `sim_core.gd::date_label` 一份）。
+		"dateLabel": sim.date_label(int(sim.s["day"])),
 		"state": sim.s,
 	}
 	var json := JSON.stringify(data)
@@ -145,6 +148,21 @@ static func _sanitize(s: Dictionary, db: ContentDB) -> void:
 		qst["done"][qid] = int(qst["done"][qid])
 	for cid in (qst["chapters"] as Dictionary).keys():
 		qst["chapters"][cid] = int(qst["chapters"][cid])
+	# 送出去的东西（用户 2026-10 · A4）：`gifts[收礼人][商品] = 累计`。
+	# 缺了就当"一件都没送过" —— 那只会在这一局里把送货任务重新要求一遍，不改任何数字。
+	if not (s.get("gifts", null) is Dictionary):
+		s["gifts"] = {}
+	for who in (s["gifts"] as Dictionary).keys():
+		if not (s["gifts"][who] is Dictionary):
+			s["gifts"][who] = {}
+			continue
+		for gid in (s["gifts"][who] as Dictionary).keys():
+			s["gifts"][who][gid] = float(s["gifts"][who][gid])
+	# 场次（用户 2026-10 · A1）：`scenes.shown` 记"哪几场播过了"。
+	if not (s.get("scenes", null) is Dictionary):
+		s["scenes"] = {"shown": {}}
+	elif not ((s["scenes"] as Dictionary).get("shown", null) is Dictionary):
+		s["scenes"]["shown"] = {}
 	# 预言家（AI 辅助，见 docs/ai-assist.md §六）：2026-10 之前的存档没有这一段。
 	# `lastAskDay` 是"上次问他话是第几天"（-1 = 还没问过），JSON 读回来是 float → 还原 int。
 	if not (s.get("prophet", null) is Dictionary):
