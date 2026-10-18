@@ -33,7 +33,9 @@ npm run api         # 启动 AI HTTP 接口（http://localhost:8787）
 > 只测试**最新内容包**（当前 `v0.3`）。要跑其它包或时长：`npm run sim -- [天数] [种子] [内容包]`。
 
 **跑游戏**：用 Godot **4.7.2** 打开 `godot/`，或命令行 `godot --path godot`。
-门槛：`cd godot && bash verify.sh`（36 条命令，见下文）。
+门槛：`cd godot && bash verify.sh`（全套 46 步，**push 前跑**）。
+只改了某一块时可以只跑那一步：`bash verify.sh map`（或 `bash verify.sh --list` 看全部步骤名）——
+不传参数才是全套，见 `godot/AGENTS.md`。
 
 ---
 

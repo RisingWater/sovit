@@ -1,5 +1,16 @@
 #!/usr/bin/env bash
-# Sovit Godot 门槛：import → 逐脚本解析检查 → gdUnit4 → 冒烟 → 移动建筑
+# Sovit Godot 门槛：import → 逐脚本解析检查 → gdUnit4 → 冒烟 → 各模块测试
+#
+# 用法（2026-10-20 加：按模块跑，别每次等全套）：
+#   bash verify.sh                 # 全套 —— **push 之前跑这个**
+#   bash verify.sh map             # 只跑 map 一步
+#   bash verify.sh map quest ai    # 只跑这几步（顺序按命令行给的）
+#   bash verify.sh parse           # 只跑"改动的 .gd 解析检查"
+#   bash verify.sh --list          # 列出所有步骤名
+#   STEP_TIMEOUT=300 bash verify.sh map   # 某一步卡住时放宽超时
+#
+# ⚠️ 只跑部分步骤时**不会**自动 `--import`（要跑就显式加 `import`）：
+#    改了美术资源/新增资源之后，第一次务必跑一次 `bash verify.sh import`。
 #
 # ⚠️ 为什么不能只看退出码：
 #   Godot 的**运行时**脚本错误（SCRIPT ERROR）不会让它返回非 0。
@@ -19,6 +30,57 @@ fi
 FAIL=0
 ERR_RE='SCRIPT ERROR|Parse Error|Unicode parsing error|Trying to assign invalid|Invalid access to property or key|Cannot call method .* on a null'
 
+# --- 参数：要跑哪些步骤（空 = 全套）--------------------------------------
+ONLY=()
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --list|-l)
+      echo "步骤名（按下面的顺序）："
+      echo "  import parse smoke move music sfx daylight bartab buildlock panel"
+      echo "  consumetip chiptip workerdemolish tech efficiency tools sitetip keys doortest"
+      echo "  footprint iron coal needs merchant tradepanel roofclick multisite upgrade"
+      echo "  housingupgrade logsave queue sitecancel quest scene questpanel ai glyph"
+      echo "  construction research imm minimap map esc savedlg inspector newgame title"
+      echo "  intro questtalk occlusion"
+      echo ""
+      echo "全套（= 不加参数）还会跑 gdUnit4。"
+      exit 0
+      ;;
+    -h|--help)
+      sed -n '2,18p' "$0" | sed 's/^# \{0,1\}//'
+      exit 0
+      ;;
+    -*)
+      echo "不认识的参数：$1（--help 看用法）" >&2
+      exit 2
+      ;;
+    *)
+      ONLY+=("$1")
+      shift
+      ;;
+  esac
+done
+
+want() {
+  local name="$1"
+  if [ ${#ONLY[@]} -eq 0 ]; then
+    return 0
+  fi
+  local s
+  for s in "${ONLY[@]}"; do
+    if [ "$s" = "$name" ]; then
+      return 0
+    fi
+  done
+  return 1
+}
+
+RUN_ALL=1
+if [ ${#ONLY[@]} -gt 0 ]; then
+  RUN_ALL=0
+  echo "只跑：${ONLY[*]}"
+fi
+
 # Godot / gdUnit4 会输出 ANSI 颜色码（例如 "Overall Summary:" 和数字之间夹着
 # \x1b[38;2;...m），不去掉的话正则匹配不上。
 strip_ansi() {
@@ -27,10 +89,13 @@ strip_ansi() {
 
 # 跑一条命令：回显输出 → 查退出码 → 扫脚本错误
 #
-# 带耗时：全套要跑二十来条命令，哪一条突然变慢（比如某次 --import 重新导入
+# 带耗时：全套要跑四十来条命令，哪一条突然变慢（比如某次 --import 重新导入
 # 全部资源、或某个测试卡在 await 上）光看输出看不出来，所以每条都报时。
 step() {
   local name="$1"; shift
+  if ! want "$name"; then
+    return 0
+  fi
   echo "== $name =="
   local tmp rc t0 t1
   tmp=$(mktemp)
@@ -62,37 +127,42 @@ step() {
 
 step "import" "$GODOT_BIN" --headless --path . --import
 
-echo "== parse check (changed .gd) =="
-changed=$(git -C .. diff --name-only --diff-filter=d HEAD 2>/dev/null | grep '^godot/.*\.gd$' || true)
-if [ -z "$changed" ]; then
-  echo "  （无改动脚本）"
+if want "parse" && { [ "$RUN_ALL" -eq 1 ] || [ ${#ONLY[@]} -gt 0 ]; }; then
+  echo "== parse check (changed .gd) =="
+  changed=$(git -C .. diff --name-only --diff-filter=d HEAD 2>/dev/null | grep '^godot/.*\.gd$' || true)
+  if [ -z "$changed" ]; then
+    echo "  （无改动脚本）"
+  fi
+  for f in $changed; do
+    rel="${f#godot/}"
+    echo "  $rel"
+    step "parse $rel" "$GODOT_BIN" --headless --path . --check-only --script "res://$rel"
+  done
 fi
-for f in $changed; do
-  rel="${f#godot/}"
-  echo "  $rel"
-  step "parse $rel" "$GODOT_BIN" --headless --path . --check-only --script "res://$rel"
-done
 
 # gdUnit4 的 runtest 即使全绿也可能返回非 0，所以不看退出码，只看汇总行
-echo "== gdUnit4 =="
-gd_tmp=$(mktemp)
-if [ -f addons/gdUnit4/runtest.sh ]; then
-  bash ./addons/gdUnit4/runtest.sh --godot_binary "$GODOT_BIN" -a res://tests --continue >"$gd_tmp" 2>&1
-else
-  cmd.exe //c "addons\\gdUnit4\\runtest.cmd" --godot_binary "$GODOT_BIN" -a res://tests --continue >"$gd_tmp" 2>&1
+# （只在**全套**时跑：它是整套单元测试，单模块调试时没必要）
+if [ "$RUN_ALL" -eq 1 ]; then
+  echo "== gdUnit4 =="
+  gd_tmp=$(mktemp)
+  if [ -f addons/gdUnit4/runtest.sh ]; then
+    bash ./addons/gdUnit4/runtest.sh --godot_binary "$GODOT_BIN" -a res://tests --continue >"$gd_tmp" 2>&1
+  else
+    cmd.exe //c "addons\\gdUnit4\\runtest.cmd" --godot_binary "$GODOT_BIN" -a res://tests --continue >"$gd_tmp" 2>&1
+  fi
+  cat "$gd_tmp"
+  if strip_ansi "$gd_tmp" | grep -qE 'Overall Summary: .*\| 0 errors \| 0 failures'; then
+    echo "  gdUnit4 全绿"
+  else
+    echo "FAIL: gdUnit4 未全绿（找不到 '0 errors | 0 failures' 的汇总行）" >&2
+    FAIL=1
+  fi
+  if strip_ansi "$gd_tmp" | grep -qE "$ERR_RE"; then
+    echo "FAIL: gdUnit4 的输出里出现脚本错误" >&2
+    FAIL=1
+  fi
+  rm -f "$gd_tmp"
 fi
-cat "$gd_tmp"
-if strip_ansi "$gd_tmp" | grep -qE 'Overall Summary: .*\| 0 errors \| 0 failures'; then
-  echo "  gdUnit4 全绿"
-else
-  echo "FAIL: gdUnit4 未全绿（找不到 '0 errors | 0 failures' 的汇总行）" >&2
-  FAIL=1
-fi
-if strip_ansi "$gd_tmp" | grep -qE "$ERR_RE"; then
-  echo "FAIL: gdUnit4 的输出里出现脚本错误" >&2
-  FAIL=1
-fi
-rm -f "$gd_tmp"
 
 step "smoke" "$GODOT_BIN" --headless --path . -s res://tools/smoke_test.gd
 step "move" "$GODOT_BIN" --headless --path . -s res://tools/move_test.gd

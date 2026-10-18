@@ -19,10 +19,30 @@
 ## 门槛（每次改动都要过）
 
 ```sh
-./verify.sh      # 或 Windows: bash verify.sh
+./verify.sh              # 全套 —— **push 之前跑这个**（或 Windows: bash verify.sh）
+./verify.sh map          # 只跑某一步（改哪儿跑哪儿，几秒出结果）
+./verify.sh map quest ai # 只跑这几步
+./verify.sh --list       # 列出所有步骤名
 ```
 
-必须全绿：`--import` → 每个改动的 `.gd` 过 `--check-only` → gdUnit4 测试 → headless 冒烟。
+必须全绿：`--import` → 每个改动的 `.gd` 过 `--check-only` → gdUnit4 测试 → headless 冒烟 → 各模块测试。
+
+**按模块跑**（2026-10-20 加，用户："现在跑一遍门槛要好久，是不是可以拆分一下，加一些参数，
+比如模块之类的，没有涉及的就可以不跑。push 之前才跑完整门槛？"）：
+加参数就**只跑那几步**（gdUnit4 只在全套时跑）；不传参数 = 全套。
+⚠️ 只跑部分时**不会自动 `--import`** —— 动了美术/新增资源之后先跑一次 `bash verify.sh import`。
+⚠️ 改了**共享代码**（`ui_kit.gd` / `sim_core.gd` / `world_view.gd` / `main.gd`）就不算"只涉及一个模块"，
+还是跑全套。
+
+**打包 Windows exe**：
+
+```sh
+Godot_v4.7.2-stable_win64_console.exe --headless --path . --export-release "Windows Desktop" builds/windows/sovit.exe
+```
+
+产物 `godot/builds/windows/sovit.exe`（约 128MB，其中 ~109MB 是 Godot 官方模板；`builds/` 不进仓库）。
+`export_presets.cfg` 的 `exclude_filter` 把 `addons/gdUnit4`、`tests`、`tools`、`reports`、
+以及不用的原始素材目录（`Props` / `Characters` / `Tilesets`）排掉。
 
 ⚠️ `verify.sh` 里的条数会随功能增加，**改行为就要回来补一条**（每条都写清"红了说明什么"）。
 最近补的六条：

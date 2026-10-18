@@ -22,7 +22,9 @@ var world: Node
 
 ## 底图（比例 = 1536 : 952）。`_layout()` 按它算居中矩形。
 const MAP_ASPECT := 2048.0 / 1366.0
-const MAP_PATH := "res://assets/ui/map/kingdom_map_bare.jpg"
+## 底图：**带 alpha 的 WebP**（用户 2026-10-20："我给你的底图应该边缘之外是透明的" ——
+## 之前我转成 JPG 时把透明填成了黑边，四周就是一圈黑。WebP 保留 alpha 且比 PNG 小很多）
+const MAP_PATH := "res://assets/ui/map/kingdom_map_bare.webp"
 ## 地图上那几行英文地名用的字体（用户 2026-10-20 指定 Lin Libertine，衬线体，手绘古地图的味道）。
 ## 授权：GPL + 字体例外 / 另附 OFL 1.1 —— 文本随字体放在 `assets/fonts/libertine/`。
 ## ⚠️ 只给**地图上的字**用：面板标题、卡片、按钮仍然走像素字体（那是 UI，不是地图）。
@@ -47,13 +49,13 @@ const FIRST_EXTRA := 4
 ## ⚠️ 2026-10-20 又一版："整体字号加大 1-2 个字号"（下面已经是加大后的）、
 ##    "西边国家叫做 DUCHY，北边的英文叫 THE HOLY"。
 const REGIONS := [
-	{"text": "THE HOLY", "fx": 0.4080, "fy": 0.0620, "size": 22},
-	{"text": "WALDEN", "fx": 0.6820, "fy": 0.2150, "size": 30},
-	{"text": "JADE SEA", "fx": 0.8840, "fy": 0.3150, "size": 24},
-	{"text": "DUCHY", "fx": 0.1330, "fy": 0.2560, "size": 18},
-	{"text": "GREYROCK RANGE", "fx": 0.3000, "fy": 0.3400, "size": 18},
-	{"text": "VALR RIVER", "fx": 0.6300, "fy": 0.5300, "size": 16},
-	{"text": "KHANATE", "fx": 0.1500, "fy": 0.7950, "size": 22},
+	{"text": "THE HOLY", "fx": 0.4030, "fy": 0.0746, "size": 22},
+	{"text": "WALDEN", "fx": 0.6400, "fy": 0.2200, "size": 30},
+	{"text": "JADE SEA", "fx": 0.8697, "fy": 0.3150, "size": 24},
+	{"text": "DUCHY", "fx": 0.0792, "fy": 0.3051, "size": 18},
+	{"text": "GREYROCK RANGE", "fx": 0.3252, "fy": 0.3375, "size": 18},
+	{"text": "VALR RIVER", "fx": 0.5902, "fy": 0.5352, "size": 16},
+	{"text": "KHANATE", "fx": 0.1206, "fy": 0.8152, "size": 22},
 ]
 
 ## 据点：id / kind / fx / fy / 名字 / 领主 / 特产。
@@ -81,7 +83,7 @@ const MARKS := [
 		"name": "铁峰城", "lord": "大公 赫尔曼", "specialty": "铁、煤"},
 	{"id": "jade", "kind": "town_large", "fx": 0.7453, "fy": 0.7582,
 		"name": "翡翠城", "lord": "女王 艾瑟琳", "specialty": "香料、丝绸、宝石"},
-	{"id": "holy_see", "kind": "temple", "fx": 0.4740, "fy": 0.1121,
+	{"id": "holy_see", "kind": "temple", "fx": 0.4698, "fy": 0.1373,
 		"name": "圣都", "lord": "教皇 格里高利", "specialty": "圣物、书"},
 	{"id": "khan", "kind": "camp", "fx": 0.2035, "fy": 0.9181,
 		"name": "汗庭", "lord": "大汗 巴图尔", "specialty": "马匹、盐、皮毛"},

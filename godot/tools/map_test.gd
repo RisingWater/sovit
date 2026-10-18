@@ -63,8 +63,15 @@ func _run() -> void:
 			if not ResourceLoader.exists(path):
 				_fail("缺图标：%s" % path)
 				return
-	if not ResourceLoader.exists("res://assets/ui/map/kingdom_map_bare.jpg"):
-		_fail("缺底图 res://assets/ui/map/kingdom_map_bare.jpg")
+	if not ResourceLoader.exists("res://assets/ui/map/kingdom_map_bare.webp"):
+		_fail("缺底图 res://assets/ui/map/kingdom_map_bare.webp")
+		return
+	if panel._map.texture == null:
+		_fail("底图没加载上（_map.texture 为空）")
+		return
+	var mtex: Texture2D = panel._map.texture
+	if mtex.get_width() < 1000 or mtex.get_height() < 600:
+		_fail("底图尺寸不对：%dx%d" % [mtex.get_width(), mtex.get_height()])
 		return
 	_ok("素材在位：底图 + 6 类据点 ×（默认 / hover）= 13 个文件")
 
