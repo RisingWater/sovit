@@ -213,16 +213,52 @@ func _run() -> void:
 		return
 	print("CONSUMETIP TEST 居民消耗 tooltip：「%s」" % tip2.replace("\n", " / "))
 
-	# ---- 4. 面板上真的挂着 tooltip（不是只有函数）--------------------------
+	# ---- 4. 面板上真的挂着 tooltip **而且鼠标落得上去** ----------------------
+	#
+	# ⚠️ 只断言 `tooltip_text` 非空是假绿：`Label` 默认 `mouse_filter = IGNORE`
+	#    （实测 Label=2 / Button=0），鼠标根本落不到它身上，tip 永远不会弹。
+	#    用户 2026-10 就是这么"移上去没反应"的。所以这里还要：
+	#      ① mouse_filter 必须是 STOP
+	#      ② 推一个真鼠标移动到他身上，`gui_get_hovered_control()` 必须就是它
+	root.size = Vector2i(1600, 1600)
+	await process_frame
+	panel._select_tab(0)
+	await process_frame
+	await process_frame
 	var found := 0
+	var hit_ok := 0
 	for c in panel.find_children("*", "Label", true, false):
 		var lb := c as Label
-		if lb.tooltip_text.contains("工业消耗") or lb.tooltip_text.contains("居民消耗"):
-			found += 1
+		if not (lb.tooltip_text.contains("工业消耗") or lb.tooltip_text.contains("居民消耗")):
+			continue
+		found += 1
+		if lb.mouse_filter != Control.MOUSE_FILTER_STOP:
+			_fail("「%s」挂着 tooltip，但 mouse_filter=%d（Label 默认 IGNORE）—— 鼠标落不上去，tip 不会弹"
+				% [lb.text, lb.mouse_filter])
+			return
+		var mid := lb.get_global_rect().get_center()
+		_push_motion(root, mid)
+		await process_frame
+		var hov := root.gui_get_hovered_control()
+		var hov_path := "" if hov == null else String((hov as Node).get_path())
+		var want_path := String(lb.get_path())
+		if hov_path != want_path:
+			_fail("鼠标移到「%s」上，命中的是「%s」（应为它）—— tooltip 不会弹"
+				% [lb.text, hov_path if hov_path != "" else "（无）"])
+			return
+		hit_ok += 1
 	if found < 2:
 		_fail("资源页上没有挂 tooltip 的标签（找到 %d 个，至少该有 2 个：工业/居民）" % found)
 		return
-	print("CONSUMETIP TEST 面板：%d 个标签挂着消耗明细 tooltip ✅" % found)
+	print("CONSUMETIP TEST 面板：%d 个标签挂着 tooltip，且 %d 个**真的**能悬停命中 ✅"
+		% [found, hit_ok])
 
 	print("CONSUMETIP TEST RESULT: PASS")
 	quit(0)
+
+## 往某个位置推一个鼠标移动事件（`gui_get_hovered_control()` 靠它更新）。
+func _push_motion(win: Window, pos: Vector2) -> void:
+	var ev := InputEventMouseMotion.new()
+	ev.position = pos
+	ev.global_position = pos
+	win.push_input(ev, true)

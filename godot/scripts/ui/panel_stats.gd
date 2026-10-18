@@ -412,12 +412,20 @@ func _good_detail(right: VBoxContainer) -> void:
 		kl.vertical_alignment = VERTICAL_ALIGNMENT_BOTTOM
 		if tip != "":
 			kl.tooltip_text = tip
+			# ⚠️ `Label` 默认 `mouse_filter = IGNORE`（实测：Label=2 / Button=0）——
+			# 光设 `tooltip_text` 是**永远不会弹**的：鼠标根本落不到这个控件上。
+			# 用户 2026-10："鼠标移上去没有反应" 就是这个。
+			# 这里这两行本来就是只读的，吞掉鼠标没有副作用；顺带把光标换成"可查看"。
+			kl.mouse_filter = Control.MOUSE_FILTER_STOP
+			kl.mouse_default_cursor_shape = Control.CURSOR_HELP
 		g.add_child(kl)
 		var vl := _big(String(row[1]), row[2])
 		vl.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 		vl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		if tip != "":
 			vl.tooltip_text = tip
+			vl.mouse_filter = Control.MOUSE_FILTER_STOP
+			vl.mouse_default_cursor_shape = Control.CURSOR_HELP
 		g.add_child(vl)
 
 ## 大字（12px 像素字体的整数 2 倍）

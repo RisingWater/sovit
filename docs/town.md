@@ -2138,6 +2138,13 @@ bash godot/verify.sh       # 最后一行要是 ALL CHECKS PASSED
     - 门槛 `consumetip`（`godot/tools/consumetip_test.gd`）：跑真局 → 拆分表**加起来等于总量**
       → 面板上那两个标签**真的挂着** tooltip → tooltip 里的建筑名 × 座数、阶层名 × 人数
       与村里实际一致。截图模式 `consumetip` 把两条原文摆在资源页上（headless 没法真悬停）
+
+    ⚠️ **只设 `tooltip_text` 是假绿**（用户 2026-10："你说做好了，但是我看不到在哪里，
+    鼠标移上去没有反应"）：`Label` 默认 `mouse_filter = IGNORE`（实测 `Label=2 / Button=0`），
+    鼠标根本落不到它身上，tip 永远不会弹。那两行的 key 与数值都要
+    `mouse_filter = STOP`（只读行，吞掉鼠标没副作用）+ `CURSOR_HELP`（悬停时光标变成问号，
+    玩家才知道"这里有东西可看"）。门槛因此多断言两件事：`mouse_filter == STOP`，
+    以及**推一个真鼠标移动**过去、`gui_get_hovered_control()` 命中的就是那个 Label。
 ## 二十三、数字的字体与字号
 
 用户 2026-10："资源面板右侧数字用的是什么字体？非常符合像素画风，把整个游戏的所有数字
