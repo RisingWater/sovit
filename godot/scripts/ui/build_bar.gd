@@ -172,7 +172,7 @@ func _cost_text(id: String) -> String:
 	var b: Dictionary = runner.db.housing.get(id, runner.db.buildings.get(id, {}))
 	var tstr := String(b.get("terrain", ""))
 	if tstr != "":
-		parts.append("需地形：" + tstr)
+		parts.append("需地形：" + String(runner.db.TERRAIN_ZH.get(tstr, tstr)))
 	for k in (b.get("buildCost", {}) as Dictionary).keys():
 		var gid := String(k)
 		# 原来直接打印商品 id（"wood x 20"），提示框里一半是英文。

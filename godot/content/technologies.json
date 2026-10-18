@@ -72,7 +72,7 @@
       "research": 30,
       "cost": { "goods": { "clay": 30, "firewood": 25 } },
       "requires": ["digging", "firewood"],
-      "unlocks": { "buildings": ["brick_kiln"], "housing": [] }
+      "unlocks": { "buildings": ["brick_kiln", "iron_mine"], "housing": [] }
     },
     {
       "id": "pottery",

@@ -2317,3 +2317,57 @@ bash godot/verify.sh       # 最后一行要是 ALL CHECKS PASSED
 
 TS 侧 `scripts/check-housing-upgrade.ts` 另有一套引擎断言（id 唯一、改建换 type 不换 id、
 指名改建 / 指名私有被拒 / 计数 == 由 units 数出来的）。
+
+## 二十九、地图上的矿脉（石 / 粘土 / **铁**）
+
+用户 2026-10："地图上加入铁矿资源"。
+
+矿脉是**地形**，不是"资源点实体"：`GameMap.terrain` 里一个字节（`GameMap.IRON = 5`），
+和石矿（2）、粘土（3）同级。建筑靠 `content/buildings.json` 的 `terrain` 字段绑地形 ——
+`quarry.terrain = "stone"`、`clay_pit.terrain = "clay"`、`iron_mine.terrain = "iron"`。
+
+| 地形 | 值 | 贴图 | 谁建在上面 |
+|---|---|---|---|
+| `stone` 石矿 | 2 | `extra.png` 索引 50 | 采石场 |
+| `clay` 粘土 | 3 | `extra.png` 索引 51 | 粘土坑 |
+| **`iron` 铁矿** | **5** | `extra.png` 索引 53 | **铁矿场**（`iron_mine`）|
+
+### 生成（`game_map.gd::generate`）
+
+```
+野外：4 处（半径 5，随机位置）       ← 比石/粘土（各 6 处、半径 6）稀
+出生点：3 处（+16/-12 半径 4、-40/+28、+36/-32）
+```
+
+⚠️ **顺序有坑**：铁矿脉必须排在"出生点那几片树林与石/粘土"**之后**。
+那几片 `_blob`（尤其半径 16 的树林）会把先放下的矿脉整个盖掉 ——
+第一版就是"加了铁，地图上一格都找不到"（门槛 `iron` 的"最近一格离中心 ≤ 30"会抓到）。
+
+### 画出来（`world_view._texture_for` 之外的那条路）
+
+地形是 TileMapLayer 两层：`source 0` = Tiny 图集（草地底），`source 1` = `extra.png`（叠加层）。
+矿脉 = 草地底 + 叠加块：`terrain_layer.set_cell(c, 1, _extra_cell(53))`。
+`extra.png` 由 `scripts/gen-art.ts::patchTile()` 画（暗蓝灰岩 + 四粒锈斑 ——
+没有锈斑的话它和石矿在缩略图上分不出来），跑 `npm run gen:art` 重新生成。
+小地图颜色：`minimap_widget.TERRAIN_COLORS[5]`（比石矿更暗更冷）。
+
+### 内容与门槛
+
+- `iron_ore`（铁矿石）：`goods.json`，tier 0 / raw / storable / baseValue 2.8
+- `iron_mine`（铁矿场）：`buildings.json`，`sector:"material"`、`terrain:"iron"`、
+  `arch:"extract"`（程序化外观：石墙 + 蓝顶 + 烟囱 + `feat:["rocks"]`，占地 4×2）、
+  6 铁矿石/日、用工 3（上限 6，与其它采集业同档）
+- 解锁：**烧砖**（`brickmaking`）—— "有了砖窑的火才烧得动铁"，也让它在建造栏里
+  和采石场 / 粘土坑一样是**锁着的**（不然开局唯一亮着的那座矿场就是它，很怪）
+- 建造栏：`CAT_MINING` 白名单加了 `iron_mine`，「矿场」页；tooltip 的
+  「需地形：」走 `ContentDB.TERRAIN_ZH`（中文，不再打印 `stone` / `iron` 这种英文 key）
+- 门槛 `iron`（`godot/tools/iron_test.gd`）：地形常量与名字、生成数量/位置/可复现、
+  贴图索引 53、内容三项（terrain/产出/分类）、放置判定（铁矿脉可建、草地被拒）。
+  ⚠️ `place_reason()` 收的是**鼠标格**（内部 `cell - (1,0)` 再推占地），
+  拿左上角直接喂会被误判成"资源不符" —— 门槛里两种都验了
+
+### 现在能拿铁干什么
+
+**暂时只到"挖出来、进仓库"为止**：`iron_ore` 还没有下游消费者
+（`docs/technology.md` 里规划的"铁制工具 +60%"需要铁矿 + 高炉，还没做）。
+所以它现在是一条**只产不耗**的原料线 —— 拉满它只会占仓储，别急着建第二座。

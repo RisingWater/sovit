@@ -288,6 +288,37 @@
       "buildWork": 12
     },
     {
+      "id": "iron_mine",
+      "sector": "material",
+      "nameZh": "铁矿场",
+      "art": {
+        "arch": "extract",
+        "roof": "blue",
+        "wall": "stone",
+        "w": 4,
+        "chimney": true,
+        "feat": [
+          "rocks"
+        ]
+      },
+      "tier": 2,
+      "workers": 3,
+      "maxWorkers": 6,
+      "terrain": "iron",
+      "buildCost": {
+        "wood": 6,
+        "stone": 4
+      },
+      "recipe": {
+        "inputs": {},
+        "output": {
+          "iron_ore": 6
+        },
+        "baseRate": 1
+      },
+      "buildWork": 16
+    },
+    {
       "id": "hunting_camp",
       "sector": "agri",
       "nameZh": "狩猎营地",

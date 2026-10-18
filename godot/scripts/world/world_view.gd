@@ -407,6 +407,11 @@ func _render_base_terrain() -> void:
 				GameMap.CLAY:
 					terrain_layer.set_cell(c, 0, _town_cell(gv))
 					terrain_layer.set_cell(c, 1, _extra_cell(51))
+				GameMap.IRON:
+					# 铁矿脉（用户 2026-10）：extra.png 里索引 53 = 暗蓝灰岩 + 锈斑补丁
+					# （50 石矿 / 51 粘土 / 52 地板 / 53 铁矿，见 `scripts/gen-art.ts::patchTile`）
+					terrain_layer.set_cell(c, 0, _town_cell(gv))
+					terrain_layer.set_cell(c, 1, _extra_cell(53))
 				GameMap.FOREST:
 					terrain_layer.set_cell(c, 0, _town_cell(gv))
 					# 树：按哈希铺，靠 16x32 的重叠形成树冠。

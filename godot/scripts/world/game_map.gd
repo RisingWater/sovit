@@ -14,6 +14,10 @@ const FOREST := 1
 const STONE := 2
 const CLAY := 3
 const WATER := 4
+## **铁矿脉**（用户 2026-10：「地图上加入铁矿资源」）。
+## 与石矿 / 粘土一样是**地形**，但只服务一座建筑（铁矿场 `iron_mine`，
+## `content/buildings.json` 里 `terrain:"iron"`），所以点分布更稀、离出生点更远。
+const IRON := 5
 
 var terrain := PackedByteArray()
 var road := PackedByteArray()
@@ -54,6 +58,7 @@ static func terrain_name(t: int) -> String:
 		FOREST: return "forest"
 		STONE: return "stone"
 		CLAY: return "clay"
+		IRON: return "iron"
 		WATER: return "water"
 		_: return "grass"
 
@@ -99,6 +104,19 @@ func generate(seed_value: int) -> void:
 	_blob(rng, center.x + 30, center.y + 14, 8, CLAY)
 	_blob(rng, center.x + 24, center.y - 28, 7, STONE)
 	_blob(rng, center.x - 32, center.y + 26, 7, CLAY)
+
+	# **铁矿脉**（用户 2026-10：「地图上加入铁矿资源」）。
+	# ⚠️ 必须排在**出生点那几片树林与石/粘土之后** —— 那几片 `_blob`（尤其半径 16 的树林）
+	#    会把先放下的矿脉整个盖掉。第一版就是这么"加了铁却在地图上一格都找不到"的。
+	# 稀：野外 4 处、半径比石/粘土小；出生点附近三处，最近的那一处在视口右缘（约 16 格），
+	# 让玩家"往右挪一点就能看见铁"，另两处要往外走才找得到。
+	# 它会盖掉一小块石矿脉 —— 那是有意的（山里有铁就有石）。
+	for i in 4:
+		_blob(rng, rng.randi_range(60, W - 60), rng.randi_range(60, H - 60), 5, IRON)
+	_blob(rng, center.x + 16, center.y - 12, 4, IRON)
+	_blob(rng, center.x - 40, center.y + 28, 6, IRON)
+	_blob(rng, center.x + 36, center.y - 32, 5, IRON)
+
 
 	# 仓库区清成草地
 	for y in range(town_center.position.y - 2, town_center.end.y + 2):

@@ -110,6 +110,7 @@ step "sitetip" "$GODOT_BIN" --headless --path . -s res://tools/sitetip_test.gd
 step "keys" "$GODOT_BIN" --headless --path . -s res://tools/keys_test.gd
 step "doortest" "$GODOT_BIN" --headless --path . -s res://tools/door_test.gd
 step "footprint" "$GODOT_BIN" --headless --path . -s res://tools/footprint_test.gd
+step "iron" "$GODOT_BIN" --headless --path . -s res://tools/iron_test.gd
 step "roofclick" "$GODOT_BIN" --headless --path . -s res://tools/roofclick_test.gd
 step "multisite" "$GODOT_BIN" --headless --path . -s res://tools/multisite_test.gd
 step "upgrade" "$GODOT_BIN" --headless --path . -s res://tools/upgrade_test.gd
