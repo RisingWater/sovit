@@ -127,6 +127,7 @@ function stageThroughChapter3(s: GameState): void {
       tax: 0,
       rent: 0,
       sales: 0,
+    publicSubsidy: 0,
       produced: { coarse_bread: 40, vegetable: 20 },
       consumed: {},
       bought: {},

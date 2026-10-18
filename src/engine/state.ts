@@ -12,6 +12,7 @@ export function emptyLedger(day: number): DayLedger {
     tax: 0,
     rent: 0,
     sales: 0,
+    publicSubsidy: 0,
     produced: {},
     consumed: {},
     bought: {},

@@ -427,6 +427,11 @@ export interface DayLedger {
   rent: number
   /** 居民消费回款。 */
   sales: number
+  /**
+   * 公共事业补贴（2026-10）：公共建筑当日的工资支出（原料从库存出、销售额极低，
+   * 差额等价于国库补贴）。只进台账（面板显示），不参与任何计算。
+   */
+  publicSubsidy: number
   /** 各商品**实际**产量（生产小时累计）。 */
   produced: Record<string, number>
   /** 各商品**实际**工业消耗（生产投入 + 燃料）。 */

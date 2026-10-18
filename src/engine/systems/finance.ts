@@ -1,6 +1,7 @@
 import type { GameState, LogEntry, TaxBracket } from '../types.ts'
 import { ECONOMY } from '../config.ts'
 import { clamp, round2 } from '../util.ts'
+import { isPublicService } from './wages.ts'
 
 // ---------------------------------------------------------------------------
 // 财政
@@ -34,6 +35,7 @@ export function payWages(state: GameState, day: number): LogEntry[] {
   const brackets = state.government.taxBrackets
 
   let grossTotal = 0
+  let publicWages = 0
   let taxTotal = 0
   for (const r of state.residents) {
     let gross: number
@@ -55,6 +57,10 @@ export function payWages(state: GameState, day: number): LogEntry[] {
     const tax = progressiveTax(gross, brackets)
     r.savings = round2(r.savings + gross - tax)
     grossTotal += gross
+    if (r.jobShopId) {
+      const jd = state.shops.find((x) => x.id === r.jobShopId)
+      if (jd && isPublicService(jd.defId)) publicWages += gross
+    }
     taxTotal += tax
 
     // 逐人记账：工资（含工地出工报酬）与代扣税。租与消费在后面两步append到同一份账目上。
@@ -76,6 +82,7 @@ export function payWages(state: GameState, day: number): LogEntry[] {
   }
 
   state.government.money = round2(state.government.money - grossTotal + taxTotal)
+  state.ledgerToday.publicSubsidy = round2(state.ledgerToday.publicSubsidy + publicWages)
   const logs: LogEntry[] = [
     { day, kind: 'finance', text: `发放工资 ¥${round2(grossTotal)}` },
   ]

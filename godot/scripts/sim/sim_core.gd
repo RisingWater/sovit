@@ -235,7 +235,9 @@ func _empty_ledger(day: int) -> Dictionary:
 	return {"day": day, "wages": 0.0, "tax": 0.0, "rent": 0.0, "sales": 0.0,
 		"produced": {}, "consumed": {}, "bought": {},
 		# 拆分表：面板 tooltip 用（谁消耗了哪样东西）—— 见 TS 的 DayLedger
-		"consumedBy": {}, "boughtBy": {}}
+		"consumedBy": {}, "boughtBy": {},
+		# 公共事业补贴（2026-10）：公共建筑的工资支出，台账口径，不参与任何计算
+		"publicSubsidy": 0.0}
 
 func _empty_account() -> Dictionary:
 	return {"wage": 0.0, "tax": 0.0, "rent": 0.0, "spent": 0.0,
@@ -1029,6 +1031,7 @@ func _pay_wages(day: int) -> Array:
 
 	var gross_total = 0.0
 	var tax_total = 0.0
+	var public_wages = 0.0
 	for r in s["residents"]:
 		var gross = 0.0
 		var build_pay = float(r.get("constructionPay", 0.0))
@@ -1044,6 +1047,10 @@ func _pay_wages(day: int) -> Array:
 		var tax = _progressive_tax(gross, brackets)
 		r["savings"] = SimUtil.r2(float(r["savings"]) + gross - tax)
 		gross_total += gross
+		if r.get("jobShopId", null) != null:
+			var jd = _find_shop(String(r["jobShopId"]))
+			if jd != null and db.PUBLIC_SERVICE.has(String(jd["defId"])):
+				public_wages += gross
 		tax_total += tax
 		# 逐人记账：工资（含工地出工报酬）与代扣税。租与消费在后面两步追加到同一份账目。
 		var acc := _empty_account()
@@ -1053,6 +1060,7 @@ func _pay_wages(day: int) -> Array:
 		s["ledgerToday"]["wages"] = SimUtil.r2(float(s["ledgerToday"]["wages"]) + gross)
 		s["ledgerToday"]["tax"] = SimUtil.r2(float(s["ledgerToday"]["tax"]) + tax)
 	s["government"]["money"] = SimUtil.r2(float(s["government"]["money"]) - gross_total + tax_total)
+	s["ledgerToday"]["publicSubsidy"] = SimUtil.r2(float(s["ledgerToday"].get("publicSubsidy", 0.0)) + public_wages)
 	return [{"day": day, "kind": "finance", "text": "发放工资 ¥%.2f" % SimUtil.r2(gross_total)}]
 
 # ===========================================================================
