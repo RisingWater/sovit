@@ -34,27 +34,35 @@ const HOVER_SCALE := 1.14
 const INK := Color(0.24, 0.16, 0.10)
 const INK_DIM := Color(0.36, 0.26, 0.17, 0.55)
 
-## 区域名：text / fx / fy / size（size = 字号，0 = 默认 12）
+## 区域名：text / fx / fy / size（size = 字号）
+## ⚠️ 2026-10-20 用户："汉字，瓦尔登王国，圣辉教国，沙海汗国，翡翠海，全地图的文字都写英文" ——
+##    地图上的字**一律英文**（羊皮纸手绘地图的味道），中文只出现在 hover 卡片里。
 const REGIONS := [
-	{"text": "圣辉教国", "fx": 0.3020, "fy": 0.0620, "size": 22},
-	{"text": "瓦尔登王国", "fx": 0.7180, "fy": 0.1320, "size": 26},
-	{"text": "翡翠海", "fx": 0.8830, "fy": 0.3084, "size": 22},
-	{"text": "铁峰公国", "fx": 0.0767, "fy": 0.2235, "size": 20},
-	{"text": "灰岩山脉", "fx": 0.2984, "fy": 0.3396, "size": 18},
-	{"text": "瓦尔河", "fx": 0.6129, "fy": 0.4690, "size": 14},
-	{"text": "沙海汗国", "fx": 0.0817, "fy": 0.8563, "size": 20},
+	{"text": "CHURCH STATE", "fx": 0.4080, "fy": 0.0450, "size": 20},
+	{"text": "WALDEN", "fx": 0.6820, "fy": 0.2150, "size": 28},
+	{"text": "JADE SEA", "fx": 0.8840, "fy": 0.3150, "size": 22},
+	{"text": "IRONPEAK DUCHY", "fx": 0.1150, "fy": 0.3150, "size": 16},
+	{"text": "GREYROCK RANGE", "fx": 0.3000, "fy": 0.3400, "size": 16},
+	{"text": "VALR RIVER", "fx": 0.6650, "fy": 0.5050, "size": 13},
+	{"text": "KHANATE", "fx": 0.1500, "fy": 0.7950, "size": 20},
 ]
 
 ## 据点：id / kind / fx / fy / 名字 / 领主 / 特产。
 ## 名字与领主见 `docs/story.md` §1.1、§二；特产用国别表里那一列。
+## ⚠️ 2026-10-20 用户："所有城镇地图上不显示名字，城镇名字放在 tip 里显示" ——
+##    地图上只画图标，名字/领主/特产全在 hover 卡片里。
+## ⚠️ 首都单独一座（用户："首都应该是铁王城哪个位置吧，刚刚放大的应该是首都，
+##    铁王城应该在首都东边吧"）：中心放大那座是**王都**，铁王城在东边。
 const MARKS := [
-	{"id": "iron_crown", "kind": "town_large", "fx": 0.4546, "fy": 0.4293, "scale": 1.45,
-		"name": "铁王城", "lord": "阿尔伯特（长子）· 兼掌国库", "specialty": "铁、马"},
+	{"id": "capital", "kind": "town_large", "fx": 0.4546, "fy": 0.4293, "scale": 1.45,
+		"name": "王都", "lord": "国王 奥德里克三世（长子阿尔伯特留守）", "specialty": "铁、马"},
+	{"id": "iron_crown", "kind": "town_medium", "fx": 0.5480, "fy": 0.4020,
+		"name": "铁王城", "lord": "阿尔伯特（长子）· 掌国库", "specialty": "铁、马"},
 	{"id": "iron_rook", "kind": "town_medium", "fx": 0.4043, "fy": 0.1951,
 		"name": "铁鸦堡", "lord": "伯纳德（次子）", "specialty": "铁、军械"},
 	{"id": "holy_flame", "kind": "town_medium", "fx": 0.6194, "fy": 0.1617,
 		"name": "圣火城", "lord": "塞德里克（三子）", "specialty": "圣物、香火"},
-	{"id": "dawn", "kind": "town_medium", "fx": 0.7835, "fy": 0.5833,
+	{"id": "dawn", "kind": "town_medium", "fx": 0.7780, "fy": 0.5670,
 		"name": "曙光城", "lord": "伊莲娜（长女）", "specialty": "典籍、纸"},
 	{"id": "golden_ear", "kind": "town_medium", "fx": 0.6159, "fy": 0.6173,
 		"name": "金穗城", "lord": "狄奥多（四子）", "specialty": "粮食、盐"},
@@ -62,7 +70,7 @@ const MARKS := [
 		"name": "黑石堡", "lord": "弗雷德里克（六子）", "specialty": "铁、煤"},
 	{"id": "peak", "kind": "town_medium", "fx": 0.0800, "fy": 0.2649,
 		"name": "铁峰城", "lord": "大公 赫尔曼", "specialty": "铁、煤"},
-	{"id": "jade", "kind": "town_large", "fx": 0.8634, "fy": 0.8420,
+	{"id": "jade", "kind": "town_large", "fx": 0.8150, "fy": 0.7000,
 		"name": "翡翠城", "lord": "女王 艾瑟琳", "specialty": "香料、丝绸、宝石"},
 	{"id": "holy_see", "kind": "temple", "fx": 0.4820, "fy": 0.1157,
 		"name": "圣都", "lord": "教皇 格里高利", "specialty": "圣物、书"},
@@ -71,7 +79,7 @@ const MARKS := [
 ]
 
 ## 我们自己的那一座（图标按城镇中心段位换）
-const HOME := {"id": "ashen_vale", "fx": 0.6959, "fy": 0.8682,
+const HOME := {"id": "ashen_vale", "fx": 0.6680, "fy": 0.8530,
 	"lord": "你（第七王子）", "specialty": "木材、石块、粘土"}
 
 var _map: TextureRect
@@ -179,8 +187,11 @@ func _add_mark(m: Dictionary) -> void:
 	var tex_hover := _icon(kind, true)
 	var btn := TextureButton.new()
 	btn.texture_normal = tex
-	btn.texture_hover = tex
-	btn.texture_pressed = tex
+	# ⚠️ hover 用的是**橙色那版**图标（用户 2026-10-20："hover 要变成橙色，我刚刚有给橙色的资源"）。
+	# 之前这里写的是 `tex`，而 `_on_mark_enter` 去改 `texture_normal` —— `TextureButton`
+	# 在悬停时**优先显示 `texture_hover`**，所以橙色那张永远轮不到上屏。直接给它就行。
+	btn.texture_hover = tex_hover
+	btn.texture_pressed = tex_hover
 	btn.ignore_texture_size = true
 	btn.stretch_mode = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
 	btn.mouse_filter = Control.MOUSE_FILTER_STOP
@@ -192,13 +203,9 @@ func _add_mark(m: Dictionary) -> void:
 	btn.mouse_entered.connect(_on_mark_enter.bind(i))
 	btn.mouse_exited.connect(_on_mark_exit.bind(i))
 	_host.add_child(btn)
-	var name_lb := UIKit.label(String(m["name"]), INK)
-	name_lb.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	name_lb.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_host.add_child(name_lb)
-	_marks.append({
-		"data": m, "node": btn, "tex": tex, "tex_hover": tex_hover, "name_lb": name_lb,
-	})
+	# ⚠️ 地图上**不画城名**（用户 2026-10-20："所有城镇地图上不显示名字，城镇名字放在 tip 里"）——
+	# 名字/领主/特产只在 hover 卡片里。
+	_marks.append({"data": m, "node": btn, "tex": tex, "tex_hover": tex_hover})
 
 ## 我们这座现在是村 / 小城 / 中城（用户 2026-10-20：跟着城镇中心变）
 func _home_kind() -> String:
@@ -258,9 +265,8 @@ func _refresh_home() -> void:
 	e["tex_hover"] = _icon(kind, true)
 	var btn: TextureButton = e["node"]
 	btn.texture_normal = e["tex"]
-	btn.texture_hover = e["tex"]
-	btn.texture_pressed = e["tex"]
-	(e["name_lb"] as Label).text = String(data["name"])
+	btn.texture_hover = e["tex_hover"]
+	btn.texture_pressed = e["tex_hover"]
 	_layout()
 
 var _home_index := -1
@@ -271,7 +277,7 @@ func _icon(kind: String, hover: bool) -> Texture2D:
 		_tex_cache[path] = load(path) if ResourceLoader.exists(path) else null
 	return _tex_cache[path]
 
-## 把比例坐标摊成像素：底图居中、保持 1536:952，所有图标/地名都按底图矩形算。
+## 把比例坐标摊成像素：底图居中、保持 MAP_ASPECT，所有图标/地名都按底图矩形算。
 func _layout() -> void:
 	if _host == null or _map == null:
 		return
@@ -305,9 +311,6 @@ func _layout() -> void:
 		btn.position = Vector2(cx - iw * 0.5, by - ih)
 		# 放大的轴心放在脚底中点：hover 时像是"从地上长出来"，不会飘
 		btn.pivot_offset = Vector2(iw * 0.5, ih)
-		var lb: Label = e["name_lb"]
-		lb.size = Vector2(maxf(iw, 72.0), 16.0)
-		lb.position = Vector2(cx - lb.size.x * 0.5, by + 2.0)
 	# 区域名：按比例摆在底图上（居中）
 	for r in _labels:
 		var l: Label = r["node"]
@@ -341,7 +344,7 @@ func _on_mark_enter(i: int) -> void:
 	_hover = i
 	var e: Dictionary = _marks[i]
 	var btn: TextureButton = e["node"]
-	btn.texture_normal = e["tex_hover"]
+	# 橙色那版图标由 `texture_hover` 自动换上（见 `_add_mark`），这里只负责放大 + 卡片
 	btn.scale = Vector2(HOVER_SCALE, HOVER_SCALE)
 	var d: Dictionary = e["data"]
 	_card_title.text = String(d["name"])
@@ -356,7 +359,6 @@ func _on_mark_exit(i: int) -> void:
 		return
 	var e: Dictionary = _marks[i]
 	var btn: TextureButton = e["node"]
-	btn.texture_normal = e["tex"]
 	btn.scale = Vector2.ONE
 	if _hover == i:
 		_hover = -1

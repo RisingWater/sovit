@@ -95,8 +95,8 @@ func _run() -> void:
 
 	# ---- 3. 据点都在图内 ---------------------------------------------------
 	var marks: Array = panel._marks
-	if marks.size() != 11:
-		_fail("据点数应当是 11（10 个别人的 + 我们那一座），实际 %d" % marks.size())
+	if marks.size() != 12:
+		_fail("据点数应当是 12（王都 + 10 座别人的 + 我们那一座），实际 %d" % marks.size())
 		return
 	var map_rect := Rect2(panel._map.position, panel._map.size)
 	if map_rect.size.x < 100.0 or map_rect.size.y < 100.0:
@@ -110,15 +110,21 @@ func _run() -> void:
 			_fail("据点「%s」跑到图外了：%s（图 %s）" % [
 				String((e["data"] as Dictionary)["name"]), str(c), str(map_rect)])
 			return
-	_ok("11 个据点全摆在底图内（%d×%d 的图）" % [int(map_rect.size.x), int(map_rect.size.y)])
+	_ok("12 个据点全摆在底图内（%d×%d 的图）" % [int(map_rect.size.x), int(map_rect.size.y)])
 
 	# 区域名都在
 	var region_txt := _texts(panel._host)
-	for need in ["瓦尔登王国", "圣辉教国", "铁峰公国", "沙海汗国", "翡翠海", "灰岩山脉"]:
+	for need in ["WALDEN", "CHURCH STATE", "IRONPEAK DUCHY", "KHANATE", "JADE SEA", "GREYROCK RANGE"]:
 		if not region_txt.contains(String(need)):
 			_fail("地图上缺区域名「%s」：%s" % [need, region_txt])
 			return
-	_ok("地图上的字：6 个区域名 + 11 个城名都在")
+	_ok("地图上的字：区域名（英文）都在；城名**不画**（只在 hover 卡片里）")
+	# 地图上不许出现城名（用户："所有城镇地图上不显示名字，城镇名字放在 tip 里显示"）
+	var on_map := _texts(panel._host)
+	for s in ["王都", "铁王城", "铁鸦堡", "圣火城", "曙光城", "金穗城", "黑石堡", "铁峰城", "翡翠城", "圣都", "汗庭"]:
+		if on_map.contains(String(s)):
+			_fail("地图上不该画城名「%s」：%s" % [s, on_map])
+			return
 
 	# ---- 4. 我们那一座跟着城镇中心变 --------------------------------------
 	var home_e: Dictionary = marks[marks.size() - 1]
@@ -146,15 +152,19 @@ func _run() -> void:
 
 	# ---- 5. hover：点亮图标 + 放大 + 卡片（城名 / 领主 / 特产）------------
 	var crown: Dictionary = marks[0]
-	if String((crown["data"] as Dictionary)["name"]) != "铁王城":
-		_fail("第一条应当是铁王城，实际 %s" % String((crown["data"] as Dictionary)["name"]))
+	if String((crown["data"] as Dictionary)["name"]) != "王都":
+		_fail("第一条应当是王都，实际 %s" % String((crown["data"] as Dictionary)["name"]))
 		return
 	var crown_btn: TextureButton = crown["node"]
+	# 橙色（点亮版）图标必须挂在 `texture_hover` 上 —— TextureButton 悬停时优先用它
+	if not String(crown_btn.texture_hover.resource_path).contains("_hover"):
+		_fail("hover 那张图应当是橙色版（*_hover.png），实际 %s" % crown_btn.texture_hover.resource_path)
+		return
+	if String(crown_btn.texture_normal.resource_path).contains("_hover"):
+		_fail("常态那张图不该是橙色版")
+		return
 	panel._on_mark_enter(0)
 	await process_frame
-	if not String(crown_btn.texture_normal.resource_path).contains("_hover"):
-		_fail("hover 之后应当换成点亮版图标，实际 %s" % crown_btn.texture_normal.resource_path)
-		return
 	if not (crown_btn.scale.x > 1.0):
 		_fail("hover 之后应当放大一点")
 		return
@@ -162,18 +172,18 @@ func _run() -> void:
 		_fail("hover 之后没有弹出卡片")
 		return
 	var card := String(panel._card_title.text) + " / " + String(panel._card_body.text)
-	if not card.contains("铁王城") or not card.contains("领主：") or not card.contains("特产："):
+	if not card.contains("王都") or not card.contains("领主：") or not card.contains("特产："):
 		_fail("卡片里该写「城名 / 领主 / 特产」，实际：%s" % card)
 		return
 	panel._on_mark_exit(0)
 	await process_frame
-	if String(crown_btn.texture_normal.resource_path).contains("_hover"):
-		_fail("移开之后图标没有还原")
+	if not is_equal_approx(crown_btn.scale.x, 1.0):
+		_fail("移开之后不该还放大着")
 		return
 	if panel._card.visible:
 		_fail("移开之后卡片还挂着")
 		return
-	_ok("hover：点亮图标 + 放大 + 卡片写着「%s」" % card.replace("\n", " "))
+	_ok("hover：橙色图标 + 放大 + 卡片写着「%s」" % card.replace("\n", " "))
 
 	# ---- 6. 关得掉 --------------------------------------------------------
 	var close: Button = null
