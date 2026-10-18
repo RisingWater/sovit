@@ -135,6 +135,16 @@ func _run() -> void:
 	_ok("12 个据点全摆在底图内（%d×%d 的图）" % [int(map_rect.size.x), int(map_rect.size.y)])
 
 	# 区域名都在
+	# 地图上的字用 Lin Libertine（用户 2026-10-20 指定），不是像素字体
+	if not ResourceLoader.exists("res://assets/fonts/libertine/LinLibertine_DR.otf"):
+		_fail("缺地图字体 res://assets/fonts/libertine/LinLibertine_DR.otf")
+		return
+	var map_font: Font = load("res://assets/fonts/libertine/LinLibertine_DR.otf")
+	var first_label: Label = panel._labels[0]["node"]
+	if first_label.get_theme_font("font") != map_font:
+		_fail("地图地名用的不是 Lin Libertine（实际 %s）" % str(first_label.get_theme_font("font")))
+		return
+	_ok("地图地名用的是 Lin Libertine（衬线体），UI 其余部分仍是像素字体")
 	var region_txt := _texts(panel._host)
 	for need in ["WALDEN", "CHURCH STATE", "IRONPEAK DUCHY", "KHANATE", "JADE SEA", "GREYROCK RANGE"]:
 		if not region_txt.contains(String(need)):

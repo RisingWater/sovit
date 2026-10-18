@@ -23,6 +23,10 @@ var world: Node
 ## 底图（比例 = 1536 : 952）。`_layout()` 按它算居中矩形。
 const MAP_ASPECT := 2048.0 / 1366.0
 const MAP_PATH := "res://assets/ui/map/kingdom_map_bare.jpg"
+## 地图上那几行英文地名用的字体（用户 2026-10-20 指定 Lin Libertine，衬线体，手绘古地图的味道）。
+## 授权：GPL + 字体例外 / 另附 OFL 1.1 —— 文本随字体放在 `assets/fonts/libertine/`。
+## ⚠️ 只给**地图上的字**用：面板标题、卡片、按钮仍然走像素字体（那是 UI，不是地图）。
+const MAP_FONT := "res://assets/fonts/libertine/LinLibertine_DR.otf"
 const ICON_DIR := "res://assets/ui/map/"
 ## 据点图标占地图高度的百分比（大城镇画得比村庄大，是**素材自带**的相对大小，
 ## 这里只给一个统一缩放比 —— 别按类型改，否则大城市和小村庄会长得一样大）。
@@ -38,12 +42,12 @@ const INK_DIM := Color(0.36, 0.26, 0.17, 0.55)
 ## ⚠️ 2026-10-20 用户："汉字，瓦尔登王国，圣辉教国，沙海汗国，翡翠海，全地图的文字都写英文" ——
 ##    地图上的字**一律英文**（羊皮纸手绘地图的味道），中文只出现在 hover 卡片里。
 const REGIONS := [
-	{"text": "CHURCH STATE", "fx": 0.4080, "fy": 0.0450, "size": 20},
+	{"text": "CHURCH STATE", "fx": 0.4080, "fy": 0.0620, "size": 20},
 	{"text": "WALDEN", "fx": 0.6820, "fy": 0.2150, "size": 28},
 	{"text": "JADE SEA", "fx": 0.8840, "fy": 0.3150, "size": 22},
-	{"text": "IRONPEAK DUCHY", "fx": 0.1150, "fy": 0.3150, "size": 16},
+	{"text": "IRONPEAK DUCHY", "fx": 0.1380, "fy": 0.3150, "size": 16},
 	{"text": "GREYROCK RANGE", "fx": 0.3000, "fy": 0.3400, "size": 16},
-	{"text": "VALR RIVER", "fx": 0.6650, "fy": 0.5050, "size": 13},
+	{"text": "VALR RIVER", "fx": 0.6300, "fy": 0.5300, "size": 14},
 	{"text": "KHANATE", "fx": 0.1500, "fy": 0.7950, "size": 20},
 ]
 
@@ -210,8 +214,11 @@ func _ready() -> void:
 ## 区域名：大号淡墨，压在底图上；平时不吃鼠标，**布置模式下可以拖**
 func _build_regions() -> void:
 	var idx := 0
+	var map_font: Font = load(MAP_FONT) if ResourceLoader.exists(MAP_FONT) else null
 	for r in REGIONS:
 		var l := UIKit.label(String(r["text"]), INK_DIM)
+		if map_font != null:
+			l.add_theme_font_override("font", map_font)
 		l.add_theme_font_size_override("font_size", int(r["size"]))
 		l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		l.mouse_filter = Control.MOUSE_FILTER_IGNORE
