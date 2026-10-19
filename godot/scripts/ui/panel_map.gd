@@ -223,10 +223,12 @@ func _ready() -> void:
 
 ## 区域名：深墨衬线体，压在底图上；平时不吃鼠标，**布置模式下可以拖**
 ##
-## ⚠️ 每个地名是**两块** Label：首字母（大 `FIRST_EXTRA` 号）+ 其余（正文号）。
-## 手绘古地图上那种"A 比后面的大一圈"的味道，单块 Label 做不出来。
-## 两块用同一个盒高 + 底部对齐 —— 基线就对上了（字号差几号时下沉量差不到 1px）。
-## ⚠️ 布置模式下拖的不是那两块字本身，而是盖在它们上面的一块**透明命中框**
+## ⚠️ 每个**单词**的首字母都比正文大 `FIRST_EXTRA` 号（用户 2026-10-20：
+##    "每个单词的首字母都要加大，不是只有第一个字母的首字母加大"）——
+##    所以「THE HOLY」是 **T**HE **H**OLY（T 和 H 都大），不是只有开头那个 T。
+##    实现上是把每个单词切成两块 Label（首字母 + 余下），整句拼起来居中；
+##    所有块共用一个盒高 + 底部对齐，基线就齐了。
+## ⚠️ 布置模式下拖的不是那些字本身，而是盖在它们上面的一块**透明命中框**
 ##    （`_label_hits`）：字是镂空的，点空白就漏过去太难拖了（用户 2026-10-20：
 ##    "字能不能和城镇一样移动"）。命中框只在布置模式吃鼠标。
 func _build_regions() -> void:
@@ -236,19 +238,35 @@ func _build_regions() -> void:
 		var text := String(r["text"])
 		var size := int(r["size"])
 		var big := size + FIRST_EXTRA
-		var l1 := _region_label(text.substr(0, 1), big, map_font)
-		var l2 := _region_label(text.substr(1), size, map_font)
-		_host.add_child(l1)
-		_host.add_child(l2)
+		var words := text.split(" ", false)
+		var pieces: Array = []
+		for wi in words.size():
+			var w := String(words[wi])
+			var head := _region_label(w.substr(0, 1), big, map_font)
+			var tail := _region_label(w.substr(1), size, map_font)
+			head.name = "R%dW%dA" % [idx, wi]
+			tail.name = "R%dW%dB" % [idx, wi]
+			_host.add_child(head)
+			if w.length() > 1:
+				_host.add_child(tail)
+			else:
+				tail.queue_free()
+			# `space` = 这一块前面要不要空一格（除了第一个词的第一块）
+			_pieces_append(pieces, head, big, wi > 0)
+			if w.length() > 1:
+				_pieces_append(pieces, tail, size, false)
 		var hit := Control.new()
 		hit.name = "RegionHit%d" % idx
 		hit.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		hit.mouse_default_cursor_shape = Control.CURSOR_MOVE
 		hit.gui_input.connect(_on_label_gui_input.bind(idx, hit))
 		_host.add_child(hit)
-		_labels.append({"text": text, "nodes": [l1, l2], "hit": hit,
+		_labels.append({"text": text, "pieces": pieces, "hit": hit,
 			"fx": float(r["fx"]), "fy": float(r["fy"]), "size": size, "big": big})
 		idx += 1
+
+func _pieces_append(arr: Array, node: Label, fs: int, space: bool) -> void:
+	arr.append({"node": node, "fs": fs, "space": space})
 
 ## 一块地名 Label（**不加描边**：用户 2026-10-20 "字为什么有白边？白边去掉"）
 func _region_label(t: String, fs: int, f: Font) -> Label:
@@ -640,33 +658,44 @@ func _layout() -> void:
 		btn.position = Vector2(cx - iw * 0.5, by - ih)
 		# 放大的轴心放在脚底中点：hover 时像是"从地上长出来"，不会飘
 		btn.pivot_offset = Vector2(iw * 0.5, ih)
-	# 区域名：首字母一块、其余一块，两块**共用一个盒高 + 底部对齐**（基线就齐了），
-	# 宽度用字体的 `get_string_size()` 量，整组按 fx 居中。
+	# 区域名：每个单词切成「首字母（大）+ 余下（正文）」，所有块共用盒高 + 底部对齐，
+	# 宽度用 `Font.get_string_size()` 量，整句按 fx 居中，词与词之间留一个空格的宽度。
 	for r in _labels:
-		var nodes: Array = r["nodes"]
-		var l1: Label = nodes[0]
-		var l2: Label = nodes[1]
-		var font: Font = l1.get_theme_font("font")
-		var s1 := float(r["big"])
-		var s2 := float(r["size"])
-		var w1 := 0.0
-		var w2 := 0.0
-		if font != null:
-			w1 = font.get_string_size(l1.text, HORIZONTAL_ALIGNMENT_LEFT, -1, int(s1)).x
-			w2 = font.get_string_size(l2.text, HORIZONTAL_ALIGNMENT_LEFT, -1, int(s2)).x
-		var box_h := s1 * 1.6
+		var pieces: Array = r["pieces"]
+		var s_big := float(r["big"])
+		var s_body := float(r["size"])
+		var box_h := s_big * 1.6
+		var total := 0.0
+		var space_w := 0.0
+		for p in pieces:
+			var lb: Label = p["node"]
+			var f: Font = lb.get_theme_font("font")
+			var fs := int(p["fs"])
+			var wid := 0.0
+			if f != null:
+				wid = f.get_string_size(lb.text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
+				if space_w <= 0.0:
+					space_w = f.get_string_size(" ", HORIZONTAL_ALIGNMENT_LEFT, -1, int(s_body)).x
+			p["w"] = wid
+			total += wid
+			if bool(p["space"]):
+				total += space_w
 		var cx := rect.position.x + float(r["fx"]) * rect.size.x
 		var cy := rect.position.y + float(r["fy"]) * rect.size.y
-		var left := cx - (w1 + w2) * 0.5
+		var x := cx - total * 0.5
 		var top := cy - box_h * 0.5
-		l1.size = Vector2(maxf(w1 + 2.0, 8.0), box_h)
-		l1.position = Vector2(left, top)
-		l2.size = Vector2(maxf(w2 + 2.0, 8.0), box_h)
-		l2.position = Vector2(left + w1, top)
+		for p in pieces:
+			var lb2: Label = p["node"]
+			if bool(p["space"]):
+				x += space_w
+			var pw := float(p["w"])
+			lb2.size = Vector2(maxf(pw + 2.0, 8.0), box_h)
+			lb2.position = Vector2(x, top)
+			x += pw
 		# 透明命中框：只在布置模式吃鼠标，直接拖它（比点镂空的字好抓）
 		var hit: Control = r["hit"]
-		hit.position = Vector2(left - 3.0, top - 3.0)
-		hit.size = Vector2(w1 + w2 + 6.0, box_h + 6.0)
+		hit.position = Vector2(cx - total * 0.5 - 3.0, top - 3.0)
+		hit.size = Vector2(total + 6.0, box_h + 6.0)
 	_place_card()
 
 ## 卡片跟着 hover 的那个据点走（贴在图内，别溢出边界）

@@ -147,31 +147,45 @@ func _run() -> void:
 		_fail("缺地图字体 res://assets/fonts/libertine/LinLibertine_DR.otf")
 		return
 	var map_font: Font = load("res://assets/fonts/libertine/LinLibertine_DR.otf")
-	var first_label: Label = (panel._labels[0]["nodes"] as Array)[0]
+	var first_label: Label = (panel._labels[0]["pieces"] as Array)[0]["node"]
 	if first_label.get_theme_font("font") != map_font:
 		_fail("地图地名用的不是 Lin Libertine（实际 %s）" % str(first_label.get_theme_font("font")))
 		return
 	_ok("地图地名用的是 Lin Libertine（衬线体），UI 其余部分仍是像素字体")
-	# 每个地名拆成两块（首字母 + 其余），拼回去比对
+	# 每个**单词**都得是「大号首字母 + 正文号余下」（用户：每个单词的首字母都要加大）
 	var region_names := []
-	var first_bigger := true
+	var every_word_bigger := true
 	for r in panel._labels:
-		var ns: Array = r["nodes"]
-		var l1: Label = ns[0]
-		var l2: Label = ns[1]
-		region_names.append(String(l1.text) + String(l2.text))
-		if int(r["big"]) <= int(r["size"]):
-			first_bigger = false
-		if l1.get_theme_font_size("font_size") <= l2.get_theme_font_size("font_size"):
-			first_bigger = false
+		region_names.append(String(r["text"]))
+		var pieces: Array = r["pieces"]
+		# 按 `space` 标记把 pieces 切成"词"
+		var groups: Array = []
+		var cur: Array = []
+		for p in pieces:
+			if bool(p["space"]) and cur.size() > 0:
+				groups.append(cur)
+				cur = []
+			cur.append(p)
+		if cur.size() > 0:
+			groups.append(cur)
+		if groups.size() != String(r["text"]).split(" ", false).size():
+			every_word_bigger = false
+		for g in groups:
+			var head: Label = g[0]["node"]
+			if head.get_theme_font_size("font_size") != int(r["big"]):
+				every_word_bigger = false
+			if g.size() > 1:
+				var tail: Label = g[1]["node"]
+				if tail.get_theme_font_size("font_size") != int(r["size"]):
+					every_word_bigger = false
+	if not every_word_bigger:
+		_fail("每个单词的首字母都要比正文大（用户：每个单词的首字母都要加大）")
+		return
 	for need in ["WALDEN", "THE HOLY", "DUCHY", "KHANATE", "JADE SEA", "GREYROCK RANGE", "VALR RIVER"]:
 		if not region_names.has(String(need)):
 			_fail("地图上缺区域名「%s」：%s" % [need, str(region_names)])
 			return
-	if not first_bigger:
-		_fail("地名首字母应当比正文大（用户要求首字母再放大 1-2 字号）")
-		return
-	_ok("地图上的字：7 个英文区域名都在，且**首字母比正文大**；城名**不画**（只在 hover 卡片里）")
+	_ok("地图上的字：7 个英文区域名都在，且**每个单词的首字母都比正文大**；城名**不画**（只在 hover 卡片里）")
 	# 地名不许有描边（用户："字为什么有白边？白边去掉"）
 	if first_label.get_theme_constant("outline_size") > 0:
 		_fail("地名还带着描边（outline_size = %d）" % first_label.get_theme_constant("outline_size"))
