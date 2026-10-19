@@ -248,8 +248,10 @@ const TERRAIN_ZH := {"grass": "草地", "forest": "林地", "stone": "石矿", "
 const CAT_MEDICAL := ["herbal_farm", "potion_workshop", "clinic", "hospital", "school"]
 ## 「军事」页（2026-10 第二批）：治安所 / 瞭望台 / 武器·盔甲·弓箭作坊。
 const CAT_MILITARY := ["guard_station", "watchtower", "weapon_workshop", "armor_workshop", "bow_arrow_workshop"]
-## 「市政」页：仓库 / 建筑工坊 / 研究所 —— 别让它们掉进「工业」。
-const CAT_CIVIC := ["warehouse", "construction_works", "research_institute"]
+## 「市政」页：仓库 / 建筑工坊 / 研究所 / **贸易市场** —— 别让它们掉进「工业」。
+## 贸易市场 2026-10 从「工业」挪过来：工业页有 14 座、要翻两页，它就藏在第 2 页最后一格，
+## 用户的原话是"市场这个建筑没了，这样游商系统的入口在哪里？"—— 市政页只有 4 座，一眼看见。
+const CAT_CIVIC := ["warehouse", "construction_works", "research_institute", "trade_market"]
 
 ## 地图上**固定存在**的建筑，不进建造列表。
 ##

@@ -4,6 +4,8 @@ extends SceneTree
 #
 # red 的含义：① 点不开（open_trade 之后不可见）② 有游商却画不出行
 #              ③ 点按钮不发命令（玩家会以为"点了没反应"）④ 快照里的剩余天数不对
+#              ⑤ 建造栏里找不到「贸易市场」/ 圆钮不出现（用户："市场这个建筑没了，
+#                 这样游商系统的入口在哪里？"）
 
 const SEED := 20261025
 
@@ -84,5 +86,43 @@ func _run() -> void:
 	if panel.visible:
 		_fail("close_panel() 之后还可见")
 		return
+
+	# ---- 入口：建造栏里找得到 + 圆钮不依赖那座建筑 -------------------------
+	# 用户 2026-10："市场这个建筑没了，这样游商系统的入口在哪里？"
+	# ① 贸易市场必须在建造栏「市政」页（以前埋在「工业」页第 2 页里，等于没有）
+	var bar = node.get_node_or_null("UI/Root/BuildBar")
+	if bar == null:
+		_fail("找不到建造栏（UI/Root/BuildBar）")
+		return
+	if not (bar._ids_of("市政") as Array).has("trade_market"):
+		_fail("贸易市场不在建造栏「市政」页（现在在：%s）" % str(bar._ids_of("市政")))
+		return
+	if (bar._ids_of("工业") as Array).has("trade_market"):
+		_fail("贸易市场还留在「工业」页（那里 13 座、要翻页，用户找不到）")
+		return
+	print("TRADEPANEL TEST 建造栏：「市政」页里有贸易市场 ✅")
+
+	# ② 圆钮：开局（没市场、没通商）藏着 → 研究完「通商」就出现
+	var hud = node.get("_hud")
+	if hud == null:
+		_fail("找不到 HUD（main 的 _hud）")
+		return
+	var btn: Button = hud.get("_trade_nav_btn")
+	if btn == null:
+		_fail("HUD 里没有贸易圆钮（_trade_nav_btn）")
+		return
+	hud.refresh_nav_buttons()
+	if btn.visible:
+		_fail("还没有市场、也没研究「通商」，贸易圆钮就已经露出来了")
+		return
+	var done: Array = sim.s["research"]["done"]
+	if not done.has("trade"):
+		done.append("trade")
+	hud.refresh_nav_buttons()
+	if not btn.visible:
+		_fail("研究完「通商」之后贸易圆钮还是不出现（游商系统就没有入口了）")
+		return
+	print("TRADEPANEL TEST 入口：研究「通商」之后贸易圆钮出现（不必先建市场）✅")
+
 	print("TRADEPANEL TEST RESULT: PASS")
 	quit(0)

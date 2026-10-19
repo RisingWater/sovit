@@ -292,13 +292,10 @@
       "sector": "material",
       "nameZh": "铁矿场",
       "art": {
-        "arch": "extract",
-        "roof": "blue",
-        "wall": "stone",
-        "w": 4,
-        "chimney": true,
-        "feat": [
-          "rocks"
+        "arch": "sprite",
+        "foot": [
+          4,
+          1
         ]
       },
       "tier": 2,
@@ -383,13 +380,10 @@
       "sector": "material",
       "nameZh": "煤矿场",
       "art": {
-        "arch": "extract",
-        "roof": "red",
-        "wall": "barn",
-        "w": 4,
-        "chimney": true,
-        "feat": [
-          "rocks"
+        "arch": "sprite",
+        "foot": [
+          4,
+          1
         ]
       },
       "tier": 2,

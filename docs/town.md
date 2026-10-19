@@ -2231,14 +2231,21 @@ bash godot/verify.sh       # 最后一行要是 ALL CHECKS PASSED
 
 没有研究所就一点都不出科研力，点进去只有一片"需要先研究"，纯属误导。
 `hud.refresh_nav_buttons()` 看 `shops` 里有没有 `research_institute`，有才显示那个圆钮；
-挂在 `hour_ticked` 上（建筑都在黎明落成）。所以**开局左侧可见圆钮是 6 个**
-（资源/人口/财政/任务/预言/贸易 —— 科技那个藏着），第一次开出研究所之后变 7 个。
+挂在 `hour_ticked` 上（建筑都在黎明落成）。所以**开局左侧只有 4 个**（资源 / 人口 / 财政 / 任务）：
+科技等研究所、预言等章 1 收尾（瑟拉菲娜登场前露出等于剧透）、贸易等通商 —— 三个都藏着。
+开关的顺序是 4 →（预言）→（贸易）→（科技）→ 7 个。
 
 ⚠️ 圆钮的**下标不变**（只是 `visible = false`）：`activate_nav(3)`、F4、`esc_test` 里
 "圆钮有几个"那些断言都不受影响。
 
 ⚠️ 2026-10-20 加了第 7 个圆钮「贸易」（`NAV_TRADE = -4`，**F7** —— 2026-10-20 起快存 / 快读改成 Ctrl+S / Ctrl+L，F7/F8 归圆钮了），
 点开的是现有的 `panel_trade.gd`（以前只能从地图上的「贸易市场」进去）。
+
+⚠️ 2026-10 修：这个圆钮原来**要求村里先有一座贸易市场**才出现，于是"市场建不出来 / 不知道
+市场在哪"时整个游商系统在界面上就不存在 —— 用户的原话："市场这个建筑没了，这样游商系统的
+入口在哪里？" 现在判据改成 **通商科技研究完 或 已有贸易市场**（`runner.sim._is_researched("trade")`）：
+游商本身是引擎侧的（第 3 章之后每周一批），不依赖那座建筑。同时 `trade_market` 从「工业」页
+（14 张卡、要翻页，它就藏在第 2 页）挪到「**市政**」页（`ContentDB.CAT_CIVIC`），一眼看得见。
 
 ## 二十六、城镇中心的三段状态（废墟 → 初步修缮 → 修好）
 
@@ -2435,7 +2442,8 @@ TS 侧 `scripts/check-housing-upgrade.ts` 另有一套引擎断言（id 唯一�
 
 - `iron_ore`（铁矿石）：`goods.json`，tier 0 / raw / storable / baseValue 2.8
 - `iron_mine`（铁矿场）：`buildings.json`，`sector:"material"`、`terrain:"iron"`、
-  `arch:"extract"`（程序化外观：石墙 + 蓝顶 + 烟囱 + `feat:["rocks"]`，占地 4×2）、
+  **`arch:"sprite"`**（2026-10 换皮：`building_src/iron_mine.png` 128×82 → 运行时 64×41，
+  显式 `art.foot: [4,1]`；以前是程序化 `arch:"extract"`，石墙 + 蓝顶 + 烟囱 + rocks，占地 4×2）、
   6 铁矿石/日、用工 3（上限 6，与其它采集业同档）
 - 解锁：**烧砖**（`brickmaking`）—— "有了砖窑的火才烧得动铁"，也让它在建造栏里
   和采石场 / 粘土坑一样是**锁着的**（不然开局唯一亮着的那座矿场就是它，很怪）
@@ -2455,7 +2463,9 @@ TS 侧 `scripts/check-housing-upgrade.ts` 另有一套引擎断言（id 唯一�
 ### 煤：燃料（2026-10 追加）
 
 - `coal`（煤）：`goods.json`，tier 0 / **category `fuel`** / storable / baseValue 2.2
-- `coal_mine`（煤矿场）：`terrain:"coal"`、`arch:"extract"`（谷仓墙 + 红顶 + 烟囱 + rocks）、
+- `coal_mine`（煤矿场）：`terrain:"coal"`、**`arch:"sprite"`**（2026-10 换皮：
+  `building_src/coal_mine.png` 128×79 → 运行时 64×39，显式 `art.foot: [4,1]`；以前的程序化
+  外观是谷仓墙 + 红顶 + 烟囱 + rocks）、
   8 煤/日、用工 3（上限 6）；同样由**烧砖**解锁，归「矿场」页，中文「煤矿」
 - 贴图：`extra.png` 索引 54（近黑底 + 四块亮面碎煤 —— 纯黑会像一片阴影，得有反光点）；
   小地图 `TERRAIN_COLORS[6]`
