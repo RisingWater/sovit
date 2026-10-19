@@ -459,7 +459,8 @@ q23_sweep    剿匪       出击打「马匪窝」并赢 → 战报 + 解锁军�
 | `docs/quests.md` / `docs/needs.md` / `docs/technology.md` / `docs/content.md` | 与内容同版本 |
 | **TS 门槛 12 条**：`check:content` `check:footprint` `check:demolish` `check:storage` `check:housing-upgrade` `check:queues` `check:tools` `check:fuels` `check:needs` `check:merchant` `check:quests` `check:scenes` | `scripts/check-*.ts` |
 | **对拍**：`npm run golden`（两份引擎逐字节摘要）+ `npm run typecheck` | `tests/golden/` |
-| **Godot 门槛 45 步**：`smoke` `move` `music` `sfx` `daylight` `bartab` `buildlock` `panel` `consumetip` `chiptip` `workerdemolish` `tech` `efficiency` `tools` `sitetip` `keys` `doortest` `footprint` `iron` `coal` `needs` `merchant` `tradepanel` `roofclick` `multisite` `upgrade` `housingupgrade` `logsave` `queue` `sitecancel` `quest` **`scene`** `questpanel` `questtalk` `ai` `glyph` `construction` `research` `imm` `minimap` `esc` `savedlg` `inspector` `newgame` `title` `intro` `occlusion` … | `godot/verify.sh`（`--import` → 逐文件 `--check-only` → 测试 → 冒烟）|
+| **Godot 门槛 49 步**：`smoke` `move` `music` `sfx` `daylight` `bartab` `buildlock` `panel` `consumetip` `chiptip` `workerdemolish` `tech` `efficiency` `tools` `sitetip` `keys` `doortest` `footprint` `iron` `coal` `needs` `merchant` `tradepanel` `roofclick` `multisite` `upgrade` `housingupgrade` `logsave` `queue` `sitecancel` `quest` **`scene`** `questpanel` `questtalk` `ai` `glyph` `construction` `research` `imm` `minimap` **`map`** `esc` `savedlg` `inspector` `newgame` `title` `intro` `occlusion` … | `godot/verify.sh`（`--import` → 逐文件 `--check-only` → 测试 → 冒烟）|
+| **门槛可按模块跑**（2026-10-20）| `bash verify.sh` = 全套（**push 前才跑**）；`bash verify.sh map` / `bash verify.sh map quest ai` = 只跑给的几步（几秒，不跑 gdUnit4、不自动 `--import`）；`--list` 列步骤名、`--help` 看用法、`STEP_TIMEOUT=` 放宽超时。见 `godot/AGENTS.md` |
 
 ### 6.6 A 段 + B0/B1/B2 已落地（2026-10-20）
 
@@ -475,6 +476,24 @@ q23_sweep    剿匪       出击打「马匪窝」并赢 → 战报 + 解锁军�
 | **B1 剧情时钟** | `chapters[].gapDays`（章 1–5 = 0，章 6–17 = 5/4/3/5/4/4/5/3/5/4/3/5）+ `questAvailable` 只闸主线 |
 | **B2 里程碑** | `kind: main / side / milestone`；`q16`/`q17`/`q45` 是里程碑（不发钱、不挡剧情、单独一组）；`q18` 暂留章 6 主线 |
 | **存档 v5** | `scenes.shown` + `gifts`（旧档拒读）|
-| **王国地图**（2026-10-20）| 点小地图进；底图 `kingdom_map_bare.jpg`（2048×1366，用户重画 + 自带罗盘、无白边）+ 6 类据点 ×（默认/hover）；12 座据点（含王都）+ 7 个**英文**区域名 + hover 橙色图标与卡片（城名 / 领主 / 特产）；我们那座随城镇中心变（村庄 → 小城镇 → 中型城镇）；**坐标可自己调**：面板上「布置城市」拖拽/方向键微调（写 `godot/data/map_layout.json`，默认值在内置常量里；工具行只在 ESC「调试功能」开着时露）；门槛 `map` |
+| **王国地图**（2026-10-20）| 点小地图进；底图 `kingdom_map_bare.webp`（2048×1366，用户重画 + 自带罗盘、**保留透明**）+ 6 类据点 ×（默认/hover）；12 座据点（含王都）+ 7 个**英文**区域名（Lin Libertine，每词首字母放大）+ hover 橙色图标与卡片（城名 / 领主 / 特产，中文只在这里）；我们那座随城镇中心变（村庄 → 小城镇 → 中型城镇）；**坐标和地名都可自己调**：面板上「布置城市」拖拽/方向键微调（写 `godot/data/map_layout.json`，默认值在内置常量里；工具行只在 ESC「调试功能」开着时露）；门槛 `map`。收尾明细见 §6.7 |
 | 顺带 | 章 7–17 先占位（只有标题 + `gapDays`），等着 C1/C2 写内容 |
+
+### 6.7 地图面板收尾 · 门槛分模块 · Windows 打包
+
+| 已完成 | 提交 |
+|---|---|
+| 面板改**真全屏**（anchors 0..1）、米黄底、扣掉白边；小地图圆盘下移（`RING_Y = 26`），**整个圆盘**都能点（`map_pressed` 信号）| `6d09942` |
+| 文案全改**英文**（7 个区域名）；城名**只进 hover 卡片**，地图上一个字都不写；hover 图标换橙色（`texture_hover` 用 `<kind>_hover.png`，`TextureButton` 优先画 hover 那张）；王都单列（1.45 倍大图标）、12 座据点重新落点 | `0424425` |
+| 底图换你重画的整张图（罗盘已合进图里，不再自己抠图拼罗盘 / 遮水印）| `88d0e2c` `7e96978` |
+| **点位可自己调**：面板里拖拽（抓取点带偏移，不会瞬移到鼠标下）+ 方向键微调（0.002 / Shift 0.0005）+ 「恢复默认」，松开鼠标即写回 `godot/data/map_layout.json` | `9cd6501` |
+| 布置工具收进 ESC「调试功能：开/关」总闸（`world.debug_footprints`），平时看不见 | `3c4d8dc` |
+| 地名字体换 **Lin Libertine** 衬线（`godot/assets/fonts/libertine/`，GPL+font exception / OFL 1.1 双授权，许可证随字体一起进仓库）| `2032073` |
+| 地名放大 + **去掉描边** + 墨色加深（`INK_DIM` ≈ 0.19/0.11/0.04）+ 西边补 `DUCHY`、北边补 `THE HOLY` | `73ed789` |
+| 地名首字母 `FIRST_EXTRA` 2 → 4，且**地名和城镇一样能拖** | `a1ea98b` |
+| **每个单词**的首字母都放大（不是只有第一个词）—— 一段地名按空格拆成「大首字母 + 正文」的片段，逐词居中拼接 | `ab5aed6` |
+| 底图 `.jpg` → **`.webp` 保留 alpha**（`.jpg` 没有透明通道，四周被压成黑边）；门槛补「底图贴图必须真的载进来」+ 尺寸断言 | `29a1ae8` |
+| 你调好的坐标从 JSON **写进内置默认**；JSON 退回「本地微调层」（`godot/data/map_layout.json` 进 `.gitignore`，删掉 = 恢复默认）| `3c4d8dc` `29a1ae8` |
+| **门槛可按模块跑**：`bash verify.sh map` / `bash verify.sh map quest ai`（只跑给的几步、不跑 gdUnit4、不自动 `--import`）；`--list` / `--help` / `STEP_TIMEOUT=` | `29a1ae8` |
+| **Windows exe**：`--export-release "Windows Desktop"` → `godot/builds/windows/sovit.exe`（约 128 MB，其中 ~109 MB 是官方模板；`builds/` 不进仓库）；`exclude_filter` 排掉 gdUnit4 / tests / tools / 原始素材；headless 冒烟 180 帧退出码 0、无脚本错误 | `29a1ae8` |
 
