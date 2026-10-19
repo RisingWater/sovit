@@ -170,12 +170,26 @@ function asNumEnum<T extends number>(v: unknown, allowed: readonly T[], p: strin
 //
 // 契约（与 GDScript `sim_core.gd::tech_bonuses()` / `_sector_output_boost()` 同口径）：
 //   - sector 只有三个值，且**只属于有 recipe 的建筑**（无配方建筑不产商品）
-//   - effects 的键只有那 5 个，值是**加成小数**（0.10 = +10%），必须 > 0 且有限
+//   - effects 的键只有那 6 个，值是**加成小数**（0.10 = +10%），必须 > 0 且有限
 // ---------------------------------------------------------------------------
 
 const SECTORS = ['agri', 'goods', 'material'] as const
-/** 覆盖类型：医疗 / 教育 / 治安（一处定义，引擎与 UI 共用）。 */
-const TECH_EFFECT_KEYS: readonly TechEffectKey[] = ['agri', 'goods', 'material', 'research', 'build', 'toolLife']
+/**
+ * 效率科技允许的加成键（一处定义，引擎与 UI 共用）。
+ *
+ * `services` = 治安 / 医疗 / 教育这三样**公共服务商品的产出**加成 ——
+ * 用户 2026-10："增加（治安、教育、医疗）的科技（三个一起加）"。
+ * 它们没有独立 sector（那几座建筑的 sector 都是 goods），所以只能按"产出哪个商品"认。
+ */
+const TECH_EFFECT_KEYS: readonly TechEffectKey[] = [
+  'agri',
+  'goods',
+  'material',
+  'research',
+  'build',
+  'toolLife',
+  'services',
+]
 
 function asSector(v: unknown, p: string): Sector {
   return asEnum(v, SECTORS, p)

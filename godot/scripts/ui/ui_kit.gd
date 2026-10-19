@@ -111,6 +111,7 @@ const EFFECT_NAMES := {
 	"material": "建材",
 	"research": "科研速度",
 	"build": "建造速度",
+	"services": "民生服务",
 }
 
 # 取件（来自清册核对）

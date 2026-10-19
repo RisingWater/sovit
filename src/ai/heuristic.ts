@@ -136,6 +136,13 @@ const RESEARCH_ORDER: string[] = [
   'assembly_line', // goods +50%
   'brick_press', // material +50%
 
+  // ---- 民生服务（2026-10）：培训 → 民生工程 → 治理，三级一起加治安/医疗/教育 ----
+  // 排在各条效率链之后：它们只放大公共服务的产出，属于"人已经住得下、体系跑起来之后"
+  // 的锦上添花（三级全研究 +60%，比任何单条 L3 效率科技的 +50% 略高，但门槛是三条）。
+  'training', // services +10%
+  'public_works', // services +20%
+  'governance', // services +30%
+
   // ---- 纪元 5 ----
   'domestic_service',
 ]

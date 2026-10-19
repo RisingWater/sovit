@@ -123,18 +123,19 @@ cap_g = government.storageCaps[g]        # 缺项 = 不限
 
 ### 2.5 效率科技加成 `techBonuses`（跨全天的倍率）
 
-15 项「效率科技」在 `content/technologies.json` 里带 `effects`，形如 `"effects": { "agri": 0.10 }`。
-值是**加成小数**（`0.10` = +10%），不是倍率。可用键只有 5 个：
+「效率科技」在 `content/technologies.json` 里带 `effects`，形如 `"effects": { "agri": 0.10 }`。
+值是**加成小数**（`0.10` = +10%），不是倍率。可用键只有 6 个：
 
 | 键 | 作用点 |
 |---|---|
 | `agri` / `goods` / `material` | 该 **sector** 建筑的产出 |
 | `research` | 每日科研力（§10.1） |
 | `build` | 每日建造力（§9.1） |
+| `services` | **治安 / 医疗 / 教育**这三样公共服务商品的产出（按商品认，不按 sector） |
 
 ```
 techBonuses(state) = for tid in research.done:
-                       for k in [agri, goods, material, research, build]:
+                       for k in [agri, goods, material, research, build, services]:
                          out[k] += technologies[tid].effects[k] ?? 0      # 缺省 0
 ```
 
@@ -142,20 +143,26 @@ techBonuses(state) = for tid in research.done:
   连乘后期滚雪球，而且玩家在面板上没法一眼算出"现在是多少"。
 - **不取整**（`round2` 只用在最终速率上）。
 - 按固定键序累加，**不依赖内容里 `effects` 的键序**。
+- `services` 不是 sector：产这三样商品的建筑 `sector` 都是 `goods`（诊所在造"医疗点数"、
+  学校在造"教育点数"），单靠 sector 分不出来，所以按**产出商品 id** 认
+  （`SERVICE_GOODS = ['safety', 'medical_service', 'education']`，TS `tech_bonus.ts` /
+  GD `sim_core.SERVICE_GOODS` 同一份）。三级科技：培训 +10% / 民生工程 +20% / 治理 +30%。
 
 **三处作用点**（乘数一律是 `1 + 加成`）：
 
 | 位置 | 公式 |
 |---|---|
-| §2.2 产出 | `goods[g] += output[g] * batches * shop.toolBoost * (1 + techBonuses[def.sector])` —— **投入那张表不动**，多出来的产出是"虚空产量"（不额外吃原料） |
+| §2.2 产出 | `goods[g] += output[g] * batches * shop.toolBoost * (1 + techBonuses[def.sector]) * (1 + techBonuses.services if g ∈ SERVICE_GOODS)` —— **投入那张表不动**，多出来的产出是"虚空产量"（不额外吃原料） |
 | §10.1 科研 | `researchRate = (基础 + Σ 研究所) * (1 + techBonuses.research)` —— **整条**速率，含 `baseRate` |
 | §9.1 建造 | `constructionRate = (失业人口 + Σ 建筑工坊) * (1 + techBonuses.build)` —— **整条**速率 |
 
-- 产出那条与 `toolBoost` 是**相乘**（两条独立路线：工具 +25%、产业科技最多 +105%）。
+- 产出那条与 `toolBoost` 是**相乘**（两条独立路线：工具 +25%、产业科技最多 +105%）；
+  `services` 再与 sector 那道**相乘**（诊所的产出 = 工具 × goods 科技 × services 科技）。
 - 建筑没有 `sector`（无配方建筑：城镇中心 / 仓库 / 建筑工坊 / 研究所）→ 倍率 1。
 - 建筑的 `sector`（`agri`/`goods`/`material`）是**内容字段**，校验器强制：
   **有 `recipe` 就必须有 `sector`**，反之不许有。
-- **前端**：科技面板顶部显示累计加成，卡片 tooltip 里有单项效果。
+- **前端**：科技面板分「制造」「效率」两页（`panel_tech.gd`），顶部显示累计加成，
+  卡片 tooltip 里有单项效果。
 
 ## 3. 用工 `assignLabor`（黎明）
 

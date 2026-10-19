@@ -4,7 +4,7 @@ import { ALL_GOODS } from '../content/index.ts'
 import { TUNING } from '../config.ts'
 import { assignedWorkers } from './labor.ts'
 import { shopToolBoost } from './tools.ts'
-import { buildingSectorBoost, techBonuses } from './tech_bonus.ts'
+import { buildingSectorBoost, serviceOutputBoost, techBonuses } from './tech_bonus.ts'
 import { round2, round4 } from '../util.ts'
 
 // ---------------------------------------------------------------------------
@@ -170,11 +170,15 @@ export function runProductionStep(state: GameState, ctx: ContentContext, fractio
     // 只放大**产出**，投入（上面两段）完全不动 —— 这就是"虚空产量"。
     // 倍率 = 工具（+25%）× 该产业的效率科技加成（1 + techBonuses()[def.sector]），两者**相乘**；
     // 建筑没写 sector（无配方建筑不产商品，本来就到不了这里）则为 1。
+    // 另外**治安 / 医疗 / 教育**这三样商品再乘一道 `services` 加成（培训 / 民生工程 / 治理，
+    // 见 docs/technology.md §7.4）—— 它们仨没有独立 sector（建筑都归 goods），
+    // 只能按"产出的是哪个商品"来认。
     const boost = shopToolBoost(shop) * buildingSectorBoost(def, tech)
     for (const [g, q] of Object.entries(recipe.output)) {
       if (q && q > 0) {
-        state.goods[g] = (state.goods[g] ?? 0) + q * batches * boost
-        state.ledgerToday.produced[g] = round4((state.ledgerToday.produced[g] ?? 0) + q * batches * boost)
+        const b = boost * serviceOutputBoost(tech, g)
+        state.goods[g] = (state.goods[g] ?? 0) + q * batches * b
+        state.ledgerToday.produced[g] = round4((state.ledgerToday.produced[g] ?? 0) + q * batches * b)
       }
     }
   }

@@ -19,9 +19,11 @@ extends SceneTree
 ## 分布在 era2/3/4，逐级 +10%/+15%/+20%，加法叠加）。见 docs/technology.md。
 ## 43 → 42：`housing_works`（住房坊）已删除 —— 它产的 `hut` 商品没有任何消费者，
 ## 建房走的是 `build_housing` 动作。见 docs/technology.md。
+## 42 → 53：手工核对时已经涨到 53（几十项解锁建筑/商品的科技陆续加进来）。
+## 53 → 56：新增 3 项**民生服务**科技（培训 / 民生工程 / 治理，治安+医疗+教育一起加成）。
 ## **刻意写死**而不是取 `db.tech_ids.size()`：这样"某项科技莫名消失/多出来"
 ## 才会被这条门抓住 —— 用 size 就等于把断言变成恒真式。
-const EXPECTED_TECHS := 53
+const EXPECTED_TECHS := 56
 
 func _init() -> void:
 	call_deferred("_run")
@@ -101,7 +103,10 @@ func _run() -> void:
 		_fail("「科技」圆钮没有图标")
 		return
 
-	# ---- 2. 面板打开，全部科技都在树里
+	# ---- 2. 面板打开：**两个页签各建一棵树**，合起来一项科技不缺
+	#
+	# 用户 2026-10："科技树太复杂了，拆分几个 tab：1、制造（专门用来解锁新的建筑新的产品）
+	# 2、效率（专门用来提升各种效率，各种加成）"。
 	var panel = node.get_node_or_null("UI/Root/Tech")
 	if panel == null:
 		_fail("找不到 UI/Root/Tech")
@@ -113,61 +118,116 @@ func _run() -> void:
 		_fail("科技数应为 %d，实际 %d" % [EXPECTED_TECHS, db.tech_ids.size()])
 		return
 
-	var cards: Dictionary = panel.get("_cards")
-	if cards.size() != EXPECTED_TECHS:
-		_fail("树里只建出 %d 张卡片（应 %d）" % [cards.size(), EXPECTED_TECHS])
+	var ids_make: Array = panel._ids_for(0)     # 制造
+	var ids_eff: Array = panel._ids_for(1)      # 效率
+	if ids_make.is_empty() or ids_eff.is_empty():
+		_fail("制造 %d 项 / 效率 %d 项 —— 有一页是空的" % [ids_make.size(), ids_eff.size()])
 		return
-	for tid in db.tech_ids:
-		var t := String(tid)
-		if not cards.has(t):
-			_fail("科技「%s」没有卡片" % t)
+	if ids_make.size() + ids_eff.size() != EXPECTED_TECHS:
+		_fail("两页加起来 %d 项，科技总数 %d（有科技两页都不显示）"
+			% [ids_make.size() + ids_eff.size(), EXPECTED_TECHS])
+		return
+	for t2 in ids_eff:
+		if ids_make.has(t2):
+			_fail("科技「%s」同时出现在两页（制造 / 效率 应当互斥）" % String(t2))
 			return
-		var card = cards[t]
-		var found_name := false
-		for c in card.find_children("*", "Label", true, false):
-			if String((c as Label).text) == String(db.techs[t]["nameZh"]):
-				found_name = true
-		if not found_name:
-			_fail("卡片「%s」上没有名字标签「%s」" % [t, db.techs[t]["nameZh"]])
+	# 分工要对：效率页里必须都是"有 effects 的"，制造页里必须都是"有 unlocks 的"
+	for t3 in ids_eff:
+		if (db.techs[String(t3)].get("effects", {}) as Dictionary).is_empty():
+			_fail("效率页里有「%s」，但它没有任何加成（effects）" % String(t3))
 			return
-		# 科技树是"图标 + 名字"，图标不能缺
-		var has_icon := false
-		for c in card.find_children("*", "TextureRect", true, false):
-			if (c as TextureRect).texture != null:
-				has_icon = true
-		if not has_icon:
-			_fail("卡片「%s」没有图标" % t)
+	for t4 in ids_make:
+		var u: Dictionary = db.techs[String(t4)].get("unlocks", {})
+		var has_u: bool = not (u.get("buildings", []) as Array).is_empty() \
+			or not (u.get("housing", []) as Array).is_empty()
+		if not has_u:
+			_fail("制造页里有「%s」，但它不解锁任何建筑/住房" % String(t4))
 			return
 
-	# ---- 3. 树的正确性：前置 x 严格小于后继 x；每条前置关系都有连线
-	var posn: Dictionary = panel.get("_pos")
-	var bad := 0
-	var edges := 0
-	for tid in db.tech_ids:
-		var t := String(tid)
-		if not posn.has(t):
-			_fail("科技「%s」没有布局坐标" % t)
+	# 每页的卡片数 = 这一页的科技数；名字与图标都要在
+	var cards: Dictionary = panel.get("_cards")
+	if cards.size() != ids_make.size():
+		_fail("「制造」页只建出 %d 张卡片（应 %d）" % [cards.size(), ids_make.size()])
+		return
+	for page in [[0, ids_make], [1, ids_eff]]:
+		panel._select_tab(int(page[0]))
+		await process_frame
+		var want_ids: Array = page[1]
+		cards = panel.get("_cards")
+		if cards.size() != want_ids.size():
+			_fail("第 %d 页建出 %d 张卡片（应 %d）" % [int(page[0]), cards.size(), want_ids.size()])
 			return
-		var px: float = (posn[t] as Vector2).x
-		for r in db.techs[t]["requires"]:
-			var rt := String(r)
-			if not posn.has(rt):
-				_fail("科技「%s」的前置「%s」没有坐标" % [t, rt])
+		for tid in want_ids:
+			var t := String(tid)
+			if not cards.has(t):
+				_fail("第 %d 页里科技「%s」没有卡片" % [int(page[0]), t])
 				return
-			edges += 1
-			if (posn[rt] as Vector2).x >= px:
-				bad += 1
-	if bad > 0:
-		_fail("有 %d 条前置关系的 x 没有严格小于后继（树画错了）" % bad)
+			var card = cards[t]
+			var found_name := false
+			for c in card.find_children("*", "Label", true, false):
+				if String((c as Label).text) == String(db.techs[t]["nameZh"]):
+					found_name = true
+			if not found_name:
+				_fail("卡片「%s」上没有名字标签「%s」" % [t, db.techs[t]["nameZh"]])
+				return
+			# 科技树是"图标 + 名字"，图标不能缺
+			var has_icon := false
+			for c in card.find_children("*", "TextureRect", true, false):
+				if (c as TextureRect).texture != null:
+					has_icon = true
+			if not has_icon:
+				_fail("卡片「%s」没有图标" % t)
+				return
+	print("TECH TEST 两页：制造 %d 项 / 效率 %d 项（合计 %d）"
+		% [ids_make.size(), ids_eff.size(), EXPECTED_TECHS])
+
+	# ---- 3. 每棵树的正确性：前置 x 严格小于后继 x；前置关系（同一页内的）都有连线
+	panel._select_tab(0)
+	await process_frame
+	cards = panel.get("_cards")
+	var total_edges := 0
+	for page in [[0, ids_make], [1, ids_eff]]:
+		panel._select_tab(int(page[0]))
+		await process_frame
+		var ids: Array = page[1]
+		var posn: Dictionary = panel.get("_pos")
+		var bad := 0
+		var edges := 0
+		for tid in ids:
+			var t5 := String(tid)
+			if not posn.has(t5):
+				_fail("第 %d 页「%s」没有布局坐标" % [int(page[0]), t5])
+				return
+			var px: float = (posn[t5] as Vector2).x
+			for r in db.techs[t5]["requires"]:
+				var rt := String(r)
+				# 跨页的前置（例如「轮作」要「石作」）不画线也不定列号，
+				# 它只出现在卡片的"需先研究"里 —— 见 panel_tech._compute_layout 的注释。
+				if not posn.has(rt):
+					continue
+				edges += 1
+				if (posn[rt] as Vector2).x >= px:
+					bad += 1
+		if bad > 0:
+			_fail("第 %d 页有 %d 条前置关系的 x 没有严格小于后继（树画错了）" % [int(page[0]), bad])
+			return
+		var lines = panel.get("_lines")
+		if lines == null:
+			_fail("第 %d 页没有连线层" % int(page[0]))
+			return
+		var got: int = (lines.get("_segs") as Array).size()
+		if got != edges:
+			_fail("第 %d 页连线数 %d != 页内前置关系数 %d" % [int(page[0]), got, edges])
+			return
+		total_edges += edges
+	if total_edges <= 0:
+		_fail("两页加起来一条前置连线都没有")
 		return
-	var lines = panel.get("_lines")
-	if lines == null:
-		_fail("没有连线层")
-		return
-	var got: int = (lines.get("_segs") as Array).size()
-	if got != edges:
-		_fail("连线数 %d != 前置关系数 %d" % [got, edges])
-		return
+
+	# 回到「制造」页做拖动与点击那两组（第 0 项科技 stonework 在这一页）
+	panel._select_tab(0)
+	await process_frame
+	cards = panel.get("_cards")
 
 	# ---- 4. 拖动：按住 → 移动超过阈值 → 画布必须真的动，且不能误触发研究
 	#
@@ -227,10 +287,11 @@ func _run() -> void:
 	if qpage == null:
 		_fail("科技面板里没有「研究队列」页（QueuePage）")
 		return
-	if panel.get("_tab_btns").size() != 2:
-		_fail("科技面板应当有两个页签（科技树 / 研究队列），实际 %d" % panel.get("_tab_btns").size())
+	if panel.get("_tab_btns").size() != 3:
+		_fail("科技面板应当有三个页签（制造 / 效率 / 研究队列），实际 %d"
+			% panel.get("_tab_btns").size())
 		return
-	panel._select_tab(1)
+	panel._select_tab(2)
 	await process_frame
 	if not (qpage as Control).visible:
 		_fail("切到「研究队列」页之后它没显示出来")
@@ -247,7 +308,7 @@ func _run() -> void:
 	await process_frame
 	var tech2 := String(db.tech_ids[1])
 	sim.enqueue([{"type": "research", "techId": tech2}])
-	panel._select_tab(1)
+	panel._select_tab(2)
 	await process_frame
 	await process_frame
 	var order_before := []
@@ -271,7 +332,30 @@ func _run() -> void:
 		return
 	print("TECH TEST 队列页：tab 切得动、↑ 当场改顺序 %s → %s" % [str(order_before), str(order_after)])
 
-	# ---- 7. 推进到次日：队列还在（研究做完之前不会掉）
+	# ---- 7. 民生服务科技：培训 / 民生工程 / 治理 三级一起加（治安 / 医疗 / 教育）
+	#
+	# 用户 2026-10："新增，增加（治安、教育、医疗）的科技（三个一起加）培训、民生工程、治理三级"。
+	# 它们是**效率科技**（只放大产出，不放大投入），加法叠加：+10% +20% +30% = +60%。
+	for need in ["training", "public_works", "governance"]:
+		if not db.techs.has(need):
+			_fail("内容里没有民生服务科技「%s」" % need)
+			return
+		if not (sim.s["research"]["done"] as Array).has(need):
+			sim.s["research"]["done"].append(need)
+	var svc := float(sim.tech_bonuses().get("services", 0.0))
+	if absf(svc - 0.60) > 0.0001:
+		_fail("三级都研究完之后 services 加成是 %.3f，应当是 0.60（加法叠加）" % svc)
+		return
+	for g in ["safety", "medical_service", "education"]:
+		if absf(sim._service_output_boost(g) - 1.60) > 0.0001:
+			_fail("「%s」的产出倍率是 %.2f，应当是 1.60" % [g, sim._service_output_boost(g)])
+			return
+	if absf(sim._service_output_boost("coarse_bread") - 1.0) > 0.0001:
+		_fail("民生服务科技不该给面包加成（现在给了 %.2f）" % sim._service_output_boost("coarse_bread"))
+		return
+	print("TECH TEST 民生服务：培训+民生工程+治理 = +60%%，只作用于治安/医疗/教育 ✅")
+
+	# ---- 8. 推进到次日：队列还在（研究做完之前不会掉）
 	for h in 24:
 		sim.tick_hour([])
 	await process_frame
@@ -280,8 +364,8 @@ func _run() -> void:
 		_fail("次日研究队列空了（研究不该被吞）；木材=%s" % str(sim.s["goods"].get("wood", -1)))
 		return
 
-	print("TECH TEST 科技=%d 卡片=%d 连线=%d(前置边 %d) 拖动 %s->%s 队列=%s" % [
-		db.tech_ids.size(), cards.size(), got, edges, before, after, JSON.stringify(q)])
+	print("TECH TEST 科技=%d（制造 %d / 效率 %d） 页内连线=%d 拖动 %s->%s 队列=%s" % [
+		db.tech_ids.size(), ids_make.size(), ids_eff.size(), total_edges, before, after, JSON.stringify(q)])
 	print("TECH TEST RESULT: PASS")
 	quit(0)
 

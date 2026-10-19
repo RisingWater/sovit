@@ -701,13 +701,15 @@ func _run_production_step(fraction: float) -> void:
 			lt["consumed"][fgood] = _r4(float(lt["consumed"].get(fgood, 0.0)) + fuel * batches)
 			_ledger_add_by(lt, "consumedBy", fgood, def_id, fuel * batches)
 		# 只放大**产出**，投入（上面几段）完全不动 —— 这就是"虚空产量"。
-		# 倍率 = 工具（+25%）× 该产业的效率科技加成（见 tech_bonuses()），两者相乘。
+		# 倍率 = 工具（+25%）× 该产业的效率科技加成（见 tech_bonuses()），两者相乘；
+		# 治安 / 医疗 / 教育再乘一道 `services` 加成（培训 / 民生工程 / 治理）。
 		var boost = _shop_tool_boost(shop) * _sector_output_boost(shop)
 		for g in (recipe["output"] as Dictionary).keys():
 			var q = float(recipe["output"][g])
 			if q > 0.0:
-				s["goods"][g] = float(s["goods"].get(g, 0.0)) + q * batches * boost
-				lt["produced"][g] = _r4(float(lt["produced"].get(g, 0.0)) + q * batches * boost)
+				var b = boost * _service_output_boost(String(g))
+				s["goods"][g] = float(s["goods"].get(g, 0.0)) + q * batches * b
+				lt["produced"][g] = _r4(float(lt["produced"].get(g, 0.0)) + q * batches * b)
 
 ## 四位小数：小时累计的物料流量用它，避免逐小时四舍五入累积漂移
 func _r4(v: float) -> float:
@@ -2359,7 +2361,8 @@ func _shop_tool_boost(shop: Dictionary) -> float:
 	var b = float(shop.get("toolBoost", 1.0))
 	return b if b > 0.0 else 1.0
 
-## 已研究科技的效率加成，五个键：agri / goods / material（产出）、research、build。
+## 已研究科技的效率加成，六个键：agri / goods / material（产出）、research、build、
+## **services**（治安 / 医疗 / 教育三样公共服务的产出）。
 ##
 ## ⚠️ **加法**叠加（+10% +15% +20% = +45%），不是连乘 —— 连乘后期滚雪球，
 ## 而且玩家在面板上没法一眼算出"我现在是多少"。口径与 TS `techBonuses()` 一致，
@@ -2368,9 +2371,14 @@ func _shop_tool_boost(shop: Dictionary) -> float:
 ## 与 TS `tech_bonus.ts::MAX_KEYS` 同一份名单。
 const MAX_EFFECT_KEYS := ["toolLife"]
 
+## 三项公共服务对应的商品（`docs/needs.md` §2.5 的"三件独立商品"）。
+## 用户 2026-10："增加（治安、教育、医疗）的科技（三个一起加）" ——
+## 所以只有一个 `services` 加成键，同时作用于这三样商品的**产出**。
+const SERVICE_GOODS := ["safety", "medical_service", "education"]
+
 func tech_bonuses() -> Dictionary:
 	var out := {"agri": 0.0, "goods": 0.0, "material": 0.0, "research": 0.0, "build": 0.0,
-		"toolLife": 0.0}
+		"services": 0.0, "toolLife": 0.0}
 	for tid in (s["research"]["done"] as Array):
 		var t = db.techs.get(String(tid), null)
 		if t == null:
@@ -2397,19 +2405,42 @@ func _sector_output_boost(shop: Dictionary) -> float:
 		return 1.0
 	return 1.0 + float(tech_bonuses().get(sec, 0.0))
 
+## 某个**产出商品**的公共服务加成：治安 / 医疗 / 教育 → 1 + services，其余 1。
+## 与 `_sector_output_boost` 并列、两者**相乘**（那几座建筑的 sector 都是 goods，
+## 单靠 sector 认不出"它在产公共服务"）。口径与 TS `serviceOutputBoost()` 一致。
+func _service_output_boost(good: String) -> float:
+	if not SERVICE_GOODS.has(good):
+		return 1.0
+	return 1.0 + float(tech_bonuses().get("services", 0.0))
+
+## 这座建筑的**公共服务加成**：配方里只要有一样产出属于那三项就吃 `services`。
+func _shop_service_boost(shop: Dictionary) -> float:
+	var def = db.buildings.get(shop["defId"], null)
+	if def == null or not def.has("recipe"):
+		return 1.0
+	var rec = db.recipes.get(String(def["recipe"]), null)
+	if rec == null:
+		return 1.0
+	for g in (rec.get("output", {}) as Dictionary).keys():
+		if SERVICE_GOODS.has(String(g)):
+			return _service_output_boost(String(g))
+	return 1.0
+
 ## 本店今日的**制造加成**，拆成两项给检视面板显示：
 ##   `{ "total": 1.78, "tool": 1.25, "tech": 1.42 }`（`total = tool × tech`）
 ##
 ## 两项的来源：`tool` = 黎明分配的工具（`shop.toolBoost`，见 `_allocate_tools`），
-## `tech` = 本产业效率科技（见 `_sector_output_boost`）。它**只放大产出**、不放大投入
-## （docs/spec.md §2.2 的"虚空产量"）。只读入口 —— 公式本体仍在这两个私有函数里，
+## `tech` = 本产业效率科技（见 `_sector_output_boost`）**× 公共服务科技**
+## （见 `_shop_service_boost`；只有产治安 / 医疗 / 教育的建筑才吃，折进 `tech` 这一项，
+## 这样 `total = tool × tech` 的口径不变）。它**只放大产出**、不放大投入
+## （docs/spec.md §2.2 的"虚空产量"）。只读入口 —— 公式本体仍在那几个私有函数里，
 ## 表现层不许自己算（见 godot/AGENTS.md 分层）。
 func shop_output_boost(shop_id: String) -> Dictionary:
 	var shop = _find_shop(shop_id)
 	if shop == null:
 		return {"total": 1.0, "tool": 1.0, "tech": 1.0}
 	var tool = _shop_tool_boost(shop)
-	var tech = _sector_output_boost(shop)
+	var tech = _sector_output_boost(shop) * _shop_service_boost(shop)
 	return {"total": tool * tech, "tool": tool, "tech": tech}
 
 func _capacity_kind(def: Dictionary, kind: String) -> bool:	## 该建筑是否是某种产能来源（不产商品、只产每日产能）。见 docs/technology.md §6.2。

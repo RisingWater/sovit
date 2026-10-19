@@ -504,6 +504,36 @@
       "requires": ["scaffolding"],
       "effects": { "build": 0.50 },
       "unlocks": { "buildings": [], "housing": [] }
+    },
+    {
+      "id": "training",
+      "nameZh": "培训",
+      "era": 3,
+      "research": 50,
+      "cost": { "goods": { "wood": 40, "stone": 20 } },
+      "requires": ["stonework", "herbalism"],
+      "effects": { "services": 0.10 },
+      "unlocks": { "buildings": [], "housing": [] }
+    },
+    {
+      "id": "public_works",
+      "nameZh": "民生工程",
+      "era": 4,
+      "research": 80,
+      "cost": { "goods": { "wood": 50, "brick": 30 } },
+      "requires": ["training", "brickmaking"],
+      "effects": { "services": 0.20 },
+      "unlocks": { "buildings": [], "housing": [] }
+    },
+    {
+      "id": "governance",
+      "nameZh": "治理",
+      "era": 5,
+      "research": 120,
+      "cost": { "goods": { "brick": 50, "stone": 30 } },
+      "requires": ["public_works"],
+      "effects": { "services": 0.30 },
+      "unlocks": { "buildings": [], "housing": [] }
     }
   ]
 }

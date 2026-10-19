@@ -48,16 +48,23 @@ var _view: Control
 var _canvas: Control
 var _portrait: PanelPortrait
 var _lines: Control
-var _cards: Dictionary = {}       # techId -> TechCard
-var _pos: Dictionary = {}         # techId -> Vector2（画布坐标）
+var _cards: Dictionary = {}       # techId -> TechCard（当前这一棵树）
+var _pos: Dictionary = {}         # techId -> Vector2（画布坐标，当前这一棵树）
 var _canvas_size := Vector2.ZERO
-var _built := false
+## 已经建好的是哪一棵树（-1 = 还没建）。切页签时按需重建另一棵。
+var _built_kind := -1
 
 # 页签（用户 2026-10："在科研面板里点研究，还要到科研中心去找研究队列，很不方便，
 # 研究队列应该是一个 tab，也可以挂进科研面板"）
-const TAB_TREE := 0
-const TAB_QUEUE := 1
-var _tab := TAB_TREE
+# 2026-10 又拆一刀（用户："科技树太复杂了，拆分几个 tab：1、制造（专门用来解锁新的建筑
+# 新的产品）2、效率（专门用来提升各种效率，各种加成）"）——
+# 原来一整棵树 53 项、前后三段前置链，玩家找不到"哪个是解锁建筑、哪个是加成"。
+# 现在 **制造 / 效率** 各一棵树（同一套布局算法，只换 tech 子集），研究队列仍是第三个。
+const TAB_MAKE := 0
+const TAB_EFF := 1
+const TAB_QUEUE := 2
+const TAB_NAMES := ["制造", "效率", "研究队列"]
+var _tab := TAB_MAKE
 var _tab_btns: Array = []
 var _queue_page: Control
 var _queue_box: QueueBox
@@ -129,17 +136,13 @@ func _ready() -> void:
 	_top.add_theme_constant_override("separation", 2)
 	root.add_child(_top)
 
-	# ---------------- 页签：科技树 / 研究队列
-	#
-	# 用户 2026-10："我在科研面板里点研究，还要到科研中心去找研究队列，很不方便，
-	# 应该研究队列是一个 tab。" 这里复用研究所面板那套共用控件（`queue_box.gd`），
-	# 所以 ↑↓ 调序、× 撤单、退料预览的口径与研究所里那一页完全一致。
+	# ---------------- 页签：制造 / 效率 / 研究队列
 	var tabrow := HBoxContainer.new()
 	tabrow.name = "TabRow"
 	tabrow.add_theme_constant_override("separation", 4)
 	root.add_child(tabrow)
-	for i in 2:
-		var b := UIKit.button("科技树" if i == TAB_TREE else "研究队列", true)
+	for i in TAB_NAMES.size():
+		var b := UIKit.button(String(TAB_NAMES[i]), true)
 		b.pressed.connect(_select_tab.bind(i))
 		tabrow.add_child(b)
 		_tab_btns.append(b)
@@ -196,10 +199,11 @@ func _ready() -> void:
 	# 信号刷一次就够；打开时也刷。
 	if runner != null:
 		runner.hour_ticked.connect(_on_hour_ticked)
-	_select_tab(TAB_TREE)
-	# ⚠️ 这里**不**建树：29 张卡片 + 37 条连线不算便宜，而面板默认是隐藏的。
-	# 建树推迟到第一次 open()（_refresh 里的 _built 判断），
+	_select_tab(TAB_MAKE)
+	# ⚠️ 这里**不**建树：一张卡片 + 一条连线都不便宜，而面板默认是隐藏的。
+	# 建树推迟到第一次 open()（_refresh 里的 `_built_kind` 判断），
 	# 这样"从没打开过科技面板"的玩家和那些只实例化 main.tscn 的头less 测试都不用付这份钱。
+	# 两棵树各建各的：切到「效率」时才建第二棵（见 `_select_tab`）。
 	_refresh_top()
 
 
@@ -244,22 +248,60 @@ func _on_visibility_changed() -> void:
 	UIKit.show_map_chrome(self, not UIKit.any_panel_open(self, visible))
 
 
-## 切页：科技树 ⇄ 研究队列。两个页面**互斥显示**（树要占满剩下的高度）。
+## 切页：制造 / 效率 / 研究队列。树的两页与队列页**互斥显示**（树要占满剩下的高度）。
+##
+## 两棵树各建各的（布局只在这一页的科技子集上算，所以「效率」那一页的列不会因为
+## 制造科技的深浅而空出一大片）。切回来时如果已经建过就不重建 —— 重建会把卡片销毁重造。
 func _select_tab(i: int) -> void:
-	_tab = clampi(i, 0, 1)
+	_tab = clampi(i, 0, TAB_QUEUE)
 	UIKit.play_switch()
 	for k in _tab_btns.size():
 		(_tab_btns[k] as Button).add_theme_stylebox_override("normal",
 			UIKit.box(UIKit.T_BTN_ACTIVE if k == _tab else UIKit.T_BTN))
+	var is_tree := _tab != TAB_QUEUE
 	if _view != null:
-		_view.visible = _tab == TAB_TREE
+		_view.visible = is_tree
 	if _queue_page != null:
 		_queue_page.visible = _tab == TAB_QUEUE
+	if is_tree:
+		if _built_kind != _tab:
+			_build_tree(_tab)
+		else:
+			_refresh_states()
+		_canvas.position = _clamp_pan(_pan)
 	if _tab_hint != null:
-		_tab_hint.text = ("面板内按住可平移科技树" if _tab == TAB_TREE
-			else "↑↓ 调序 · × 撤单；研究与调序当场生效")
+		if not is_tree:
+			_tab_hint.text = "↑↓ 调序 · × 撤单；研究与调序当场生效"
+		elif _tab == TAB_EFF:
+			_tab_hint.text = "只列【加成】类科技：产出 / 科研 / 建造 / 民生服务　·　面板内按住可平移"
+		else:
+			_tab_hint.text = "只列【解锁】类科技：解锁新建筑与新商品　·　面板内按住可平移"
 	if _tab == TAB_QUEUE and _queue_box != null:
 		_queue_box.refresh()
+
+
+## 这一页该显示哪些科技。
+##
+## 分法就是用户说的那两句：**制造 = 解锁新建筑/新产品**（`unlocks` 非空）、
+## **效率 = 各种加成**（`effects` 非空）。两个都有的科技两页都出现（现在内容里没有）；
+## 两个都没有的（纯占位）归制造，免得在任何一页都看不到。
+func _ids_for(kind: int) -> Array:
+	var out: Array = []
+	if runner == null or runner.db == null:
+		return out
+	for tid in runner.db.tech_ids:
+		var t := String(tid)
+		var tech: Dictionary = runner.db.techs[t]
+		var unlocks: Dictionary = tech.get("unlocks", {})
+		var has_unlock: bool = not (unlocks.get("buildings", []) as Array).is_empty() \
+			or not (unlocks.get("housing", []) as Array).is_empty()
+		var has_effect: bool = not (tech.get("effects", {}) as Dictionary).is_empty()
+		if kind == TAB_EFF:
+			if has_effect:
+				out.append(t)
+		elif has_unlock or not has_effect:
+			out.append(t)
+	return out
 
 
 ## 每小时的刷新：只在「研究队列」页且面板开着时刷（科技树的卡片状态按天刷，见 `_process`）。
@@ -275,17 +317,21 @@ func _on_hour_ticked() -> void:
 # 布局
 # ===========================================================================
 
-## 算每项科技的画布坐标。
+## 算这批科技的画布坐标。
 ## x = 最长前置链长度（父节点 x + 1 的最大值），所以**严格大于所有前置的 x**。
 ## y = 同列内按 (era, 内容顺序) 依次往下堆。
-func _compute_layout() -> Dictionary:
+##
+## ⚠️ 只在**传进来的这批 id** 上算：制造 / 效率是两棵独立的树，效率科技的很多前置
+## 在制造那一页（例如「轮作」要「石作」）。**外部前置不参与列号**（否则效率页会因为
+## 一串看不见的祖先整体右移），它的依赖关系仍然写在卡片 tooltip 与"需先研究"里。
+func _compute_layout(ids: Array) -> Dictionary:
 	var db := runner.db
 	var order := {}                      # id -> 内容顺序
 	for i in db.tech_ids.size():
 		order[String(db.tech_ids[i])] = i
 
 	var depth := {}
-	for tid in db.tech_ids:
+	for tid in ids:
 		depth[String(tid)] = 0
 	# 反复松弛到稳定。科技图已由内容校验保证无环，所以一定会收敛；
 	# guard 只是防御性的上限，避免将来内容出错时死循环。
@@ -294,17 +340,20 @@ func _compute_layout() -> Dictionary:
 	while changed and guard < 64:
 		changed = false
 		guard += 1
-		for tid in db.tech_ids:
+		for tid in ids:
 			var t := String(tid)
 			var d := 0
 			for r in db.techs[t]["requires"]:
-				d = maxi(d, int(depth.get(String(r), 0)) + 1)
+				var rt := String(r)
+				if not depth.has(rt):
+					continue
+				d = maxi(d, int(depth[rt]) + 1)
 			if d != int(depth[t]):
 				depth[t] = d
 				changed = true
 
 	var cols := {}
-	for tid in db.tech_ids:
+	for tid in ids:
 		var t := String(tid)
 		var c := int(depth[t])
 		if not cols.has(c):
@@ -329,9 +378,26 @@ func _compute_layout() -> Dictionary:
 	return pos
 
 
-func _build_tree() -> void:
+func _build_tree(kind: int) -> void:
 	var db := runner.db
-	_pos = _compute_layout()
+	var ids := _ids_for(kind)
+
+	# 先把上一棵树拆掉（`queue_free` 是延迟的，所以还要 remove_child，
+	# 否则切换的那一帧会出现两棵树叠在一起）。
+	for c in _cards.values():
+		var node := c as Node
+		if node != null and node.get_parent() != null:
+			node.get_parent().remove_child(node)
+		if node != null:
+			node.queue_free()
+	_cards.clear()
+	if _lines != null:
+		if _lines.get_parent() != null:
+			_lines.get_parent().remove_child(_lines)
+		_lines.queue_free()
+		_lines = null
+
+	_pos = _compute_layout(ids)
 
 	var maxx := 0.0
 	var maxy := 0.0
@@ -349,7 +415,7 @@ func _build_tree() -> void:
 	_lines.size = _canvas_size
 	_canvas.add_child(_lines)
 
-	for tid in db.tech_ids:
+	for tid in ids:
 		var t := String(tid)
 		var card = load("res://scripts/ui/tech_card.gd").new()
 		card.name = "T_" + t
@@ -358,6 +424,8 @@ func _build_tree() -> void:
 		card.size = Vector2(CARD_W, CARD_H)
 		_canvas.add_child(card)
 		_cards[t] = card
+	_built_kind = kind
+	_refresh_states()
 
 
 # ===========================================================================
@@ -366,9 +434,8 @@ func _build_tree() -> void:
 func _refresh() -> void:
 	if _view == null or runner == null or runner.sim == null:
 		return
-	if not _built:
-		_build_tree()
-		_built = true
+	if _tab != TAB_QUEUE and _built_kind != _tab:
+		_build_tree(_tab)
 	_refresh_top()
 	_refresh_states()
 
@@ -411,6 +478,12 @@ func _refresh_top() -> void:
 		var v2 := float(b.get(k, 0.0))
 		if v2 > 0.0:
 			spd_parts.append("%s +%d%%" % [EFFECT_NAMES[k], int(round(v2 * 100.0))])
+	# 民生服务（治安 / 医疗 / 教育 三样一起）单列一段：它是"公共服务的产量"，
+	# 混进"产出"那一段会被当成农业/工业的加成，玩家看不懂。
+	var svc := float(b.get("services", 0.0))
+	if svc > 0.0:
+		spd_parts.append("%s +%d%%（治安 / 医疗 / 教育）"
+			% [EFFECT_NAMES["services"], int(round(svc * 100.0))])
 	if not out_parts.is_empty() or not spd_parts.is_empty():
 		var line := "效率科技："
 		if not out_parts.is_empty():

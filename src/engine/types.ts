@@ -45,7 +45,7 @@ export type Sector = 'agri' | 'goods' | 'material'
 /**
  * 效率科技能影响的键。	oolLife 是**取最高**（不是加法叠加）：见 	ech_bonus.ts。
  */
-export type TechEffectKey = Sector | 'research' | 'build' | 'toolLife'
+export type TechEffectKey = Sector | 'research' | 'build' | 'toolLife' | 'services'
 
 /**
  * 效率科技的效果：**加法**叠加的加成小数（`0.10` = +10%），不是倍率。

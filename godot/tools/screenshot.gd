@@ -414,12 +414,18 @@ func _run() -> void:
 			await process_frame
 
 	# 科技树（统计面板在下面另一段 —— 那边要多跑 24 天让折线有内容）
-	if mode == "tech":
+	if mode == "tech" or mode == "techeff":
 		var t_panel = node.get_node_or_null("UI/Root/Tech")
 		if t_panel != null:
 			t_panel.open()
 			await process_frame
 			await process_frame
+			# 2026-10 科技面板拆成「制造 / 效率 / 研究队列」三页：
+			# `tech` 截第一页（制造），`techeff` 截第二页（效率）。
+			if mode == "techeff":
+				t_panel._select_tab(1)
+				await process_frame
+				await process_frame
 
 	# 仓储超限（2026-10 用户报的 bug）：开局资源 x2 = 1960，城镇中心上限 2000。
 	# 再往里塞一批木材让它爆仓，跑满一天 → 夜里按**同一比例**削减，公告页出现那条 log。
