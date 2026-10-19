@@ -427,6 +427,19 @@ func _run() -> void:
 				await process_frame
 				await process_frame
 
+	if mode == "trade":
+		# 贸易市场面板（2026-10 改成**全屏** + 页签「游商 / 商路」+ 薇拉立绘）。
+		# 先把游商叫到货，否则面板里只有一句"还没有游商"。
+		var sim_tr = runner.sim
+		sim_tr.s["quests"]["chapters"]["3"] = 3
+		sim_tr.s["trade"]["nextWaveDay"] = int(sim_tr.s["day"])
+		sim_tr._update_caravans(int(sim_tr.s["day"]))
+		var tr_panel = node.get("_panel_trade")
+		if tr_panel != null:
+			tr_panel.open_trade()
+			await process_frame
+			await process_frame
+
 	# 仓储超限（2026-10 用户报的 bug）：开局资源 x2 = 1960，城镇中心上限 2000。
 	# 再往里塞一批木材让它爆仓，跑满一天 → 夜里按**同一比例**削减，公告页出现那条 log。
 	#

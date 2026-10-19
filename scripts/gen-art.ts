@@ -1221,6 +1221,41 @@ function techIcon(id: string): Canvas {
     box(5, 8, 6, 1, I_STONE_L)
     box(5, 10, 2, 1, I_STONE_L)
     put2(10, 11, I_GOLD)
+  } else if (id === 'trade') {
+    // 通商：一摞金币（侧视三枚）+ 顶面高光
+    box(4, 4, 8, 2, I_GOLD)
+    box(4, 6, 8, 1, I_GOLD_D)
+    box(4, 7, 8, 2, I_GOLD)
+    box(4, 9, 8, 1, I_GOLD_D)
+    box(4, 10, 8, 2, I_GOLD)
+    box(4, 12, 8, 1, I_GOLD_D)
+    put2(6, 4, I_CREAM)
+    put2(7, 4, I_CREAM)
+  } else if (id === 'training') {
+    // 培训：一本摊开的书 + 向上的箭头
+    box(3, 8, 5, 5, I_CREAM)
+    box(8, 8, 5, 5, I_CREAM)
+    box(7, 8, 2, 5, I_WOOD)
+    box(3, 8, 10, 1, I_STONE_L)
+    box(8, 2, 1, 4, I_GREEN)
+    put2(7, 2, I_GREEN)
+    put2(9, 2, I_GREEN)
+    put2(8, 1, I_GREEN)
+  } else if (id === 'public_works') {
+    // 民生工程：一座小屋（墙 + 红顶 + 门窗）
+    box(3, 9, 10, 5, I_WOOD)
+    box(2, 6, 12, 3, I_RED)
+    box(2, 6, 12, 1, I_RED_D)
+    box(6, 11, 4, 3, I_DARK)
+    put2(11, 10, I_CREAM)
+  } else if (id === 'governance') {
+    // 治理：一顶王冠（三个尖 + 底座 + 宝石）
+    box(3, 9, 10, 4, I_GOLD)
+    box(3, 9, 10, 1, I_CREAM)
+    box(3, 5, 2, 4, I_GOLD)
+    box(7, 4, 2, 5, I_GOLD)
+    box(11, 5, 2, 4, I_GOLD)
+    put2(8, 6, I_RED)
   } else {
     // 兜底：一个小方块 + 一点高光（至少不是空白）
     box(5, 5, 6, 6, I_STONE)

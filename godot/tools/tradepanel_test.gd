@@ -49,6 +49,35 @@ func _run() -> void:
 		_fail("open_trade() 之后面板不可见")
 		return
 
+	# 版式：**全屏**（用户 2026-10："贸易界面应该是也是全屏面板的"），和统计 / 科技同口径
+	if absf(panel.anchor_right - 1.0) > 0.001 or absf(panel.anchor_bottom - 1.0) > 0.001:
+		_fail("贸易面板不是全屏（anchors = %.2f..%.2f / %.2f..%.2f）" % [
+			panel.anchor_left, panel.anchor_right, panel.anchor_top, panel.anchor_bottom])
+		return
+	if absf(panel.offset_top - float(UIKit.BAR_H)) > 0.001:
+		_fail("贸易面板的 offset_top 是 %.0f，应当留出顶栏 %.0f" % [panel.offset_top, UIKit.BAR_H])
+		return
+	# 页签：游商 只是其中一个（用户："游商只是一个tab"）
+	var tabs: Array = panel.get("_tab_btns")
+	if tabs.size() < 2:
+		_fail("贸易面板只有 %d 个页签（至少要「游商」+「商路」）" % tabs.size())
+		return
+	if String((tabs[0] as Button).text) != "游商":
+		_fail("第一个页签是「%s」，应当是「游商」" % String((tabs[0] as Button).text))
+		return
+	# 右下角顾问立绘：薇拉（兼管贸易）
+	var portrait = panel.find_child("Portrait", true, false)
+	if portrait == null:
+		_fail("贸易面板右下角没有顾问立绘（PanelPortrait）")
+		return
+	if String(portrait.get("id")) != "vera":
+		_fail("贸易面板的立绘是「%s」，应当是薇拉（vera）" % String(portrait.get("id")))
+		return
+	if portrait.get("tex") == null:
+		_fail("薇拉的立绘贴图没载进来（assets/portraits/vera.png）")
+		return
+	print("TRADEPANEL TEST 版式：全屏 + %d 个页签（游商 / 商路）+ 薇拉立绘 ✅" % tabs.size())
+
 	var body: VBoxContainer = panel.get("_body")
 	if body == null or body.get_child_count() == 0:
 		_fail("有游商时面板一行都没画出来")
@@ -103,7 +132,7 @@ func _run() -> void:
 			return
 	print("TRADEPANEL TEST 建造栏：「市政」页里有贸易市场 ✅")
 
-	# ② 圆钮：开局（没市场、没通商）藏着 → 研究完「通商」就出现
+	# ② 圆钮：**村里有市场才出现**（用户 2026-10 明确："市场没有造好之前左侧贸易的圆形按钮隐藏"）
 	var hud = node.get("_hud")
 	if hud == null:
 		_fail("找不到 HUD（main 的 _hud）")
@@ -114,16 +143,23 @@ func _run() -> void:
 		return
 	hud.refresh_nav_buttons()
 	if btn.visible:
-		_fail("还没有市场、也没研究「通商」，贸易圆钮就已经露出来了")
+		_fail("还没有贸易市场，贸易圆钮就已经露出来了")
 		return
+	# 研究完「通商」也不该露头 —— 判据只看"村里有没有那座市场"
 	var done: Array = sim.s["research"]["done"]
 	if not done.has("trade"):
 		done.append("trade")
 	hud.refresh_nav_buttons()
-	if not btn.visible:
-		_fail("研究完「通商」之后贸易圆钮还是不出现（游商系统就没有入口了）")
+	if btn.visible:
+		_fail("只研究了「通商」、还没建市场，贸易圆钮就露出来了（用户要求建好之前隐藏）")
 		return
-	print("TRADEPANEL TEST 入口：研究「通商」之后贸易圆钮出现（不必先建市场）✅")
+	# 给它一座市场（判据只读 shops 里的 defId，所以直接补一条最小记录）
+	(sim.s["shops"] as Array).append({"id": "sh_test_market", "defId": "trade_market"})
+	hud.refresh_nav_buttons()
+	if not btn.visible:
+		_fail("建了贸易市场之后贸易圆钮还是不出现（游商系统就没有入口了）")
+		return
+	print("TRADEPANEL TEST 入口：市场建好之后贸易圆钮才出现（通商科技本身不算）✅")
 
 	print("TRADEPANEL TEST RESULT: PASS")
 	quit(0)

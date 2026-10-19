@@ -429,21 +429,21 @@ func refresh_nav_buttons() -> void:
 	if _prophecy_nav_btn != null:
 		_prophecy_nav_btn.visible = runner.sim.prophet_unlocked()
 	if _trade_nav_btn != null:
-		# 「贸易」圆钮：**通商科技研究完就出现**，不再等"先建一座贸易市场"。
+		# 「贸易」圆钮：**村里有贸易市场才出现**。
 		#
-		# 用户 2026-10："市场这个建筑没了，这样游商系统的入口在哪里？"
-		# 旧判据是"村里有 trade_market 才显示"，于是没建市场 = 整个游商系统在界面上
-		# 不存在（命令、面板都在，只是没人知道）。游商本身是引擎侧的（第 3 章之后
-		# 每周一批，见 docs/merchant.md），**不依赖那座建筑** —— 建筑只是地图上的
-		# 一个快捷入口（点它同样开这个面板，见 main.gd::_on_select_building）。
-		var can_trade := false
+		# 2026-10 有过一次反复，两个方向都别走偏：
+		#   ① 原来就是这个判据，但市场藏在建造栏「工业」页第 2 页，玩家找不到 →
+		#      "市场这个建筑没了，这样游商系统的入口在哪里？"；
+		#   ② 于是临时改成"研究完通商就显示"，用户看到没市场也有圆钮，明确否掉：
+		#      "市场没有造好之前左侧贸易的圆形按钮隐藏"。
+		# 真修法在建造栏那边：`trade_market` 挪进了「市政」页（`ContentDB.CAT_CIVIC`），
+		# 建得出来 → 圆钮自然出现。**这条判据别再放宽。**
+		var has_market := false
 		for sh2 in (runner.sim.s["shops"] as Array):
 			if String((sh2 as Dictionary)["defId"]) == "trade_market":
-				can_trade = true
+				has_market = true
 				break
-		if not can_trade:
-			can_trade = runner.sim._is_researched("trade")
-		_trade_nav_btn.visible = can_trade
+		_trade_nav_btn.visible = has_market
 
 ## 圆钮外观：**手绘像素贴图**（不是代码画的几何圆）。
 ##

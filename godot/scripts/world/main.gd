@@ -468,6 +468,9 @@ func _unhandled_input(event: InputEvent) -> void:
 		if _panel_tech != null and _panel_tech.visible:
 			_panel_tech.visible = false
 			return
+		if _panel_trade != null and _panel_trade.visible:
+			_panel_trade.close_panel()
+			return
 		_esc_menu.toggle()
 
 # ---- 快捷键 -----------------------------------------------------------------
@@ -554,11 +557,14 @@ func _modal_open() -> bool:
 			return true
 	return false
 
-## 全屏面板（统计 / 科技）是否开着 —— 它盖住了建造栏，所以建造栏的快捷键要让路。
+## 全屏面板（统计 / 科技 / 地图 / 任务 / 贸易）是否开着 —— 它盖住了建造栏，
+## 所以建造栏的快捷键要让路。
 func _fullscreen_panel_open() -> bool:
 	return (_panel_stats != null and _panel_stats.visible) \
 		or (_panel_tech != null and _panel_tech.visible) \
-		or (_panel_map != null and _panel_map.visible)
+		or (_panel_map != null and _panel_map.visible) \
+		or (_panel_quest != null and _panel_quest.visible) \
+		or (_panel_trade != null and _panel_trade.visible)
 
 ## 点小地图 → 开王国地图（用户 2026-10-20）。
 func _open_map() -> void:
