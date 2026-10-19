@@ -3594,6 +3594,17 @@ func caravan_wave_size() -> int:
 	return 0
 
 ## 可交易商品：本包内、排除服务 / 军备 / 工具这类非流通品。
+## 可交易的商品池：本包内、且**存得住**的商品。
+##
+## 排除三类：
+##   · `category` = service / military / tool —— 服务点数、军备、工具不是流通品
+##   · **`perishRate >= 1`** —— 当天归零的东西（娱乐 / 家政 / 治安 / 医疗 / 教育），
+##     买进来第二天就没了，"存货"那一栏永远是 0，纯属骗人。
+##     用户 2026-10："娱乐可以出售，我建议你改一下，那种不能储存的商品，不要进游商的目录。"
+##
+## ⚠️ `storable: false` 的蔬菜 / 肉 / 鱼**不排除**：它们只是不占仓储格子，
+## 能放几天（perishRate 0.1~0.15），是正经能买卖的鲜货。判据只认"存不存得住"。
+## 口径与 TS `caravan.ts::tradeableGoods()` 完全一致（golden 对拍会盯着）。
 func _tradeable_goods() -> Array:
 	var out := []
 	for gid in _pack()["goods"]:
@@ -3602,6 +3613,8 @@ func _tradeable_goods() -> Array:
 			continue
 		var cat := String(def.get("category", ""))
 		if cat == "service" or cat == "military" or cat == "tool":
+			continue
+		if float(def.get("perishRate", 0.0)) >= 1.0:
 			continue
 		out.append(String(gid))
 	out.sort()

@@ -57,7 +57,19 @@ export function waveSize(chapter: number): number {
   return 0
 }
 
-/** 可交易的商品池：本包内、且玩家已解锁的商品（不含服务/军备/工具这类非流通品）。 */
+/**
+ * 可交易的商品池：本包内、且**存得住**的商品。
+ *
+ * 排除三类：
+ *   · `category` = service / military / tool —— 服务点数、军备、工具不是流通品
+ *   · **`perishRate >= 1`** —— 当天归零的东西（娱乐 / 家政 / 治安 / 医疗 / 教育），
+ *     买进来第二天就没了，"存货"那一栏永远是 0，纯属骗人
+ *     （用户 2026-10："娱乐可以出售，我建议你改一下，那种不能储存的商品，不要进游商的目录"）
+ *
+ * ⚠️ `storable: false` 的蔬菜 / 肉 / 鱼**不排除**：它们只是不占仓储格子，能放几天
+ * （perishRate 0.1~0.15），是正经能买卖的鲜货。判据只认"存不存得住"。
+ * GDScript 同口径：`sim_core.gd::_tradeable_goods()`。
+ */
 function tradeableGoods(state: GameState, ctx: ContentContext): GoodID[] {
   const out: GoodID[] = []
   for (const gid of ctx.pack.goods) {
@@ -65,6 +77,7 @@ function tradeableGoods(state: GameState, ctx: ContentContext): GoodID[] {
     if (!def) continue
     if (def.category === 'service' || def.category === 'military') continue
     if (def.category === 'tool') continue
+    if ((def.perishRate ?? 0) >= 1) continue
     out.push(gid)
   }
   out.sort()

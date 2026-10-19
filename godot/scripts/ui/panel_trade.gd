@@ -387,12 +387,26 @@ func _offer_column(cv: Dictionary, key: String, title: String, qty_head: String,
 	col.add_child(head)
 
 	var offers: Array = cv.get(key, [])
-	if offers.is_empty():
+	# 老存档兜底：引擎侧已经不再把"存不住"的东西放进目录（`caravan.ts::tradeableGoods` /
+	# `sim_core._tradeable_goods`），但**已经生成的游商**还留在存档里。这里再过滤一遍，
+	# 免得读老档的人仍然看到"娱乐 ×30"（买进来第二天就归零）。
+	# ⚠️ 判据是 `perishRate >= 1` 或 服务/军备/工具，**不是** `storable` ——
+	#    蔬菜 / 肉 / 鱼是 storable:false 但 perishRate 只有 0.1~0.15，能放几天，照常卖。
+	var usable: Array = []
+	for o in offers:
+		var gid := String((o as Dictionary).get("good", ""))
+		var gdef: Dictionary = runner.db.goods.get(gid, {})
+		var cat := String(gdef.get("category", ""))
+		if float(gdef.get("perishRate", 0.0)) >= 1.0:
+			continue
+		if cat == "service" or cat == "military" or cat == "tool":
+			continue
+		usable.append(o)
+	if usable.is_empty():
 		col.add_child(UIKit.label("（这次没有）", UIKit.FG_DIM))
 		return col
 
-	var full := FULL_QUOTA   # 他这一趟"最多收多少"，用来算"已收购"
-	for o in offers:
+	for o in usable:
 		col.add_child(_offer_row(cv, key, o, verb))
 	return col
 

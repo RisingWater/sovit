@@ -84,7 +84,20 @@ func _run() -> void:
 			if not _approx(float(o["price"]), base2 * 1.6):
 				_fail("%s 收价 %.2f，应当是 %.2f" % [String(o["good"]), float(o["price"]), base2 * 1.6])
 				return
-	print("MERCHANT TEST 报价：每人收 4 卖 4，收价 ×1.6 / 卖价 ×1.3 ✅")
+		# 存不住的东西不许进目录（用户 2026-10："娱乐可以出售……那种不能储存的商品，
+		# 不要进游商的目录"）。判据：`perishRate >= 1`（当天归零）或服务/军备/工具三类。
+		# ⚠️ 蔬菜 / 肉 / 鱼 是 `storable: false` 但 perishRate 只有 0.1~0.15（能放几天的鲜货），
+		#    照常可交易 —— 别把 `storable` 当判据。
+		for o2 in ((cv["sell"] as Array) + (cv["buy"] as Array)):
+			var gid := String(o2["good"])
+			var gdef: Dictionary = db.goods.get(gid, {})
+			var cat := String(gdef.get("category", ""))
+			var perish := float(gdef.get("perishRate", 0.0))
+			if perish >= 1.0 or cat == "service" or cat == "military" or cat == "tool":
+				_fail("%s（%s）不该进游商目录：category=%s perishRate=%.2f"
+					% [gid, String(gdef.get("nameZh", gid)), cat, perish])
+				return
+	print("MERCHANT TEST 报价：每人收 4 卖 4，收价 ×1.6 / 卖价 ×1.3 ✅（目录里没有存不住的东西）")
 
 	# ---- 4. 现金池：买他的货 → 他更有钱 -----------------------------------
 	var sim4 = sim_script.new(db)

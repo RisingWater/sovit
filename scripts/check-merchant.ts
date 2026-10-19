@@ -98,6 +98,21 @@ function village(chapter: number): GameState {
       const base = ctx.goods[o.good]?.baseValue ?? 1
       check(Math.abs(o.price - round2(base * 1.6)) < 0.02, `${o.good} 收价 ${o.price}（应当 ${round2(base * 1.6)}）`)
     }
+
+    // 存不住的东西不许进目录（用户 2026-10："娱乐可以出售，我建议你改一下，
+    // 那种不能储存的商品，不要进游商的目录"）。
+    // 判据：`perishRate >= 1`（当天归零）与服务 / 军备 / 工具这三类。
+    // ⚠️ 蔬菜 / 肉 / 鱼是 `storable: false` 但 perishRate 只有 0.1~0.15，属于**能放几天的鲜货**，
+    //    照常可交易 —— 所以别把 `storable` 当判据。
+    for (const o of [...c.sell, ...c.buy]) {
+      const def = ctx.goods[o.good]
+      const cat = def?.category
+      const perish = def?.perishRate ?? 0
+      check(
+        perish < 1 && cat !== 'service' && cat !== 'military' && cat !== 'tool',
+        `${o.good}（${def?.nameZh ?? o.good}）不该进游商目录：category=${cat} perishRate=${perish}`,
+      )
+    }
   }
 }
 
