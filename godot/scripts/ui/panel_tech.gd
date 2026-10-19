@@ -70,7 +70,6 @@ var _queue_page: Control
 var _queue_box: QueueBox
 ## QueueBox 的二次确认状态袋（面板重建时"点了一下 ×"不会被抹掉）
 var _qstate: Dictionary = {}
-var _tab_hint: Label
 
 # 画布平移
 var _pan := Vector2.ZERO
@@ -147,8 +146,6 @@ func _ready() -> void:
 		tabrow.add_child(b)
 		_tab_btns.append(b)
 	tabrow.add_child(UIKit.spacer())
-	_tab_hint = UIKit.label("", UIKit.FG_DIM)
-	tabrow.add_child(_tab_hint)
 	root.add_child(UIKit.hsep())
 
 	# ---------------- 树视口
@@ -269,13 +266,9 @@ func _select_tab(i: int) -> void:
 		else:
 			_refresh_states()
 		_canvas.position = _clamp_pan(_pan)
-	if _tab_hint != null:
-		if not is_tree:
-			_tab_hint.text = "↑↓ 调序 · × 撤单；研究与调序当场生效"
-		elif _tab == TAB_EFF:
-			_tab_hint.text = "只列【加成】类科技：产出 / 科研 / 建造 / 民生服务　·　面板内按住可平移"
-		else:
-			_tab_hint.text = "只列【解锁】类科技：解锁新建筑与新商品　·　面板内按住可平移"
+	# ⚠️ 页签右边那行说明文字（"只列【解锁】类科技…" / "只列【加成】类科技…" /
+	# "↑↓ 调序 · × 撤单；研究与调序当场生效"）**用户 2026-10 要求删掉**。
+	# 别再加回来：页签名本身（制造 / 效率 / 研究队列）已经说明了这一页是什么。
 	if _tab == TAB_QUEUE and _queue_box != null:
 		_queue_box.refresh()
 

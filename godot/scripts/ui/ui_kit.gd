@@ -70,7 +70,8 @@ static func tech_icon(tech_id: String) -> Texture2D:
 		return load(p)
 	return null
 
-## 科技卡片里的图标尺寸。原生 32，所以只做 1 倍（整数倍才不糊）。
+## 科技卡片里的图标尺寸。**显示**一律 32：老素材是原生 32，2026-10 第三批是 64×64，
+## 64 → 32 正好整除 ÷2（`tech_card.gd` 用 KEEP_ASPECT_CENTERED 缩，不会糊也不会溢出）。
 const TECH_ICON_SIZE := 32
 
 ## 面板图标在按钮里的显示尺寸。按钮只有 21px 高，放 32px 会把整行撑开。

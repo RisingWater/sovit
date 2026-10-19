@@ -57,8 +57,14 @@ func setup(p_host: Node, tid: String, disp: String, tex: Texture2D) -> void:
 	_icon.texture = tex
 	_icon.custom_minimum_size = Vector2(UIKit.TECH_ICON_SIZE, UIKit.TECH_ICON_SIZE)
 	_icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	# 图标原生 32，这里按原生显示（KEEP_CENTERED 不会缩放，只是居中）
-	_icon.stretch_mode = TextureRect.STRETCH_KEEP_CENTERED
+	# 图标有两种原生尺寸：老的一批是 32×32，2026-10 用户补的第三批是 **64×64**
+	# （方形画布、内容长边 58，见素材包的 `科技图标清单_v3.md`）。
+	# 卡片只有 86 高，64 塞不下（图标 + 两行字就撑爆），所以**统一按 32 显示**：
+	#   · 64 → 32 是整除 ÷2，像素不糊
+	#   · 32 → 32 原样
+	# 所以这里必须用 KEEP_ASPECT_CENTERED（KEEP_CENTERED 不缩放，64 的会画到卡片外）。
+	# 想放大图标就跟 `CARD_W / CARD_H / TECH_ICON_SIZE` 一起改，别单独动这一个。
+	_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	_icon.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	_icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	vb.add_child(_icon)

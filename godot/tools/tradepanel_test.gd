@@ -159,7 +159,12 @@ func _run() -> void:
 	if not btn.visible:
 		_fail("建了贸易市场之后贸易圆钮还是不出现（游商系统就没有入口了）")
 		return
-	print("TRADEPANEL TEST 入口：市场建好之后贸易圆钮才出现（通商科技本身不算）✅")
+	# 图标：用户 2026-10 专门给了 32×32 的通商图（`assets/ui/panel/trade.png`）。
+	# 这条防的是"圆钮又变回一个空白木盘"（之前借的科技树图标是 111 字节的近空图）。
+	if btn.icon == null:
+		_fail("贸易圆钮没有图标（assets/ui/panel/trade.png 没被 stat_icon 取到）")
+		return
+	print("TRADEPANEL TEST 入口：市场建好之后贸易圆钮才出现（通商科技本身不算）+ 有图标 ✅")
 
 	print("TRADEPANEL TEST RESULT: PASS")
 	quit(0)

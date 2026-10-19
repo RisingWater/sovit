@@ -64,14 +64,17 @@ func _ready() -> void:
 	var head := HBoxContainer.new()
 	head.add_theme_constant_override("separation", 5)
 	root.add_child(head)
-	var ico := UIKit.tech_icon("trade")
+	# 标题图标用**面板图标目录**里那张 32×32 的通商图（用户 2026-10 专门给了小尺寸版：
+	# `assets/ui/panel/trade.png`）。⚠️ 别用 `tech_icon("trade")` —— 科技树那张现在是
+	# 64×64，塞进 32 的位子会溢出（见 tech_card.gd 的注释）。
+	var ico := UIKit.stat_icon("trade")
 	if ico == null:
 		ico = UIKit.panel_icon("resource")
 	if ico != null:
 		var tr := TextureRect.new()
 		tr.texture = ico
 		tr.custom_minimum_size = Vector2(UIKit.CHIP_ICON, UIKit.CHIP_ICON)
-		tr.stretch_mode = TextureRect.STRETCH_KEEP_CENTERED
+		tr.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 		tr.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		head.add_child(tr)
 	_title_lb = UIKit.label("贸易市场", UIKit.FG_HEAD)
