@@ -97,9 +97,10 @@ func _run() -> void:
 	if not (bar._ids_of("市政") as Array).has("trade_market"):
 		_fail("贸易市场不在建造栏「市政」页（现在在：%s）" % str(bar._ids_of("市政")))
 		return
-	if (bar._ids_of("工业") as Array).has("trade_market"):
-		_fail("贸易市场还留在「工业」页（那里 13 座、要翻页，用户找不到）")
-		return
+	for cat in ["民生工业", "重工业"]:
+		if (bar._ids_of(cat) as Array).has("trade_market"):
+			_fail("贸易市场跑到「%s」页去了（那两页是工坊，市场属于市政）" % cat)
+			return
 	print("TRADEPANEL TEST 建造栏：「市政」页里有贸易市场 ✅")
 
 	# ② 圆钮：开局（没市场、没通商）藏着 → 研究完「通商」就出现

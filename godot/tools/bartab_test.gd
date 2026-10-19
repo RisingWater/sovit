@@ -69,6 +69,23 @@ func _run() -> void:
 	var expect: int = (pack["buildings"] as Array).size() + (pack["housing"] as Array).size() \
 		- (ContentDB.MAP_FIXED as Array).size()
 	print("BARTAB 去重后=%d 重复=%d 期望=%d" % [seen.size(), dup, expect])
+
+	# 每座建筑的分类都必须是**一个真实存在的 Tab**。
+	# 2026-10 用户把「工业」拆成「民生工业」+「重工业」：分类名改了而 `TABS` 没跟上，
+	# 那几座建筑不会报错，只会**在建造栏里静默消失**（"这座建筑没了"）。这条就是防这个。
+	for bid in pack["buildings"]:
+		var cat: String = bar._category_of(String(bid))
+		if not bar.TABS.has(cat):
+			print("BARTAB FAIL: 建筑 %s 的分类「%s」不是一个 Tab（会在建造栏里静默消失）"
+				% [String(bid), cat])
+			quit(1); return
+	for hid in pack["housing"]:
+		var hcat: String = bar._category_of(String(hid))
+		if not bar.TABS.has(hcat):
+			print("BARTAB FAIL: 住房 %s 的分类「%s」不是一个 Tab" % [String(hid), hcat])
+			quit(1); return
+	print("BARTAB 分类自检：%d 个 Tab，每座的分类都能落到一个 Tab 上 ✅" % bar.TABS.size())
+
 	var ok: bool = dup == 0 and total == expect and seen.size() == expect
 	print("BARTAB RESULT: ", "PASS" if ok else "FAIL")
 	quit(0 if ok else 1)

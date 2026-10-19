@@ -969,7 +969,8 @@ func _run() -> void:
 			print("SCREENSHOT questpanel 选中=", qp._sel,
 				" 已知任务=", runner.sim.quest_journal().size())
 
-	# 可选：切到指定建造 Tab（0=住宅 1=农业 2=矿场 3=工业 4=娱乐 5=其它）
+	# 可选：切到指定建造 Tab（下标见 `build_bar.gd` 的 `TABS`：
+	# 0=住宅 1=农场 2=食品加工 3=矿场 4=民生工业 5=重工业 6=娱乐 7=市政 8=医疗 9=军事 10=其它）
 	if args.size() > 2:
 		var bar = node.get_node_or_null("UI/Root/BuildBar")
 		if bar != null:

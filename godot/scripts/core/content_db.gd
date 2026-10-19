@@ -232,10 +232,18 @@ func is_luxury(gid: String) -> bool:
 #
 # 分组规则（按顺序判，先中先得）：
 #   · 住房 → 「住宅」
-#   · 白名单 → 「娱乐」/「矿场」/「市政」（这三个靠 id，推不出来）
+#   · 白名单 → 「娱乐」/「矿场」/「市政」/「医疗」/「军事」/「民生工业」/「重工业」
 #   · `art.arch` = field → 「农场」，= extract → 「矿场」
 #   · 主产出属于 food 类 → 「食品加工」
-#   · 其余 → 「工业」
+#   · 其余 → 「民生工业」（消费者品类的兜底；建材/冶炼那种要显式进 CAT_HEAVY）
+#
+# ⚠️ 2026-10 用户："工业的建筑太多了，把民生工业（衣服、陶器、瓷器）和重工业（建材，
+#    冶炼之类）分成两个 tab"。原来的「工业」页 13 座、要翻两页，于是拆成
+#    「民生工业」8 座（布料 → 成衣 → 皮衣 → 陶器 / 瓷窑）与
+#    「重工业」5 座（冶炼场 / 砖窑 / 木柴坊 / 石制·铁制工具作坊 —— 工具是别处的上游，
+#    不是消费品，所以跟着建材走）。**「工业」这个分类名已经不存在了**：
+#    分类名和 `build_bar.TABS` 里的 tab 名必须一一对上，改了这边就得改那边，
+#    否则那几座建筑在建造栏里**静默消失**（门槛 `bartab` 会红）。
 
 ## 「娱乐」页：产出不是食物，但归到娱乐。
 const CAT_ENTERTAINMENT := ["theater", "domestic_service"]
@@ -244,14 +252,26 @@ const CAT_MINING := ["lumberjack", "quarry", "clay_pit", "iron_mine", "coal_mine
 ## 地形 key → 中文。建造栏 tooltip 的「需地形：…」用它（2026-10 加了铁矿）。
 const TERRAIN_ZH := {"grass": "草地", "forest": "林地", "stone": "石矿", "clay": "粘土", "iron": "铁矿", "coal": "煤矿", "water": "水面"}
 ## 「医疗」页（2026-10 第二批）：草药 → 药水 → 诊所 / 医院 → 学校。
-## 不靠 arch 推：这几座都是 sprite 工坊，按 arch 会掉进「工业」。
+## 不靠 arch 推：这几座都是 sprite 工坊，按 arch 会掉进「工业」。（历史注释，「工业」已拆）
 const CAT_MEDICAL := ["herbal_farm", "potion_workshop", "clinic", "hospital", "school"]
 ## 「军事」页（2026-10 第二批）：治安所 / 瞭望台 / 武器·盔甲·弓箭作坊。
 const CAT_MILITARY := ["guard_station", "watchtower", "weapon_workshop", "armor_workshop", "bow_arrow_workshop"]
-## 「市政」页：仓库 / 建筑工坊 / 研究所 / **贸易市场** —— 别让它们掉进「工业」。
+## 「市政」页：仓库 / 建筑工坊 / 研究所 / **贸易市场** —— 别让它们掉进工坊那两页。
 ## 贸易市场 2026-10 从「工业」挪过来：工业页有 14 座、要翻两页，它就藏在第 2 页最后一格，
 ## 用户的原话是"市场这个建筑没了，这样游商系统的入口在哪里？"—— 市政页只有 4 座，一眼看见。
 const CAT_CIVIC := ["warehouse", "construction_works", "research_institute", "trade_market"]
+## 「民生工业」页（2026-10 拆页）：卖给村民穿衣用饭的那几条链 ——
+## 布料（粗织坊 / 细织坊）→ 成衣（粗布衣坊 / 常服坊 / 华服坊 / 皮衣坊），
+## 加上陶器坊 / 瓷窑这两座"摆在家里"的。
+const CAT_CONSUMER := [
+	"coarse_weaver", "fine_weaver",
+	"coarse_clothes_shop", "common_clothes_shop", "luxury_clothes_shop", "leather_shop",
+	"pottery_works", "porcelain_works",
+]
+## 「重工业」页（2026-10 拆页）：建材与冶炼 —— 冶炼场 / 砖窑 / 木柴坊，
+## 外加**给生产用的工具**（石制工具作坊 / 铁制工具作坊）。
+## 工具不是消费品而是别处的上游，所以按"生产资料"归到这里，不跟衣服放一起。
+const CAT_HEAVY := ["smeltery", "firewood_works", "brick_kiln", "tool_works", "iron_tool_workshop"]
 
 ## 地图上**固定存在**的建筑，不进建造列表。
 ##
@@ -275,6 +295,10 @@ func build_category(id: String) -> String:
 		return "医疗"
 	if CAT_CIVIC.has(id):
 		return "市政"
+	if CAT_CONSUMER.has(id):
+		return "民生工业"
+	if CAT_HEAVY.has(id):
+		return "重工业"
 	var b: Dictionary = buildings.get(id, {})
 	var a: Dictionary = b.get("art", {})
 	var arch := String(a.get("arch", ""))
@@ -284,7 +308,7 @@ func build_category(id: String) -> String:
 		return "矿场"
 	if primary_output_is_food(b):
 		return "食品加工"
-	return "工业"
+	return "民生工业"
 
 ## 主产出（产出量最大的那个商品）是不是食物类。
 ## 按产出商品判类，而不是靠建筑 id 白名单 —— 新增建筑只要配方对就自动归位。
