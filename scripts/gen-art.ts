@@ -841,6 +841,40 @@ function sliderGrabber(): Canvas {
   return c
 }
 
+/**
+ * 金币图标（16×16 原生）：价格 / 国库这类**行内金额**用它。
+ *
+ * ⚠️ 别用 `assets/ui/panel/money.png`（那是"财政"页签的图标：三级台阶式的金币堆，
+ * 缩到 16px 看着像柱状图）。用户 2026-10："价格用 @ 也太傻了，金币图标为什么不用？"
+ * —— 要的是一枚**看得清的金币**，所以这里单独画一枚。
+ */
+function coinIcon(): Canvas {
+  const c = new Canvas(G, G)
+  // 圆盘：按行的 x 范围画出圆形轮廓（1px 深色描边 + 金色主体 + 左上高光）
+  const spans: [number, number][] = [
+    [5, 10], [4, 11], [3, 12], [3, 12], [3, 12],
+    [3, 12], [3, 12], [3, 12], [3, 12], [3, 12],
+    [3, 12], [4, 11], [5, 10],
+  ]
+  const TOP = 1
+  for (let i = 0; i < spans.length; i++) {
+    const y = TOP + i
+    const [x0, x1] = spans[i]!
+    for (let x = x0; x <= x1; x++) {
+      const rim = x === x0 || x === x1 || i === 0 || i === spans.length - 1
+      c.set(x, y, rim ? I_GOLD_D : I_GOLD)
+    }
+  }
+  // 高光（左上）：两小段
+  c.set(5, 4, I_CREAM)
+  c.set(6, 4, I_CREAM)
+  c.set(5, 5, I_CREAM)
+  // 内圈压一道暗边，看起来像币面上的浮雕
+  for (let x = 6; x <= 9; x++) c.set(x, 10, I_GOLD_D)
+  for (let y = 6; y <= 9; y++) c.set(4, y, I_GOLD_D)
+  return c
+}
+
 function navButton(kind: string): Canvas {
   const c = new Canvas(G, G)
   const k = kind === 'hover' ? 1.14 : kind === 'pressed' ? 0.82 : 1.0
@@ -1158,6 +1192,8 @@ function main(): void {
   }
   // 用工拖动条的把手
   writeFileSync(`${ROOT}/ui/slider_grabber.png`, sliderGrabber().toPng())
+  // 行内金额用的小金币（16×16 原生，价格 / 国库前面那一枚）
+  writeFileSync(`${ROOT}/ui/coin.png`, coinIcon().toPng())
   writeFileSync(`${ROOT}/thumbs/_road.png`, brushThumb('road').toPng())
   writeFileSync(`${ROOT}/thumbs/_floor.png`, brushThumb('floor').toPng())
 

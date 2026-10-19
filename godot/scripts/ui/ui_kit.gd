@@ -85,6 +85,18 @@ static func slider_grabber() -> Texture2D:
 		return load(p)
 	return null
 
+
+## 行内金额用的小金币（16×16 原生，价格 / 国库前面那一枚）。
+##
+## ⚠️ 别拿 `stat_icon("money")` 当行内金币：那是"财政"页签的图标（三级台阶式金币堆），
+## 缩到 16px 看着像柱状图。用户 2026-10："价格用 @ 也太傻了，金币图标为什么不用？"
+## 所以专门画了这枚（`scripts/gen-art.ts::coinIcon()`）。
+static func coin_icon() -> Texture2D:
+	var p := "res://assets/ui/coin.png"
+	if ResourceLoader.exists(p):
+		return load(p)
+	return stat_icon("money")
+
 ## 建筑 / 住房缩略图，带兜底链。
 ##
 ## 全部缩略图都由 `npm run gen:art` 生成到 `assets/thumbs/<id>.png`

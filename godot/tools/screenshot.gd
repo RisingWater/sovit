@@ -427,8 +427,8 @@ func _run() -> void:
 				await process_frame
 				await process_frame
 
-	if mode == "trade":
-		# 贸易市场面板（2026-10 改成**全屏** + 页签「游商 / 商路」+ 薇拉立绘）。
+	if mode == "trade" or mode == "tradedlg":
+		# 贸易市场面板（2026-10 改版：全屏 + 页签 + 名字来历 + 数量对话框）。
 		# 先把游商叫到货，否则面板里只有一句"还没有游商"。
 		var sim_tr = runner.sim
 		sim_tr.s["quests"]["chapters"]["3"] = 3
@@ -439,6 +439,19 @@ func _run() -> void:
 			tr_panel.open_trade()
 			await process_frame
 			await process_frame
+			if mode == "tradedlg":
+				# 数量对话框（滑块 + 实时总价）
+				var snap_tr: Dictionary = sim_tr.trade_snapshot()
+				var cvs: Array = snap_tr.get("caravans", [])
+				if not cvs.is_empty():
+					var cv0: Dictionary = cvs[0]
+					var off: Dictionary = (cv0["buy"] as Array)[0]
+					# 给足货，否则"未锁定 = 0"会让按钮是灰的
+					(sim_tr.s["goods"] as Dictionary)[String(off["good"])] = 200.0
+					(sim_tr.s["reserved"] as Dictionary)[String(off["good"])] = 0.0
+					tr_panel._open_dialog("buy", String(cv0["id"]), off, "出售")
+					await process_frame
+					await process_frame
 
 	# 仓储超限（2026-10 用户报的 bug）：开局资源 x2 = 1960，城镇中心上限 2000。
 	# 再往里塞一批木材让它爆仓，跑满一天 → 夜里按**同一比例**削减，公告页出现那条 log。

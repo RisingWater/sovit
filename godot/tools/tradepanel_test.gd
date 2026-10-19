@@ -96,18 +96,86 @@ func _run() -> void:
 		return
 	print("TRADEPANEL TEST 快照：剩余 %d 天、收 4 卖 4 ✅" % want)
 
-	# 点按钮必须发命令（走 runner.enqueue）
-	var before: int = (sim.s["pending"] as Array).size()
-	panel._send("sell_to_caravan", String(cv["id"]), String((cv["buy"] as Array)[0]["good"]), 1)
-	var after: int = (sim.s["pending"] as Array).size()
-	if after <= before:
-		_fail("点「卖」没有把命令排进 pending（玩家会以为点了没反应）")
+	# 名字 / 来历（用户 2026-10："cv#2-1 是啥"）：
+	# 表现层按 id 哈希取，同一个 id 必须永远同一个名字。
+	var nm1 := String(panel.caravan_name(String(cv["id"])))
+	var or1 := String(panel.caravan_origin(String(cv["id"])))
+	if nm1 == "" or or1 == "":
+		_fail("游商没有名字或来历（name=%s origin=%s）" % [nm1, or1])
 		return
-	var last: Dictionary = (sim.s["pending"] as Array)[after - 1]
-	if String(last["type"]) != "sell_to_caravan":
-		_fail("排进去的命令类型是 %s" % String(last["type"]))
+	if nm1 != String(panel.caravan_name(String(cv["id"]))):
+		_fail("同一个游商两次取到的名字不一样（不稳定）")
 		return
-	print("TRADEPANEL TEST 命令：点了「卖」→ pending 多了一条 sell_to_caravan ✅")
+	print("TRADEPANEL TEST 抬头：「%s 来自 %s」✅" % [nm1, or1])
+
+	# ---- 数量对话框（2026-10：1 / 5 两个按钮换成滑块）
+	#
+	# 收购侧：上限 = min(未锁定库存, 他还肯收的配额, 他现金买得起)
+	var offer: Dictionary = (cv["buy"] as Array)[0]
+	var gid := String(offer["good"])
+	var price := float(offer["price"])
+	# 开局头几天"预定量 > 库存"是正常的（黎明排产会先占住），所以这里给足货再测，
+	# 免得断言被"未锁定 = 0"挡住（那不是 bug，是开局状态）。
+	(sim.s["goods"] as Dictionary)[gid] = 200.0
+	(sim.s["reserved"] as Dictionary)[gid] = 0.0
+	var have := float((sim.s["goods"] as Dictionary).get(gid, 0.0))
+	var reserved := float((sim.s["reserved"] as Dictionary).get(gid, 0.0))
+	var unlocked := maxi(0, int(floor(have - reserved)))
+	var cap_want := mini(mini(unlocked, int(ceil(float(offer["qty"])))),
+		int(floor(float(cv["cash"]) / maxf(0.01, price))))
+	if cap_want <= 0:
+		_fail("这个报价一个都卖不了（unlocked=%d qty=%d cash=%.2f），测不出对话框"
+			% [unlocked, int(offer["qty"]), float(cv["cash"])])
+		return
+	panel._open_dialog("buy", String(cv["id"]), offer, "出售")
+	await process_frame
+	var dlg = panel.get("_dlg")
+	if dlg == null or not (dlg as Window).visible:
+		_fail("点「出售」没有弹出数量对话框")
+		return
+	var slider: HSlider = panel.get("_dlg_slider")
+	if int(slider.max_value) != cap_want:
+		_fail("滑块上限是 %d，应当是 %d（未锁定 / 配额 / 他的现金 三者取小）"
+			% [int(slider.max_value), cap_want])
+		return
+	slider.value = 2
+	await process_frame
+	var total_txt := String((panel.get("_dlg_total") as Label).text) \
+		+ String((panel.get("_dlg_money") as Label).text)
+	var want_money := "%.2f" % (price * 2.0)
+	if not total_txt.contains(want_money):
+		_fail("滑块拖到 2 个时总价显示「%s」，应当包含 %s（实时算钱）" % [total_txt, want_money])
+		return
+	# 确定 → 真的排一条命令出去（数量 = 滑块那个数）
+	var before2: int = (sim.s["pending"] as Array).size()
+	panel._confirm_dialog()
+	var after2: int = (sim.s["pending"] as Array).size()
+	if after2 <= before2:
+		_fail("点了「确定出售」没有发命令")
+		return
+	var last2: Dictionary = (sim.s["pending"] as Array)[after2 - 1]
+	if String(last2["type"]) != "sell_to_caravan" or int(last2["qty"]) != 2:
+		_fail("发出去的命令是 %s × %s，应当是 sell_to_caravan × 2"
+			% [String(last2["type"]), str(last2["qty"])])
+		return
+	print("TRADEPANEL TEST 数量对话框：上限 %d、拖到 2 个显示共 %s、确定后发命令 ✅"
+		% [cap_want, want_money])
+
+	# 购买侧：上限 = min(他的存货, 国库买得起)
+	var sell_offer: Dictionary = (cv["sell"] as Array)[0]
+	var price2 := float(sell_offer["price"])
+	var cap_buy := mini(int(ceil(float(sell_offer["qty"]))),
+		int(floor(float(sim.s["government"]["money"]) / maxf(0.01, price2))))
+	if cap_buy > 0:
+		panel._open_dialog("sell", String(cv["id"]), sell_offer, "购买")
+		await process_frame
+		var slider2: HSlider = panel.get("_dlg_slider")
+		if int(slider2.max_value) != cap_buy:
+			_fail("购买滑块上限是 %d，应当是 %d（存货 / 国库 取小）"
+				% [int(slider2.max_value), cap_buy])
+			return
+		(dlg as Window).hide()
+		print("TRADEPANEL TEST 购买对话框：上限 %d（存货 / 国库取小）✅" % cap_buy)
 
 	# 关闭
 	panel.close_panel()
