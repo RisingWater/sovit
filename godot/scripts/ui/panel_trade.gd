@@ -8,8 +8,8 @@ extends PanelContainer
 #   │ 页签：游商 / 商路                                                     │
 #   │ 「马库斯 来自 圣火城」 · 还能待 5 天 · 他手里还有 ⛁447                │
 #   │   他可收购（你卖给他）            他可出售（你买）                    │
-#   │   物资   已收购  单价             物资   存货  单价                   │
-#   │   [图]草药  6    ⛁3.84 [出售]     [图]小麦  21  ⛁1.30 [购买]          │
+#   │   物资   可出售  单价             物资   存货  单价                   │
+#   │   [图]草药  12   ⛁3.84 [出售]     [图]小麦  21  ⛁1.30 [购买]          │
 #   │ 国库 ⛁5218.04                                                        │
 #   └──────────────────────────────────────────────────────────────────────┘
 #
@@ -21,6 +21,12 @@ extends PanelContainer
 #     实时显示总价；卖的上限是未锁定数量与他现金能收的，买的上限是钱够买与他的存货取小）
 #   · "价格用 @ 也太傻了，金币图标为什么不用" → 金额一律「⛁图标 + 数字」
 #   · "所有的物资前面要加物资自己的图标" → 走 `GoodIcons.tex()`
+#   · "xx 来自 xxxx这个字不要放大" → 抬头与正文**同字号**（之前错用了 `BIG_FS`=24，
+#     比表头和数字都大，看着像标题而不像一句话）
+#   · "他可收购的列表里面要显示，我们当前未锁定的货物数量，表头叫做 可出售" →
+#     收购侧数量列 = **可出售**（`goods − reserved`，就是真能拿去卖的），
+#     原来的「已收购 x / 20」不再占一列（配额挪到按钮的 tooltip 里）；
+#     出售侧仍是 **存货**（他还剩多少）。
 #
 # 数据来自 `SimCore.trade_snapshot()`（只读快照）+ `s["goods"] / s["reserved"]`（算未锁定数量）。
 # 命令走 `runner.enqueue()`（次日黎明生效），副标题里写明，否则玩家会以为点了没反应。
@@ -41,7 +47,8 @@ const W_NAME := 150.0
 const W_QTY := 56.0
 const W_PRICE := 84.0
 ## 每个游商这一趟"最多收多少"（引擎 `caravan.ts::QTY_PER_OFFER` 的镜像）。
-## 只用来算收购侧的「已收购」= 这个数 − 他还没收的配额。
+## 2026-10 起**不再画在表里**（数量列改成了「可出售」= 我们的未锁定库存），
+## 只在「出售」按钮的 tooltip 里报一句"他这趟还能收 x / 20"。
 const FULL_QUOTA := 20
 
 ## 游商名字池（用户 2026-10 给的 20 个）。**纯表现层**：按 `cv#<批>-<序>` 的哈希取，
@@ -358,11 +365,14 @@ func _caravan_block(cv: Dictionary) -> Control:
 	var cv_id := String(cv.get("id", ""))
 
 	# ---- 抬头：「名字 来自 地方」· 还能待几天 · 他手里还有多少钱
+	#
+	# ⚠️ 名字这一句**不要放大**（用户 2026-10："xx 来自 xxxx这个字不要放大"）。
+	# 原来这里加了 `font_size = UIKit.BIG_FS`（24，整数倍不糊才敢用），但它比表头、
+	# 比价格、比数字全都大一圈，看着像标题，而它其实只是"这一栏是哪个游商"的一句话。
+	# 靠颜色（`FG_HEAD`）区分就够了。
 	var head := HBoxContainer.new()
 	head.add_theme_constant_override("separation", 6)
-	var nm := UIKit.label("%s 来自 %s" % [caravan_name(cv_id), caravan_origin(cv_id)], UIKit.FG_HEAD)
-	nm.add_theme_font_size_override("font_size", UIKit.BIG_FS)
-	head.add_child(nm)
+	head.add_child(UIKit.label("%s 来自 %s" % [caravan_name(cv_id), caravan_origin(cv_id)], UIKit.FG_HEAD))
 	head.add_child(UIKit.label("还能待 %d 天" % int(cv.get("daysLeft", 0)), C_HINT))
 	head.add_child(UIKit.label("他手里还有", C_HINT))
 	head.add_child(_money(float(cv.get("cash", 0.0))))
@@ -375,7 +385,7 @@ func _caravan_block(cv: Dictionary) -> Control:
 	cols.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	box.add_child(cols)
 
-	cols.add_child(_offer_column(cv, "buy", "他可收购（你卖给他）", "已收购", "出售"))
+	cols.add_child(_offer_column(cv, "buy", "他可收购（你卖给他）", "可出售", "出售"))
 	cols.add_child(_offer_column(cv, "sell", "他可出售（你买）", "存货", "购买"))
 	box.add_child(_sep())
 	return box
@@ -387,7 +397,7 @@ func _offer_column(cv: Dictionary, key: String, title: String, qty_head: String,
 	var tl := UIKit.label(title, UIKit.FG_HEAD)
 	col.add_child(tl)
 
-	# 表头：物资 / 存货（或"已收购"）/ 单价
+	# 表头：物资 / 可出售（或"存货"）/ 单价
 	var head := HBoxContainer.new()
 	head.add_theme_constant_override("separation", 6)
 	head.add_child(_cell(UIKit.label("物资", UIKit.FG_DIM), W_NAME))
@@ -432,9 +442,13 @@ func _offer_row(cv: Dictionary, key: String, o: Dictionary, verb: String) -> Con
 	name_box.add_child(UIKit.label(runner.sim.good_name(gid)))
 	row.add_child(_cell(name_box, W_NAME))
 
-	# 数量列：收购侧显示「已收购 x / 20」（这一趟他累计收了多少，分母是配额），
-	# 出售侧显示「存货」（他还剩多少）。
-	var qty_txt := str(left) if key == "sell" else "%d / %d" % [maxi(0, FULL_QUOTA - left), FULL_QUOTA]
+	# 数量列（用户 2026-10："他可收购的列表里面要显示，我们当前未锁定的货物数量，
+	# 表头叫做 可出售"）：
+	#   收购侧 → **可出售** = 我们当前**未锁定**的库存（`goods − reserved`）。
+	#     黎明排产 / 建造会先占住一批货，那部分不能拿去卖 —— 所以这里显示的不是库存总量，
+	#     而是真能卖的数量（与 `_max_qty()` 用的是同一个 `_unlocked()`，两处不会打架）。
+	#   出售侧 → **存货** = 他还剩多少（报价里的 qty 每成交一次就减）。
+	var qty_txt := str(_unlocked(gid)) if key == "buy" else str(left)
 	row.add_child(_cell(UIKit.label(qty_txt), W_QTY))
 
 	# 单价：金币图标 + 数字（不再用 @）
@@ -447,7 +461,13 @@ func _offer_row(cv: Dictionary, key: String, o: Dictionary, verb: String) -> Con
 		b.disabled = true
 		b.tooltip_text = _max_reason(cv, key, o)
 	else:
-		b.tooltip_text = "选数量（最多 %d）" % maxq
+		# 收购侧把「他这趟还能收几个」放进 tooltip：数量列让给「可出售」了，
+		# 但配额仍然决定这一单的上限 —— 不写出来，玩家会奇怪
+		# "我有 40 个小麦，为什么滑块最多只给 6 个"。
+		if key == "buy":
+			b.tooltip_text = "选数量（最多 %d）· 他这趟还能收 %d / %d 个" % [maxq, left, FULL_QUOTA]
+		else:
+			b.tooltip_text = "选数量（最多 %d）" % maxq
 		b.pressed.connect(_open_dialog.bind(key, String(cv.get("id", "")), o, verb))
 	row.add_child(b)
 	return row
@@ -517,8 +537,11 @@ func _open_dialog(key: String, cv_id: String, o: Dictionary, verb: String) -> vo
 	_dlg_meta.add_child(UIKit.label("每件"))
 	_dlg_meta.add_child(_money(_dlg_price))
 	if key == "buy":
+		# 上限为什么是这个数：未锁定的货 / 他这趟还肯收的配额 / 他手里的现金，三者取小。
+		# 表里只报「可出售」，所以把另两个约束在这里说清楚。
 		_dlg_meta.add_child(UIKit.label(
-			" · 你最多少卖 %d 个（未锁定 %d）" % [maxq, _unlocked(gid)]))
+			" · 这单最多 %d 个（可出售 %d，他还肯收 %d / %d）"
+			% [maxq, _unlocked(gid), int(ceil(float(o.get("qty", 0.0)))), FULL_QUOTA]))
 	else:
 		_dlg_meta.add_child(UIKit.label(" · 他还有 %d 个" % maxq))
 	_dlg_slider.min_value = 1

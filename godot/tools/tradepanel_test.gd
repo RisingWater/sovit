@@ -122,7 +122,73 @@ func _run() -> void:
 	if nm1 != String(panel.caravan_name(String(cv["id"]))):
 		_fail("同一个游商两次取到的名字不一样（不稳定）")
 		return
-	print("TRADEPANEL TEST 抬头：「%s 来自 %s」✅" % [nm1, or1])
+	# 抬头**不许放大**（用户 2026-10："xx 来自 xxxx这个字不要放大"）。
+	# 之前这里错用了 `BIG_FS`(24) —— 比表头、价格、正文全都大一圈，看着像个标题。
+	# 判据直接问主题解析出来的字号，不看代码里写没写 override（改了字号来源也照样能抓）。
+	var head_lb: Label = null
+	for lb in body.find_children("*", "Label", true, false):
+		if String((lb as Label).text).contains("来自"):
+			head_lb = lb
+			break
+	if head_lb == null:
+		_fail("面板上找不到抬头那一句「名字 来自 地方」")
+		return
+	var fs_head := head_lb.get_theme_font_size("font_size")
+	if fs_head != UIKit.FS:
+		_fail("游商抬头「%s」的字号是 %d，应当和正文一样是 %d（用户：这个字不要放大）"
+			% [String(head_lb.text), fs_head, UIKit.FS])
+		return
+	print("TRADEPANEL TEST 抬头：「%s 来自 %s」（字号 %d，与正文一致）✅" % [nm1, or1, fs_head])
+
+	# ---- 收购侧的数量列 = 「可出售」= **我们没被预定的货**（用户 2026-10）-----
+	#
+	# 用户原话："他可收购的列表里面要显示，我们当前未锁定的货物数量，表头叫做 可出售"。
+	# 所以这一列回答的是"我还能卖多少"，而不是"他这趟收了多少"（后者挪进按钮 tooltip）。
+	# 造一个"有货但一部分被预定"的局面才测得出差别：库存 200、预定 30 → 可出售 170。
+	var buy0: Array = cv["buy"] as Array
+	if buy0.is_empty():
+		_fail("这位游商一条收购报价都没有，测不出「可出售」")
+		return
+	var gid0 := String((buy0[0] as Dictionary)["good"])
+	var good0_name := String(runner.sim.good_name(gid0))
+	(sim.s["goods"] as Dictionary)[gid0] = 200.0
+	(sim.s["reserved"] as Dictionary)[gid0] = 30.0
+	panel._refresh()
+	await process_frame
+	if body.get_child_count() == 0:
+		_fail("刷新之后面板一个块都没有")
+		return
+	# 结构：body → 游商块(VBox) → [抬头, 两列(HBox), 分隔线]；列(VBox) → [标题, 表头, 行...]
+	var cols: Node = body.get_child(0).get_child(1)
+	var buy_col: Node = cols.get_child(0)
+	var qty_head := String(((buy_col.get_child(1) as Node).get_child(1) as Label).text)
+	if qty_head != "可出售":
+		_fail("收购侧数量列的表头是「%s」，应当叫「可出售」" % qty_head)
+		return
+	# 找那件货自己的行（不按下标猜：过滤掉"存不住"的报价之后顺序可能变）
+	var shown := ""
+	var shown_ok := false
+	for i in range(2, buy_col.get_child_count()):
+		var r: Node = buy_col.get_child(i)
+		var nm_row: Node = r.get_child(0)
+		var nm_lb := nm_row.get_child(nm_row.get_child_count() - 1) as Label
+		if nm_lb == null or String(nm_lb.text) != good0_name:
+			continue
+		shown = String((r.get_child(1) as Label).text)
+		shown_ok = true
+		break
+	if not shown_ok:
+		_fail("收购侧的表里找不到「%s」这一行" % good0_name)
+		return
+	if shown != "170":
+		_fail("「可出售」显示的是 %s，应当是未锁定库存 170（goods 200 − reserved 30）" % shown)
+		return
+	# 旧列「已收购 x/20」不许再出现（配额改在按钮 tooltip 里说）
+	for lb in body.find_children("*", "Label", true, false):
+		if String((lb as Label).text).contains("已收购"):
+			_fail("收购侧还在画旧表头/旧数值：%s" % String((lb as Label).text))
+			return
+	print("TRADEPANEL TEST 数量列：收购侧表头「可出售」= 未锁定库存 170（200 − 30），旧「已收购」已撤 ✅")
 
 	# ---- 数量对话框（2026-10：1 / 5 两个按钮换成滑块）
 	#

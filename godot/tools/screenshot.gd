@@ -436,6 +436,14 @@ func _run() -> void:
 		sim_tr._update_caravans(int(sim_tr.s["day"]))
 		var tr_panel = node.get("_panel_trade")
 		if tr_panel != null:
+			# 收购侧的数量列现在是「可出售」= goods − reserved。开局头几天预定量常常
+			# 大于库存，不铺货的话这一列整排是 0（截出来像 bug，但那是真实状态）。
+			# 截图只是看版式，给每种收购货铺 40 件、预定清零。
+			for cv_s in (sim_tr.trade_snapshot().get("caravans", []) as Array):
+				for off_s in ((cv_s as Dictionary)["buy"] as Array):
+					var g_s := String((off_s as Dictionary)["good"])
+					(sim_tr.s["goods"] as Dictionary)[g_s] = 40.0
+					(sim_tr.s["reserved"] as Dictionary)[g_s] = 0.0
 			tr_panel.open_trade()
 			await process_frame
 			await process_frame
