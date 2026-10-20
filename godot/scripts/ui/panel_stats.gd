@@ -743,40 +743,38 @@ func _finance_tab() -> void:
 	_chart("日净收支", [{"name": "净额", "color": Color(0.55, 0.80, 0.95),
 		"values": stats.money_flow}], true)
 
+	# ⚠️ 用户 2026-10：两处「说明」列**删掉**（不要正文解释，项目名 + 数字 + 口径就够了）。
+	# 别再加回来 —— 细节在 `docs/spec.md`。
 	_section("收支分项（7 日均值）")
-	var g2 := _grid(4)
+	var g2 := _grid(3)
 	# 数字列的表头**也右对齐**（和值同宽）—— 用户 2026-10："有数字的都没有和表头对齐"。
 	_cell(g2, "项目", HEAD_COL, 80.0)
 	_cell(g2, "7 日均", HEAD_COL, 80.0, true)
 	_cell(g2, "口径", HEAD_COL, 60.0)
-	_cell(g2, "说明", HEAD_COL, 0.0)
 	var items := [
-		["工资支出", stats.avg(stats.wages), "公式", "Σ 居民 gross（工资×技能系数，封顶）"],
-		["所得税", stats.avg(stats.tax), "公式", "累进税表套在 gross 上"],
-		["租金收入", stats.avg(stats.rent), "公式", "国有租户实缴 + 私租抽税"],
-		["消费收入", stats.avg(stats.sales), "实际", "居民购买回款（读台账）"],
-		["建造支出", stats.avg(stats.build_cost), "实际", "在建项目的建造成本合计"],
+		["工资支出", stats.avg(stats.wages), "公式"],
+		["所得税", stats.avg(stats.tax), "公式"],
+		["租金收入", stats.avg(stats.rent), "公式"],
+		["消费收入", stats.avg(stats.sales), "实际"],
+		["建造支出", stats.avg(stats.build_cost), "实际"],
 		# 商路（B3，用户 2026-10："财政面板要加入商路的进出口收益，游商的收益"）
-		["商路出口", stats.avg(stats.route_export), "实际", "车队卖出所得（到达结算那天入账）"],
-		["商路进口", stats.avg(stats.route_import), "实际", "车队买货花费（同上）"],
-		["游商收入", stats.avg(stats.merchant_sell), "实际", "卖给游商的钱（从「消费收入」里拆出来）"],
+		["商路出口", stats.avg(stats.route_export), "实际"],
+		["商路进口", stats.avg(stats.route_import), "实际"],
+		["游商收入", stats.avg(stats.merchant_sell), "实际"],
 	]
 	for it in items:
 		_cell(g2, String(it[0]), UIKit.FG_HEAD, 80.0)
 		_cell(g2, "¥%.1f" % float(it[1]), UIKit.FG_DARK, 80.0, true)
 		_cell(g2, String(it[2]), Color(0.55, 0.42, 0.30), 60.0)
-		_cell(g2, String(it[3]), Color(0.55, 0.42, 0.30), 0.0)
 
 	# 公共事业补贴（2026-10）：公共建筑当晚的工资支出，台账口径（国库本来就付了这笔钱）
 	var subsidy := float((s.get("ledgerToday", {}) as Dictionary).get("publicSubsidy", 0.0))
 	_section("公共事业（今日台账）")
-	var gs := _grid(3)
+	var gs := _grid(2)
 	_cell(gs, "项目", HEAD_COL, 110.0)
 	_cell(gs, "今日", HEAD_COL, 90.0, true)
-	_cell(gs, "说明", HEAD_COL, 0.0)
 	_cell(gs, "补贴", UIKit.FG_HEAD, 110.0)
 	_cell(gs, "¥%.1f" % subsidy, UIKit.FG_DARK, 90.0, true)
-	_cell(gs, "研究所/建筑工坊/医院/学校/治安所的工资", Color(0.55, 0.42, 0.30), 0.0)
 	# 三项服务**分开**显示（用户 2026-10："这个还是要分开算的"）
 	var produced: Dictionary = (s.get("ledgerToday", {}) as Dictionary).get("produced", {})
 	var bought: Dictionary = (s.get("ledgerToday", {}) as Dictionary).get("bought", {})
@@ -784,7 +782,6 @@ func _finance_tab() -> void:
 		_cell(gs, String(row[0]), UIKit.FG_HEAD, 110.0)
 		_cell(gs, "产 %.1f / 买 %.1f" % [float(produced.get(String(row[1]), 0.0)),
 			float(bought.get(String(row[1]), 0.0))], UIKit.FG_DARK, 90.0, true)
-		_cell(gs, "点数商品（当日归零）", Color(0.55, 0.42, 0.30), 0.0)
 
 	_section("税收结构")
 	var g3 := _grid(3)
