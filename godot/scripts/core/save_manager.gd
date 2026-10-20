@@ -8,9 +8,11 @@ extends RefCounted
 ##
 ## 用户 2026-10："版本更新，存档不跟之前兼容" —— 这里**不做旧版迁移**，
 ## 老存档读进来直接拒（`load_into` 版本不符就返回 null，提示由 UI 说）。
-## 历史：4 = 游商 + 城镇中心三段修缮 + 贸易面板；3 = 住房单体身份；
+## 历史：6 = 商路（`state.routes` + 台账 5 个字段：routeExport / routeImport /
+##       routeOut·routeIn / merchantSell）；5 = 场次 + 送物资（scenes.shown / gifts）；
+##       4 = 游商 + 城镇中心三段修缮 + 贸易面板；3 = 住房单体身份；
 ##       2 = 任务 schema 2（giver / outro / building_repaired）+ 剧情对话记账。
-const SAVE_VERSION := 5
+const SAVE_VERSION := 6
 const DEFAULT_PATH := "user://sovit_save.json"
 
 static func save_to(path: String, sim: SimCore) -> Error:

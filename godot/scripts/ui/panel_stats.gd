@@ -400,6 +400,12 @@ func _good_detail(right: VBoxContainer) -> void:
 		["日产量", "%.1f" % float(r["produced"]), Color(0.18, 0.42, 0.24)],
 		["工业消耗 / 日", "%.1f" % float(r["consumed_ind"]), Color(0.55, 0.30, 0.18)],
 		["居民消耗 / 日", "%.1f" % float(r["consumed_pop"]), Color(0.55, 0.30, 0.18)],
+		# 商路（B3，用户 2026-10："资源面板要加入进口数量/出口数量，根据商路平均到每天"）。
+		# 7 日均值，读台账的 routeOut / routeIn 件数序列。
+		["商路出口 / 日", "%.1f" % stats.avg(stats.series(stats.route_out, _sel_good)),
+			Color(0.30, 0.34, 0.52)],
+		["商路进口 / 日", "%.1f" % stats.avg(stats.series(stats.route_in, _sel_good)),
+			Color(0.30, 0.34, 0.52)],
 		["工坊数", "%d" % int(r["shops"]), UIKit.FG_DARK],
 		["工位总数", "%d" % int(r["slots"]), UIKit.FG_DARK],
 		["在岗工人", "%d" % int(r["workers"]), UIKit.FG_DARK],
@@ -750,6 +756,10 @@ func _finance_tab() -> void:
 		["租金收入", stats.avg(stats.rent), "公式", "国有租户实缴 + 私租抽税"],
 		["消费收入", stats.avg(stats.sales), "实际", "居民购买回款（读台账）"],
 		["建造支出", stats.avg(stats.build_cost), "实际", "在建项目的建造成本合计"],
+		# 商路（B3，用户 2026-10："财政面板要加入商路的进出口收益，游商的收益"）
+		["商路出口", stats.avg(stats.route_export), "实际", "车队卖出所得（到达结算那天入账）"],
+		["商路进口", stats.avg(stats.route_import), "实际", "车队买货花费（同上）"],
+		["游商收入", stats.avg(stats.merchant_sell), "实际", "卖给游商的钱（从「消费收入」里拆出来）"],
 	]
 	for it in items:
 		_cell(g2, String(it[0]), UIKit.FG_HEAD, 80.0)

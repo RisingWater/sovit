@@ -32,6 +32,13 @@ var tax: Array[float] = []
 var rent: Array[float] = []
 var sales: Array[float] = []
 var build_cost: Array[float] = []
+## 商路（B3）：出口所得 / 进口花费 / 游商收入（钱，财务页三行）
+var route_export: Array[float] = []
+var route_import: Array[float] = []
+var merchant_sell: Array[float] = []
+## 商路进出的**件数**（goodId -> 每日序列，资源页「出口/日」「进口/日」两列）
+var route_out: Dictionary = {}
+var route_in: Dictionary = {}
 
 # 商品：goodId -> 每日序列
 var stock: Dictionary = {}       # [实际] 库存
@@ -69,11 +76,13 @@ func setup(r: SimRunner) -> void:
 ## 清空所有序列（换了一局就得清）。
 func reset() -> void:
 	for arr in [days, money, money_flow, population, satisfaction, hungry, employed,
-			wages, tax, rent, sales, build_cost]:
+			wages, tax, rent, sales, build_cost,
+			route_export, route_import, merchant_sell]:
 		(arr as Array).clear()
 	for m in [stock, produced, consumed_ind, consumed_pop, last_produced,
 			last_consumed_ind, last_consumed_pop, last_shop_count, last_slots, last_workers,
-			last_consumed_by, last_bought_by, shop_count_by_def, class_count]:
+			last_consumed_by, last_bought_by, shop_count_by_def, class_count,
+			route_out, route_in]:
 		(m as Dictionary).clear()
 	_last_day = -1
 
@@ -202,6 +211,22 @@ func _sample(s: Dictionary) -> void:
 	_push(rent, float(led.get("rent", 0.0)))
 	_push(sales, float(led.get("sales", 0.0)))
 	_push(build_cost, 0.0)
+
+	# ---- 商路（B3）：钱走财务页三行，件数走资源页两列
+	_push(route_export, float(led.get("routeExport", 0.0)))
+	_push(route_import, float(led.get("routeImport", 0.0)))
+	_push(merchant_sell, float(led.get("merchantSell", 0.0)))
+	for gid in (led.get("routeOut", {}) as Dictionary).keys():
+		_push_map(route_out, String(gid), float(led["routeOut"][gid]))
+	for gid in (led.get("routeIn", {}) as Dictionary).keys():
+		_push_map(route_in, String(gid), float(led["routeIn"][gid]))
+	# 今天没走的商品要补 0，否则 7 日均值会"只在有货那天才算"
+	for gid in route_out.keys():
+		if not (led.get("routeOut", {}) as Dictionary).has(gid):
+			_push_map(route_out, String(gid), 0.0)
+	for gid in route_in.keys():
+		if not (led.get("routeIn", {}) as Dictionary).has(gid):
+			_push_map(route_in, String(gid), 0.0)
 
 # ---------------------------------------------------------------------------
 # 查询辅助

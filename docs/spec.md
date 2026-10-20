@@ -973,8 +973,77 @@ when   { chapter?, afterDays?, minDay?, pop?, building?, tech?, class?+classMin?
   阻止他收购这个货物的唯一就是自己钱不够了"）—— 所以**没有"每种 20 件"的配额**，
   上限只有两条：我没有货、他的钱不够。`QTY_PER_OFFER` / `CARAVAN_QTY` 已删，别再生成。
 - 成交是**部分成交**：要 50 件、他钱只够 2 件 → 成交 2 件（不报错，也不是整单拒绝）。
-- 双向都**记账**：卖给他 → `goods` 减、`government.money` 增、`cash` 减、`ledgerToday.sales` 增；
+- 双向都**记账**：卖给他 → `goods` 减、`government.money` 增、`cash` 减、`ledgerToday.merchantSell` 增
+  （⚠️ B3 起**不再记进 `sales`** —— 财务页的「消费收入」只算居民消费，「游商收入」单列一行）；
   从他买 → 反过来（且 `cash` 增）。
 - 面板只读 `trade_snapshot()`；命令走 pending，**次日黎明**生效。
 - 唯一实现：`src/engine/systems/caravan.ts` / `godot/scripts/sim/sim_core.gd`
   （`_update_caravans` / `sell_to_caravan` / `buy_from_caravan`）；门槛 `merchant`
+
+## 21. 商路 `routes`（B3，用户 2026-10）
+
+设计正文在 [`trade-routes.md`](trade-routes.md)；这一节只钉**公式与顺序**。
+
+### 21.1 价格
+
+```
+卖价 = round2(baseValue × sellMul[days] × (1 + haggleSell))
+买价 = round2(baseValue × buyMul[days]  × (1 − haggleBuy))
+```
+
+| 单程 | 卖 × | 买 × |
+|---:|---:|---:|
+| 1 天 | 1.0 | 2.0 |
+| 2 天 | 2.2 | 1.5 |
+| 3 天 | 3.5 | 1.0 |
+| 4 天 | 4.8 | 0.8 |
+| 5 天 | 6.0 | 0.6 |
+
+`haggleSell` / `haggleBuy` = 贸易科技的**加法**合计（0 / 0.10 / 0.20 / 0.30）。
+`baseValue` 与游商**同一份**（`goods.json`），不另立价格表。
+
+### 21.2 商队上限（贸易科技）
+
+| 量 | 聚合方式 | 基础值 | 满级 |
+|---|---|---|---:|
+| 商队数 | **加法**（`trade.caravans`）| `routes.caravan.count`（0）| 5 |
+| 单程载货 | **取最高**（`trade.cargo`）| 40 | 160 |
+| 带钱 | **取最高**（`trade.purse`）| 800 | 6000 |
+
+> 商队数是"基础 0 + 科技"：**研究完「常设商队」才有第一支**（用户口径：商路是研究出来的）。
+
+### 21.3 黎明的顺序（`runDawn`）
+
+```
+applyActions(...)          # 今天的命令先落地（含 route_assign 等即时命令，其实早已生效）
+updateRoutes(day)          # ← B3 插在这里：先结算、后派车
+  ├ 1) 市场补给：每座城 特产 +specialtyDaily（封顶 specialtyCap）
+  │                    需求 +demandDaily（封顶 demandCap）
+  ├ 2) 结算「到达」：按需求卖出 → 记 routeExport / routeOut → 扣需求池
+  │                 → 用「带出的钱 + 卖得的钱」买特产（受载重、库存、钱三重限制）
+  │                 → 记 routeImport / routeIn；phase = back
+  ├ 3) 结算「回家」：买的货入库、剩的钱回国库；phase = home
+  └ 4) 派车：锁货（搬出仓库）→ 货齐 + 国库够 → 扣钱、phase = out
+activateCompleted(...)     # 后面的步骤照旧：买到的货当天就能被排产用上
+```
+
+- **锁货 = 把货搬出仓库**记在商队名下（不是 `reserved` 那种软预留），所以生产 / 消费 / 送物资
+  都碰不到它；配置调小或取消商路才退回。
+- 缺货 → 留在家继续锁；钱不够 → 留在家但**不退货**（面板写明差多少）。
+- 一趟 = **2 × 单程**（`caravan.roundTrip`，默认 true）；1 天城 D 出发、D+1 到、D+2 回家。
+
+### 21.4 命令
+
+`route_assign` / `route_unassign` / `route_set_budget` / `route_set_sell` 四条都走
+`IMMEDIATE_ACTIONS`（与研究队列、`gift` 同一套）：**当场生效**，不进 `pending`。
+
+### 21.5 台账
+
+| 字段 | 含义 | 谁读 |
+|---|---|---|
+| `routeExport` | 当日卖出所得（钱） | 财务页「商路出口」 |
+| `routeImport` | 当日买货花费（钱） | 财务页「商路进口」 |
+| `routeOut` / `routeIn` | 当日进出**件数**（good → 件） | 资源页两列（7 日均） |
+
+唯一实现：`src/engine/systems/routes.ts` / `godot/scripts/sim/sim_core.gd::_update_routes`；
+门槛 `routes`（引擎行为）+ `check:routes`（内容与科技链）。

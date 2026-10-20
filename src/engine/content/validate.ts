@@ -24,6 +24,8 @@ import type {
   QuestOutro,
   RecipeDef,
   RecipeID,
+  RouteCityDef,
+  RoutesConfig,
   SceneDef,
   SceneWhen,
   Sector,
@@ -31,6 +33,7 @@ import type {
   TechDef,
   TechEffectKey,
   TechEffects,
+  TradeEffects,
   TechID,
 } from '../types.ts'
 import type { DefaultsConfig, EconomyConfig, TimeConfig, TuningConfig } from '../config.ts'
@@ -68,6 +71,8 @@ export interface ParsedContent {
   chapters: QuestChapterDef[]
   scenes: Record<string, SceneDef>
   sceneIds: string[]
+  /** 商路（B3）：目的地 + 距离价表 + 商队 / 市场数值，见 `docs/trade-routes.md`。 */
+  routes: RoutesConfig
 }
 
 const SCHEMA_VERSION = 1
@@ -93,6 +98,8 @@ const MAX_WORKERS_CAP = 12
 const QUESTS_SCHEMA_VERSION = 3
 /** `scenes.json` 的 schema 版本（用户 2026-10 · A1）。 */
 const SCENES_SCHEMA_VERSION = 1
+/** `routes.json` 的 schema 版本（用户 2026-10 · B3 商路）。 */
+const ROUTES_SCHEMA_VERSION = 1
 
 const CATEGORIES: readonly GoodCategory[] = [
   'raw', 'food', 'clothing', 'household', 'fuel', 'material', 'housing', 'investment', 'service', 'entertainment', 'tool', 'military',
@@ -213,6 +220,40 @@ function parseTechEffects(v: unknown, p: string): TechEffects {
     }
     const n = asPos(o[k], `${p}.${k}`)
     out[k as TechEffectKey] = n
+  }
+  return out
+}
+
+/**
+ * 贸易科技的效果（B3）。量纲各自不同，所以单独校验：
+ * `caravans` / `haggleBuy` / `haggleSell` 是加法，`cargo` / `purse` 是**取最高**的绝对值。
+ */
+function parseTradeEffects(v: unknown, p: string): TradeEffects {
+  const o = asObj(v, p)
+  const keys = Object.keys(o)
+  if (keys.length === 0) fail(`${p} 不能为空对象（没有加成请省略 trade）`)
+  const out: TradeEffects = {}
+  for (const k of keys) {
+    switch (k) {
+      case 'caravans':
+        out.caravans = asNonNeg(o[k], `${p}.caravans`)
+        break
+      case 'cargo':
+        out.cargo = asPos(o[k], `${p}.cargo`)
+        break
+      case 'purse':
+        out.purse = asNonNeg(o[k], `${p}.purse`)
+        break
+      case 'haggleBuy':
+      case 'haggleSell': {
+        const n = asNonNeg(o[k], `${p}.${k}`)
+        if (n > 0.9) fail(`${p}.${k} 太大（${n}）：最多 0.9）`)
+        out[k] = n
+        break
+      }
+      default:
+        fail(`${p}.${k} 不是合法的贸易加成键（允许：caravans / cargo / purse / haggleBuy / haggleSell）`)
+    }
   }
   return out
 }
@@ -872,6 +913,109 @@ function parseEconomy(
 }
 
 // ---------------------------------------------------------------------------
+// 商路（content/routes.json，B3）
+//
+// 契约见 docs/trade-routes.md。这里的校验比别处更"硬"，因为商路**不平衡就崩**：
+//   1. 每座城恰好特产 2 种、需求 3 种，且商品存在、可存储、不是军备 / 服务 / 工具
+//   2. **特产 ∩ 全部需求 = ∅** —— 否则"在 A 城买、到 B 城卖"就是白刷钱
+//   3. 天数必须落在距离价表里（1..5），价表必须齐全
+// ---------------------------------------------------------------------------
+function parseRoutes(raw: unknown, goods: Record<GoodID, GoodDef>): RoutesConfig {
+  const root = asObj(raw, 'routes.json')
+  if (root.schemaVersion !== ROUTES_SCHEMA_VERSION) {
+    fail(`routes.json.schemaVersion 必须是 ${ROUTES_SCHEMA_VERSION}（实际 ${String(root.schemaVersion)}）`)
+  }
+
+  const distance: Record<number, { sellMul: number; buyMul: number }> = {}
+  for (const [i, v] of asArr(root.distance, 'routes.json.distance').entries()) {
+    const p = `routes.json.distance[${i}]`
+    const o = asObj(v, p)
+    const days = asNum(o.days, `${p}.days`)
+    if (!Number.isInteger(days) || days < 1 || days > 5) fail(`${p}.days 必须是 1..5 的整数`)
+    if (distance[days] !== undefined) fail(`${p}.days 重复：${days}`)
+    distance[days] = {
+      sellMul: asPos(o.sellMul, `${p}.sellMul`),
+      buyMul: asPos(o.buyMul, `${p}.buyMul`),
+    }
+  }
+  for (let d = 1; d <= 5; d++) {
+    if (distance[d] === undefined) fail(`routes.json.distance 缺 ${d} 天那一档`)
+  }
+
+  const cv = asObj(root.caravan, 'routes.json.caravan')
+  const caravan = {
+    // 基础商队数可以是 0 —— 「常设商队」那项科技才是第一支（用户口径：研究完才有商队）
+    count: asNonNeg(cv.count, 'routes.json.caravan.count'),
+    maxCount: asPos(cv.maxCount, 'routes.json.caravan.maxCount'),
+    cargo: asPos(cv.cargo, 'routes.json.caravan.cargo'),
+    purse: asNonNeg(cv.purse, 'routes.json.caravan.purse'),
+    roundTrip: cv.roundTrip !== false,
+  }
+  if (caravan.count > caravan.maxCount) {
+    fail(`routes.json.caravan.count（${caravan.count}）不能大于 maxCount（${caravan.maxCount}）`)
+  }
+
+  const mk = asObj(root.market, 'routes.json.market')
+  const market = {
+    specialtyStock: asNonNeg(mk.specialtyStock, 'routes.json.market.specialtyStock'),
+    specialtyDaily: asNonNeg(mk.specialtyDaily, 'routes.json.market.specialtyDaily'),
+    specialtyCap: asNonNeg(mk.specialtyCap, 'routes.json.market.specialtyCap'),
+    demandDaily: asNonNeg(mk.demandDaily, 'routes.json.market.demandDaily'),
+    demandCap: asNonNeg(mk.demandCap, 'routes.json.market.demandCap'),
+  }
+
+  const goodsOf = (v: unknown, p: string): GoodID[] =>
+    asArr(v, p).map((g, j) => {
+      const id = asStr(g, `${p}[${j}]`) as GoodID
+      const def = goods[id]
+      if (!def) fail(`${p}[${j}] 引用了不存在的商品：${id}`)
+      if (def.storable !== true) fail(`${p}[${j}]「${def.nameZh}」不可存储，不能进商路`)
+      if (def.category === 'service' || def.category === 'military' || def.category === 'tool') {
+        fail(`${p}[${j}]「${def.nameZh}」是 ${def.category}，不进商路市场`)
+      }
+      return id
+    })
+
+  const cities: RouteCityDef[] = []
+  const cityIds: string[] = []
+  const allDemand = new Set<string>()
+  const allSpecialty = new Map<string, string>()
+  for (const [i, v] of asArr(root.cities, 'routes.json.cities').entries()) {
+    const p = `routes.json.cities[${i}]`
+    const o = asObj(v, p)
+    const id = asStr(o.id, `${p}.id`)
+    if (cityIds.includes(id)) fail(`${p}.id 重复：${id}`)
+    const days = asNum(o.days, `${p}.days`)
+    if (distance[days] === undefined) fail(`${p}.days = ${days} 不在距离价表里（只能 1..5）`)
+    const specialty = goodsOf(o.specialty, `${p}.specialty`)
+    if (specialty.length !== 2) fail(`${p}.specialty 必须恰好 2 种（实际 ${specialty.length}）`)
+    const demand = goodsOf(o.demand, `${p}.demand`)
+    if (demand.length !== 3) fail(`${p}.demand 必须恰好 3 种（实际 ${demand.length}）`)
+    for (const g of specialty) allSpecialty.set(g, id)
+    for (const g of demand) allDemand.add(g)
+    cities.push({
+      id,
+      nameZh: asStr(o.nameZh, `${p}.nameZh`),
+      lord: asStr(o.lord, `${p}.lord`),
+      days,
+      specialty,
+      demand,
+      unlockChapter: o.unlockChapter === undefined ? 0 : asNonNeg(o.unlockChapter, `${p}.unlockChapter`),
+    })
+    cityIds.push(id)
+  }
+  if (cities.length === 0) fail('routes.json.cities 不能为空')
+  // 倒卖闸门：任何"特产"都不许出现在**任何**城的"需求"里
+  for (const [good, city] of allSpecialty) {
+    if (allDemand.has(good)) {
+      fail(`商品 ${good} 既是「${city}」的特产、又是某座城的需求 —— 会出现"A 城买 B 城卖"的刷钱漏洞`)
+    }
+  }
+
+  return { distance, caravan, market, cities, cityIds }
+}
+
+// ---------------------------------------------------------------------------
 // 科技树（content/technologies.json）
 //
 // 设计见 docs/technology.md。这里除了字段校验，还强制两条结构性规则：
@@ -927,11 +1071,12 @@ function parseTechnologies(
     if (unlocks.buildings.length + unlocks.housing.length === 0) {
       // 纯效率科技（只给 effects、不解锁任何东西）也是合法的 —— 它的价值在加成上。
       // 但两者都没有 = 一项什么都不做的科技，直接报错。
-      if (o.effects === undefined) {
-        fail(`${p} 既没有 unlocks 也没有 effects：科技至少要解锁一座建筑 / 一种住房，或给一项效率加成`)
+      if (o.effects === undefined && o.trade === undefined) {
+        fail(`${p} 既没有 unlocks 也没有 effects / trade：科技至少要解锁一座建筑 / 一种住房，或给一项加成`)
       }
     }
     const effects = o.effects === undefined ? undefined : parseTechEffects(o.effects, `${p}.effects`)
+    const trade = o.trade === undefined ? undefined : parseTradeEffects(o.trade, `${p}.trade`)
     technologies[id] = {
       id,
       nameZh: asStr(o.nameZh, `${p}.nameZh`),
@@ -940,6 +1085,7 @@ function parseTechnologies(
       cost: { goods },
       requires: strList(o.requires, `${p}.requires`),
       ...(effects !== undefined ? { effects } : {}),
+      ...(trade !== undefined ? { trade } : {}),
       unlocks,
     }
     techIds.push(id)
@@ -1381,6 +1527,8 @@ export function parseContent(files: RawContent): ParsedContent {
     techIds: new Set(techIds),
   })
 
+  const routes = parseRoutes(files.routes, goods)
+
   if (packIds.length === 0) fail('packs.json 至少要有一个内容包')
 
   return {
@@ -1394,5 +1542,6 @@ export function parseContent(files: RawContent): ParsedContent {
     technologies, techIds, eraIds,
     quests, questIds, chapters,
     scenes, sceneIds,
+    routes,
   }
 }

@@ -52,8 +52,23 @@ export interface TechBonuses {
   build: number
   /** 三项公共服务（治安 / 医疗 / 教育）的**产出**加成（加法小数）。 */
   services: number
-  /** 工具寿命加成（**取最高**，不叠加）：工具有效天数 × (1 + toolLife)。 */
+/** 工具寿命加成（**取最高**，不叠加）：工具有效天数 × (1 + toolLife)。 */
   toolLife: number
+  /**
+   * 贸易（商路，B3）—— 见 `docs/trade-routes.md` §6。
+   *
+   * 量纲各不相同，所以单独一块：
+   *   · `caravans` **加法**（多几支）
+   *   · `cargo` / `purse` **取最高**（档位值，不是累加）
+   *   · `haggleBuy` / `haggleSell` **加法**（0.10 = 10%）
+   */
+  trade: {
+    caravans: number
+    cargo: number
+    purse: number
+    haggleBuy: number
+    haggleSell: number
+  }
 }
 
 /**
@@ -77,19 +92,29 @@ export function techBonuses(state: GameState, ctx: ContentContext): TechBonuses 
     build: 0,
     services: 0,
     toolLife: 0,
+    trade: { caravans: 0, cargo: 0, purse: 0, haggleBuy: 0, haggleSell: 0 },
   }
   for (const tid of state.research.done) {
     const tech = ctx.technologies[tid]
     const effects = tech?.effects
-    if (!effects) continue
-    // 按固定键序累加：不依赖 `effects` 对象里的键序（内容里怎么排都不影响结果）。
-    for (const k of EFFECT_KEYS) {
-      const v = effects[k]
-      if (v !== undefined) out[k] += v
+    if (effects) {
+      // 按固定键序累加：不依赖 `effects` 对象里的键序（内容里怎么排都不影响结果）。
+      for (const k of EFFECT_KEYS) {
+        const v = effects[k]
+        if (v !== undefined) out[k] += v
+      }
+      for (const k of MAX_KEYS) {
+        const v = effects[k]
+        if (v !== undefined) out[k] = Math.max(out[k], v)
+      }
     }
-    for (const k of MAX_KEYS) {
-      const v = effects[k]
-      if (v !== undefined) out[k] = Math.max(out[k], v)
+    const trade = tech?.trade
+    if (trade) {
+      if (trade.caravans !== undefined) out.trade.caravans += trade.caravans
+      if (trade.cargo !== undefined) out.trade.cargo = Math.max(out.trade.cargo, trade.cargo)
+      if (trade.purse !== undefined) out.trade.purse = Math.max(out.trade.purse, trade.purse)
+      if (trade.haggleBuy !== undefined) out.trade.haggleBuy += trade.haggleBuy
+      if (trade.haggleSell !== undefined) out.trade.haggleSell += trade.haggleSell
     }
   }
   return out

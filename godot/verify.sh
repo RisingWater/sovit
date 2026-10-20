@@ -38,7 +38,7 @@ while [ $# -gt 0 ]; do
       echo "步骤名（按下面的顺序）："
       echo "  import parse smoke move music sfx daylight bartab buildlock panel"
       echo "  consumetip chiptip workerdemolish tech efficiency tools sitetip keys doortest"
-      echo "  footprint iron coal needs merchant tradepanel roofclick multisite upgrade"
+      echo "  footprint iron coal needs merchant routes tradepanel roofclick multisite upgrade"
       echo "  housingupgrade logsave queue sitecancel quest scene questpanel ai glyph"
       echo "  construction research imm minimap map esc savedlg inspector newgame title"
       echo "  intro questtalk occlusion"
@@ -186,6 +186,9 @@ step "iron" "$GODOT_BIN" --headless --path . -s res://tools/iron_test.gd
 step "coal" "$GODOT_BIN" --headless --path . -s res://tools/coal_test.gd
 step "needs" "$GODOT_BIN" --headless --path . -s res://tools/needs_test.gd
 step "merchant" "$GODOT_BIN" --headless --path . -s res://tools/merchant_test.gd
+# 商路（B3）：锁货 / 缺货等 / 钱不够 / 到达结算 / 回家入库 / 只买特产只卖需求 / 市场补给 /
+# 状态可存档 / 价格口径。内容侧的体检在 TS：`npm run check:routes`。
+step "routes" "$GODOT_BIN" --headless --path . -s res://tools/routes_test.gd
 step "tradepanel" "$GODOT_BIN" --headless --path . -s res://tools/tradepanel_test.gd
 step "roofclick" "$GODOT_BIN" --headless --path . -s res://tools/roofclick_test.gd
 step "multisite" "$GODOT_BIN" --headless --path . -s res://tools/multisite_test.gd

@@ -17,6 +17,7 @@ export interface RawContent {
   technologies: unknown
   quests: unknown
   scenes: unknown
+  routes: unknown
 }
 
 const CONTENT_DIR = new URL('../../../content/', import.meta.url)
@@ -42,5 +43,6 @@ export function loadContentFiles(): RawContent {
     technologies: read('technologies.json'),
     quests: read('quests.json'),
     scenes: read('scenes.json'),
+    routes: read('routes.json'),
   }
 }

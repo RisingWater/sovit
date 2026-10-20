@@ -21,9 +21,11 @@ extends SceneTree
 ## 建房走的是 `build_housing` 动作。见 docs/technology.md。
 ## 42 → 53：手工核对时已经涨到 53（几十项解锁建筑/商品的科技陆续加进来）。
 ## 53 → 56：新增 3 项**民生服务**科技（培训 / 民生工程 / 治理，治安+医疗+教育一起加成）。
+## 56 → 72：新增 **16 项贸易科技**（商路 B3：商队 4 / 货箱 3 / 钱箱 3 / 议价买 3 / 议价卖 3），
+## 它们带 `trade` 块、只出现在科技面板的「贸易」页，见 docs/trade-routes.md §6。
 ## **刻意写死**而不是取 `db.tech_ids.size()`：这样"某项科技莫名消失/多出来"
 ## 才会被这条门抓住 —— 用 size 就等于把断言变成恒真式。
-const EXPECTED_TECHS := 56
+const EXPECTED_TECHS := 72
 
 func _init() -> void:
 	call_deferred("_run")
@@ -120,12 +122,17 @@ func _run() -> void:
 
 	var ids_make: Array = panel._ids_for(0)     # 制造
 	var ids_eff: Array = panel._ids_for(1)      # 效率
+	var ids_trade: Array = panel._ids_for(2)    # 贸易（B3）
 	if ids_make.is_empty() or ids_eff.is_empty():
 		_fail("制造 %d 项 / 效率 %d 项 —— 有一页是空的" % [ids_make.size(), ids_eff.size()])
 		return
-	if ids_make.size() + ids_eff.size() != EXPECTED_TECHS:
-		_fail("两页加起来 %d 项，科技总数 %d（有科技两页都不显示）"
-			% [ids_make.size() + ids_eff.size(), EXPECTED_TECHS])
+	# 三棵树加起来必须等于总数：贸易科技只进贸易页，别的科技不进贸易页（`_ids_for` 的互斥）
+	if ids_make.size() + ids_eff.size() + ids_trade.size() != EXPECTED_TECHS:
+		_fail("三页加起来 %d 项，科技总数 %d（有科技哪一页都不显示，或进了两页）"
+			% [ids_make.size() + ids_eff.size() + ids_trade.size(), EXPECTED_TECHS])
+		return
+	if ids_trade.size() != 16:
+		_fail("贸易页应当是 16 项贸易科技，实际 %d" % ids_trade.size())
 		return
 	for t2 in ids_eff:
 		if ids_make.has(t2):
@@ -287,11 +294,12 @@ func _run() -> void:
 	if qpage == null:
 		_fail("科技面板里没有「研究队列」页（QueuePage）")
 		return
-	if panel.get("_tab_btns").size() != 3:
-		_fail("科技面板应当有三个页签（制造 / 效率 / 研究队列），实际 %d"
+	if panel.get("_tab_btns").size() != 4:
+		_fail("科技面板应当有四个页签（制造 / 效率 / 贸易 / 研究队列），实际 %d"
 			% panel.get("_tab_btns").size())
 		return
-	panel._select_tab(2)
+	# 页签顺序：制造(0) 效率(1) 贸易(2) 研究队列(3)
+	panel._select_tab(3)
 	await process_frame
 	if not (qpage as Control).visible:
 		_fail("切到「研究队列」页之后它没显示出来")
@@ -308,7 +316,7 @@ func _run() -> void:
 	await process_frame
 	var tech2 := String(db.tech_ids[1])
 	sim.enqueue([{"type": "research", "techId": tech2}])
-	panel._select_tab(2)
+	panel._select_tab(3)
 	await process_frame
 	await process_frame
 	var order_before := []

@@ -19,6 +19,8 @@ import { applyResearchHours, planResearchDay, settleResearch, activateResearch }
 import { allocateTools } from './systems/tools.ts'
 import { checkQuests } from './systems/quests.ts'
 import { updateCaravans } from './systems/caravan.ts'
+import { updateRoutes } from './systems/routes.ts'
+import { techBonuses } from './systems/tech_bonus.ts'
 
 // ---------------------------------------------------------------------------
 // 每日结算（小时制）
@@ -82,6 +84,10 @@ export function runDawn(state: GameState, ctx: ContentContext): { logs: LogEntry
   // 取消建造要往公告里写「退回了什么」，所以把 logs 传进去（见 applyActions 的说明）
   const applied = applyActions(state, ctx, state.pending, logs)
   state.pending = []
+
+  // 商路（B3）：**先结算、后派车**。放在 applyActions 之后（今天的命令已落地）、
+  // activateCompleted 之前 —— 买到的货在这一步就进了仓库，后面的排产当天就能用上。
+  logs.push(...updateRoutes(state, ctx, techBonuses(state, ctx), state.day))
 
   logs.push(...activateCompleted(state, ctx, state.day))
   logs.push(...activateResearch(state, ctx, state.day))
@@ -218,6 +224,12 @@ export const IMMEDIATE_ACTIONS: readonly Action['type'][] = [
   'cancel_research',
   'move_research',
   'gift',
+  // 商路（B3）：派车 / 取消 / 改预算 / 改数量 —— 都不花资源，只动配置与"把货搬进搬出商队"，
+  // 和研究队列、`gift` 同一条口径（用户："点完就该看到变化"）。
+  'route_assign',
+  'route_unassign',
+  'route_set_budget',
+  'route_set_sell',
 ]
 
 /**

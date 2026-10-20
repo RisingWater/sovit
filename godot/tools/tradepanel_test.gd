@@ -57,14 +57,17 @@ func _run() -> void:
 	if absf(panel.offset_top - float(UIKit.BAR_H)) > 0.001:
 		_fail("贸易面板的 offset_top 是 %.0f，应当留出顶栏 %.0f" % [panel.offset_top, UIKit.BAR_H])
 		return
-	# 页签：游商 只是其中一个（用户："游商只是一个tab"）
+	# 页签：**地图 / 商路 / 游商**（2026-10 商路 B3 落地后，游商不再是第一个）
 	var tabs: Array = panel.get("_tab_btns")
-	if tabs.size() < 2:
-		_fail("贸易面板只有 %d 个页签（至少要「游商」+「商路」）" % tabs.size())
+	if tabs.size() < 3:
+		_fail("贸易面板只有 %d 个页签（应当「地图」+「商路」+「游商」）" % tabs.size())
 		return
-	if String((tabs[0] as Button).text) != "游商":
-		_fail("第一个页签是「%s」，应当是「游商」" % String((tabs[0] as Button).text))
-		return
+	var want_tabs := ["地图", "商路", "游商"]
+	for i in want_tabs.size():
+		if String((tabs[i] as Button).text) != String(want_tabs[i]):
+			_fail("第 %d 个页签是「%s」，应当是「%s」" % [
+				i + 1, String((tabs[i] as Button).text), String(want_tabs[i])])
+			return
 	# 右下角顾问立绘：薇拉（兼管贸易）
 	var portrait = panel.find_child("Portrait", true, false)
 	if portrait == null:
@@ -76,7 +79,7 @@ func _run() -> void:
 	if portrait.get("tex") == null:
 		_fail("薇拉的立绘贴图没载进来（assets/portraits/vera.png）")
 		return
-	print("TRADEPANEL TEST 版式：全屏 + %d 个页签（游商 / 商路）+ 薇拉立绘 ✅" % tabs.size())
+	print("TRADEPANEL TEST 版式：全屏 + %d 个页签（地图 / 商路 / 游商）+ 薇拉立绘 ✅" % tabs.size())
 
 	var body: VBoxContainer = panel.get("_body")
 	if body == null or body.get_child_count() == 0:

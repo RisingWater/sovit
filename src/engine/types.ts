@@ -53,6 +53,25 @@ export type TechEffectKey = Sector | 'research' | 'build' | 'toolLife' | 'servic
  */
 export type TechEffects = Partial<Record<TechEffectKey, number>>
 
+/**
+ * 贸易科技的效果（B3，见 `docs/trade-routes.md` §6 与 `systems/routes.ts`）。
+ *
+ * ⚠️ 和 `TechEffects` 分开写：那一类是"百分比加成、加法叠加"，这一类的量纲各不相同 ——
+ * 商队数是**加法**、载货 / 带钱是**取最高**、议价是**加法**。混在一个表里迟早算错。
+ */
+export interface TradeEffects {
+  /** +N 支商队（加法）。 */
+  caravans?: number
+  /** 单程载货上限（**取最高**，不是叠加）。 */
+  cargo?: number
+  /** 带钱上限（**取最高**）。 */
+  purse?: number
+  /** 买价折扣（加法，0.10 = 便宜 10%）。 */
+  haggleBuy?: number
+  /** 卖价加成（加法，0.10 = 贵 10%）。 */
+  haggleSell?: number
+}
+
 // ---------------------------------------------------------------------------
 // 内容定义（静态数据）
 // ---------------------------------------------------------------------------
@@ -435,6 +454,24 @@ export interface DayLedger {
    * 用户 2026-10："居民消耗应该是哪个等级的居民消耗了多少，比如中产 x11 消耗多少资源。"
    */
   boughtBy: Record<string, Record<string, number>>
+  /**
+   * 商路（B3，用户 2026-10）：当日的出口所得 / 进口花费 / 进出数量。
+   *
+   * `routeExport` / `routeImport` 是**钱**（财务页两行），`routeOut` / `routeIn` 是
+   * **件数**（资源页「出口/日」「进口/日」两列，取近 7 天均值）。
+   * 面板不自己算 —— 谁真的收了钱 / 搬了货，谁就往这里写。
+   */
+  routeExport: number
+  routeImport: number
+  routeOut: Record<string, number>
+  routeIn: Record<string, number>
+  /**
+   * 游商（M4）当日收到的钱。
+   *
+   * ⚠️ 以前 `sellToCaravan` 把钱记进 `sales`（居民消费回款），财务页的「消费收入」
+   * 就混进了游商的钱。B3 单列出来（用户："财政面板要加入商路的进出口收益、游商的收益"）。
+   */
+  merchantSell: number
 }
 
 export interface Construction {
@@ -483,6 +520,10 @@ export interface TechDef {
    * 键只有 5 个：`agri` / `goods` / `material`（产出）、`research`（科研速度）、`build`（建造速度）。
    */
   effects?: TechEffects
+  /**
+   * 贸易科技（B3）：带这个块的科技只出现在科技面板「贸易」页，效果见 `TradeEffects`。
+   */
+  trade?: TradeEffects
   /** 本科技解锁的建筑与住房。每座建筑至多被一项科技解锁。 */
   unlocks: { buildings: BuildingID[]; housing: GoodID[] }
 }
@@ -863,6 +904,90 @@ export interface TradeState {
   introShown: boolean
 }
 
+// ---------------------------------------------------------------------------
+// 商路（B3，见 docs/trade-routes.md）
+// ---------------------------------------------------------------------------
+
+/** 一座目的地城市（内容 `content/routes.json`）。 */
+export interface RouteCityDef {
+  id: string
+  nameZh: string
+  lord: string
+  /** 单程天数（1–5）。 */
+  days: number
+  /** 特产 2 种：**只能从这里买**。 */
+  specialty: GoodID[]
+  /** 需求 3 种：**只能卖给它**。 */
+  demand: GoodID[]
+  /** 章节解锁（0 = 商路一开通就能去）。 */
+  unlockChapter: number
+}
+
+/** `routes.json` 里那个"距离 → 买卖倍率"的表。 */
+export interface RouteDistanceStep {
+  days: number
+  sellMul: number
+  buyMul: number
+}
+
+export interface RoutesConfig {
+  /** `days → { sellMul, buyMul }`。 */
+  distance: Record<number, { sellMul: number; buyMul: number }>
+  caravan: { count: number; maxCount: number; cargo: number; purse: number; roundTrip: boolean }
+  market: {
+    specialtyStock: number
+    specialtyDaily: number
+    specialtyCap: number
+    demandDaily: number
+    demandCap: number
+  }
+  cities: RouteCityDef[]
+  cityIds: string[]
+}
+
+/** 一支商队 + 它当前挂着的那条商路。 */
+export interface TradeRoute {
+  /** `route_1`…`route_5`，与商队槽位一一对应。 */
+  id: string
+  /** null = 这支商队还没派活。 */
+  cityId: string | null
+  phase: 'home' | 'out' | 'back'
+  /** 本趟出发日 / 到达日 / 回家日（0 = 从没跑过）。 */
+  departDay: number
+  arriveDay: number
+  backDay: number
+  /** 配置：购买预算（带上路的钱）。 */
+  budget: number
+  /** 配置：出售数量（商品 → 件数）。 */
+  sellPlan: Record<string, number>
+  /** 已锁的卖货（在家等着出发时才非空）。 */
+  loaded: Record<string, number>
+  /** 已锁的带出钱。 */
+  cash: number
+  /** 回程载着的买货。 */
+  cart: Record<string, number>
+  /** 本趟卖出所得 / 买入花费。 */
+  revenue: number
+  spent: number
+  /** 上一趟回家那天（面板写"3 天前"）。 */
+  lastTripDay: number
+  /** 最后一次往公告里写"停在村里缺货"是哪天（同一天只写一条，别刷屏）。 */
+  lastStuckDay: number
+}
+
+export interface RouteMarket {
+  /** 特产库存（商品 → 件数）。 */
+  specialty: Record<string, number>
+  /** 需求池（商品 → 件数）：这座城市还能吃多少。 */
+  demand: Record<string, number>
+}
+
+export interface RouteState {
+  routes: TradeRoute[]
+  /** `cityId → 市场`。 */
+  market: Record<string, RouteMarket>
+}
+
 export interface Government {  money: number
   /** 累进所得税税表（可运行时调整）。最后一段 upTo 为 null 表示无上限。 */
   taxBrackets: TaxBracket[]
@@ -915,6 +1040,8 @@ export interface LogEntry {
     | 'invest'
     | 'alert'
     | 'storage'
+    /** 商路（B3）：出发 / 到达 / 回家 / 停在村里。 */
+    | 'trade'
     | 'info'
   text: string
 }
@@ -998,6 +1125,13 @@ export interface GameState {
   townCenter: { stage: RepairStage }
   /** 游商（M4）：在场队伍 / 下一批到达日 / 批次号 / 首遇剧情。见 `systems/caravan.ts`。 */
   trade: TradeState
+  /**
+   * 商路（B3）：车队列表 + 各城市场库存。见 `systems/routes.ts` 与 `docs/trade-routes.md`。
+   *
+   * ⚠️ 商队（caravan）和**游商**（`trade.caravans`）是两套东西：游商是谷口来的货郎，
+   * 商路是我们自己派出去的车队。
+   */
+  routes: RouteState
 
   /** 当日台账累加器：黎明清零，夜间结算时挂到当天快照上。 */
   ledgerToday: DayLedger
@@ -1146,6 +1280,20 @@ export type Action =
    * `to` = 收礼人的 id（`serafina`）；`qty` 取非负整数，仓库不够就整单不做。
    */
   | { type: 'gift'; to: string; goodId: GoodID; qty: number }
+  /**
+   * 商路（B3）：把某座城派给**第一支空闲商队**。
+   *
+   * 与 `research` / `gift` 一样**当场生效**（`IMMEDIATE_ACTIONS`）—— 它不花任何资源，
+   * 只是给一支在家闲着和商队挂上目的地，没理由等到 6:00。
+   * 没有空闲商队时拒绝并给原因。
+   */
+  | { type: 'route_assign'; cityId: string }
+  /** 商路：取消一条商路（已锁的货与带出的钱退回）。 */
+  | { type: 'route_unassign'; routeId: string }
+  /** 商路：改购买预算（夹到钱箱上限）。 */
+  | { type: 'route_set_budget'; routeId: string; value: number }
+  /** 商路：改某项出售数量（夹到载货上限）。 */
+  | { type: 'route_set_sell'; routeId: string; goodId: GoodID; qty: number }
   | { type: 'end_turn' }
 
 export interface AppliedAction {

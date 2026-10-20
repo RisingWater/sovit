@@ -1,0 +1,129 @@
+{
+  "schemaVersion": 1,
+
+  "distance": [
+    { "days": 1, "sellMul": 1.0, "buyMul": 2.0 },
+    { "days": 2, "sellMul": 2.2, "buyMul": 1.5 },
+    { "days": 3, "sellMul": 3.5, "buyMul": 1.0 },
+    { "days": 4, "sellMul": 4.8, "buyMul": 0.8 },
+    { "days": 5, "sellMul": 6.0, "buyMul": 0.6 }
+  ],
+
+  "caravan": {
+    "count": 0,
+    "maxCount": 5,
+    "cargo": 40,
+    "purse": 800,
+    "roundTrip": true
+  },
+
+  "market": {
+    "specialtyStock": 100,
+    "specialtyDaily": 40,
+    "specialtyCap": 200,
+    "demandDaily": 40,
+    "demandCap": 200
+  },
+
+  "cities": [
+    {
+      "id": "jade",
+      "nameZh": "翡翠城",
+      "lord": "女王 艾瑟琳",
+      "days": 1,
+      "specialty": ["fine_cloth", "dye"],
+      "demand": ["wood", "brick", "coarse_cloth"],
+      "unlockChapter": 0
+    },
+    {
+      "id": "golden_ear",
+      "nameZh": "金穗城",
+      "lord": "狄奥多",
+      "days": 1,
+      "specialty": ["sugar", "sugarcane"],
+      "demand": ["firewood", "pottery", "stone"],
+      "unlockChapter": 0
+    },
+    {
+      "id": "dawn",
+      "nameZh": "曙光城",
+      "lord": "伊莲娜",
+      "days": 2,
+      "specialty": ["flax", "potion"],
+      "demand": ["white_bread", "common_clothes", "pottery"],
+      "unlockChapter": 0
+    },
+    {
+      "id": "iron_crown",
+      "nameZh": "铁王城",
+      "lord": "阿尔伯特",
+      "days": 2,
+      "specialty": ["luxury_clothes", "porcelain"],
+      "demand": ["wood", "clay", "coarse_flour"],
+      "unlockChapter": 0
+    },
+    {
+      "id": "capital",
+      "nameZh": "王都",
+      "lord": "奥德里克三世",
+      "days": 3,
+      "specialty": ["iron", "leather_clothes"],
+      "demand": ["pastry", "white_bread", "common_clothes"],
+      "unlockChapter": 0
+    },
+    {
+      "id": "blackstone",
+      "nameZh": "黑石堡",
+      "lord": "弗雷德里克",
+      "days": 3,
+      "specialty": ["coal", "iron_ore"],
+      "demand": ["wheat", "coarse_bread", "firewood"],
+      "unlockChapter": 0
+    },
+    {
+      "id": "holy_flame",
+      "nameZh": "圣火城",
+      "lord": "塞德里克",
+      "days": 4,
+      "specialty": ["herbs", "dye"],
+      "demand": ["fine_flour", "white_bread", "pottery"],
+      "unlockChapter": 0
+    },
+    {
+      "id": "khan",
+      "nameZh": "汗庭",
+      "lord": "巴图尔",
+      "days": 4,
+      "specialty": ["hide", "dried_meat"],
+      "demand": ["coarse_cloth", "pottery", "coarse_clothes"],
+      "unlockChapter": 0
+    },
+    {
+      "id": "iron_rook",
+      "nameZh": "铁鸦堡",
+      "lord": "伯纳德",
+      "days": 4,
+      "specialty": ["iron", "iron_ore"],
+      "demand": ["wheat", "coarse_cloth", "brick"],
+      "unlockChapter": 0
+    },
+    {
+      "id": "holy_see",
+      "nameZh": "圣都",
+      "lord": "格里高利",
+      "days": 5,
+      "specialty": ["potion", "porcelain"],
+      "demand": ["white_bread", "common_clothes", "pastry"],
+      "unlockChapter": 0
+    },
+    {
+      "id": "peak",
+      "nameZh": "铁峰城",
+      "lord": "赫尔曼",
+      "days": 5,
+      "specialty": ["iron_ore", "coal"],
+      "demand": ["wheat", "coarse_flour", "coarse_cloth"],
+      "unlockChapter": 0
+    }
+  ]
+}

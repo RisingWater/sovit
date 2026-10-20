@@ -135,6 +135,11 @@ function stageThroughChapter3(s: GameState): void {
       bought: {},
       consumedBy: {},
       boughtBy: {},
+      routeExport: 0,
+      routeImport: 0,
+      routeOut: {},
+      routeIn: {},
+      merchantSell: 0,
     },
   })
 }

@@ -3,6 +3,7 @@ import { ALL_BUILDINGS, ALL_GOODS, buildContext } from './content/index.ts'
 import { DEFAULTS, ECONOMY } from './config.ts'
 import { createRng } from './rng.ts'
 import { defaultWageFor } from './systems/wages.ts'
+import { emptyRoutes } from './systems/routes.ts'
 
 /** 空白台账 / 空白个人账目。逐人账目与每日台账分开放，方便将来做差异化分配。 */
 export function emptyLedger(day: number): DayLedger {
@@ -19,6 +20,12 @@ export function emptyLedger(day: number): DayLedger {
     // 拆分表：面板 tooltip 用（谁消耗了哪样东西）—— 见 types.ts::DayLedger
     consumedBy: {},
     boughtBy: {},
+    // 商路（B3）与游商：钱与件数分开记，面板各取各的
+    routeExport: 0,
+    routeImport: 0,
+    routeOut: {},
+    routeIn: {},
+    merchantSell: 0,
   }
 }
 
@@ -156,6 +163,9 @@ export function createInitialState(options: CreateOptions = {}): GameState {
     // ⚠️ 仿真的任何数字都不读它 —— 和 `prophet` 一样"只记事、不演化"。
     townCenter: { stage: 'ruined' },
     trade: { caravans: [], nextWaveDay: 1, wave: 0, introShown: false },
+    // 商路（B3）：车队槽位 + 各城市场。`caravan.count` 是**基础**商队数（0 = 得先研究
+    // 「常设商队」），科技会往上加，见 systems/routes.ts::syncRouteCount。
+    routes: emptyRoutes(ctx),
     ledgerToday: emptyLedger(0),
     // 当日建造力预算：由黎明 planConstructionDay 钉死（开局为 0，黎明那一小时算出来）
     constructionRateToday: 0,

@@ -395,8 +395,8 @@ func _run() -> void:
 	print("QUESTTALK TEST 城镇中心：破旧 → 初步修缮 → 修好，三张贴图各就各位 ✅")
 
 	# ---- 5. 存档版本：2 起不兼容老档 -------------------------------------
-	if SaveManager.SAVE_VERSION != 5:
-		_fail("存档版本应当是 4（M4 游商；用户：版本更新，存档不跟之前兼容）")
+	if SaveManager.SAVE_VERSION != 6:
+		_fail("存档版本应当是 6（B3 商路：state.routes + 台账 5 个字段；用户：版本更新，存档不跟之前兼容）")
 		return
 	var path := "user://qtt_v1.json"
 	var f := FileAccess.open(path, FileAccess.WRITE)
@@ -409,7 +409,7 @@ func _run() -> void:
 		_fail("v1 老存档居然还能读进来（用户要求不兼容）")
 		return
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
-	print("QUESTTALK TEST 存档：SAVE_VERSION=5，老档被拒 ✅")
+	print("QUESTTALK TEST 存档：SAVE_VERSION=6，老档被拒 ✅")
 
 	print("QUESTTALK TEST RESULT: PASS")
 	quit(0)

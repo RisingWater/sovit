@@ -20,6 +20,10 @@ var chapters: Array = []        # [{id, title, reward, gapDays, outro}]
 ## 数据源 `content/scenes.json`，判定与播放在 `sim_core.gd`（`_scene_ready` 等）。
 var scenes: Array = []
 var scene_ids: Array = []
+## 商路（B3，用户 2026-10）：`content/routes.json` 的整份内容 ——
+## `{distance: [...], caravan: {...}, market: {...}, cities: [...]}`。
+## 判定与结算在 `sim_core.gd::_update_routes()`，与 TS `systems/routes.ts` 同口径。
+var routes: Dictionary = {}
 ## `quests.json` 自己的 schema 版本（2 起有 giver / outro / building_repaired）。
 ## 与 `schema_version`（economy.json，还是 1）分开记，见 docs/quests.md §七。
 var quests_schema_version: int = 0
@@ -130,6 +134,9 @@ func _load() -> void:
 			# 效率加成（可选）：{agri/goods/material/research/build: 加成小数}。
 			# 语义与聚合方式见 docs/spec.md（**加法**叠加，不是连乘）。
 			"effects": it.get("effects", {}),
+			# 贸易加成（可选，B3）：{caravans / cargo / purse / haggleBuy / haggleSell}。
+			# 聚合方式见 sim_core.gd::tech_bonuses()（商队加法、载货/带钱取最高、议价加法）。
+			"trade": it.get("trade", {}),
 			"unlocks": {
 				"buildings": unlocks.get("buildings", []),
 				"housing": unlocks.get("housing", []),
@@ -198,6 +205,11 @@ func _load() -> void:
 	defaults = e["defaults"]
 	tuning = e["tuning"]
 	time = e["time"]
+
+	# 商路（B3）：整份原样保留 —— 结构校验在 TS 侧（`validate.ts::parseRoutes`），
+	# Godot 这边只需要读，不需要重复校验（`check:routes` 是那道闸）。
+	var rt: Dictionary = _read_json("routes.json")
+	routes = rt if rt != null else {}
 
 ## 商品 category 的中文名。
 ##

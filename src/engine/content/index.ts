@@ -13,6 +13,7 @@ import type {
   QuestID,
   RecipeDef,
   RecipeID,
+  RoutesConfig,
   SceneDef,
   TechDef,
   TechID,
@@ -53,6 +54,8 @@ export const QUEST_IDS: QuestID[] = CONTENT.questIds
 export const QUEST_CHAPTERS: QuestChapterDef[] = CONTENT.chapters
 export const ALL_SCENES: Record<string, SceneDef> = CONTENT.scenes
 export const SCENE_IDS: string[] = CONTENT.sceneIds
+
+export const ROUTES = CONTENT.routes
 
 /** 某建筑由哪项科技解锁；返回 undefined 表示「开局即可建」（没有科技锁）。 */
 export function techUnlockingBuilding(buildingId: BuildingID): TechID | undefined {
@@ -96,6 +99,8 @@ export interface ContentContext {
   /** 场次（不挂任务的戏，见 `content/scenes.json` 与 `systems/scenes.ts`）。 */
   scenes: Record<string, SceneDef>
   sceneIds: string[]
+  /** 商路（B3）：目的地 + 距离价表 + 商队 / 市场数值。见 `docs/trade-routes.md`。 */
+  routes: RoutesConfig
   goodSet: Set<GoodID>
   buildingSet: Set<BuildingID>
   classSet: Set<ClassID>
@@ -117,6 +122,7 @@ export function buildContext(packId: PackID): ContentContext {
     chapters: QUEST_CHAPTERS,
     scenes: ALL_SCENES,
     sceneIds: SCENE_IDS,
+    routes: ROUTES,
     goodSet: new Set(pack.goods),
     buildingSet: new Set(pack.buildings),
     classSet: new Set(pack.classes),

@@ -534,6 +534,167 @@
       "requires": ["public_works"],
       "effects": { "services": 0.30 },
       "unlocks": { "buildings": [], "housing": [] }
+    },
+
+    {
+      "id": "trade_caravan_1",
+      "nameZh": "常设商队",
+      "era": 3,
+      "research": 60,
+      "cost": { "goods": { "wood": 30, "pottery": 20 } },
+      "requires": ["trade"],
+      "trade": { "caravans": 1 },
+      "unlocks": { "buildings": [], "housing": [] }
+    },
+    {
+      "id": "trade_caravan_2",
+      "nameZh": "副队随行",
+      "era": 4,
+      "research": 80,
+      "cost": { "goods": { "wood": 40, "clay": 20 } },
+      "requires": ["trade_caravan_1"],
+      "trade": { "caravans": 1 },
+      "unlocks": { "buildings": [], "housing": [] }
+    },
+    {
+      "id": "trade_caravan_3",
+      "nameZh": "三队并进",
+      "era": 4,
+      "research": 100,
+      "cost": { "goods": { "wood": 50, "clay": 30 } },
+      "requires": ["trade_caravan_2"],
+      "trade": { "caravans": 1 },
+      "unlocks": { "buildings": [], "housing": [] }
+    },
+    {
+      "id": "trade_caravan_4",
+      "nameZh": "车马行会",
+      "era": 5,
+      "research": 130,
+      "cost": { "goods": { "wood": 60, "clay": 40 } },
+      "requires": ["trade_caravan_3"],
+      "trade": { "caravans": 2 },
+      "unlocks": { "buildings": [], "housing": [] }
+    },
+    {
+      "id": "cargo_hold_1",
+      "nameZh": "加固货箱",
+      "era": 3,
+      "research": 60,
+      "cost": { "goods": { "wood": 30, "clay": 15 } },
+      "requires": ["trade_caravan_1"],
+      "trade": { "cargo": 80 },
+      "unlocks": { "buildings": [], "housing": [] }
+    },
+    {
+      "id": "cargo_hold_2",
+      "nameZh": "双辕货车",
+      "era": 4,
+      "research": 85,
+      "cost": { "goods": { "wood": 40, "clay": 20 } },
+      "requires": ["cargo_hold_1"],
+      "trade": { "cargo": 120 },
+      "unlocks": { "buildings": [], "housing": [] }
+    },
+    {
+      "id": "cargo_hold_3",
+      "nameZh": "驮队扩编",
+      "era": 5,
+      "research": 110,
+      "cost": { "goods": { "wood": 50, "clay": 30 } },
+      "requires": ["cargo_hold_2"],
+      "trade": { "cargo": 160 },
+      "unlocks": { "buildings": [], "housing": [] }
+    },
+    {
+      "id": "strongbox_1",
+      "nameZh": "铁箍钱箱",
+      "era": 3,
+      "research": 55,
+      "cost": { "goods": { "wood": 20, "iron": 10 } },
+      "requires": ["trade_caravan_1", "ironworking"],
+      "trade": { "purse": 1800 },
+      "unlocks": { "buildings": [], "housing": [] }
+    },
+    {
+      "id": "strongbox_2",
+      "nameZh": "双锁钱柜",
+      "era": 4,
+      "research": 80,
+      "cost": { "goods": { "iron": 20, "brick": 15 } },
+      "requires": ["strongbox_1", "brickmaking"],
+      "trade": { "purse": 3500 },
+      "unlocks": { "buildings": [], "housing": [] }
+    },
+    {
+      "id": "strongbox_3",
+      "nameZh": "王家信用证",
+      "era": 5,
+      "research": 105,
+      "cost": { "goods": { "iron": 20, "brick": 25 } },
+      "requires": ["strongbox_2"],
+      "trade": { "purse": 6000 },
+      "unlocks": { "buildings": [], "housing": [] }
+    },
+    {
+      "id": "haggle_buy_1",
+      "nameZh": "低买初阶",
+      "era": 3,
+      "research": 45,
+      "cost": { "goods": { "pottery": 15, "wood": 15 } },
+      "requires": ["trade_caravan_1"],
+      "trade": { "haggleBuy": 0.10 },
+      "unlocks": { "buildings": [], "housing": [] }
+    },
+    {
+      "id": "haggle_buy_2",
+      "nameZh": "低买中阶",
+      "era": 4,
+      "research": 65,
+      "cost": { "goods": { "pottery": 20, "clay": 10 } },
+      "requires": ["haggle_buy_1"],
+      "trade": { "haggleBuy": 0.10 },
+      "unlocks": { "buildings": [], "housing": [] }
+    },
+    {
+      "id": "haggle_buy_3",
+      "nameZh": "低买高阶",
+      "era": 5,
+      "research": 85,
+      "cost": { "goods": { "pottery": 25, "clay": 20 } },
+      "requires": ["haggle_buy_2"],
+      "trade": { "haggleBuy": 0.10 },
+      "unlocks": { "buildings": [], "housing": [] }
+    },
+    {
+      "id": "haggle_sell_1",
+      "nameZh": "高卖初阶",
+      "era": 3,
+      "research": 45,
+      "cost": { "goods": { "pottery": 15, "coarse_cloth": 15 } },
+      "requires": ["trade_caravan_1", "coarse_weaving"],
+      "trade": { "haggleSell": 0.10 },
+      "unlocks": { "buildings": [], "housing": [] }
+    },
+    {
+      "id": "haggle_sell_2",
+      "nameZh": "高卖中阶",
+      "era": 4,
+      "research": 65,
+      "cost": { "goods": { "pottery": 20, "coarse_cloth": 20 } },
+      "requires": ["haggle_sell_1"],
+      "trade": { "haggleSell": 0.10 },
+      "unlocks": { "buildings": [], "housing": [] }
+    },
+    {
+      "id": "haggle_sell_3",
+      "nameZh": "高卖高阶",
+      "era": 5,
+      "research": 85,
+      "cost": { "goods": { "pottery": 25, "coarse_cloth": 30 } },
+      "requires": ["haggle_sell_2"],
+      "trade": { "haggleSell": 0.10 },
+      "unlocks": { "buildings": [], "housing": [] }
     }
   ]
 }

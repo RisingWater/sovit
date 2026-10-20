@@ -62,8 +62,10 @@ var _built_kind := -1
 # 现在 **制造 / 效率** 各一棵树（同一套布局算法，只换 tech 子集），研究队列仍是第三个。
 const TAB_MAKE := 0
 const TAB_EFF := 1
-const TAB_QUEUE := 2
-const TAB_NAMES := ["制造", "效率", "研究队列"]
+## 贸易（B3，用户 2026-10："科技面板要单独加一个贸易 tab"）：带 `trade` 块的科技。
+const TAB_TRADE := 2
+const TAB_QUEUE := 3
+const TAB_NAMES := ["制造", "效率", "贸易", "研究队列"]
 var _tab := TAB_MAKE
 var _tab_btns: Array = []
 var _queue_page: Control
@@ -289,6 +291,15 @@ func _ids_for(kind: int) -> Array:
 		var has_unlock: bool = not (unlocks.get("buildings", []) as Array).is_empty() \
 			or not (unlocks.get("housing", []) as Array).is_empty()
 		var has_effect: bool = not (tech.get("effects", {}) as Dictionary).is_empty()
+		# 贸易（B3）：带 `trade` 块的科技**只进贸易页** —— 它既不解锁建筑也不给效率加成，
+		# 混进制造 / 效率页只会让人以为点它没效果（用户 2026-10："科技面板单独加一个贸易 tab"）。
+		var has_trade: bool = not (tech.get("trade", {}) as Dictionary).is_empty()
+		if kind == TAB_TRADE:
+			if has_trade:
+				out.append(t)
+			continue
+		if has_trade:
+			continue
 		if kind == TAB_EFF:
 			if has_effect:
 				out.append(t)

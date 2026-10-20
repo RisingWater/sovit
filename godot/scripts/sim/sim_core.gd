@@ -21,7 +21,9 @@ func _init(content: ContentDB) -> void:
 ## 2026-10-20 加了 `gift`（用户："提交任务，要马上减少物资怎么能次日生效呢？……提交了任务
 ## 直接完成。任务完成不用等到 6:00 吧，这样游戏体验很差。"）：当面交东西 → 货当场扣、
 ## 任务当场结算（见 `_apply_immediate` 末尾那一趟 `_check_quests`）。
-const IMMEDIATE_ACTIONS := ["research", "cancel_research", "move_research", "gift"]
+const IMMEDIATE_ACTIONS := ["research", "cancel_research", "move_research", "gift",
+	# 商路（B3）：派车 / 取消 / 改预算 / 改数量 —— 都不花资源，只动配置与"把货搬进搬出商队"
+	"route_assign", "route_unassign", "route_set_budget", "route_set_sell"]
 
 ## 当场应用一条动作，并把它的公告并进 `s["log"]`（与 `tick_hour` 末尾同一口径，上限 500）。
 ##
@@ -200,6 +202,9 @@ func new_game(pack_id: String, seed_value: int, resource_mult: float = 1.0) -> v
 		"townCenter": {"stage": "ruined"},
 		# 游商（M4）：在场队伍 / 下一批到达日 / 批次号 / 首遇剧情。见 docs/needs.md §9
 		"trade": {"caravans": [], "nextWaveDay": 1, "wave": 0, "introShown": false},
+		# 商路（B3）：车队槽位 + 各城市场。见 systems/routes.ts 与 docs/trade-routes.md。
+		# `db.routes.caravan.count` 是**基础**商队数（0 = 得先研究「常设商队」）。
+		"routes": _empty_routes(),
 		# 科技：开局已研究的来自 pack.start.techs（见 docs/technology.md）
 		"research": {"done": _start_techs(pack_id), "queue": []},
 		# 任务（引导系统）：完成记录 + 章节奖励记录。判定与发钱都在黎明，
@@ -254,6 +259,10 @@ func _empty_ledger(day: int) -> Dictionary:
 		"produced": {}, "consumed": {}, "bought": {},
 		# 拆分表：面板 tooltip 用（谁消耗了哪样东西）—— 见 TS 的 DayLedger
 		"consumedBy": {}, "boughtBy": {},
+		# 商路（B3）：钱与件数分栏记 —— 财务页三行（出口 / 进口 / 游商）读钱，
+		# 资源页两列（出口·进口 件/日）读件数。见 systems/routes.ts 与 docs/trade-routes.md。
+		"routeExport": 0.0, "routeImport": 0.0, "routeOut": {}, "routeIn": {},
+		"merchantSell": 0.0,
 		# 公共事业补贴（2026-10）：公共建筑的工资支出，台账口径，不参与任何计算
 		"publicSubsidy": 0.0}
 
@@ -331,6 +340,10 @@ func _run_dawn() -> Array:
 	# 否则"退回了什么"既不在公告里、也不进存档。
 	logs.append_array(_apply_actions(s["pending"]))
 	s["pending"] = []
+	# 商路（B3）：**先结算、后派车**。放在 _apply_actions 之后（今天的命令已落地）、
+	# 完工 / 科技生效之前 —— 买到的货在这一步就进了仓库，后面的排产当天就能用上。
+	# 与 TS 侧 tick.ts::runDawn 的插入点一致。
+	logs.append_array(_update_routes(int(s["day"])))
 	logs.append_array(_activate_completed())
 	logs.append_array(_activate_research())
 	_assign_labor()
@@ -481,6 +494,26 @@ func _apply_actions(actions: Array) -> Array:
 				var why_buy := buy_from_caravan(String(action["caravanId"]), String(action["goodId"]), int(action["qty"]))
 				if why_buy != "":
 					logs.append({"day": int(s["day"]), "kind": "finance", "text": "买入被拒：" + why_buy})
+			# ---- 商路（B3）：四条都走 IMMEDIATE_ACTIONS，当场生效 -------------
+			# 理由与研究队列 / `gift` 同一条：不花任何资源，只动"配置"与"把货搬进搬出商队"，
+			# 点完就该看到变化，等到 6:00 只会以为没点动。
+			"route_assign":
+				var why_assign := assign_route(String(action.get("cityId", "")))
+				if why_assign != "":
+					logs.append({"day": int(s["day"]), "kind": "trade", "text": "派车被拒：" + why_assign})
+			"route_unassign":
+				var why_unassign := unassign_route(String(action.get("routeId", "")))
+				if why_unassign != "":
+					logs.append({"day": int(s["day"]), "kind": "trade", "text": "取消商路被拒：" + why_unassign})
+			"route_set_budget":
+				var why_budget := set_route_budget(String(action.get("routeId", "")), float(action.get("value", 0.0)))
+				if why_budget != "":
+					logs.append({"day": int(s["day"]), "kind": "trade", "text": "改预算被拒：" + why_budget})
+			"route_set_sell":
+				var why_sell := set_route_sell(String(action.get("routeId", "")),
+					String(action.get("goodId", "")), int(action.get("qty", 0)))
+				if why_sell != "":
+					logs.append({"day": int(s["day"]), "kind": "trade", "text": "改数量被拒：" + why_sell})
 			"gift":
 				# 送物资（用户 2026-10 · A4；2026-10-20 改成**即时生效**）：
 				# 玩家当面交东西，货当场出门、任务当场结算 —— 不能等到次日黎明。
@@ -2378,7 +2411,10 @@ const SERVICE_GOODS := ["safety", "medical_service", "education"]
 
 func tech_bonuses() -> Dictionary:
 	var out := {"agri": 0.0, "goods": 0.0, "material": 0.0, "research": 0.0, "build": 0.0,
-		"services": 0.0, "toolLife": 0.0}
+		"services": 0.0, "toolLife": 0.0,
+		# 贸易（商路，B3）—— 量纲各不相同，单独一块：caravans/haggle* 加法，
+		# cargo/purse 取最高。见 systems/tech_bonus.ts::TechBonuses.trade。
+		"trade": {"caravans": 0.0, "cargo": 0.0, "purse": 0.0, "haggleBuy": 0.0, "haggleSell": 0.0}}
 	for tid in (s["research"]["done"] as Array):
 		var t = db.techs.get(String(tid), null)
 		if t == null:
@@ -2392,6 +2428,19 @@ func tech_bonuses() -> Dictionary:
 				out[key] = maxf(float(out[key]), v)
 			else:
 				out[key] = float(out[key]) + v
+		var trade: Dictionary = t.get("trade", {})
+		if not trade.is_empty():
+			var bt: Dictionary = out["trade"]
+			if trade.has("caravans"):
+				bt["caravans"] = float(bt["caravans"]) + float(trade["caravans"])
+			if trade.has("cargo"):
+				bt["cargo"] = maxf(float(bt["cargo"]), float(trade["cargo"]))
+			if trade.has("purse"):
+				bt["purse"] = maxf(float(bt["purse"]), float(trade["purse"]))
+			if trade.has("haggleBuy"):
+				bt["haggleBuy"] = float(bt["haggleBuy"]) + float(trade["haggleBuy"])
+			if trade.has("haggleSell"):
+				bt["haggleSell"] = float(bt["haggleSell"]) + float(trade["haggleSell"])
 	return out
 
 ## 某座商店的**产业**产出加成：1 + tech_bonuses()[该建筑的 sector]。
@@ -3733,7 +3782,8 @@ func sell_to_caravan(caravan_id: String, good_id: String, qty: int) -> String:
 	s["goods"][good_id] = SimUtil.r2(stock - float(n))
 	s["government"]["money"] = SimUtil.r2(float(s["government"]["money"]) + money)
 	c["cash"] = SimUtil.r2(float(c["cash"]) - money)
-	s["ledgerToday"]["sales"] = SimUtil.r2(float(s["ledgerToday"]["sales"]) + money)
+	# ⚠️ 单列一栏，不再混进 `sales`（居民消费回款）—— 用户 2026-10："游商的收益"要单独一行。
+	s["ledgerToday"]["merchantSell"] = SimUtil.r2(float(s["ledgerToday"].get("merchantSell", 0.0)) + money)
 	return ""
 
 ## 玩家从游商买。返回拒绝原因（空串 = 成功）。
@@ -3783,3 +3833,444 @@ func trade_snapshot() -> Dictionary:
 func good_name(good_id: String) -> String:
 	var def = db.goods.get(good_id, null)
 	return String(def["nameZh"]) if def != null else good_id
+
+# ===========================================================================
+# 商路（B3，设计见 docs/trade-routes.md）
+#
+# 一句话：**常设车队**。玩家给一支商队指定一座城、配好"卖什么 / 带多少钱去买"，
+# 之后它自己循环：黎明锁货出发 → 走 days 天 → 到城卖货、用钱进货 → 再走 days 天
+# → 回家入库。回程天数由 `routes.caravan.roundTrip` 决定（默认 true = 往返 2×单程）。
+#
+# 三条硬规则（写进 docs/spec.md §20）：
+#   1. 只有特产买得到、只有需求卖得掉，且内容校验保证 特产 ∩ 需求 = ∅
+#   2. 锁货 = 把货**搬出仓库**记在商队名下（不是软预留）
+#   3. 一切确定性：没有随机数，市场库存是纯累积
+#
+# 与 TS 侧一一对应：src/engine/systems/routes.ts（同一批函数名，蛇形/驼峰之差）。
+# ===========================================================================
+
+## 这座城（内容表里的一行），没有则 null。
+func _route_city(city_id: String) -> Variant:
+	for c in (db.routes.get("cities", []) as Array):
+		if String(c["id"]) == city_id:
+			return c
+	return null
+
+## 已经完成到第几章（章节奖励记录里最大的那章）；0 = 还没完成任何章节。
+## ⚠️ 上面 `completed_chapter()` 已经有一份（游商那套在用）—— 这里复用，别再写第二份。
+func _route_chapter() -> int:
+	return completed_chapter()
+
+## 价格：baseValue × 距离倍率 × (1 ± 议价)。side = "buy" / "sell"。
+func route_price(city_id: String, good_id: String, side: String) -> float:
+	var city = _route_city(city_id)
+	if city == null:
+		return 0.0
+	var gd = db.goods.get(good_id, null)
+	var base := float(gd["baseValue"]) if gd != null else 1.0
+	var step: Dictionary = _route_step(int(city["days"]))
+	var mul := float(step["sellMul"]) if side == "sell" else float(step["buyMul"])
+	var bt: Dictionary = tech_bonuses()["trade"]
+	var haggle := float(bt["haggleSell"]) if side == "sell" else float(bt["haggleBuy"])
+	var raw := base * mul * (1.0 + haggle) if side == "sell" else base * mul * (1.0 - haggle)
+	return SimUtil.r2(maxf(0.01, raw))
+
+func _route_step(days: int) -> Dictionary:
+	for d in (db.routes.get("distance", []) as Array):
+		if int(d["days"]) == days:
+			return d
+	return {"days": days, "sellMul": 1.0, "buyMul": 1.0}
+
+## 单程载货上限（科技取最高）。
+func route_cargo_cap() -> int:
+	var cv: Dictionary = db.routes.get("caravan", {})
+	var base := float(cv.get("cargo", 40))
+	var bt: Dictionary = tech_bonuses()["trade"]
+	return maxi(1, int(floor(maxf(base, float(bt["cargo"])))))
+
+## 带钱上限（科技取最高）。
+func route_purse_cap() -> float:
+	var cv: Dictionary = db.routes.get("caravan", {})
+	var base := float(cv.get("purse", 800))
+	var bt: Dictionary = tech_bonuses()["trade"]
+	return maxf(0.0, maxf(base, float(bt["purse"])))
+
+## 现在有几支商队（基础 + 科技，封顶 maxCount）。
+func route_caravan_count() -> int:
+	var cv: Dictionary = db.routes.get("caravan", {})
+	var n := int(cv.get("count", 0)) + int(floor(float(tech_bonuses()["trade"]["caravans"])))
+	return maxi(0, mini(int(cv.get("maxCount", 5)), n))
+
+## 商路系统解锁了没有（研究「常设商队」= 至少一支商队）。
+func routes_unlocked() -> bool:
+	return route_caravan_count() > 0
+
+func _route_empty_market(city: Dictionary) -> Dictionary:
+	var mk: Dictionary = db.routes.get("market", {})
+	var spec := {}
+	for g in (city["specialty"] as Array):
+		spec[String(g)] = float(mk.get("specialtyStock", 100))
+	var dem := {}
+	for g in (city["demand"] as Array):
+		dem[String(g)] = float(mk.get("demandCap", 200))
+	return {"specialty": spec, "demand": dem}
+
+## 开局状态：车队槽位（基础商队数）+ 各城市场。
+func _empty_routes() -> Dictionary:
+	var market := {}
+	for city in (db.routes.get("cities", []) as Array):
+		market[String(city["id"])] = _route_empty_market(city)
+	var routes := []
+	var base := int((db.routes.get("caravan", {}) as Dictionary).get("count", 0))
+	for i in base:
+		routes.append(_route_empty(int(i) + 1))
+	return {"routes": routes, "market": market}
+
+func _route_empty(index: int) -> Dictionary:
+	return {
+		"id": "route_%d" % index, "cityId": "", "phase": "home",
+		"departDay": 0, "arriveDay": 0, "backDay": 0,
+		"budget": 0.0, "sellPlan": {}, "loaded": {}, "cash": 0.0,
+		"cart": {}, "revenue": 0.0, "spent": 0.0,
+		"lastTripDay": 0, "lastStuckDay": 0,
+	}
+
+## 商队数跟着科技走：多了就补空槽位（不会撤掉已有的）。
+func sync_route_count() -> void:
+	var st: Dictionary = s["routes"]
+	var want := route_caravan_count()
+	while (st["routes"] as Array).size() < want:
+		st["routes"].append(_route_empty((st["routes"] as Array).size() + 1))
+
+func _route_find(route_id: String) -> Variant:
+	for r in (s["routes"]["routes"] as Array):
+		if String(r["id"]) == route_id:
+			return r
+	return null
+
+## 这条商路配置齐了没有（货锁够 + 钱够）。面板与派车共用。
+func route_readiness(route: Dictionary) -> Dictionary:
+	var city = _route_city(String(route["cityId"]))
+	if city == null:
+		return {"readyGoods": true, "readyMoney": true, "shortGoods": [], "needMoney": 0.0}
+	var cargo := route_cargo_cap()
+	var short_goods := []
+	for g in (city["demand"] as Array):
+		var gid := String(g)
+		var need := mini(cargo, int(floor(float((route["sellPlan"] as Dictionary).get(gid, 0.0)))))
+		var have := int(floor(float((route["loaded"] as Dictionary).get(gid, 0.0))))
+		if have < need:
+			short_goods.append({"good": gid, "have": have, "need": need})
+	var need_money := minf(route_purse_cap(), maxf(0.0, float(route["budget"])))
+	return {
+		"readyGoods": short_goods.is_empty(),
+		"readyMoney": float(s["government"]["money"]) >= need_money,
+		"shortGoods": short_goods,
+		"needMoney": need_money,
+	}
+
+## 黎明：市场补给 → 结算（到达 / 回家）→ 派车。
+func _update_routes(day: int) -> Array:
+	var logs := []
+	sync_route_count()
+	var mk: Dictionary = db.routes.get("market", {})
+	var cargo := route_cargo_cap()
+	var purse := route_purse_cap()
+	var lt: Dictionary = s["ledgerToday"]
+
+	# 1) 市场补给（每座城：特产 + 需求池）
+	var markets: Dictionary = s["routes"]["market"]
+	for city in (db.routes.get("cities", []) as Array):
+		var cid := String(city["id"])
+		if not markets.has(cid):
+			markets[cid] = _route_empty_market(city)
+			continue
+		var m: Dictionary = markets[cid]
+		for g in (city["specialty"] as Array):
+			var gid := String(g)
+			m["specialty"][gid] = minf(float(mk.get("specialtyCap", 200)),
+				SimUtil.r2(float((m["specialty"] as Dictionary).get(gid, 0.0)) + float(mk.get("specialtyDaily", 40))))
+		for g in (city["demand"] as Array):
+			var gid2 := String(g)
+			m["demand"][gid2] = minf(float(mk.get("demandCap", 200)),
+				SimUtil.r2(float((m["demand"] as Dictionary).get(gid2, 0.0)) + float(mk.get("demandDaily", 40))))
+
+	for route in (s["routes"]["routes"] as Array):
+		var city = _route_city(String(route["cityId"]))
+		if city == null:
+			continue
+		var m: Dictionary = markets[String(city["id"])]
+		var phase := String(route["phase"])
+
+		# 2) 到达：卖光卖货 → 用「带出的钱 + 卖得的钱」进货
+		if phase == "out" and day >= int(route["arriveDay"]):
+			var parts := []
+			var revenue := 0.0
+			for g in (city["demand"] as Array):
+				var gid := String(g)
+				var qty := int(floor(float((route["loaded"] as Dictionary).get(gid, 0.0))))
+				if qty <= 0:
+					continue
+				var room := int(floor(float((m["demand"] as Dictionary).get(gid, 0.0))))
+				var n := mini(qty, room)
+				if n <= 0:
+					continue
+				revenue = SimUtil.r2(revenue + SimUtil.r2(float(n) * route_price(String(city["id"]), gid, "sell")))
+				m["demand"][gid] = SimUtil.r2(float(room) - float(n))
+				lt["routeOut"][gid] = SimUtil.r2(float((lt["routeOut"] as Dictionary).get(gid, 0.0)) + float(n))
+				parts.append("%s×%d" % [good_name(gid), n])
+			route["revenue"] = revenue
+			lt["routeExport"] = SimUtil.r2(float(lt["routeExport"]) + revenue)
+			route["loaded"] = {}
+
+			var budget := SimUtil.r2(float(route["cash"]) + revenue)
+			var bought := 0
+			var spent := 0.0
+			var got := []
+			for g in (city["specialty"] as Array):
+				var gid2 := String(g)
+				var left := cargo - bought
+				if left <= 0:
+					break
+				var price := route_price(String(city["id"]), gid2, "buy")
+				var stock := int(floor(float((m["specialty"] as Dictionary).get(gid2, 0.0))))
+				var afford := int(floor(budget / price)) if price > 0.0 else 0
+				var n2 := maxi(0, mini(mini(left, stock), afford))
+				if n2 <= 0:
+					continue
+				var money := SimUtil.r2(float(n2) * price)
+				budget = SimUtil.r2(budget - money)
+				spent = SimUtil.r2(spent + money)
+				bought += n2
+				m["specialty"][gid2] = SimUtil.r2(float(stock) - float(n2))
+				route["cart"][gid2] = int((route["cart"] as Dictionary).get(gid2, 0)) + n2
+				lt["routeIn"][gid2] = SimUtil.r2(float((lt["routeIn"] as Dictionary).get(gid2, 0.0)) + float(n2))
+				got.append("%s×%d" % [good_name(gid2), n2])
+			route["spent"] = spent
+			route["cash"] = budget
+			lt["routeImport"] = SimUtil.r2(float(lt["routeImport"]) + spent)
+			logs.append({"day": day, "kind": "trade", "text": "商队抵达%s：售出 %s → ¥%.0f；买入 %s" % [
+				String(city["nameZh"]),
+				" ".join(parts) if not parts.is_empty() else "无", revenue,
+				" ".join(got) if not got.is_empty() else "无"]})
+			route["phase"] = "back"
+			route["arriveDay"] = day
+			var rt := bool((db.routes.get("caravan", {}) as Dictionary).get("roundTrip", true))
+			route["backDay"] = day + (int(city["days"]) if rt else 0)
+			if int(route["backDay"]) <= day:
+				logs.append_array(_finish_return(route, day))
+			continue
+
+		# 3) 回家：货入库、余钱回国库
+		if phase == "back" and day >= int(route["backDay"]):
+			logs.append_array(_finish_return(route, day))
+			continue
+
+		# 4) 派车：锁货 → 钱够 → 出发
+		if phase == "home":
+			for g in (city["demand"] as Array):
+				var gid3 := String(g)
+				var need := mini(cargo, int(floor(float((route["sellPlan"] as Dictionary).get(gid3, 0.0)))))
+				var have := int(floor(float((route["loaded"] as Dictionary).get(gid3, 0.0))))
+				if have >= need:
+					continue
+				var take := mini(need - have, int(floor(float(s["goods"].get(gid3, 0.0)))))
+				if take <= 0:
+					continue
+				s["goods"][gid3] = SimUtil.r2(float(s["goods"].get(gid3, 0.0)) - float(take))
+				route["loaded"][gid3] = have + take
+			var ready := route_readiness(route)
+			var need_money := minf(purse, float(ready["needMoney"]))
+			if bool(ready["readyGoods"]) and bool(ready["readyMoney"]):
+				if need_money > 0.0:
+					s["government"]["money"] = SimUtil.r2(float(s["government"]["money"]) - need_money)
+				route["cash"] = need_money
+				route["revenue"] = 0.0
+				route["spent"] = 0.0
+				route["phase"] = "out"
+				route["departDay"] = day
+				route["arriveDay"] = day + int(city["days"])
+				route["backDay"] = int(route["arriveDay"]) + (int(city["days"]) if bool((db.routes.get("caravan", {}) as Dictionary).get("roundTrip", true)) else 0)
+				logs.append({"day": day, "kind": "trade", "text": "商队出发：%s（单程 %d 天）" % [
+					String(city["nameZh"]), int(city["days"])]})
+			elif not (ready["shortGoods"] as Array).is_empty():
+				var s0: Dictionary = ready["shortGoods"][0]
+				# 同一原因一天只写一条（否则每天黎明都刷一行）
+				if int(route["lastStuckDay"]) != day:
+					route["lastStuckDay"] = day
+					logs.append({"day": day, "kind": "trade", "text": "商队停在村里：还缺 %s %d 件" % [
+						good_name(String(s0["good"])), int(ceil(float(s0["need"]) - float(s0["have"])))]})
+	return logs
+
+func _finish_return(route: Dictionary, day: int) -> Array:
+	var city = _route_city(String(route["cityId"]))
+	var moved := []
+	for g in (route["cart"] as Dictionary).keys():
+		var n := int(floor(float(route["cart"][g])))
+		if n <= 0:
+			continue
+		s["goods"][String(g)] = SimUtil.r2(float(s["goods"].get(String(g), 0.0)) + float(n))
+		moved.append("%s×%d" % [good_name(String(g)), n])
+	var cash_back := SimUtil.r2(float(route["cash"]))
+	if cash_back > 0.0:
+		s["government"]["money"] = SimUtil.r2(float(s["government"]["money"]) + cash_back)
+	route["cart"] = {}
+	route["cash"] = 0.0
+	route["phase"] = "home"
+	route["departDay"] = 0
+	route["arriveDay"] = 0
+	route["backDay"] = 0
+	route["lastTripDay"] = day
+	var suffix := "（%s）" % String(city["nameZh"]) if city != null else ""
+	return [{"day": day, "kind": "trade", "text": "商队回来了：携 %s、余钱 ¥%.0f%s" % [
+		" ".join(moved) if not moved.is_empty() else "空车", cash_back, suffix]}]
+
+## 派第一支空闲商队去这座城。返回失败原因（空串 = 成功）。
+func assign_route(city_id: String) -> String:
+	var city = _route_city(city_id)
+	if city == null:
+		return "没有这座城"
+	if not routes_unlocked():
+		return "还没研究「常设商队」"
+	if _route_chapter() < int(city.get("unlockChapter", 0)):
+		return "%s还没通路" % String(city["nameZh"])
+	sync_route_count()
+	for r in (s["routes"]["routes"] as Array):
+		if String(r["cityId"]) == city_id:
+			return "%s已经在商路列表里了" % String(city["nameZh"])
+	var idle = null
+	for r in (s["routes"]["routes"] as Array):
+		if String(r["cityId"]) == "":
+			idle = r
+			break
+	if idle == null:
+		return "没有空闲商队（研究新的商队科技）"
+	idle["cityId"] = city_id
+	idle["phase"] = "home"
+	idle["budget"] = minf(float(idle["budget"]), route_purse_cap())
+	return ""
+
+## 取消一条商路，已锁的货与钱退回。
+func unassign_route(route_id: String) -> String:
+	var route = _route_find(route_id)
+	if route == null:
+		return "没有这条商路"
+	for g in (route["loaded"] as Dictionary).keys():
+		var n := int(floor(float(route["loaded"][g])))
+		if n > 0:
+			s["goods"][String(g)] = SimUtil.r2(float(s["goods"].get(String(g), 0.0)) + float(n))
+	if float(route["cash"]) > 0.0:
+		s["government"]["money"] = SimUtil.r2(float(s["government"]["money"]) + float(route["cash"]))
+	# 在途的商队取消：货已经在路上，按"回家"结算掉，别凭空蒸发
+	if String(route["phase"]) != "home":
+		for g in (route["cart"] as Dictionary).keys():
+			var n2 := int(floor(float(route["cart"][g])))
+			if n2 > 0:
+				s["goods"][String(g)] = SimUtil.r2(float(s["goods"].get(String(g), 0.0)) + float(n2))
+	route["cityId"] = ""
+	route["phase"] = "home"
+	route["loaded"] = {}
+	route["cart"] = {}
+	route["cash"] = 0.0
+	route["budget"] = 0.0
+	route["sellPlan"] = {}
+	route["revenue"] = 0.0
+	route["spent"] = 0.0
+	route["departDay"] = 0
+	route["arriveDay"] = 0
+	route["backDay"] = 0
+	return ""
+
+## 改购买预算（夹到钱箱上限）。
+func set_route_budget(route_id: String, value: float) -> String:
+	var route = _route_find(route_id)
+	if route == null:
+		return "没有这条商路"
+	if String(route["phase"]) != "home":
+		return "商队在途中，下一趟生效"
+	route["budget"] = maxf(0.0, minf(route_purse_cap(), float(int(floor(value)))))
+	return ""
+
+## 改某项出售数量（只能是这座城市的需求商品）。
+func set_route_sell(route_id: String, good_id: String, qty: int) -> String:
+	var route = _route_find(route_id)
+	if route == null:
+		return "没有这条商路"
+	if String(route["phase"]) != "home":
+		return "商队在途中，下一趟生效"
+	var city = _route_city(String(route["cityId"]))
+	if city == null:
+		return "这条商路还没选目的地"
+	if not (city["demand"] as Array).has(good_id):
+		return "%s不收这个" % String(city["nameZh"])
+	var n := maxi(0, mini(route_cargo_cap(), qty))
+	if n == 0:
+		(route["sellPlan"] as Dictionary).erase(good_id)
+	else:
+		route["sellPlan"][good_id] = n
+	# 配置调小 → 多锁的立刻退回仓库（spec §20.3）
+	var have := int(floor(float((route["loaded"] as Dictionary).get(good_id, 0.0))))
+	if have > n:
+		var back := have - n
+		s["goods"][good_id] = SimUtil.r2(float(s["goods"].get(good_id, 0.0)) + float(back))
+		if n == 0:
+			(route["loaded"] as Dictionary).erase(good_id)
+		else:
+			route["loaded"][good_id] = n
+	return ""
+
+## 商路面板的只读快照（UI 只画、不算）。
+func routes_snapshot() -> Dictionary:
+	var cargo := route_cargo_cap()
+	var purse := route_purse_cap()
+	var list := []
+	for r in (s["routes"]["routes"] as Array):
+		var city = _route_city(String(r["cityId"]))
+		var ready := route_readiness(r)
+		list.append({
+			"id": String(r["id"]),
+			"cityId": String(r["cityId"]),
+			"cityName": String(city["nameZh"]) if city != null else "",
+			"days": int(city["days"]) if city != null else 0,
+			"phase": String(r["phase"]),
+			"departDay": int(r["departDay"]),
+			"arriveDay": int(r["arriveDay"]),
+			"backDay": int(r["backDay"]),
+			"day": int(s["day"]),
+			"budget": float(r["budget"]),
+			"sellPlan": (r["sellPlan"] as Dictionary).duplicate(true),
+			"loaded": (r["loaded"] as Dictionary).duplicate(true),
+			"readyGoods": bool(ready["readyGoods"]),
+			"readyMoney": bool(ready["readyMoney"]),
+			"shortGoods": (ready["shortGoods"] as Array).duplicate(true),
+			"needMoney": float(ready["needMoney"]),
+			"lastTripDay": int(r["lastTripDay"]),
+			"cargo": cargo,
+			"purse": purse,
+		})
+	var cities := []
+	for c in (db.routes.get("cities", []) as Array):
+		var mk: Dictionary = s["routes"]["market"].get(String(c["id"]), {"specialty": {}, "demand": {}})
+		var spec := []
+		for g in (c["specialty"] as Array):
+			spec.append({"good": String(g), "price": route_price(String(c["id"]), String(g), "buy"),
+				"stock": int(floor(float((mk["specialty"] as Dictionary).get(String(g), 0.0))))})
+		var dem := []
+		for g in (c["demand"] as Array):
+			dem.append({"good": String(g), "price": route_price(String(c["id"]), String(g), "sell"),
+				"room": int(floor(float((mk["demand"] as Dictionary).get(String(g), 0.0))))})
+		cities.append({
+			"id": String(c["id"]), "nameZh": String(c["nameZh"]), "lord": String(c["lord"]),
+			"days": int(c["days"]),
+			"unlocked": _route_chapter() >= int(c.get("unlockChapter", 0)),
+			"specialty": spec, "demand": dem,
+		})
+	return {
+		"unlocked": routes_unlocked(),
+		"count": list.size(),
+		"maxCount": int((db.routes.get("caravan", {}) as Dictionary).get("maxCount", 5)),
+		"cargo": cargo,
+		"purse": purse,
+		"routes": list,
+		"cities": cities,
+	}

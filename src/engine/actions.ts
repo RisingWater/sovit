@@ -11,6 +11,8 @@ import {
   tryUpgradeHousing,
 } from './systems/investment.ts'
 import { buyFromCaravan, sellToCaravan } from './systems/caravan.ts'
+import { assignRoute, setRouteBudget, setRouteSell, unassignRoute } from './systems/routes.ts'
+import { techBonuses } from './systems/tech_bonus.ts'
 import { effectiveSlots } from './systems/labor.ts'
 import {
   cancelResearch,
@@ -67,6 +69,8 @@ export function applyActions(
   logs: LogEntry[] = [],
 ): AppliedAction[] {
   const applied: AppliedAction[] = []
+  // 贸易科技加成（商队数 / 载重 / 钱箱 / 议价）—— 四条 route_* 命令都要用
+  const bonuses = techBonuses(state, ctx)
 
   for (const action of actions) {
     switch (action.type) {
@@ -316,6 +320,29 @@ export function applyActions(
       }
       case 'buy_from_caravan': {
         const why = buyFromCaravan(state, action.caravanId, action.goodId, action.qty)
+        applied.push({ type: action.type, ok: why === '', reason: why || undefined })
+        break
+      }
+      // ---- 商路（B3）：四条都走 IMMEDIATE_ACTIONS，当场生效 ----------------
+      // 理由与研究队列 / `gift` 同一条：它们**不花任何资源**，只动"配置"和
+      // "把货搬进搬出商队" —— 点完就该看到变化，等到 6:00 只会以为没点动。
+      case 'route_assign': {
+        const why = assignRoute(state, ctx, bonuses, action.cityId)
+        applied.push({ type: action.type, ok: why === '', reason: why || undefined })
+        break
+      }
+      case 'route_unassign': {
+        const why = unassignRoute(state, ctx, action.routeId)
+        applied.push({ type: action.type, ok: why === '', reason: why || undefined })
+        break
+      }
+      case 'route_set_budget': {
+        const why = setRouteBudget(state, ctx, bonuses, action.routeId, action.value)
+        applied.push({ type: action.type, ok: why === '', reason: why || undefined })
+        break
+      }
+      case 'route_set_sell': {
+        const why = setRouteSell(state, ctx, bonuses, action.routeId, action.goodId, action.qty)
         applied.push({ type: action.type, ok: why === '', reason: why || undefined })
         break
       }

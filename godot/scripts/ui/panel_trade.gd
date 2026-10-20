@@ -75,12 +75,23 @@ var _body: VBoxContainer
 var _scroll: ScrollContainer
 var _portrait: PanelPortrait
 
-## 页签：0 = 游商（M4 已做），1 = 商路（B3 的系统，只有占位）
-const TAB_NAMES := ["游商", "商路"]
+## 页签：**地图 / 商路 / 游商**（用户 2026-10 · B3）。
+## 地图 = 选目的地；商路 = 配置每支车队；游商 = 谷口来的货郎（零散买卖）。
+const TAB_NAMES := ["地图", "商路", "游商"]
 var _tab := 0
 var _tab_btns: Array[Button] = []
+## 游商页（原样保留）
 var _page_box: VBoxContainer
-var _road_box: VBoxContainer
+## 商路页
+var _routes_box: VBoxContainer
+var _routes_body: VBoxContainer
+## 地图页：左图右卡
+var _map_box: HBoxContainer
+var _map_host: Control
+var _map_tex: TextureRect
+var _map_card: VBoxContainer
+var _city_dots: Array = []
+var _sel_city := ""
 
 ## 数量对话框（购买 / 出售共用一套）
 var _dlg: PopupPanel
@@ -166,10 +177,72 @@ func _ready() -> void:
 	tabrow.add_child(UIKit.spacer())
 	root.add_child(UIKit.hsep())
 
+	# ---- 「地图」页：左边世界地图（点城选目的地），右边城市卡片
+	_map_box = HBoxContainer.new()
+	_map_box.add_theme_constant_override("separation", 10)
+	_map_box.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_map_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_map_box.visible = false
+	root.add_child(_map_box)
+
+	_map_host = Control.new()
+	_map_host.name = "MapHost"
+	_map_host.clip_contents = true
+	_map_host.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_map_host.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_map_host.custom_minimum_size = Vector2(420, 240)
+	_map_box.add_child(_map_host)
+
+	# 底图：和「王国地图」面板同一张（`assets/ui/map/kingdom_map_bare.webp`）
+	_map_tex = TextureRect.new()
+	_map_tex.name = "MapTex"
+	_map_tex.texture = load(PMAP.MAP_PATH) if ResourceLoader.exists(PMAP.MAP_PATH) else null
+	_map_tex.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	_map_tex.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	_map_tex.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_map_tex.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_map_host.add_child(_map_tex)
+	_map_tex.resized.connect(_layout_city_dots)
+
+	var card_scroll := ScrollContainer.new()
+	card_scroll.name = "CityCardScroll"
+	card_scroll.custom_minimum_size = Vector2(368, 0)
+	card_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	card_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	_map_box.add_child(card_scroll)
+	_map_card = VBoxContainer.new()
+	_map_card.name = "CityCard"
+	_map_card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_map_card.add_theme_constant_override("separation", 6)
+	card_scroll.add_child(_map_card)
+	# 右下角是薇拉的立绘（`PanelPortrait`，画在最后 = 盖住内容），所以地图页右边
+	# 再留一条**约等于立绘宽**的空隙 —— 否则城市卡片里的按钮会被她盖住。
+	var card_gap := Control.new()
+	card_gap.custom_minimum_size = Vector2(300, 0)
+	card_gap.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_map_box.add_child(card_gap)
+
+	# ---- 「商路」页：可滚动（每支商队一张卡片）
+	_routes_box = VBoxContainer.new()
+	_routes_box.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_routes_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_routes_box.visible = false
+	root.add_child(_routes_box)
+	var road_scroll := ScrollContainer.new()
+	road_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	road_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	road_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	_routes_box.add_child(road_scroll)
+	_routes_body = VBoxContainer.new()
+	_routes_body.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_routes_body.add_theme_constant_override("separation", 10)
+	road_scroll.add_child(_routes_body)
+
 	# ---- 「游商」页：可滚动
 	_page_box = VBoxContainer.new()
 	_page_box.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_page_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_page_box.visible = false
 	root.add_child(_page_box)
 
 	_scroll = ScrollContainer.new()
@@ -182,18 +255,6 @@ func _ready() -> void:
 	_body.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_body.add_theme_constant_override("separation", 10)
 	_scroll.add_child(_body)
-
-	# ---- 「商路」页：占位（B3 的系统）
-	_road_box = VBoxContainer.new()
-	_road_box.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	_road_box.add_theme_constant_override("separation", 6)
-	_road_box.visible = false
-	root.add_child(_road_box)
-	_road_box.add_child(UIKit.label("商路：还没开通", UIKit.FG_HEAD))
-	_road_box.add_child(UIKit.label(
-		"常驻商路要等「米拉」带来的那套系统（车队、关税、跨城价）。现在能做生意的地方是"
-		+ "「游商」这一页 —— 他们每周来一批、停七天，带的货和手里的钱都有限。"))
-	_road_box.add_child(UIKit.label("（建造栏 → 市政 → 贸易市场 建好之后，这个面板才能打开。）"))
 
 	# ---- 右下角顾问立绘：薇拉（兼管贸易）
 	_portrait = PanelPortrait.new()
@@ -248,13 +309,20 @@ func _select_tab(i: int) -> void:
 	for k in _tab_btns.size():
 		_tab_btns[k].add_theme_stylebox_override("normal",
 			UIKit.box(UIKit.T_BTN_ACTIVE if k == _tab else UIKit.T_BTN))
+	if _map_box != null:
+		_map_box.visible = _tab == 0
+	if _routes_box != null:
+		_routes_box.visible = _tab == 1
 	if _page_box != null:
-		_page_box.visible = _tab == 0
-	if _road_box != null:
-		_road_box.visible = _tab == 1
+		_page_box.visible = _tab == 2
 	if _sub != null:
-		_sub.text = ("买卖次日 06:00 生效；他带的货有限，钱也有限" if _tab == 0
-			else "常驻商路还没做（下一版）")
+		_sub.text = [
+			"点地图上的城镇 → 右边看它收什么、卖什么 → 「设为目的地」",
+			"配好「买多少货 / 带多少钱」，货在黎明锁定，齐了就出发，之后自动循环",
+			"游商是谷口来的货郎：每周一批、停七天，他带的货和钱都有限",
+		][_tab]
+	if _tab == 0:
+		_layout_city_dots()
 
 
 # ---------------------------------------------------------------------------
@@ -327,6 +395,12 @@ func _clear(node: Node) -> void:
 func _refresh() -> void:
 	if not visible or runner == null or runner.sim == null:
 		return
+	# 商路（B3）：地图页、商路页都读同一份只读快照
+	var rs: Dictionary = runner.sim.routes_snapshot()
+	_build_city_dots(rs.get("cities", []))
+	_refresh_city_card(rs)
+	_refresh_routes(rs)
+
 	_clear(_body)
 	var snap: Dictionary = runner.sim.trade_snapshot()
 	var caravans: Array = snap.get("caravans", [])
@@ -654,6 +728,326 @@ func _confirm_dialog() -> void:
 func _send(action: String, caravan_id: String, good_id: String, qty: int) -> void:
 	runner.enqueue([{"type": action, "caravanId": caravan_id, "goodId": good_id, "qty": qty}])
 	_refresh()
+
+# ===========================================================================
+# 商路（B3，用户 2026-10）：地图页 + 商路页
+#
+# 数据只读 `sim.routes_snapshot()`（与 TS `systems/routes.ts::routesSnapshot` 同口径）；
+# 命令走 `route_assign` / `route_unassign` / `route_set_budget` / `route_set_sell` ——
+# 这四条**当场生效**（`_apply_immediate`），所以点完立刻 `_refresh()` 就能看到变化。
+# 口径与坑见 docs/trade-routes.md。
+# ===========================================================================
+const PMAP := preload("res://scripts/ui/panel_map.gd")
+
+## 发一条商路命令（都是即时生效的）。
+func _enqueue_route(a: Dictionary) -> void:
+	if runner == null or runner.sim == null:
+		return
+	runner.enqueue([a])
+	_refresh()
+
+## 内容里的城 id → 地图上的据点（`panel_map.gd::MARKS`，拿坐标与图标）。
+func _city_mark(city_id: String) -> Dictionary:
+	for m in PMAP.MARKS:
+		if String(m["id"]) == city_id:
+			return m
+	return {}
+
+## 重建地图上的城市按钮（刷新时调；位置由 `_layout_city_dots()` 摆）。
+func _build_city_dots(cities: Array) -> void:
+	for b in _city_dots:
+		if is_instance_valid(b):
+			b.queue_free()
+	_city_dots = []
+	for city in cities:
+		var cid := String(city["id"])
+		var mark := _city_mark(cid)
+		if mark.is_empty():
+			continue
+		var kind := String(mark.get("kind", "town_small"))
+		var tex: Texture2D = null
+		var path := "res://assets/ui/map/%s.png" % kind
+		if ResourceLoader.exists(path):
+			tex = load(path)
+		var btn := TextureButton.new()
+		btn.name = "City_" + cid
+		btn.texture_normal = tex
+		btn.ignore_texture_size = true
+		btn.stretch_mode = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
+		btn.custom_minimum_size = Vector2(56, 56)
+		btn.size = Vector2(56, 56)
+		btn.tooltip_text = String(city["nameZh"])
+		btn.set_meta("city_id", cid)
+		btn.set_meta("fx", float(mark.get("fx", 0.5)))
+		btn.set_meta("fy", float(mark.get("fy", 0.5)))
+		btn.pressed.connect(_on_city_pressed.bind(cid))
+		_map_host.add_child(btn)
+		_city_dots.append(btn)
+	_layout_city_dots()
+
+## 按底图的实际绘制矩形摆城市按钮（`STRETCH_KEEP_ASPECT_CENTERED` 会留黑边，
+## 所以不能直接按控件尺寸算 —— 要拿"图被画在哪儿"来算）。
+func _layout_city_dots() -> void:
+	if _map_tex == null or _map_tex.texture == null:
+		return
+	var tw := float(_map_tex.texture.get_width())
+	var th := float(_map_tex.texture.get_height())
+	if tw <= 0.0 or th <= 0.0:
+		return
+	var host := _map_tex.size
+	var k := minf(host.x / tw, host.y / th)
+	var dw := tw * k
+	var dh := th * k
+	var ox := (host.x - dw) * 0.5
+	var oy := (host.y - dh) * 0.5
+	for b in _city_dots:
+		if not is_instance_valid(b):
+			continue
+		var p := Vector2(ox + float(b.get_meta("fx")) * dw, oy + float(b.get_meta("fy")) * dh)
+		var sz := (b as Control).custom_minimum_size
+		(b as Control).position = p - sz * 0.5
+		var selected := String(b.get_meta("city_id")) == _sel_city
+		(b as CanvasItem).modulate = Color(1.25, 1.05, 0.55) if selected else Color(1, 1, 1)
+
+func _on_city_pressed(city_id: String) -> void:
+	_sel_city = city_id
+	UIKit.play_switch()
+	_refresh()
+
+## 地图页右侧：选中城市的卡片（名字 / 领主 / 几天 / 特产 / 需求 / 按钮）。
+func _refresh_city_card(snap: Dictionary) -> void:
+	_clear(_map_card)
+	var cities: Array = snap.get("cities", [])
+	if _sel_city == "" and not cities.is_empty():
+		_sel_city = String(cities[0]["id"])
+	var city: Dictionary = {}
+	for c in cities:
+		if String(c["id"]) == _sel_city:
+			city = c
+	if city.is_empty():
+		_map_card.add_child(UIKit.label("左边地图上点一座城", C_HINT))
+		return
+
+	var head := HBoxContainer.new()
+	head.add_theme_constant_override("separation", 5)
+	var name_lb := UIKit.label(String(city["nameZh"]), UIKit.FG_HEAD)
+	name_lb.add_theme_font_size_override("font_size", UIKit.BIG_FS)
+	head.add_child(name_lb)
+	head.add_child(UIKit.label("单程 %d 天 · 往返 %d 天" % [
+		int(city["days"]), int(city["days"]) * 2], C_HINT))
+	_map_card.add_child(head)
+	_map_card.add_child(UIKit.label(String(city.get("lord", "")), C_HINT))
+	if not bool(city.get("unlocked", true)):
+		_map_card.add_child(UIKit.label("这条路还没通（要再往后推进剧情）", Color(0.62, 0.24, 0.18)))
+
+	_map_card.add_child(_small_title("特产（只能从它这儿买）"))
+	var spec: Array = city.get("specialty", [])
+	_map_card.add_child(_city_table(spec, "可购"))
+	_map_card.add_child(_small_title("需求（只能卖给它）"))
+	var dem: Array = city.get("demand", [])
+	_map_card.add_child(_city_table(dem, "还能收"))
+
+	_map_card.add_child(_sep())
+	var routes: Array = snap.get("routes", [])
+	var existing: Dictionary = {}
+	for r in routes:
+		if String(r.get("cityId", "")) == String(city["id"]):
+			existing = r
+	if not existing.is_empty():
+		_map_card.add_child(UIKit.label("已经是目的地", UIKit.FG_HEAD))
+		_map_card.add_child(UIKit.label(_route_phase_text(existing), C_HINT))
+		_map_card.add_child(UIKit.label("一趟 %d 天 · 预算 %s" % [
+			int(existing["days"]) * 2, _fmt(float(existing["budget"]))], C_HINT))
+		_map_card.add_child(UIKit.label("上一趟：%d 天前回来" % maxi(0,
+			int(snap.get("day", 0)) - int(existing.get("lastTripDay", 0))), C_HINT))
+		var jump := UIKit.button("去「商路」页配置", true)
+		jump.pressed.connect(func() -> void: _select_tab(1))
+		_map_card.add_child(jump)
+		_pad_bottom()
+		return
+	var idle := -1
+	for r in routes:
+		if String(r.get("cityId", "")) == "":
+			idle += 1
+			break
+	var btn := UIKit.button("设为目的地", true)
+	btn.disabled = not bool(snap.get("unlocked", false)) or idle < 0
+	if not bool(snap.get("unlocked", false)):
+		btn.tooltip_text = "还没研究「常设商队」"
+	elif idle < 0:
+		btn.tooltip_text = "没有空闲商队（研究新的商队科技）"
+	btn.pressed.connect(func() -> void:
+		_enqueue_route({"type": "route_assign", "cityId": String(city["id"])}))
+	_map_card.add_child(btn)
+	_pad_bottom()
+
+## 卡片底部留白：右下角是薇拉的立绘，内容别钻到她怀里。
+func _pad_bottom() -> void:
+	var pad := Control.new()
+	pad.custom_minimum_size = Vector2(0, 250)
+	pad.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_map_card.add_child(pad)
+
+func _small_title(t: String) -> Control:
+	return UIKit.label(t, UIKit.FG_HEAD)
+
+## 城市卡片里的两列表：货物（图标 + 名） | 单价 | 数量。**除第一列外都右对齐。**
+func _city_table(rows: Array, qty_head: String) -> Control:
+	var g := GridContainer.new()
+	g.columns = 3
+	g.add_theme_constant_override("h_separation", 10)
+	var h1 := UIKit.label("货物", C_HINT)
+	h1.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	g.add_child(h1)
+	var h2 := _right(UIKit.label("单价", C_HINT), 60.0)
+	g.add_child(h2)
+	var h3 := _right(UIKit.label(qty_head, C_HINT), 60.0)
+	g.add_child(h3)
+	for it in rows:
+		var gid := String(it["good"])
+		var nm := HBoxContainer.new()
+		nm.add_theme_constant_override("separation", 4)
+		nm.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		var ico := _good_icon(gid)
+		if ico != null:
+			nm.add_child(ico)
+		nm.add_child(UIKit.label(_good_name(gid)))
+		g.add_child(nm)
+		g.add_child(_right(_money(float(it["price"])), 60.0))
+		var qty := int(it.get("stock", it.get("room", 0)))
+		g.add_child(_right(UIKit.label(str(qty)), 60.0))
+	return g
+
+func _right(node: Control, w: float) -> Control:
+	var box := HBoxContainer.new()
+	box.custom_minimum_size = Vector2(w, 0)
+	box.alignment = BoxContainer.ALIGNMENT_END
+	box.add_child(node)
+	return box
+
+func _good_name(gid: String) -> String:
+	return runner.sim.good_name(gid) if runner != null and runner.sim != null else gid
+
+func _route_phase_text(r: Dictionary) -> String:
+	var day := int(r.get("day", 0))
+	match String(r.get("phase", "home")):
+		"out":
+			return "在途·去程（还 %d 天）" % maxi(0, int(r.get("arriveDay", 0)) - day)
+		"back":
+			return "在途·返程（还 %d 天）" % maxi(0, int(r.get("backDay", 0)) - day)
+		_:
+			if bool(r.get("readyGoods", true)) and bool(r.get("readyMoney", true)):
+				return "在家 · 齐了就出发"
+			var short: Array = r.get("shortGoods", [])
+			if not short.is_empty():
+				var s0: Dictionary = short[0]
+				return "在家等货（缺 %s %d 件）" % [
+					_good_name(String(s0["good"])), int(s0["need"]) - int(s0["have"])]
+			return "在家 · 国库不够 ¥%.0f" % float(r.get("needMoney", 0.0))
+
+## 商路页：每支商队一张卡片。
+func _refresh_routes(snap: Dictionary) -> void:
+	_clear(_routes_body)
+	if not bool(snap.get("unlocked", false)):
+		_routes_body.add_child(UIKit.label("还没有商队。", UIKit.FG_HEAD))
+		_routes_body.add_child(UIKit.label(
+			"科技面板 → 贸易页 → 「常设商队」研究完成之后，这里会出现第一支车队。", C_HINT))
+		return
+	var routes: Array = snap.get("routes", [])
+	var cargo := int(snap.get("cargo", 40))
+	var purse := float(snap.get("purse", 800))
+	for r in routes:
+		_routes_body.add_child(_route_block(r, cargo, purse, snap))
+	var free := int(snap.get("maxCount", 5)) - routes.size()
+	if free > 0:
+		_routes_body.add_child(UIKit.label(
+			"还有 %d 个商队名额没研究出来（科技面板 → 贸易）" % free, C_HINT))
+
+func _route_block(r: Dictionary, cargo: int, purse: float, snap: Dictionary) -> Control:
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 4)
+	var rid := String(r["id"])
+	var city_id := String(r.get("cityId", ""))
+	var idx := rid.replace("route_", "")
+
+	var head := HBoxContainer.new()
+	head.add_theme_constant_override("separation", 6)
+	head.add_child(UIKit.label("商队 %s" % idx, UIKit.FG_HEAD))
+	if city_id == "":
+		head.add_child(UIKit.label("空闲 —— 去「地图」页点一座城", C_HINT))
+		box.add_child(head)
+		return box
+	head.add_child(UIKit.label("→ %s" % String(r.get("cityName", "")), UIKit.FG_HEAD))
+	head.add_child(UIKit.label("一趟 %d 天" % (int(r.get("days", 1)) * 2), C_HINT))
+	head.add_child(UIKit.spacer())
+	var cancel := UIKit.button("取消", true)
+	cancel.tooltip_text = "已锁的货和带出去的钱都会退回"
+	cancel.pressed.connect(func() -> void:
+		_enqueue_route({"type": "route_unassign", "routeId": rid}))
+	head.add_child(cancel)
+	box.add_child(head)
+
+	box.add_child(UIKit.label(_route_phase_text(r), C_HINT))
+
+	# 预算
+	var brow := HBoxContainer.new()
+	brow.add_theme_constant_override("separation", 4)
+	brow.add_child(UIKit.label("购买预算"))
+	brow.add_child(_money(float(r.get("budget", 0.0))))
+	brow.add_child(UIKit.label("/ 上限 %s" % _fmt(purse), C_HINT))
+	var minus := UIKit.button("-100", true)
+	minus.pressed.connect(func() -> void:
+		_enqueue_route({"type": "route_set_budget", "routeId": rid,
+			"value": maxf(0.0, float(r.get("budget", 0.0)) - 100.0)}))
+	brow.add_child(minus)
+	var plus := UIKit.button("+100", true)
+	plus.pressed.connect(func() -> void:
+		_enqueue_route({"type": "route_set_budget", "routeId": rid,
+			"value": minf(purse, float(r.get("budget", 0.0)) + 100.0)}))
+	brow.add_child(plus)
+	box.add_child(brow)
+
+	# 出售数量（每种需求商品一行）
+	var city := {}
+	for c in (snap.get("cities", []) as Array):
+		if String(c["id"]) == city_id:
+			city = c
+	var total := 0
+	for d in (city.get("demand", []) as Array):
+		var gid := String(d["good"])
+		var plan := int((r.get("sellPlan", {}) as Dictionary).get(gid, 0))
+		total += plan
+		var row := HBoxContainer.new()
+		row.add_theme_constant_override("separation", 4)
+		var ico := _good_icon(gid)
+		if ico != null:
+			row.add_child(ico)
+		var nm := UIKit.label(_good_name(gid))
+		nm.custom_minimum_size = Vector2(110, 0)
+		row.add_child(nm)
+		row.add_child(_money(float(d["price"])))
+		row.add_child(UIKit.label("还能收 %d" % int(d["room"]), C_HINT))
+		# ⚠️ 这里不能用 `UIKit.spacer()`：它会把数量与按钮推到屏幕最右边，
+		# 一行里左边的名字和右边的 +10 隔着一整屏。留一小段固定空隙就够了。
+		var gap := Control.new()
+		gap.custom_minimum_size = Vector2(18, 0)
+		gap.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		row.add_child(gap)
+		var qty_lb := UIKit.label("%d" % plan)
+		qty_lb.custom_minimum_size = Vector2(46, 0)
+		qty_lb.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		row.add_child(qty_lb)
+		for step in [-10, 10]:
+			var b := UIKit.button("%+d" % step, true)
+			b.pressed.connect(func() -> void:
+				_enqueue_route({"type": "route_set_sell", "routeId": rid, "goodId": gid,
+					"qty": clampi(plan + step, 0, cargo)}))
+			row.add_child(b)
+		box.add_child(row)
+	box.add_child(UIKit.label("合计 %d / 货位 %d" % [total, cargo], C_HINT))
+	box.add_child(_sep())
+	return box
+
 
 ## 面板范围内的鼠标事件一律吃掉（全屏面板，别让点击穿到地图上）。
 func _gui_input(event: InputEvent) -> void:

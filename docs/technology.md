@@ -950,3 +950,42 @@ GD   `sim_core.IMMEDIATE_ACTIONS`  + `enqueue()` / `tick_hour()` 分流
 
 门槛：`scripts/check-queues.ts` + `godot/tools/queue_test.gd`（同口径同数字）、
 `godot/tools/inspector_test.gd`（页签名与三件套按钮）。
+
+---
+
+## 十一、贸易页与贸易科技（B3，用户 2026-10）
+
+> 用户："科技还有一个讨价还价能力，分购买和出售，各 3 级……所以在科技面板，要单独加一个贸易 tab，
+> 科技的名字你自己编一下，列一个表格给我，我去做图标。"
+
+`content/technologies.json` 里带 **`trade` 块**的科技 = 贸易科技，它们**只出现在
+`panel_tech.gd` 的「贸易」页**（`TAB_TRADE`），既不进「制造」也不进「效率」——
+它们不解锁建筑、也不给效率加成，混进去只会让人以为点它没效果。
+
+页签顺序：**制造 / 效率 / 贸易 / 研究队列**（`TAB_NAMES`）。
+
+### 11.1 16 项贸易科技
+
+| id | 名字 | 纪元 | 科研 | 前置 | 效果 |
+|---|---|---:|---|---|---|
+| `trade_caravan_1` | 常设商队 | 3 | 60 | 通商 | 商队 +1（第一支）|
+| `trade_caravan_2` | 副队随行 | 4 | 80 | `_1` | 商队 +1 |
+| `trade_caravan_3` | 三队并进 | 4 | 100 | `_2` | 商队 +1 |
+| `trade_caravan_4` | 车马行会 | 5 | 130 | `_3` | 商队 +2 |
+| `cargo_hold_1/2/3` | 加固货箱 / 双辕货车 / 驮队扩编 | 3/4/5 | 60/85/110 | 链 | 载货 80 / 120 / 160（**取最高**）|
+| `strongbox_1/2/3` | 铁箍钱箱 / 双锁钱柜 / 王家信用证 | 3/4/5 | 55/80/105 | 链 | 带钱 1800 / 3500 / 6000（**取最高**）|
+| `haggle_buy_1/2/3` | 低买初阶 / 中阶 / 高阶 | 3/4/5 | 45/65/85 | 链 | 买价 −10% ×3（**加法**）|
+| `haggle_sell_1/2/3` | 高卖初阶 / 中阶 / 高阶 | 3/4/5 | 45/65/85 | 链 | 卖价 +10% ×3（**加法**）|
+
+- **前置要满足"原料不自锁"那条规则**（§1.1）：花钱箱链要吃 `iron` / `brick`，所以它们
+  的 `requires` 里加了 `ironworking` / `brickmaking`；卖价链要吃 `coarse_cloth`，加了 `coarse_weaving`。
+- 商队数**基础值是 0**（`routes.json::caravan.count`）：不研究「常设商队」就没有车队。
+- 图标：`assets/ui/tech/<id>.png`（64×64）。议价三档**复用同一张图**（`icon` 别名见
+  `check-routes.ts::ICON_ALIAS`），所以 16 项只有 12 张图。
+
+### 11.2 数值聚合（唯一实现）
+
+`tech_bonuses()` 里多了 `trade` 子表（TS `systems/tech_bonus.ts` / GD `sim_core.gd`）：
+`caravans` / `haggle*` **加法**，`cargo` / `purse` **取最高**。口径见 spec §21.2。
+
+门槛：`npm run check:routes`（内容 + 科技链 + 图标尺寸）、`verify.sh tech`（四个页签 + 三页互补覆盖）。

@@ -190,7 +190,8 @@ export function sellToCaravan(
   state.goods[goodId] = round2(stock - n)
   state.government.money = round2(state.government.money + money)
   c.cash = round2(c.cash - money)
-  state.ledgerToday.sales = round2(state.ledgerToday.sales + money)
+  // ⚠️ 单列一栏，不再混进 `sales`（居民消费回款）—— 用户 2026-10："游商的收益"要单独一行。
+  state.ledgerToday.merchantSell = round2(state.ledgerToday.merchantSell + money)
   return ''
 }
 
