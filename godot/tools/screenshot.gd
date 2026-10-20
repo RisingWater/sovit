@@ -430,6 +430,16 @@ func _run() -> void:
 				t_panel._select_tab(2)
 				await process_frame
 				await process_frame
+				if mode == "techtrade" and runner.sim != null:
+					# 顶部那行累计量（"贸易科技：商队 3 / 5 支　单程载货 120 件…"）要**研究过**
+					# 才有内容。截图上摆这几项已完成，顺便看卡片"已完成"的配色。
+					var done_tr: Array = runner.sim.s["research"]["done"]
+					for t_id in ["trade_caravan_1", "trade_caravan_2", "trade_caravan_3",
+							"cargo_hold_1", "cargo_hold_2", "haggle_buy_1"]:
+						if not done_tr.has(String(t_id)):
+							done_tr.append(String(t_id))
+					t_panel._refresh()
+					await process_frame
 			if mode == "techtip":
 				# tooltip 是**弹出层**，靠"鼠标悬停"截不到（headless 还根本截不到）。
 				# 这里直接把面板拼好的 tooltip 控件摆到桌上 —— 用户 2026-10 就是看着
