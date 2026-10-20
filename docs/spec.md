@@ -948,3 +948,33 @@ when   { chapter?, afterDays?, minDay?, pop?, building?, tech?, class?+classMin?
 
 场次**不进追踪条、不进任务面板**（它不是差事，是一段戏）；也不改任何数字 —— 与 `quests.shown`
 同一类"只记事"的状态段。
+
+## 20. 游商 `trade`（M4，2026-10；2026-10 取消收购配额）
+
+```
+节奏   第 3 章完成起才有游商；每 7 天一批；第 3/4/5 章同时在场 1/2/3 队；每队停留 7 天
+       （第 D 天到 → D+6 最后一天 → D+7 黎明离开）
+商品池 本包 goods 里 category ∉ {service, military, tool} 且 perishRate < 1，按 id 排序
+报价   每队 4 收 + 4 卖，抽签用独立 mulberry32：seed = day × 1000 + wave × 100 + 序号
+       （不吃 state.rngState —— 别扰动黄金轨迹）
+价格   他收（玩家卖）= baseValue × 1.6；他卖（玩家买）= baseValue × 1.3
+现金   cash = 400 + rnd × 400（收你货的钱）；玩家买他的货 → 现金变多（同一笔钱）
+货值   goodsValue = 600 + rnd × 400；他卖的每种 qty = floor(goodsValue ÷ 4 ÷ 单价)，至少 1
+```
+
+**两个方向的成交上限不一样**（这是 2026-10 用户专门纠正过的地方）：
+
+| 动作 | 报价字段 | 一次能成交多少 |
+|---|---|---|
+| `sell_to_caravan`（玩家卖给他）| `{ good, price }` —— **没有 qty** | `min(库存, floor(cash ÷ price))` |
+| `buy_from_caravan`（玩家从他买）| `{ good, price, qty }` | `min(qty, floor(国库钱 ÷ price))` |
+
+- ⚠️ **他收的"多多益善"**（用户原话："游商本来就为了收购这个货物来的，所以是多多益善，
+  阻止他收购这个货物的唯一就是自己钱不够了"）—— 所以**没有"每种 20 件"的配额**，
+  上限只有两条：我没有货、他的钱不够。`QTY_PER_OFFER` / `CARAVAN_QTY` 已删，别再生成。
+- 成交是**部分成交**：要 50 件、他钱只够 2 件 → 成交 2 件（不报错，也不是整单拒绝）。
+- 双向都**记账**：卖给他 → `goods` 减、`government.money` 增、`cash` 减、`ledgerToday.sales` 增；
+  从他买 → 反过来（且 `cash` 增）。
+- 面板只读 `trade_snapshot()`；命令走 pending，**次日黎明**生效。
+- 唯一实现：`src/engine/systems/caravan.ts` / `godot/scripts/sim/sim_core.gd`
+  （`_update_caravans` / `sell_to_caravan` / `buy_from_caravan`）；门槛 `merchant`

@@ -3568,7 +3568,9 @@ const CARAVAN_WAVE_PERIOD := 7
 const CARAVAN_BUY_MARKUP := 1.6
 const CARAVAN_SELL_MARKUP := 1.3
 const CARAVAN_OFFERS := 4
-const CARAVAN_QTY := 20
+# ⚠️ 曾经有 `CARAVAN_QTY := 20`（他每种货只收 20 件）。**已删**：
+# 用户 2026-10："游商本来就为了收购这个货物来的，所以是多多益善，阻止他收购这个货物的
+# 唯一就是自己钱不够了。" —— 他收的报价只有商品与单价，上限只由 `cash` 决定。
 
 func _trade() -> Dictionary:
 	if not (s as Dictionary).has("trade"):
@@ -3677,8 +3679,9 @@ func _update_caravans(day: int) -> Array:
 		for g in buys:
 			var def2 = db.goods.get(String(g), null)
 			var base2 := float(def2["baseValue"]) if def2 != null else 1.0
+			# **不带 qty**：他收的"多多益善"，上限只由他的现金决定（见文件头那条注释）。
 			buy_offers.append({"good": String(g),
-				"price": SimUtil.r2(base2 * CARAVAN_BUY_MARKUP), "qty": CARAVAN_QTY})
+				"price": SimUtil.r2(base2 * CARAVAN_BUY_MARKUP)})
 		(trade["caravans"] as Array).append({
 			"id": "cv#%d-%d" % [int(trade["wave"]), i + 1],
 			"arriveDay": day,
@@ -3707,6 +3710,9 @@ func _find_caravan(caravan_id: String) -> Variant:
 	return null
 
 ## 玩家卖给游商。返回拒绝原因（空串 = 成功）。
+##
+## 能收多少 = **库存**与**他的现金**取小 —— 没有"每种只收 20 件"的配额（见文件头那条注释）。
+## 卖完之后他的 `cash` 立刻变少，所以下一单能收的更少。
 func sell_to_caravan(caravan_id: String, good_id: String, qty: int) -> String:
 	var c: Variant = _find_caravan(caravan_id)
 	if c == null:
@@ -3720,14 +3726,13 @@ func sell_to_caravan(caravan_id: String, good_id: String, qty: int) -> String:
 	var stock := float(s["goods"].get(good_id, 0.0))
 	var price := maxf(0.01, float(offer["price"]))
 	var afford := int(floor(float(c["cash"]) / price))
-	var n := mini(mini(maxi(0, qty), int(offer["qty"])), mini(int(floor(stock)), afford))
+	var n := mini(mini(maxi(0, qty), int(floor(stock))), afford)
 	if n <= 0:
-		return "库存不够 / 他没那么多钱 / 这次不收那么多"
+		return "库存不够 / 他没那么多钱收"
 	var money := SimUtil.r2(float(n) * price)
 	s["goods"][good_id] = SimUtil.r2(stock - float(n))
 	s["government"]["money"] = SimUtil.r2(float(s["government"]["money"]) + money)
 	c["cash"] = SimUtil.r2(float(c["cash"]) - money)
-	offer["qty"] = SimUtil.r2(float(offer["qty"]) - float(n))
 	s["ledgerToday"]["sales"] = SimUtil.r2(float(s["ledgerToday"]["sales"]) + money)
 	return ""
 

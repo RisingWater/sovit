@@ -24,9 +24,11 @@ extends PanelContainer
 #   · "xx 来自 xxxx这个字不要放大" → 抬头与正文**同字号**（之前错用了 `BIG_FS`=24，
 #     比表头和数字都大，看着像标题而不像一句话）
 #   · "他可收购的列表里面要显示，我们当前未锁定的货物数量，表头叫做 可出售" →
-#     收购侧数量列 = **可出售**（`goods − reserved`，就是真能拿去卖的），
-#     原来的「已收购 x / 20」不再占一列（配额挪到按钮的 tooltip 里）；
+#     收购侧数量列 = **可出售**（`goods − reserved`，就是真能拿去卖的）；
 #     出售侧仍是 **存货**（他还剩多少）。
+#   · "游商本来就为了收购这个货物来的，所以是多多益善，阻止他收购这个货物的唯一就是
+#     自己钱不够了" → **他收的没有每种配额**：上限 = min(可出售, 他的现金 ÷ 单价)。
+#     原来那句「已收购 x / 20」连同上限 20 件一起删了（引擎也删：`sell_to_caravan`）。
 #
 # 数据来自 `SimCore.trade_snapshot()`（只读快照）+ `s["goods"] / s["reserved"]`（算未锁定数量）。
 # 命令走 `runner.enqueue()`（次日黎明生效），副标题里写明，否则玩家会以为点了没反应。
@@ -46,10 +48,10 @@ const ICON_GOOD := 32
 const W_NAME := 150.0
 const W_QTY := 56.0
 const W_PRICE := 84.0
-## 每个游商这一趟"最多收多少"（引擎 `caravan.ts::QTY_PER_OFFER` 的镜像）。
-## 2026-10 起**不再画在表里**（数量列改成了「可出售」= 我们的未锁定库存），
-## 只在「出售」按钮的 tooltip 里报一句"他这趟还能收 x / 20"。
-const FULL_QUOTA := 20
+# ⚠️ 这里原来有个 `FULL_QUOTA := 20`（他每种货只收 20 件）。**已删**：
+# 用户 2026-10："游商本来就为了收购这个货物来的，所以是多多益善，阻止他收购这个货物的
+# 唯一就是自己钱不够了。" —— 现在"最多能卖多少" = min(可出售, 他的现金 ÷ 单价)，
+# 没有第三种上限。别把这个配额偷偷加回来。
 
 ## 游商名字池（用户 2026-10 给的 20 个）。**纯表现层**：按 `cv#<批>-<序>` 的哈希取，
 ## 同一个 id 永远同一个名字，读档 / 换机器都一样。不进存档、不进引擎，
@@ -447,7 +449,8 @@ func _offer_row(cv: Dictionary, key: String, o: Dictionary, verb: String) -> Con
 	#   收购侧 → **可出售** = 我们当前**未锁定**的库存（`goods − reserved`）。
 	#     黎明排产 / 建造会先占住一批货，那部分不能拿去卖 —— 所以这里显示的不是库存总量，
 	#     而是真能卖的数量（与 `_max_qty()` 用的是同一个 `_unlocked()`，两处不会打架）。
-	#   出售侧 → **存货** = 他还剩多少（报价里的 qty 每成交一次就减）。
+	#     另一头上限是**他的现金**（他收的多多益善，没有每种多少件的配额）。
+	#   出售侧 → **存货** = 他还剩多少（他卖的报价里有 qty，每成交一次就减）。
 	var qty_txt := str(_unlocked(gid)) if key == "buy" else str(left)
 	row.add_child(_cell(UIKit.label(qty_txt), W_QTY))
 
@@ -461,11 +464,10 @@ func _offer_row(cv: Dictionary, key: String, o: Dictionary, verb: String) -> Con
 		b.disabled = true
 		b.tooltip_text = _max_reason(cv, key, o)
 	else:
-		# 收购侧把「他这趟还能收几个」放进 tooltip：数量列让给「可出售」了，
-		# 但配额仍然决定这一单的上限 —— 不写出来，玩家会奇怪
-		# "我有 40 个小麦，为什么滑块最多只给 6 个"。
+		# 他收的**没有每种配额**（用户 2026-10：多多益善，唯一上限是他自己的现金），
+		# 所以这里只报"最多几个"，再补一句他手里还有多少钱 —— 再卖他就买不动了。
 		if key == "buy":
-			b.tooltip_text = "选数量（最多 %d）· 他这趟还能收 %d / %d 个" % [maxq, left, FULL_QUOTA]
+			b.tooltip_text = "选数量（最多 %d）· 他手里还有 %s" % [maxq, _fmt(float(cv.get("cash", 0.0)))]
 		else:
 			b.tooltip_text = "选数量（最多 %d）" % maxq
 		b.pressed.connect(_open_dialog.bind(key, String(cv.get("id", "")), o, verb))
@@ -477,7 +479,8 @@ func _offer_row(cv: Dictionary, key: String, o: Dictionary, verb: String) -> Con
 # 数量对话框（拖动滑块选数量，实时显示总价）
 # ---------------------------------------------------------------------------
 ## 这一单**最多能成交几个**：
-##   卖给他 → 未锁定的库存（goods − reserved）、他还肯收的配额、他现金买得起的量，三者取小
+##   卖给他 → 未锁定的库存（goods − reserved）、他现金买得起的量，两者取小
+##            （他收的多多益善 —— 用户 2026-10："阻止他收购这个货物的唯一就是自己钱不够了"）
 ##   从他买 → 他的存货、国库买得起的量，两者取小
 func _max_qty(cv: Dictionary, key: String, o: Dictionary) -> int:
 	var price := maxf(0.01, float(o.get("price", 0.0)))
@@ -485,20 +488,22 @@ func _max_qty(cv: Dictionary, key: String, o: Dictionary) -> int:
 	if key == "buy":
 		var unlocked := _unlocked(String(o.get("good", "")))
 		var cash_afford := int(floor(float(cv.get("cash", 0.0)) / price))
-		return maxi(0, mini(unlocked, mini(stock_left, cash_afford)))
+		return maxi(0, mini(unlocked, cash_afford))
 	var money := float(runner.sim.s["government"]["money"])
 	return maxi(0, mini(stock_left, int(floor(money / price))))
 
 ## 不能成交时给玩家一句人话。
 func _max_reason(cv: Dictionary, key: String, o: Dictionary) -> String:
 	var price := maxf(0.01, float(o.get("price", 0.0)))
-	if int(ceil(float(o.get("qty", 0.0)))) <= 0:
-		return "他这一档没了" if key == "sell" else "他收满了"
-	if key == "buy":
-		if _unlocked(String(o.get("good", ""))) <= 0:
-			return "这类物资都被预定了（未锁定的数量是 0）"
-		return "他的钱不够收了（手里只有 %s）" % _fmt(float(cv.get("cash", 0.0)))
-	return "国库不够（单价 %s）" % _fmt(price)
+	if key == "sell":
+		# 从他买：要么他卖完了，要么国库的钱不够
+		if int(ceil(float(o.get("qty", 0.0)))) <= 0:
+			return "他这一档卖完了（存货 0）"
+		return "国库不够（单价 %s）" % _fmt(price)
+	# 卖给他：只有"没有未锁定的货"和"他的钱不够"两种可能（他收的多多益善，没有配额）
+	if _unlocked(String(o.get("good", ""))) <= 0:
+		return "这类物资都被预定了（未锁定的数量是 0）"
+	return "他的钱不够收了（手里只有 %s）" % _fmt(float(cv.get("cash", 0.0)))
 
 ## 未锁定数量 = 库存 − 预定量（建造待扣的那部分不能拿去卖）。
 func _unlocked(gid: String) -> int:
@@ -537,11 +542,12 @@ func _open_dialog(key: String, cv_id: String, o: Dictionary, verb: String) -> vo
 	_dlg_meta.add_child(UIKit.label("每件"))
 	_dlg_meta.add_child(_money(_dlg_price))
 	if key == "buy":
-		# 上限为什么是这个数：未锁定的货 / 他这趟还肯收的配额 / 他手里的现金，三者取小。
-		# 表里只报「可出售」，所以把另两个约束在这里说清楚。
+		# 上限为什么是这个数：**未锁定的货**与**他手里的现金**取小 —— 他收的多多益善，
+		# 没有每种多少件的配额。表里只报「可出售」，所以把钱的约束在这里说清楚。
+		var afford := int(floor(float(cv.get("cash", 0.0)) / maxf(0.01, _dlg_price)))
 		_dlg_meta.add_child(UIKit.label(
-			" · 这单最多 %d 个（可出售 %d，他还肯收 %d / %d）"
-			% [maxq, _unlocked(gid), int(ceil(float(o.get("qty", 0.0)))), FULL_QUOTA]))
+			" · 这单最多 %d 个（可出售 %d，他的钱够收 %d 个）"
+			% [maxq, _unlocked(gid), afford]))
 	else:
 		_dlg_meta.add_child(UIKit.label(" · 他还有 %d 个" % maxq))
 	_dlg_slider.min_value = 1

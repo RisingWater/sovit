@@ -168,6 +168,7 @@ func _run() -> void:
 	# 找那件货自己的行（不按下标猜：过滤掉"存不住"的报价之后顺序可能变）
 	var shown := ""
 	var shown_ok := false
+	var row_btn: Button = null
 	for i in range(2, buy_col.get_child_count()):
 		var r: Node = buy_col.get_child(i)
 		var nm_row: Node = r.get_child(0)
@@ -175,6 +176,7 @@ func _run() -> void:
 		if nm_lb == null or String(nm_lb.text) != good0_name:
 			continue
 		shown = String((r.get_child(1) as Label).text)
+		row_btn = r.get_child(3) as Button
 		shown_ok = true
 		break
 	if not shown_ok:
@@ -183,7 +185,15 @@ func _run() -> void:
 	if shown != "170":
 		_fail("「可出售」显示的是 %s，应当是未锁定库存 170（goods 200 − reserved 30）" % shown)
 		return
-	# 旧列「已收购 x/20」不许再出现（配额改在按钮 tooltip 里说）
+	# tooltip 里不许再出现"他还能收 x / 20"这种配额说法 —— 唯一的坎是他的现金
+	if row_btn == null or not row_btn.tooltip_text.contains("他手里还有"):
+		_fail("「出售」按钮的 tooltip 是「%s」，应当说明他手里还有多少钱（配额已经删了）"
+			% ("" if row_btn == null else row_btn.tooltip_text))
+		return
+	if row_btn.tooltip_text.contains("/") or row_btn.tooltip_text.contains("还收"):
+		_fail("「出售」按钮的 tooltip 还在提配额：%s" % row_btn.tooltip_text)
+		return
+	# 旧列「已收购 x/20」不许再出现（"每种 20 件"的配额已按用户要求整体删除）
 	for lb in body.find_children("*", "Label", true, false):
 		if String((lb as Label).text).contains("已收购"):
 			_fail("收购侧还在画旧表头/旧数值：%s" % String((lb as Label).text))
@@ -192,10 +202,15 @@ func _run() -> void:
 
 	# ---- 数量对话框（2026-10：1 / 5 两个按钮换成滑块）
 	#
-	# 收购侧：上限 = min(未锁定库存, 他还肯收的配额, 他现金买得起)
+	# 收购侧：上限 = min(未锁定库存, 他现金买得起) —— **没有每种配额**
+	# （用户 2026-10："游商本来就为了收购这个货物来的，所以是多多益善，阻止他收购这个货物的
+	# 唯一就是自己钱不够了"）。
 	var offer: Dictionary = (cv["buy"] as Array)[0]
 	var gid := String(offer["good"])
 	var price := float(offer["price"])
+	if offer.has("qty"):
+		_fail("他收的报价里还有 qty（每种配额）—— 已经按用户要求删了，别再生成")
+		return
 	# 开局头几天"预定量 > 库存"是正常的（黎明排产会先占住），所以这里给足货再测，
 	# 免得断言被"未锁定 = 0"挡住（那不是 bug，是开局状态）。
 	(sim.s["goods"] as Dictionary)[gid] = 200.0
@@ -203,11 +218,10 @@ func _run() -> void:
 	var have := float((sim.s["goods"] as Dictionary).get(gid, 0.0))
 	var reserved := float((sim.s["reserved"] as Dictionary).get(gid, 0.0))
 	var unlocked := maxi(0, int(floor(have - reserved)))
-	var cap_want := mini(mini(unlocked, int(ceil(float(offer["qty"])))),
-		int(floor(float(cv["cash"]) / maxf(0.01, price))))
+	var cap_want := mini(unlocked, int(floor(float(cv["cash"]) / maxf(0.01, price))))
 	if cap_want <= 0:
-		_fail("这个报价一个都卖不了（unlocked=%d qty=%d cash=%.2f），测不出对话框"
-			% [unlocked, int(offer["qty"]), float(cv["cash"])])
+		_fail("这个报价一个都卖不了（unlocked=%d cash=%.2f），测不出对话框"
+			% [unlocked, float(cv["cash"])])
 		return
 	panel._open_dialog("buy", String(cv["id"]), offer, "出售")
 	await process_frame
@@ -217,7 +231,7 @@ func _run() -> void:
 		return
 	var slider: HSlider = panel.get("_dlg_slider")
 	if int(slider.max_value) != cap_want:
-		_fail("滑块上限是 %d，应当是 %d（未锁定 / 配额 / 他的现金 三者取小）"
+		_fail("滑块上限是 %d，应当是 %d（未锁定 / 他的现金 两者取小；没有配额这一项）"
 			% [int(slider.max_value), cap_want])
 		return
 	slider.value = 2

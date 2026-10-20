@@ -8,6 +8,8 @@ extends SceneTree
 #              ⑤ 买他的货不会让他现金变多（"买得越多他越有钱收你的货"）
 #              ⑥ 同一状态两次生成不一致（不确定性会毁掉 golden / AI 沙盘）
 #              ⑦ 交易不守恒（库存 / 国库对不上）
+#              ⑧ 他收的又冒出"每种 20 件"这种配额（用户 2026-10：多多益善，
+#                 阻止他收购的唯一就是"他自己钱不够了"）
 
 const SEED := 20261024
 
@@ -156,6 +158,47 @@ func _run() -> void:
 		_fail("他没带的商品居然能买")
 		return
 	print("MERCHANT TEST 拒绝：不存在的游商 / 没带的商品都给理由 ✅")
+
+	# ---- 7. 他收的"多多益善"：没有每种配额 --------------------------------
+	#
+	# 用户 2026-10："游商本来就为了收购这个货物来的，所以是多多益善，阻止他收购这个货物的
+	# 唯一就是自己钱不够了。" —— 所以：① 他收的报价里没有 `qty`；
+	# ② 一次能卖多少只由"库存 + 他的现金"决定（旧规则每种只收 20 件，早没了）。
+	var sim7 = sim_script.new(db)
+	sim7.new_game("v0.3", SEED, 1.0)
+	sim7.s["quests"]["chapters"]["3"] = 3
+	sim7.s["trade"]["nextWaveDay"] = 1
+	sim7._update_caravans(10)
+	var cv7: Dictionary = (sim7.s["trade"]["caravans"] as Array)[0]
+	var buy7: Dictionary = (cv7["buy"] as Array)[0]
+	if buy7.has("qty"):
+		_fail("他收的报价里还有 qty —— 用户要求多多益善，没有每种配额")
+		return
+	# 钱给足 → 一次卖 100 件应当全收（旧规则最多 20）
+	var good7 := String(buy7["good"])
+	var price7 := float(buy7["price"])
+	cv7["cash"] = 100000.0
+	sim7.s["goods"][good7] = 500.0
+	if sim7.sell_to_caravan(String(cv7["id"]), good7, 100) != "":
+		_fail("钱给足时卖给他 100 件被拒（旧规则的 20 件配额不许回来）")
+		return
+	if absf(float(sim7.s["goods"][good7]) - 400.0) > 0.001:
+		_fail("卖 100 件之后库存是 %.2f，应当是 400（配额还在？）" % float(sim7.s["goods"][good7]))
+		return
+	# 只给 2.5 件的钱 → 成交 2 件（floor），他的钱花到买不起第 3 件
+	cv7["cash"] = snappedf(price7 * 2.5, 0.01)
+	sim7.s["goods"][good7] = 400.0
+	if sim7.sell_to_caravan(String(cv7["id"]), good7, 50) != "":
+		_fail("现金只够 2 件时，卖 50 件应当成交 2 件（部分成交，不是整单拒绝）")
+		return
+	var sold7 := 400.0 - float(sim7.s["goods"][good7])
+	if absf(sold7 - 2.0) > 0.001:
+		_fail("他的现金只够 2 件，却成交了 %.0f 件（唯一的上限应当是他的现金）" % sold7)
+		return
+	if float(cv7["cash"]) >= price7:
+		_fail("钱花完了他的 cash 还有 %.2f（还够再收一件）" % float(cv7["cash"]))
+		return
+	print("MERCHANT TEST 多多益善：他收的报价没有 qty；钱够就一次收 100 件，钱不够只收到现金上限 ✅")
 
 	print("MERCHANT TEST RESULT: PASS")
 	quit(0)

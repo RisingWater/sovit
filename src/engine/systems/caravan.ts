@@ -13,6 +13,9 @@ import { round2 } from '../util.ts'
 //     （玩家从他买，按 baseValue×1.3 付钱）
 //   · 他有"**货值池**"和"**现金池**"：现金池是他能收你货的上限；玩家买他的货 → 他现金变多
 //     （"你买的越多，他就越有钱可以收购越多"）
+//   · **他收的没有数量上限**（用户 2026-10："游商本来就为了收购这个货物来的，所以是多多益善，
+//     阻止他收购这个货物的唯一就是自己钱不够了"）—— 一次能收多少只看 `floor(cash / price)`；
+//     他卖的才有 `qty`（带来的货有限）
 //   · 商品池只用本内容包、且**玩家已解锁**的商品（不剧透后期商品）
 //   · 全部**确定性**：`seed = day × 1000 + 序号`（golden / AI 沙盘可复现）
 //
@@ -24,7 +27,6 @@ const WAVE_PERIOD = 7
 const BUY_MARKUP = 1.6
 const SELL_MARKUP = 1.3
 const OFFERS = 4
-const QTY_PER_OFFER = 20
 const CASH_BASE = 400
 const CASH_SPREAD = 400
 const GOODS_VALUE_BASE = 600
@@ -145,11 +147,10 @@ export function updateCaravans(state: GameState, ctx: ContentContext, day: numbe
         const qty = Math.max(1, Math.floor(goodsValue / OFFERS / Math.max(0.01, price)))
         return { good: g, price, qty }
       }),
-      // 他收的：现金池封顶，单价 ×1.6
+      // 他收的：现金池封顶，单价 ×1.6。**不带 qty** —— 多多益善，只受他的现金限制。
       buy: buys.map((g) => ({
         good: g,
         price: round2((ALL_GOODS[g]?.baseValue ?? 1) * BUY_MARKUP),
-        qty: QTY_PER_OFFER,
       })),
     }
     state.trade.caravans.push(caravan)
@@ -163,7 +164,13 @@ export function updateCaravans(state: GameState, ctx: ContentContext, day: numbe
   return logs
 }
 
-/** 玩家卖给游商（`sell_to_caravan`）。返回失败原因或空串。 */
+/**
+ * 玩家卖给游商（`sell_to_caravan`）。返回失败原因或空串。
+ *
+ * 能收多少：**库存**与**他的现金**取小 —— 没有"每种只收 20 件"这种配额
+ * （用户 2026-10："游商本来就为了收购这个货物来的，所以是多多益善，阻止他收购这个货物的
+ * 唯一就是自己钱不够了"）。卖完之后 `c.cash` 立刻变少，所以下一单能收的更少。
+ */
 export function sellToCaravan(
   state: GameState,
   caravanId: string,
@@ -177,13 +184,12 @@ export function sellToCaravan(
   const stock = state.goods[goodId] ?? 0
   const afford = Math.floor(c.cash / Math.max(0.01, offer.price))
   const want = Math.max(0, Math.floor(qty))
-  const n = Math.min(want, offer.qty, Math.floor(stock), afford)
-  if (n <= 0) return '库存不够 / 他没那么多钱 / 这次不收那么多'
+  const n = Math.min(want, Math.floor(stock), afford)
+  if (n <= 0) return '库存不够 / 他没那么多钱收'
   const money = round2(n * offer.price)
   state.goods[goodId] = round2(stock - n)
   state.government.money = round2(state.government.money + money)
   c.cash = round2(c.cash - money)
-  offer.qty = round2(offer.qty - n)
   state.ledgerToday.sales = round2(state.ledgerToday.sales + money)
   return ''
 }

@@ -806,13 +806,31 @@ export interface SceneState {
   shown: Record<string, boolean>
 }
 
-/** 游商的一条报价（他卖 / 他收）。 */
-export interface CaravanOffer {
+/**
+ * 游商**卖**给你的一条报价（玩家从他买）。
+ *
+ * 他带来的货是有限的：`qty` = 还剩多少件，成交一次就减。
+ */
+export interface CaravanSellOffer {
   good: GoodID
-  /** 单价（他卖 = baseValue×1.3；他收 = baseValue×1.6）。 */
+  /** 单价（baseValue×1.3，玩家付钱）。 */
   price: number
-  /** 剩余可交易量。 */
+  /** 剩余可买量。 */
   qty: number
+}
+
+/**
+ * 游商**收**你货的一条报价（玩家卖给他）。
+ *
+ * ⚠️ **没有数量上限**（用户 2026-10："游商本来就为了收购这个货物来的，所以是多多益善，
+ * 阻止他收购这个货物的唯一就是自己钱不够了"）。所以这里只有商品与单价，
+ * 上限全靠 `Caravan.cash`：`floor(cash / price)` 件，卖一次他的现金就少一截。
+ * 早先这里有个 `qty: 20` 的每种配额 —— 已经删掉了，别再偷偷加回来。
+ */
+export interface CaravanBuyOffer {
+  good: GoodID
+  /** 单价（baseValue×1.6，他付现金给你）。 */
+  price: number
 }
 
 /**
@@ -829,9 +847,9 @@ export interface Caravan {
   cash: number
   goodsValue: number
   /** 他卖的（玩家买）。 */
-  sell: CaravanOffer[]
-  /** 他收的（玩家卖）。 */
-  buy: CaravanOffer[]
+  sell: CaravanSellOffer[]
+  /** 他收的（玩家卖）。**不限量**，只受 `cash` 限制。 */
+  buy: CaravanBuyOffer[]
 }
 
 /** 游商系统的状态（见 `systems/caravan.ts`）。 */
