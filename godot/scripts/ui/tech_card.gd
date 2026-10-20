@@ -108,6 +108,8 @@ func setup(p_host: Node, tid: String, disp: String, tex: Texture2D) -> void:
 func set_effect(text: String) -> void:
 	_effect_label.text = text
 	_effect_label.visible = text != ""
+	# 最小高度跟着效果行走：面板还会显式设一次 `size`，这里只是让卡片自己也是自洽的
+	custom_minimum_size.y = CARD_H_EFFECT if text != "" else CARD_H
 
 
 ## 由面板调用：更新这张卡片的四种（五种，含"已排队待生效"）外观。
