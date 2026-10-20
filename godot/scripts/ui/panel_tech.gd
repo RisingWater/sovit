@@ -722,7 +722,8 @@ func build_tooltip(tid: String) -> Control:
 	ic.texture = UIKit.tech_icon(tid)
 	ic.custom_minimum_size = Vector2(UIKit.TECH_ICON_SIZE, UIKit.TECH_ICON_SIZE)
 	ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	ic.stretch_mode = TextureRect.STRETCH_KEEP_CENTERED
+	# 科技图标有 32（老素材）和 64（第三批）两种原生尺寸，这里只有 32 的位子 → 按比例缩
+	ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	head.add_child(ic)
 	var col := VBoxContainer.new()
 	col.add_theme_constant_override("separation", 0)

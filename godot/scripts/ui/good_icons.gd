@@ -5,8 +5,8 @@ extends RefCounted
 # 商品图标：**全 UI 唯一的加载入口**。
 #
 # 两套图标共存，手绘优先：
-#   res://assets/icons/<id>.png  —— 手绘图标（32x32，由 scripts/import-icons.py
-#                                  从素材包导入；素材包 MIT，不随仓库分发）
+#   res://assets/icons/<id>.png  —— 手绘图标（2026-10 的 v7 那批起是 **64×64**；
+#                                  更早的 36 张是 32×32，另有三张住房图标 32×32）
 #   res://assets/goods/<id>.png  —— `npm run gen:art` 程序化生成的 16x16 兜底
 #
 # 为什么必须分两个目录：gen:art 每次跑都会**整体重写** goods/，
@@ -15,13 +15,18 @@ extends RefCounted
 # 为什么要有这个单点入口：顶栏 / 统计面板 / 资源选择 / 科技面板四处都要图标，
 # 各写一份 load 路径的话，将来换目录或加新图源必然漏改一两处，
 # 表现就是"某个面板的图标突然变回旧的"，而且很难查。
+#
+# ⚠️ **显示尺寸各处自己定（16 / 32），但一律用 `STRETCH_KEEP_ASPECT_CENTERED`**：
+#    原生 64 的图标放进 32 的格子，用 `KEEP_CENTERED` 会画到格子外面去。
+#    64 → 32、64 → 16 都是整除，像素不糊。
 # ---------------------------------------------------------------------------
 
 const ICON_DIR := "res://assets/icons/"
 const FALLBACK_DIR := "res://assets/goods/"
 
-## 图标原生尺寸（手绘 32；程序化兜底是 16，UI 那边按需缩放）
-const SIZE := 32
+## 图标**原生**尺寸：v7 那批是 64，更早的是 32，程序化兜底是 16。
+## 各面板按自己的格子缩放，别拿这个常量当显示尺寸硬取。
+const SIZE := 64
 
 static var _cache: Dictionary = {}
 

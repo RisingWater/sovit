@@ -307,7 +307,9 @@ func _resources_tab() -> void:
 		var ic := TextureRect.new()
 		ic.texture = GoodIcons.tex(gid2)
 		ic.custom_minimum_size = Vector2(UIKit.CHIP_ICON, UIKit.CHIP_ICON)
-		ic.stretch_mode = TextureRect.STRETCH_KEEP_CENTERED
+		# 手绘图标是 64×64（v7），这里是 32 的位子 → 必须按比例缩，不能 KEEP_CENTERED
+		ic.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		ic.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 		row.add_child(ic)
 		var nb := UIKit.button(_good_name(gid2), true)
 		nb.size_flags_horizontal = Control.SIZE_EXPAND_FILL

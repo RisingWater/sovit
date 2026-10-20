@@ -1,31 +1,43 @@
-"""把手绘商品图标从素材包导成游戏用的 32x32 PNG。
+"""把手绘商品图标导成游戏用的 PNG。
 
 用法：
     python scripts/import-icons.py
 
-素材包**不在仓库里**（和 Super Retro World 的 props 一样，授权不允许再分发），
-所以这个脚本只在本地跑一次，产物 godot/assets/icons/*.png 是提交进仓库的。
+素材包**不在仓库里**，所以这个脚本只在本地跑，产物 godot/assets/icons/*.png 提交进仓库。
 没有素材包的人照样能构建：图标已经是仓库里的文件了。
+
+两代素材包，脚本先认新的：
+
+  ① **v7（2026-10 起，当前用这个）** `V7_64_DIR`
+     已经是**按商品 id 命名、64×64 的成品**（`coarse_bread.png` / `wheat.png` …），
+     所以这一代只做"逐字节拷贝"，不缩放、不改尺寸 —— 64 是原生尺寸，
+     各面板显示 32 / 16 时用 `STRETCH_KEEP_ASPECT_CENTERED` 按比例缩（整除，不糊）。
+  ② **v0（早期那套）** `SRC`
+     中文文件名、有图集要按行列裁格、原生 16 放大到 32 输出。
+     下面那些 `EXPLICIT` / `ALT` / `to_32()` 都是给这一代写的，留着以防要回退。
 
 为什么输出到 assets/icons/ 而不是 assets/goods/：
     goods/ 是 `npm run gen:art` 程序化生成的 16x16 图标，每次生成都会**整体重写**。
     手绘图标放同一个目录会被无声覆盖（速度图标就栽在这上面），
     所以分开放：icons/ = 手绘，goods/ = 程序化兜底。
 
-尺寸策略（用户定：32x32）：
-    素材实际是 16px 原画的整数倍放大（64=4x、48=3x、32=2x），
-    所以一律先回到**最接近的整数比**再落到 32x32，绝不做 1.5x 这种非整数缩放
-    （那会造出大小不一的像素块，一眼就能看出糊）。
+⚠️ 两代**不能混着用同一套尺寸假设**：老的一批是 32×32，新的一批是 64×64，
+   目录里现在两种尺寸共存（还有三张 32×32 的住房图标）。
+   所以 UI 那边一律 `KEEP_ASPECT_CENTERED`，不能写 `KEEP_CENTERED`。
 """
 from PIL import Image, ImageDraw
 import json
 import os
 import re
+import shutil
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from icon_util import dematt  # noqa: E402
 
+# ① 当前的 v7 素材包：按商品 id 命名、64×64 成品
+V7_64_DIR = r'C:\Users\wangxu\WorkBuddy\2026-10-19-23-45-31\harvest_of_heirs\icons\v7_64'
+# ② 早期的素材包（中文名 + 图集）
 SRC = r'D:\wangxu\game\图标素材'
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DST = os.path.join(ROOT, 'godot', 'assets', 'icons')
@@ -119,17 +131,61 @@ def draw_smiley():
     return im.resize((OUT_SIZE, OUT_SIZE), Image.NEAREST)
 
 
-def main():
-    if not os.path.isdir(SRC):
-        print(f'素材目录不存在：{SRC}', file=sys.stderr)
-        return 1
-    os.makedirs(DST, exist_ok=True)
-
-    # 商品清单：直接读内容源，**不要**依赖任何中间生成的文件
+def load_goods():
+    """商品清单：直接读内容源，**不要**依赖任何中间生成的文件。"""
     goods = []
     with open(os.path.join(ROOT, 'content', 'goods.json'), encoding='utf-8') as f:
         for it in json.load(f)['goods']:
             goods.append((it['id'], it['nameZh']))
+    return goods
+
+
+def import_v7(goods):
+    """v7 素材包：已经是按商品 id 命名的 64×64 成品 → 逐字节拷贝，不重采样。
+
+    为什么**不**缩到 32：64 是这批图的**原生尺寸**（用户照 64 画的），
+    缩放交给运行时（显示 32 / 16 都是整除），仓库里只留一份原图，
+    以后想把某个面板的图标放大也不用重新导。
+    """
+    os.makedirs(DST, exist_ok=True)
+    made, missing = [], []
+    for gid, name_zh in goods:
+        src = os.path.join(V7_64_DIR, f'{gid}.png')
+        if not os.path.isfile(src):
+            missing.append((gid, name_zh))
+            continue
+        dst = os.path.join(DST, f'{gid}.png')
+        shutil.copyfile(src, dst)
+        with Image.open(dst) as im:
+            w, h = im.size
+        made.append((gid, name_zh, f'{os.path.basename(V7_64_DIR)}/{os.path.basename(src)}', w, h))
+
+    print(f'[v7] 导出 {len(made)}/{len(goods)} 个图标 -> {os.path.relpath(DST, ROOT)}（保持原生尺寸）')
+    for gid, zh, src, w, h in made:
+        print(f'   {zh:8s} {gid:18s} {w}x{h}  <- {src}')
+    if missing:
+        print(f'\n仍然缺 {len(missing)} 个（v7 里没有，会被程序化兜底图标接住）：')
+        for gid, zh in missing:
+            print(f'   {zh} {gid}')
+    leftover = [f for f in os.listdir(V7_64_DIR) if f.lower().endswith('.png')
+                and os.path.splitext(f)[0] not in {g for g, _ in goods}]
+    if leftover:
+        print(f'\nv7 里没用上的 {len(leftover)} 个：')
+        for f in leftover:
+            print(f'   {f}')
+    return 0 if not missing else 2
+
+
+def main():
+    goods = load_goods()
+    # ① 先认 v7（当前用的那批）
+    if os.path.isdir(V7_64_DIR):
+        return import_v7(goods)
+    # ② 回退到早期素材包那套（中文名 + 图集裁格 + 输出 32×32）
+    if not os.path.isdir(SRC):
+        print(f'两代素材目录都不存在：\n  {V7_64_DIR}\n  {SRC}', file=sys.stderr)
+        return 1
+    os.makedirs(DST, exist_ok=True)
 
     files = [f for f in os.listdir(SRC) if f.lower().endswith('.png')]
     by_name = {}

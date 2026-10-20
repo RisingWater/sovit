@@ -510,7 +510,9 @@ func _chip(gid: String) -> HBoxContainer:
 	tr.texture = GoodIcons.tex(gid)
 	tr.custom_minimum_size = Vector2(UIKit.CHIP_ICON, UIKit.CHIP_ICON)
 	tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	tr.stretch_mode = TextureRect.STRETCH_KEEP_CENTERED
+	# ⚠️ 必须 KEEP_ASPECT_CENTERED：手绘图标 2026-10 起是 **64×64**（v7 那批），这里只有 32 的位子。
+	# KEEP_CENTERED 不缩放 → 64 的图标会画到格子外面。64 → 32 是整除 ÷2，像素不糊。
+	tr.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	tr.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	h.add_child(tr)
 	var l := UIKit.label("0", Color(0.95, 0.93, 0.86))
