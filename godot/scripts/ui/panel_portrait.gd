@@ -19,6 +19,15 @@ const HEIGHT_RATIO := 0.5
 
 var id := ""
 var tex: Texture2D
+## 这个实例用的高度比（默认就是 `HEIGHT_RATIO`；个别面板要更小 —— 比如贸易市场的地图页，
+## 右侧是满宽的据点卡片，立绘按一半画会盖住「设为目的地」按钮，见 `panel_trade.gd`）。
+## ⚠️ 在 `setup()` 之后设它就等于改比例；设完要 `queue_redraw()` 才会重画。
+var height_ratio := HEIGHT_RATIO:
+	set(v):
+		height_ratio = clampf(v, 0.1, 1.0)
+		queue_redraw()
+		if bubble != null:
+			_place_bubble()
 ## 面板内边距（右 / 下）。面板的 content_margin 把子节点往里挤了一圈，
 ## 立绘又画在这个被挤小的矩形里 —— 不把它加回去，图就**离面板边还有一条 padding**
 ## （用户 2026-10："下底边要贴着面板下沿，现在有一个 padding"）。
@@ -79,12 +88,12 @@ func _read_pad() -> void:
 func width_in(panel_h: float) -> float:
 	if tex == null or tex.get_height() <= 0.0:
 		return 0.0
-	return panel_h * HEIGHT_RATIO * tex.get_width() / tex.get_height()
+	return panel_h * height_ratio * tex.get_width() / tex.get_height()
 
 func _draw() -> void:
 	if tex == null:
 		return
-	var th := size.y * HEIGHT_RATIO
+	var th := size.y * height_ratio
 	if th <= 1.0:
 		return
 	var tw := th * tex.get_width() / maxf(1.0, tex.get_height())
@@ -115,7 +124,7 @@ func _place_bubble() -> void:
 	# 面板还没排版（size 是 0）时先不动 —— 排完会发 `resized` 再来一次
 	if size.x <= 1.0 or size.y <= 1.0:
 		return
-	var th := size.y * HEIGHT_RATIO
+	var th := size.y * height_ratio
 	var tw := th * tex.get_width() / maxf(1.0, tex.get_height())
 	var px := size.x + edge_pad.x - tw
 	var py := size.y + edge_pad.y - th

@@ -235,5 +235,72 @@ func _run() -> void:
 		return
 	print("ROUTES TEST ⑨ 价格口径（1 天 1.0/2.0、5 天 6.0/0.6）✓")
 
+	# ---- 10. 老存档没有 routes 段，读档后面板与黎明都不能崩 ------------------
+	# 用户 2026-10：读了一局第 120 天的 v3 档（那时还没有商路），点左侧「贸易」就崩在
+	# `sim_core.gd::routes_snapshot()` 的 `s["routes"]["routes"]` 上。
+	# `world_view.load_from()` 收 v3 起的存档，所以 v6 才有的 `routes` 段必须由
+	# `SaveManager._sanitize()`（→ `SimCore.repair_routes()`）补齐。
+	var sim10 = _fresh(sim_script, db)
+	sim10.assign_route("jade")
+	var rid10 := String((sim10.s["routes"]["routes"] as Array)[0]["id"])
+	sim10.set_route_sell(rid10, "wood", 5)
+	sim10._update_routes(1)                      # 商队在途（补形状时不能把它弄丢）
+	var old_state: Dictionary = sim10.s.duplicate(true)
+	old_state.erase("routes")                    # ← 老存档的样子
+	SaveManager._sanitize(old_state, db)
+	if not (old_state.get("routes", null) is Dictionary):
+		_fail("老存档读进来没有补上 routes 段")
+		return
+	var slots10: Array = old_state["routes"]["routes"]
+	if slots10.size() != int((db.routes["caravan"] as Dictionary)["count"]):
+		_fail("补出来的基础槽位应当是 %d 个，实际 %d" % [int((db.routes["caravan"] as Dictionary)["count"]), slots10.size()])
+		return
+	if (old_state["routes"]["market"] as Dictionary).size() != 11:
+		_fail("补出来的市场应当有 11 座城，实际 %d" % (old_state["routes"]["market"] as Dictionary).size())
+		return
+	var sim10b = sim_script.new(db)
+	sim10b.s = old_state
+	sim10b.rng = sim10.rng
+	var snap10: Dictionary = sim10b.routes_snapshot()          # ← 以前这里崩
+	if (snap10.get("cities", []) as Array).size() != 11:
+		_fail("补完之后快照里的城数不对（%d）" % (snap10.get("cities", []) as Array).size())
+		return
+	# 科技已经给了 1 支商队：面板上必须看到它（`sync_route_count()` 补空槽）
+	if (snap10.get("routes", []) as Array).size() != sim10.route_caravan_count():
+		_fail("面板里没有科技给的商队槽位（%d != %d）" % [
+			(snap10.get("routes", []) as Array).size(), sim10.route_caravan_count()])
+		return
+	if String((snap10["routes"] as Array)[0]["phase"]) != "home":
+		_fail("补出来的空槽位 phase 不是 home（%s）" % String((snap10["routes"] as Array)[0]["phase"]))
+		return
+	sim10b._update_routes(int(old_state["day"]) + 1)            # ← 黎明也得跑得起来
+
+	# 半截档：市场缺一座城、商路缺键 —— 补形状不许重置已有库存、也不许丢在途的车
+	var half: Dictionary = sim10.s.duplicate(true)
+	(half["routes"]["market"] as Dictionary).erase("peak")
+	var half_r0: Dictionary = (half["routes"]["routes"] as Array)[0]
+	half_r0.erase("phase")
+	half_r0.erase("sellPlan")
+	var keep := float(((half["routes"]["market"] as Dictionary)["jade"]["specialty"] as Dictionary)["fine_cloth"])
+	var loaded_n := (half_r0["loaded"] as Dictionary).size()
+	if loaded_n == 0:
+		_fail("测试前提不成立：在途商队应当已经锁了货")
+		return
+	SaveManager._sanitize(half, db)
+	if not ((half["routes"]["market"] as Dictionary).get("peak", null) is Dictionary):
+		_fail("缺的城市市场没补回来（铁峰城）")
+		return
+	if not (half_r0.get("sellPlan", null) is Dictionary) or not half_r0.has("phase"):
+		_fail("半截商路没补齐（phase / sellPlan）")
+		return
+	if String(half_r0["cityId"]) != "jade" or (half_r0["loaded"] as Dictionary).size() != loaded_n:
+		_fail("补形状把在途商队弄丢了（cityId / loaded 变了）")
+		return
+	SaveManager._sanitize(half, db)              # 补两次
+	if not _approx(float(((half["routes"]["market"] as Dictionary)["jade"]["specialty"] as Dictionary)["fine_cloth"]), keep, 0.001):
+		_fail("补形状把已有库存重置了（读档等于白送一批货）")
+		return
+	print("ROUTES TEST ⑩ 老存档 / 半截档补 routes 段（面板与黎明都不崩）✓")
+
 	print("ROUTES TEST RESULT: PASS")
 	quit(0)

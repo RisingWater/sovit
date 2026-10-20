@@ -1047,3 +1047,19 @@ activateCompleted(...)     # 后面的步骤照旧：买到的货当天就能被
 
 唯一实现：`src/engine/systems/routes.ts` / `godot/scripts/sim/sim_core.gd::_update_routes`；
 门槛 `routes`（引擎行为）+ `check:routes`（内容与科技链）。
+
+### 21.6 读档兜底（`state.routes` 缺失时）
+
+`state.routes` 是**v6 才有**的段，而 `world_view.load_from()` 收 v3 起的存档
+（地图占格的锚点从 v3 才对得上）。所以 `SaveManager._sanitize()` 必须调
+`SimCore.repair_routes(s, db)` 把这一段补成当前内容能用的形状 —— 不然老档一开
+贸易页就崩在 `routes_snapshot()` 的 `s["routes"]["routes"]` 上（用户 2026-10 实测）。
+
+补的规矩：**只补形状，不发钱不发车**
+
+- 整段缺失 → 建一份空的（市场按 `routes.json::market` 默认值铺满，槽位 = `caravan.count`）
+- 缺某座城 / 某个商品 → 补那一项，**已有库存绝不动**
+- 缺某个字段（`phase` / `sellPlan` / `loaded` …）→ 按空车默认值补，在途的车不丢
+- 科技给的槽位不在这里补，由 `sync_route_count()` 在黎明 / 打开商路页时加（只加不撤）
+
+门槛：`routes` 第 ⑩ 条（老档 + 半截档各一遍，且补两次不许改库存）。

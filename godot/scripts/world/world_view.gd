@@ -1103,6 +1103,9 @@ func load_from(path: String) -> bool:
 	var ver = int(data.get("saveVersion", 0))
 	# v3 起占格锚点从"左上角"改成"底边那一格"（见 `_foot_top()`）—— 旧档里的格子是
 	# 另一种含义，读进来会整村错位。这里**直接拒绝**，不猜（重存一次即可）。
+	# ⚠️ 上面收的是 v3 起的**旧版**档，而状态段是随功能长的（v6 才有 `state.routes`）。
+	# 所以 v6 之前缺少的段一律靠下面的 `SaveManager._sanitize()` 补齐 ——
+	# 它必须有"缺了也能用"的兜底，否则老档一碰面板就崩（`routes_snapshot()` 那次）。
 	if ver < 3 or ver > SAVE_VERSION:
 		return false
 

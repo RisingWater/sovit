@@ -203,6 +203,12 @@ static func _sanitize(s: Dictionary, db: ContentDB) -> void:
 		gov["storageCaps"] = {}
 	s["government"] = gov
 
+	# 商路（B3，v6 才有 `state.routes`）：**老档 / 半截档必须补**，不然后面一碰就炸。
+	# 用户 2026-10 就是读了一局第 120 天的 v3 档，点开贸易页直接崩在
+	# `sim_core.gd::routes_snapshot()` 的 `s["routes"]["routes"]` 上；
+	# 黎明 `_update_routes()` 也是同一处。补形状的逻辑只有一份，在 sim_core 里。
+	SimCore.repair_routes(s, db)
+
 	# 科技（见 docs/technology.md）：旧存档没有这一段
 	if not (s.get("research", null) is Dictionary):
 		s["research"] = {"done": [], "queue": []}

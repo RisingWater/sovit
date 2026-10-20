@@ -276,6 +276,97 @@ func _run() -> void:
 		(dlg as Window).hide()
 		print("TRADEPANEL TEST 购买对话框：上限 %d（存货 / 国库取小）✅" % cap_buy)
 
+	# ---- 地图页版式（2026-10 用户四条要求）-----------------------------------
+	# ① "游商地图上，我们自己的城镇不见了" —— 地图上要有 11 座城 + 我们自己的那座
+	# ② "地图放大，地图高度占满剩余高度" —— 宽度按底图比例从行高反算
+	# ③ "据点信息把面板宽度占满" —— 右边那一列不再给立绘留空条
+	# ④ "统治者不要另外起一行" —— 城名后面并排一个「统治者 xxx」
+	panel._select_tab(0)
+	await process_frame
+	await process_frame
+	var dots: Array = panel.get("_city_dots")
+	if dots.size() != 12:
+		_fail("地图上是 %d 个据点，应当是 11 座城 + 我们自己的那座 = 12" % dots.size())
+		return
+	var has_home := false
+	for d in dots:
+		if String((d as Control).name) == "City_ashen_vale":
+			has_home = true
+	if not has_home:
+		_fail("地图上找不到我们自己的城镇（City_ashen_vale）—— 商队是从这儿出发的")
+		return
+	var host: Control = panel.get("_map_host")
+	var mtex: Texture2D = (panel.get("_map_tex") as TextureRect).texture
+	var row: Control = panel.get("_map_box")
+	if mtex == null:
+		_fail("贸易地图的底图没载进来")
+		return
+	var card_scroll: Control = panel.find_child("CityCardScroll", true, false)
+	if card_scroll == null:
+		_fail("找不到据点卡片的滚动容器（CityCardScroll）")
+		return
+	var card_min: float = card_scroll.custom_minimum_size.x
+	var want_w := row.size.y * float(mtex.get_width()) / float(mtex.get_height())
+	# 规则：宽度 = min(按高度撑满的宽度, 行宽 - 卡片最小宽度 - 间距)，再兜一个下限。
+	var expect_w := clampf(minf(want_w, row.size.x - card_min - 10.0), 240.0, 100000.0)
+	if absf(host.custom_minimum_size.x - expect_w) > 2.0:
+		_fail("地图宽度是 %.0f，应当是 %.0f（按行高 %.0f 撑满要 %.0f，行宽 %.0f 只放得下 %.0f）"
+			% [host.custom_minimum_size.x, expect_w, row.size.y, want_w, row.size.x, row.size.x - card_min - 10.0])
+		return
+	if absf(host.size.y - row.size.y) > 2.0:
+		_fail("地图高度 %.0f 没占满这一行（行高 %.0f）" % [host.size.y, row.size.y])
+		return
+	var gap := row.size.x - (card_scroll.position.x + card_scroll.size.x)
+	if absf(gap) > 2.0:
+		_fail("据点卡片右边还空着 %.0f px（应当铺到面板右沿）" % gap)
+		return
+	if absf(card_scroll.size.x - (row.size.x - host.size.x - 10.0)) > 2.0:
+		_fail("据点卡片的宽度 %.0f 不是「剩下的全部」（行 %.0f - 地图 %.0f - 间距）"
+			% [card_scroll.size.x, row.size.x, host.size.x])
+		return
+	print("TRADEPANEL TEST 地图页：12 个据点（含自己的城镇）+ 地图 %.0f×%.0f（占满高度）+ 卡片 %.0f 铺满右侧 ✅"
+		% [host.size.x, host.size.y, card_scroll.size.x])
+
+	# 统治者：和城名**同一行**（老版式是城名下面单起一行，用户 2026-10 否掉了）
+	panel.set("_sel_city", "dawn")
+	panel._refresh()
+	await process_frame
+	var card: Node = panel.get("_map_card")
+	var card_head: Node = card.get_child(0)
+	if not (card_head is HBoxContainer) or card_head.get_child_count() < 2:
+		_fail("城市卡片第一行不是「城名 + 统治者」并排的 HBoxContainer")
+		return
+	if String((card_head.get_child(0) as Label).text) != "曙光城":
+		_fail("卡片第一行第一个是「%s」，应当是城名「曙光城」"
+			% String((card_head.get_child(0) as Label).text))
+		return
+	if not String((card_head.get_child(1) as Label).text).begins_with("统治者 "):
+		_fail("城名后面不是「统治者 xxx」，而是「%s」"
+			% String((card_head.get_child(1) as Label).text))
+		return
+	for i in range(1, card.get_child_count()):
+		var c := card.get_child(i)
+		if c is Label and String((c as Label).text).contains("伊莲娜"):
+			_fail("统治者又被单独画成一行了（「%s」）" % String((c as Label).text))
+			return
+	print("TRADEPANEL TEST 城名与统治者同一行：%s / %s ✅"
+		% [String((card_head.get_child(0) as Label).text), String((card_head.get_child(1) as Label).text)])
+
+	# 自己的城镇：点它也有卡片（名字 = 村名），而且**不能**设成目的地
+	panel.set("_sel_city", "ashen_vale")
+	panel._refresh()
+	await process_frame
+	var home_head: Node = panel.get("_map_card").get_child(0)
+	if String((home_head.get_child(0) as Label).text) != "贸易测试":
+		_fail("自己城镇的卡片标题是「%s」，应当跟着村名走（贸易测试）"
+			% String((home_head.get_child(0) as Label).text))
+		return
+	for lb in panel.get("_map_card").find_children("*", "Label", true, false):
+		if String((lb as Label).text).contains("设为目的地"):
+			_fail("自己的城镇上出现了「设为目的地」按钮")
+			return
+	print("TRADEPANEL TEST 自己的城镇：卡片跟村名（贸易测试）、没有「设为目的地」 ✅")
+
 	# 关闭
 	panel.close_panel()
 	await process_frame

@@ -93,6 +93,15 @@ var _map_card: VBoxContainer
 var _city_dots: Array = []
 var _sel_city := ""
 
+## 据点卡片的最小宽度（地图那一侧按"高度占满"算完宽度后，剩下的都归它 —— 见
+## `_sync_map_host_size()`）。用户 2026-10："右边不要留这么多空白，据点信息把面板宽度占满"。
+const CARD_MIN_W := 368.0
+## 我们自己的城镇（`panel_map.gd::HOME`）：贸易地图上也要画 —— 商队从这儿出发。
+const HOME_ID := "ashen_vale"
+## 地图页的立绘高度比（默认 `PanelPortrait.HEIGHT_RATIO` = 一半面板高；地图页要小一点，
+## 因为右边那列是**满宽**的据点卡片，她按一半画就会盖住「设为目的地」）。
+const PORTRAIT_RATIO_MAP := 0.42
+
 ## 数量对话框（购买 / 出售共用一套）
 var _dlg: PopupPanel
 var _dlg_head: HBoxContainer
@@ -185,10 +194,11 @@ func _ready() -> void:
 	_map_box.visible = false
 	root.add_child(_map_box)
 
+	# 地图宿主**不抢**剩余宽度（用户 2026-10）：宽度由"占满剩余高度"反算，
+	# 剩下的全给右边的据点卡片 —— 见 `_sync_map_host_size()`。
 	_map_host = Control.new()
 	_map_host.name = "MapHost"
 	_map_host.clip_contents = true
-	_map_host.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_map_host.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_map_host.custom_minimum_size = Vector2(420, 240)
 	_map_box.add_child(_map_host)
@@ -203,10 +213,13 @@ func _ready() -> void:
 	_map_tex.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_map_host.add_child(_map_tex)
 	_map_tex.resized.connect(_layout_city_dots)
+	# 这一行的大小改了（窗口缩放 / 切页签）→ 重新算地图该多宽
+	_map_box.resized.connect(_sync_map_host_size)
 
 	var card_scroll := ScrollContainer.new()
 	card_scroll.name = "CityCardScroll"
-	card_scroll.custom_minimum_size = Vector2(368, 0)
+	card_scroll.custom_minimum_size = Vector2(CARD_MIN_W, 0)
+	card_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	card_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	card_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	_map_box.add_child(card_scroll)
@@ -215,12 +228,10 @@ func _ready() -> void:
 	_map_card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_map_card.add_theme_constant_override("separation", 6)
 	card_scroll.add_child(_map_card)
-	# 右下角是薇拉的立绘（`PanelPortrait`，画在最后 = 盖住内容），所以地图页右边
-	# 再留一条**约等于立绘宽**的空隙 —— 否则城市卡片里的按钮会被她盖住。
-	var card_gap := Control.new()
-	card_gap.custom_minimum_size = Vector2(300, 0)
-	card_gap.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_map_box.add_child(card_gap)
+
+	# ⚠️ 地图页的立绘比别处小一点（见 `PORTRAIT_RATIO_MAP`）：右边那列现在是**满宽**的
+	# 据点卡片，按 0.5 画她会盖住「设为目的地」按钮（用户 2026-10：右边不要留空白）。
+	# 具体比例在 `_update_portrait_ratio()` 里按当前页签算 —— 别的页仍是一半。
 
 	# ---- 「商路」页：可滚动（每支商队一张卡片）
 	_routes_box = VBoxContainer.new()
@@ -261,6 +272,7 @@ func _ready() -> void:
 	_portrait.name = "Portrait"
 	add_child(_portrait)
 	_portrait.setup("vera", runner.sim if runner != null else null)
+	_update_portrait_ratio()
 
 	visibility_changed.connect(_on_visibility_changed)
 	if runner != null and runner.has_signal("hour_ticked"):
@@ -322,7 +334,15 @@ func _select_tab(i: int) -> void:
 			"游商是谷口来的货郎：每周一批、停七天，他带的货和钱都有限",
 		][_tab]
 	if _tab == 0:
+		_sync_map_host_size()
 		_layout_city_dots()
+	_update_portrait_ratio()
+
+## 立绘高度比跟着页签走：地图页 0.42（右边是满宽卡片），别的页仍是"一半面板高"。
+func _update_portrait_ratio() -> void:
+	if _portrait == null:
+		return
+	_portrait.height_ratio = PORTRAIT_RATIO_MAP if _tab == 0 else PanelPortrait.HEIGHT_RATIO
 
 
 # ---------------------------------------------------------------------------
@@ -398,6 +418,7 @@ func _refresh() -> void:
 	# 商路（B3）：地图页、商路页都读同一份只读快照
 	var rs: Dictionary = runner.sim.routes_snapshot()
 	_build_city_dots(rs.get("cities", []))
+	_sync_map_host_size()
 	_refresh_city_card(rs)
 	_refresh_routes(rs)
 
@@ -753,36 +774,80 @@ func _city_mark(city_id: String) -> Dictionary:
 			return m
 	return {}
 
-## 重建地图上的城市按钮（刷新时调；位置由 `_layout_city_dots()` 摆）。
+## 我们自己的城镇的据点数据（坐标取自 `panel_map.gd::HOME`，和王国地图是同一处）：
+## 图标跟着城镇中心的段位换（废墟 = 村庄 → 初步修缮 = 小城 → 修好 = 中城），
+## 名字跟着村名走。贸易地图上**必须**有它 —— 商队就是从这儿出发的（用户 2026-10）。
+func _home_mark() -> Dictionary:
+	var kind := "village"
+	var nm := "灰谷"
+	if runner != null and runner.sim != null:
+		match String(runner.sim.town_center_stage()):
+			"patched":
+				kind = "town_small"
+			"restored":
+				kind = "town_medium"
+		var n := String(runner.sim.s.get("villageName", "灰谷")).strip_edges()
+		if n != "":
+			nm = n
+	return {"id": HOME_ID, "kind": kind, "fx": float(PMAP.HOME["fx"]),
+		"fy": float(PMAP.HOME["fy"]), "name": nm}
+
+## 重建地图上的据点按钮（刷新时调；位置由 `_layout_city_dots()` 摆）。
 func _build_city_dots(cities: Array) -> void:
 	for b in _city_dots:
 		if is_instance_valid(b):
 			b.queue_free()
 	_city_dots = []
+	# 我们自己的城镇先加（压在下面：别的城的图标若与它重叠，点得到的是别的城）
+	_add_city_dot(_home_mark())
 	for city in cities:
 		var cid := String(city["id"])
 		var mark := _city_mark(cid)
 		if mark.is_empty():
 			continue
-		var kind := String(mark.get("kind", "town_small"))
-		var tex: Texture2D = null
-		var path := "res://assets/ui/map/%s.png" % kind
-		if ResourceLoader.exists(path):
-			tex = load(path)
-		var btn := TextureButton.new()
-		btn.name = "City_" + cid
-		btn.texture_normal = tex
-		btn.ignore_texture_size = true
-		btn.stretch_mode = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
-		btn.custom_minimum_size = Vector2(56, 56)
-		btn.size = Vector2(56, 56)
-		btn.tooltip_text = String(city["nameZh"])
-		btn.set_meta("city_id", cid)
-		btn.set_meta("fx", float(mark.get("fx", 0.5)))
-		btn.set_meta("fy", float(mark.get("fy", 0.5)))
-		btn.pressed.connect(_on_city_pressed.bind(cid))
-		_map_host.add_child(btn)
-		_city_dots.append(btn)
+		_add_city_dot({"id": cid, "kind": String(mark.get("kind", "town_small")),
+			"fx": float(mark.get("fx", 0.5)), "fy": float(mark.get("fy", 0.5)),
+			"name": String(city["nameZh"])})
+	_layout_city_dots()
+
+## 往地图上放一个据点按钮（`mark` = id / kind / fx / fy / name）。
+func _add_city_dot(mark: Dictionary) -> void:
+	var cid := String(mark["id"])
+	var kind := String(mark.get("kind", "town_small"))
+	var tex: Texture2D = null
+	var path := "res://assets/ui/map/%s.png" % kind
+	if ResourceLoader.exists(path):
+		tex = load(path)
+	var btn := TextureButton.new()
+	btn.name = "City_" + cid
+	btn.texture_normal = tex
+	btn.ignore_texture_size = true
+	btn.stretch_mode = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
+	btn.custom_minimum_size = Vector2(56, 56)
+	btn.size = Vector2(56, 56)
+	btn.tooltip_text = String(mark.get("name", ""))
+	btn.set_meta("city_id", cid)
+	btn.set_meta("fx", float(mark.get("fx", 0.5)))
+	btn.set_meta("fy", float(mark.get("fy", 0.5)))
+	btn.pressed.connect(_on_city_pressed.bind(cid))
+	_map_host.add_child(btn)
+	_city_dots.append(btn)
+
+## 地图**按高度占满**剩下的地方（用户 2026-10），宽度由底图比例反算 ——
+## 这样 `STRETCH_KEEP_ASPECT_CENTERED` 不会在左右留黑边，据点也不会挤在中间一条。
+## 剩下的宽度全归右边的据点卡片（窗口太窄时地图先退让，卡片保底 `CARD_MIN_W`）。
+func _sync_map_host_size() -> void:
+	if _map_host == null or _map_tex == null or _map_tex.texture == null:
+		return
+	var tw := float(_map_tex.texture.get_width())
+	var th := float(_map_tex.texture.get_height())
+	if tw <= 0.0 or th <= 0.0 or _map_box.size.y <= 1.0:
+		return
+	var want := _map_box.size.y * tw / th
+	var limit := maxf(240.0, _map_box.size.x - CARD_MIN_W - 10.0)
+	var w := clampf(minf(want, limit), 240.0, 100000.0)
+	if absf(_map_host.custom_minimum_size.x - w) > 0.5:
+		_map_host.custom_minimum_size = Vector2(w, 240.0)
 	_layout_city_dots()
 
 ## 按底图的实际绘制矩形摆城市按钮（`STRETCH_KEEP_ASPECT_CENTERED` 会留黑边，
@@ -814,12 +879,15 @@ func _on_city_pressed(city_id: String) -> void:
 	UIKit.play_switch()
 	_refresh()
 
-## 地图页右侧：选中城市的卡片（名字 / 领主 / 几天 / 特产 / 需求 / 按钮）。
+## 地图页右侧：选中城市的卡片（名字 / 统治者 / 几天 / 特产 / 需求 / 按钮）。
 func _refresh_city_card(snap: Dictionary) -> void:
 	_clear(_map_card)
 	var cities: Array = snap.get("cities", [])
 	if _sel_city == "" and not cities.is_empty():
 		_sel_city = String(cities[0]["id"])
+	if _sel_city == HOME_ID:
+		_refresh_home_card()
+		return
 	var city: Dictionary = {}
 	for c in cities:
 		if String(c["id"]) == _sel_city:
@@ -828,15 +896,18 @@ func _refresh_city_card(snap: Dictionary) -> void:
 		_map_card.add_child(UIKit.label("左边地图上点一座城", C_HINT))
 		return
 
+	# 城名 + **统治者同一行**（用户 2026-10："统治者不要另外起一行，应该是 xx 统治者 xxxxxx"），
+	# 单程/往返挪到行尾。
 	var head := HBoxContainer.new()
-	head.add_theme_constant_override("separation", 5)
+	head.add_theme_constant_override("separation", 8)
 	var name_lb := UIKit.label(String(city["nameZh"]), UIKit.FG_HEAD)
 	name_lb.add_theme_font_size_override("font_size", UIKit.BIG_FS)
 	head.add_child(name_lb)
+	head.add_child(_baseline_label("统治者 %s" % String(city.get("lord", ""))))
+	head.add_child(UIKit.spacer())
 	head.add_child(UIKit.label("单程 %d 天 · 往返 %d 天" % [
 		int(city["days"]), int(city["days"]) * 2], C_HINT))
 	_map_card.add_child(head)
-	_map_card.add_child(UIKit.label(String(city.get("lord", "")), C_HINT))
 	if not bool(city.get("unlocked", true)):
 		_map_card.add_child(UIKit.label("这条路还没通（要再往后推进剧情）", Color(0.62, 0.24, 0.18)))
 
@@ -854,12 +925,11 @@ func _refresh_city_card(snap: Dictionary) -> void:
 		if String(r.get("cityId", "")) == String(city["id"]):
 			existing = r
 	if not existing.is_empty():
-		_map_card.add_child(UIKit.label("已经是目的地", UIKit.FG_HEAD))
-		_map_card.add_child(UIKit.label(_route_phase_text(existing), C_HINT))
-		_map_card.add_child(UIKit.label("一趟 %d 天 · 预算 %s" % [
-			int(existing["days"]) * 2, _fmt(float(existing["budget"]))], C_HINT))
-		_map_card.add_child(UIKit.label("上一趟：%d 天前回来" % maxi(0,
-			int(snap.get("day", 0)) - int(existing.get("lastTripDay", 0))), C_HINT))
+		# 两行说完（以前是四行）—— 卡片底下那一截归薇拉的立绘，行数多了按钮就钻到她头发里
+		_map_card.add_child(UIKit.label("已经是目的地 · %s" % _route_phase_text(existing), UIKit.FG_HEAD))
+		_map_card.add_child(UIKit.label("一趟 %d 天 · 预算 %s · 上一趟：%d 天前回来" % [
+			int(existing["days"]) * 2, _fmt(float(existing["budget"])),
+			maxi(0, int(snap.get("day", 0)) - int(existing.get("lastTripDay", 0)))], C_HINT))
 		var jump := UIKit.button("去「商路」页配置", true)
 		jump.pressed.connect(func() -> void: _select_tab(1))
 		_map_card.add_child(jump)
@@ -887,6 +957,29 @@ func _pad_bottom() -> void:
 	pad.custom_minimum_size = Vector2(0, 250)
 	pad.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_map_card.add_child(pad)
+
+## 自己的城镇的卡片：它只是个**地标**（商队从这里出发），不能设成目的地。
+func _refresh_home_card() -> void:
+	var home := _home_mark()
+	var head := HBoxContainer.new()
+	head.add_theme_constant_override("separation", 8)
+	var name_lb := UIKit.label(String(home["name"]), UIKit.FG_HEAD)
+	name_lb.add_theme_font_size_override("font_size", UIKit.BIG_FS)
+	head.add_child(name_lb)
+	head.add_child(_baseline_label("统治者 %s" % String(PMAP.HOME["lord"])))
+	_map_card.add_child(head)
+	_map_card.add_child(_small_title("你自己的城镇"))
+	var hint := UIKit.label("商队从这里出发 —— 点地图上别的城镇，看它收什么、卖什么。", C_HINT)
+	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	hint.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_map_card.add_child(hint)
+	_pad_bottom()
+
+## 行内的小字：竖着**居中**（跟旁边大号城名对齐，不贴顶）。
+func _baseline_label(t: String) -> Control:
+	var lb := UIKit.label(t, C_HINT)
+	lb.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	return lb
 
 func _small_title(t: String) -> Control:
 	return UIKit.label(t, UIKit.FG_HEAD)

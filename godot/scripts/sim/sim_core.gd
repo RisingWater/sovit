@@ -3905,8 +3905,10 @@ func route_caravan_count() -> int:
 func routes_unlocked() -> bool:
 	return route_caravan_count() > 0
 
-func _route_empty_market(city: Dictionary) -> Dictionary:
-	var mk: Dictionary = db.routes.get("market", {})
+## 一座城的初始市场：特产按 `specialtyStock` 铺满、需求池按 `demandCap` 铺满。
+## ⚠️ 静态 + 显式收 db：`repair_routes()` 在读档兜底时也要用它（那时不一定有实例）。
+static func _route_market_seed(cdb: ContentDB, city: Dictionary) -> Dictionary:
+	var mk: Dictionary = cdb.routes.get("market", {})
 	var spec := {}
 	for g in (city["specialty"] as Array):
 		spec[String(g)] = float(mk.get("specialtyStock", 100))
@@ -3915,18 +3917,11 @@ func _route_empty_market(city: Dictionary) -> Dictionary:
 		dem[String(g)] = float(mk.get("demandCap", 200))
 	return {"specialty": spec, "demand": dem}
 
-## 开局状态：车队槽位（基础商队数）+ 各城市场。
-func _empty_routes() -> Dictionary:
-	var market := {}
-	for city in (db.routes.get("cities", []) as Array):
-		market[String(city["id"])] = _route_empty_market(city)
-	var routes := []
-	var base := int((db.routes.get("caravan", {}) as Dictionary).get("count", 0))
-	for i in base:
-		routes.append(_route_empty(int(i) + 1))
-	return {"routes": routes, "market": market}
+func _route_empty_market(city: Dictionary) -> Dictionary:
+	return _route_market_seed(db, city)
 
-func _route_empty(index: int) -> Dictionary:
+## 一个空车队槽位。
+static func _route_seed(index: int) -> Dictionary:
 	return {
 		"id": "route_%d" % index, "cityId": "", "phase": "home",
 		"departDay": 0, "arriveDay": 0, "backDay": 0,
@@ -3935,15 +3930,101 @@ func _route_empty(index: int) -> Dictionary:
 		"lastTripDay": 0, "lastStuckDay": 0,
 	}
 
+func _route_empty(index: int) -> Dictionary:
+	return _route_seed(index)
+
+## 整段初始状态：车队槽位（基础商队数）+ 各城市场。
+static func empty_routes(cdb: ContentDB) -> Dictionary:
+	var market := {}
+	for city in (cdb.routes.get("cities", []) as Array):
+		market[String(city["id"])] = _route_market_seed(cdb, city)
+	var routes := []
+	var base := int((cdb.routes.get("caravan", {}) as Dictionary).get("count", 0))
+	for i in base:
+		routes.append(_route_seed(int(i) + 1))
+	return {"routes": routes, "market": market}
+
+func _empty_routes() -> Dictionary:
+	return empty_routes(db)
+
+## 把 `s["routes"]` 补成**当前内容**能用的形状（读档兜底，见 `save_manager.gd::_sanitize`）。
+##
+## 为什么需要：`world_view.load_from()` 收 v3 起的存档（地图占格的锚点从 v3 才对得上），
+## 而 `routes` 段是 v6 才有的 —— 用户 2026-10 读了一局第 120 天的 v3 档，
+## 一开贸易页就在 `s["routes"]["routes"]` 上崩（栈 `routes_snapshot()`）；
+## 就算不点进去，到了黎明 `_update_routes()` 也一样崩。
+##
+## 只补**形状**，不发钱也不发车：槽位按 `caravan.count` 建空槽（科技给的槽位由
+## `sync_route_count()` 在黎明 / 打开商路页时补），市场按 `market` 的默认值铺满，
+## 已有的城 / 车队一个不重置（不然读档就白赚一笔）。
+static func repair_routes(st: Dictionary, cdb: ContentDB) -> void:
+	var rs = st.get("routes", null)
+	if not (rs is Dictionary) \
+			or not ((rs as Dictionary).get("routes", null) is Array) \
+			or not ((rs as Dictionary).get("market", null) is Dictionary):
+		st["routes"] = empty_routes(cdb)
+		return
+	var cur: Dictionary = rs
+	var fresh := empty_routes(cdb)
+	# 市场：内容里后加的城补一整份；已有的城只补缺的商品（库存本身绝不动）
+	var fresh_market: Dictionary = fresh["market"]
+	for cid in fresh_market.keys():
+		if not ((cur["market"] as Dictionary).get(cid, null) is Dictionary):
+			cur["market"][cid] = fresh_market[cid]
+			continue
+		var mk: Dictionary = cur["market"][cid]
+		var seed_mk: Dictionary = fresh_market[cid]
+		if not (mk.get("specialty", null) is Dictionary):
+			mk["specialty"] = {}
+		if not (mk.get("demand", null) is Dictionary):
+			mk["demand"] = {}
+		for gid in (seed_mk["specialty"] as Dictionary).keys():
+			if not (mk["specialty"] as Dictionary).has(gid):
+				mk["specialty"][gid] = (seed_mk["specialty"] as Dictionary)[gid]
+		for gid in (seed_mk["demand"] as Dictionary).keys():
+			if not (mk["demand"] as Dictionary).has(gid):
+				mk["demand"][gid] = (seed_mk["demand"] as Dictionary)[gid]
+	# 槽位：补齐基础商队数；**不删**多出来的（科技改小也不撤已有的车）
+	while (cur["routes"] as Array).size() < (fresh["routes"] as Array).size():
+		cur["routes"].append(_route_seed((cur["routes"] as Array).size() + 1))
+	# 每条商路把缺的键按空车默认值补回来（手搓 state / 将来加字段都走这里）
+	for i in (cur["routes"] as Array).size():
+		if not (cur["routes"][i] is Dictionary):
+			cur["routes"][i] = _route_seed(i + 1)
+			continue
+		var r: Dictionary = cur["routes"][i]
+		r["id"] = String(r.get("id", "route_%d" % (i + 1)))
+		r["cityId"] = String(r.get("cityId", ""))
+		r["phase"] = String(r.get("phase", "home"))
+		for k in ["departDay", "arriveDay", "backDay", "lastTripDay", "lastStuckDay"]:
+			r[k] = int(r.get(k, 0))
+		for k2 in ["budget", "cash", "revenue", "spent"]:
+			r[k2] = float(r.get(k2, 0.0))
+		for k3 in ["sellPlan", "loaded", "cart"]:
+			if not (r.get(k3, null) is Dictionary):
+				r[k3] = {}
+	# 把修好的形状写回（`cur` 是 `st["routes"]` 的引用，但地图/车队可能是整份换掉的）
+	st["routes"] = cur
+
+## 取商路段（缺了就现补）。**所有**摸 `s["routes"]` 的地方都走这里：
+## 读档兜底在 `SaveManager._sanitize()`，但沙盘复制 / 手搓 state 也可能摸到面板与黎明。
+func _routes_state() -> Dictionary:
+	var rs = s.get("routes", null)
+	if not (rs is Dictionary) \
+			or not ((rs as Dictionary).get("routes", null) is Array) \
+			or not ((rs as Dictionary).get("market", null) is Dictionary):
+		repair_routes(s, db)
+	return s["routes"]
+
 ## 商队数跟着科技走：多了就补空槽位（不会撤掉已有的）。
 func sync_route_count() -> void:
-	var st: Dictionary = s["routes"]
+	var st: Dictionary = _routes_state()
 	var want := route_caravan_count()
 	while (st["routes"] as Array).size() < want:
 		st["routes"].append(_route_empty((st["routes"] as Array).size() + 1))
 
 func _route_find(route_id: String) -> Variant:
-	for r in (s["routes"]["routes"] as Array):
+	for r in (_routes_state()["routes"] as Array):
 		if String(r["id"]) == route_id:
 			return r
 	return null
@@ -3979,7 +4060,7 @@ func _update_routes(day: int) -> Array:
 	var lt: Dictionary = s["ledgerToday"]
 
 	# 1) 市场补给（每座城：特产 + 需求池）
-	var markets: Dictionary = s["routes"]["market"]
+	var markets: Dictionary = _routes_state()["market"]
 	for city in (db.routes.get("cities", []) as Array):
 		var cid := String(city["id"])
 		if not markets.has(cid):
@@ -3995,7 +4076,7 @@ func _update_routes(day: int) -> Array:
 			m["demand"][gid2] = minf(float(mk.get("demandCap", 200)),
 				SimUtil.r2(float((m["demand"] as Dictionary).get(gid2, 0.0)) + float(mk.get("demandDaily", 40))))
 
-	for route in (s["routes"]["routes"] as Array):
+	for route in (_routes_state()["routes"] as Array):
 		var city = _route_city(String(route["cityId"]))
 		if city == null:
 			continue
@@ -4135,11 +4216,11 @@ func assign_route(city_id: String) -> String:
 	if _route_chapter() < int(city.get("unlockChapter", 0)):
 		return "%s还没通路" % String(city["nameZh"])
 	sync_route_count()
-	for r in (s["routes"]["routes"] as Array):
+	for r in (_routes_state()["routes"] as Array):
 		if String(r["cityId"]) == city_id:
 			return "%s已经在商路列表里了" % String(city["nameZh"])
 	var idle = null
-	for r in (s["routes"]["routes"] as Array):
+	for r in (_routes_state()["routes"] as Array):
 		if String(r["cityId"]) == "":
 			idle = r
 			break
@@ -4221,10 +4302,13 @@ func set_route_sell(route_id: String, good_id: String, qty: int) -> String:
 
 ## 商路面板的只读快照（UI 只画、不算）。
 func routes_snapshot() -> Dictionary:
+	# 槽位跟着科技走：科技刚研究完、还没到黎明就打开面板，也得看到车。
+	# `sync_route_count()` 只补空槽（不动已有的车），和黎明那句是同一个函数。
+	sync_route_count()
 	var cargo := route_cargo_cap()
 	var purse := route_purse_cap()
 	var list := []
-	for r in (s["routes"]["routes"] as Array):
+	for r in (_routes_state()["routes"] as Array):
 		var city = _route_city(String(r["cityId"]))
 		var ready := route_readiness(r)
 		list.append({
@@ -4250,7 +4334,7 @@ func routes_snapshot() -> Dictionary:
 		})
 	var cities := []
 	for c in (db.routes.get("cities", []) as Array):
-		var mk: Dictionary = s["routes"]["market"].get(String(c["id"]), {"specialty": {}, "demand": {}})
+		var mk: Dictionary = _routes_state()["market"].get(String(c["id"]), {"specialty": {}, "demand": {}})
 		var spec := []
 		for g in (c["specialty"] as Array):
 			spec.append({"good": String(g), "price": route_price(String(c["id"]), String(g), "buy"),
