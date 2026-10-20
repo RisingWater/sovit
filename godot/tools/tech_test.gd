@@ -470,6 +470,71 @@ func _run() -> void:
 			return
 	print("TECH TEST 贸易页：16 张卡片都有图标 + 效果行；tooltip 报现值→研究后；顶部汇总额 ✅")
 
+	# ---- 10. 「贸易」页**一行一类**（用户 2026-10："要按照解锁排序吧，解锁商路的放一行，
+	# 增加运输量放一行，砍价的放一行等等"）
+	#
+	# 这一页不再按"前置深度"排柱子，而是：
+	#   行 = 这一项加什么（商队 / 载货 / 带钱 / 砍价 / 卖价，从上到下就是这个顺序）
+	#   列 = 同一条链上的第几档（v1 → v4，从左到右越来越强）
+	# 跨行的前置（「加固货箱」要「常设商队」）**不许**把列号往后推，否则后四行会整体右移；
+	# 那种边改走左边的干线（`tech_lines` 的 `bus`），不然竖线会横穿中间那几张卡片。
+	var want_rows := [
+		["caravans", ["trade_caravan_1", "trade_caravan_2", "trade_caravan_3", "trade_caravan_4"]],
+		["cargo", ["cargo_hold_1", "cargo_hold_2", "cargo_hold_3"]],
+		["purse", ["strongbox_1", "strongbox_2", "strongbox_3"]],
+		["haggleBuy", ["haggle_buy_1", "haggle_buy_2", "haggle_buy_3"]],
+		["haggleSell", ["haggle_sell_1", "haggle_sell_2", "haggle_sell_3"]],
+	]
+	panel._select_tab(2)
+	await process_frame
+	var tpos: Dictionary = panel.get("_pos")
+	var last_row_y := -1.0
+	for pair in want_rows:
+		var row_name := String(pair[0])
+		var row_ids: Array = pair[1]
+		var row_y := -1.0
+		var prev_x := -1.0
+		for tid in row_ids:
+			var t10 := String(tid)
+			if not tpos.has(t10):
+				_fail("贸易页「%s」没有布局坐标" % t10)
+				return
+			var p: Vector2 = tpos[t10]
+			if row_y < 0.0:
+				row_y = p.y
+			elif absf(p.y - row_y) > 0.5:
+				_fail("「%s」这一行没排在同一行上（y=%s / y=%s）" % [row_name, p.y, row_y])
+				return
+			if prev_x >= 0.0 and p.x <= prev_x:
+				_fail("「%s」这一行的列号没从左到右递增（x=%s 之后是 x=%s）" % [row_name, prev_x, p.x])
+				return
+			prev_x = p.x
+		if last_row_y >= 0.0 and row_y <= last_row_y:
+			_fail("行序不对：「%s」应当在上一行下面（y=%s / 上一行 y=%s）"
+				% [row_name, row_y, last_row_y])
+			return
+		last_row_y = row_y
+
+	# 跨行的前置走干线：4 条（后四行各自的第一档要「常设商队」），一条都不能画成横折线
+	var segs: Array = (panel.get("_lines") as Object).get("_segs")
+	var bus := 0
+	var page_edges := 0
+	for tid in ids_trade:
+		for r in (db.techs[String(tid)]["requires"] as Array):
+			if (panel.get("_pos") as Dictionary).has(String(r)):
+				page_edges += 1
+	for e in segs:
+		if bool((e as Dictionary).get("bus", false)):
+			bus += 1
+	if segs.size() != page_edges:
+		_fail("贸易页连线 %d 条，页内前置关系 %d 条" % [segs.size(), page_edges])
+		return
+	if bus != 4:
+		_fail("贸易页应当有 4 条跨行干线（后四行的第一档要「常设商队」），实际 %d 条" % bus)
+		return
+	print("TECH TEST 贸易页排法：商队/载货/带钱/砍价/卖价 各一行，%d 条连线（%d 条走左边干线）✅"
+		% [segs.size(), bus])
+
 	print("TECH TEST 科技=%d（制造 %d / 效率 %d） 页内连线=%d 拖动 %s->%s 队列=%s" % [
 		db.tech_ids.size(), ids_make.size(), ids_eff.size(), total_edges, before, after, JSON.stringify(q)])
 	print("TECH TEST RESULT: PASS")

@@ -329,13 +329,20 @@ func _on_hour_ticked() -> void:
 # ===========================================================================
 
 ## 算这批科技的画布坐标。
-## x = 最长前置链长度（父节点 x + 1 的最大值），所以**严格大于所有前置的 x**。
-## y = 同列内按 (era, 内容顺序) 依次往下堆。
+##
+## **两种排法**，按页选：
+##   · 「制造」「效率」（默认）：x = 最长前置链长度（父节点 x + 1 的最大值），所以
+##     **严格大于所有前置的 x**；y = 同列内按 (era, 内容顺序) 依次往下堆。
+##   · 「贸易」（`_compute_layout_trade`）：**行 = 这一项加什么**（商队 / 载货 / 带钱 /
+##     砍价 / 卖价），列 = 同一条链上的第几档 —— 用户 2026-10："要按照解锁排序吧，
+##     解锁商路的放一行，增加运输量放一行，砍价的放一行等等"。
 ##
 ## ⚠️ 只在**传进来的这批 id** 上算：制造 / 效率是两棵独立的树，效率科技的很多前置
 ## 在制造那一页（例如「轮作」要「石作」）。**外部前置不参与列号**（否则效率页会因为
 ## 一串看不见的祖先整体右移），它的依赖关系仍然写在卡片 tooltip 与"需先研究"里。
-func _compute_layout(ids: Array) -> Dictionary:
+func _compute_layout(ids: Array, kind: int) -> Dictionary:
+	if kind == TAB_TRADE:
+		return _compute_layout_trade(ids)
 	var db := runner.db
 	var order := {}                      # id -> 内容顺序
 	for i in db.tech_ids.size():
@@ -389,6 +396,71 @@ func _compute_layout(ids: Array) -> Dictionary:
 	return pos
 
 
+## 「贸易」页的行序 —— **一行一类**，顺序就是玩家该研究的顺序：
+## 先有车队，再能多装、多带钱，最后才是把价谈好。
+const TRADE_ROW_ORDER := ["caravans", "cargo", "purse", "haggleBuy", "haggleSell"]
+
+## 贸易页的排法：**行 = `trade` 块的键，列 = 同一条链上的第几档**。
+##
+## 于是这张表自己就把话说清楚了：
+##
+## ```
+##   商队   常设商队 → 副队随行 → 三队并进 → 车马行会
+##   载货   加固货箱 → 双辕货车 → 驮队扩编
+##   带钱   铁箍钱箱 → 双锁钱柜 → 王家信用证
+##   砍价   砍价的技巧v1 → v2 → v3
+##   卖价   交易的艺术v1 → v2 → v3
+## ```
+##
+## 列号只沿**同一行**的 `requires` 松弛：跨行的前置（「加固货箱」要「常设商队」）不推列，
+## 否则后面四行的第一档会被推到第 2 列去，整张表就歪了。跨行的依赖照旧画线（走左边的干线）。
+func _compute_layout_trade(ids: Array) -> Dictionary:
+	var db := runner.db
+	var rows := {}                       # trade 键 -> [id]（行内顺序 = 内容顺序）
+	for tid in ids:
+		var t := String(tid)
+		var tr: Dictionary = db.techs[t].get("trade", {})
+		var key := ""
+		for k in TRADE_ROW_ORDER:
+			if tr.has(String(k)):
+				key = String(k)
+				break
+		if not rows.has(key):
+			rows[key] = []
+		(rows[key] as Array).append(t)
+
+	var pos := {}
+	var row := 0
+	for key in TRADE_ROW_ORDER:
+		var arr: Array = rows.get(String(key), [])
+		if arr.is_empty():
+			continue
+		# 列号：这条链上的第几档（只看同一行的前置）
+		var idx := {}
+		for t in arr:
+			idx[t] = 0
+		var changed := true
+		var guard := 0
+		while changed and guard < 32:
+			changed = false
+			guard += 1
+			for t in arr:
+				var d := 0
+				for r in db.techs[t]["requires"]:
+					var rt := String(r)
+					if idx.has(rt):
+						d = maxi(d, int(idx[rt]) + 1)
+				if d != int(idx[t]):
+					idx[t] = d
+					changed = true
+		for t in arr:
+			pos[t] = Vector2(
+				LAYOUT_PAD + int(idx[t]) * (CARD_W + COL_GAP),
+				LAYOUT_PAD + row * (_card_h + ROW_GAP))
+		row += 1
+	return pos
+
+
 func _build_tree(kind: int) -> void:
 	var db := runner.db
 	var ids := _ids_for(kind)
@@ -415,7 +487,7 @@ func _build_tree(kind: int) -> void:
 		_lines.queue_free()
 		_lines = null
 
-	_pos = _compute_layout(ids)
+	_pos = _compute_layout(ids, kind)
 
 	var maxx := 0.0
 	var maxy := 0.0
@@ -582,10 +654,14 @@ func _refresh_lines() -> void:
 			if not _pos.has(rt):
 				continue
 			var rp: Vector2 = _pos[rt]
+			# 子节点**不在右边**时（贸易页那条跨行的干线：父与子同在第 0 列），
+			# 走左边的干线，否则折线会往回拐、横穿中间那几张卡片。
+			var bus := (tp.x - rp.x) < CARD_W * 0.5
 			edges.append({
-				"a": Vector2(rp.x + CARD_W, rp.y + _card_h * 0.5),
+				"a": Vector2(rp.x + (0.0 if bus else CARD_W), rp.y + _card_h * 0.5),
 				"b": Vector2(tp.x, tp.y + _card_h * 0.5),
 				"done": done.has(rt),
+				"bus": bus,
 			})
 	_lines.set_edges(edges)
 

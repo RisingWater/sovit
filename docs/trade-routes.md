@@ -250,7 +250,7 @@
 - 纪元分布：3 → 265 点 / 4 → 475 点 / 5 → 515 点（正好给后期一个科研去处）
 - 载货 / 带钱是**取最高**（不是叠加）；商队数是**加法**；议价是**加法**
 
-### 6.3 要画的 12 张图（64 × 64，透明底）
+### 6.3 16 张图（64 × 64，透明底）
 
 | 文件名（`assets/ui/tech/`） | 画什么 | 用在哪 | 张数 |
 |---|---:|---:|---:|
@@ -264,15 +264,22 @@
 | `strongbox_1.png` | 上锁的小铁钱箱 | 铁箍钱箱 | 1 |
 | `strongbox_2.png` | 更厚的钱柜 + 两把锁 | 双锁钱柜 | 1 |
 | `strongbox_3.png` | 羊皮纸账卷 + 火漆印章 | 王家信用证 | 1 |
-| `haggle_buy_1.png` | 一手递钱、一手接货（压价状） | 砍价的技巧 v1/v2/v3（三档复用） | 1 |
-| `haggle_sell_1.png` | 一手交货、一手收钱（抬价状） | 交易的艺术 v1/v2/v3（三档复用） | 1 |
-| **合计** | | **16 个节点** | **12** |
+| `haggle_buy_1.png` | 一手捏着一枚金币，悬在小钱袋上方 | 砍价的技巧 v1 | 1 |
+| `haggle_buy_2.png` | 一手往敞开的口袋里丢两枚金币 | 砍价的技巧 v2 | 1 |
+| `haggle_buy_3.png` | 一杆黄铜天平：一头小陶罐、一头几枚金币 | 砍价的技巧 v3 | 1 |
+| `haggle_sell_1.png` | 两只手从一个敞口钱袋里捧出金币 | 交易的艺术 v1 | 1 |
+| `haggle_sell_2.png` | 鼓鼓的皮钱袋，系口处漏出金币 | 交易的艺术 v2 | 1 |
+| `haggle_sell_3.png` | 一只满得溢出来的陶罐金币 | 交易的艺术 v3 | 1 |
+| **合计** | | **16 个节点，一项一张** | **16** |
 
-> 复用**没有**走内容里的 `icon` 字段（`technologies.json` 没有这个键），而是两份别名表：
-> `scripts/check-routes.ts::ICON_ALIAS`（核对文件在不在、是不是 64×64）与
-> `godot/scripts/ui/ui_kit.gd::TECH_ICON_ALIAS`（真把图贴到卡片上）。
-> ⚠️ 只写 TS 那份时，后两档的卡片**没有图标**（`tech_icon()` 找不到文件返回 null，不报错）——
-> 2026-10 用户截图里四张空图标卡片就是这么来的。现在 `verify.sh tech` 逐张卡片查图标。
+> 全部由 `scripts/gen-icons.py` 按 `scripts/icon-manifest.json` 的提示词生成（风格与后处理见
+> `docs/icons.md`；重跑 `python scripts/gen-icons.py --only haggle_buy_1,… --variant 2`）。
+>
+> ⚠️ 2026-10-21 之前是"议价三档复用 _1 那张"（`ICON_ALIAS` 别名表），而且别名只写在
+> `scripts/check-routes.ts` 里、UI 没镜像 —— 后两档的卡片**是空白的**（`tech_icon()` 按 id
+> 找文件，找不到返回 null 不报错）。用户："用 comfyui 来生成缺失的图标，交易的艺术 /
+> 砍价的技巧这几个图标都重新做" —— 六张各来一张，别名表连同 `UIKit.TECH_ICON_ALIAS` 一起删。
+> 现在 `check:routes` 逐张校验 64×64、`verify.sh tech` 逐张卡片查图标。
 
 ---
 

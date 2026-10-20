@@ -161,14 +161,12 @@ for (const t of tradeTechs) {
   for (const r of t.requires) ok(techById.has(r), `${t.id} 的前置 ${r} 不存在`)
 }
 
-// 图标：16 项都该有 64×64 的图（`assets/ui/tech/<id>.png`），议价三档复用同一张
-const ICON_ALIAS: Record<string, string> = {
-  haggle_buy_2: 'haggle_buy_1', haggle_buy_3: 'haggle_buy_1',
-  haggle_sell_2: 'haggle_sell_1', haggle_sell_3: 'haggle_sell_1',
-}
+// 图标：16 项**各一张** 64×64 的图（`godot/assets/ui/tech/<id>.png`）。
+// 2026-10 用户："用 comfyui 来生成缺失的图标，交易的艺术 / 砍价的技巧这几个图标都重新做" ——
+// 原来"议价三档复用 _1 那张"的别名表已经删掉，六档各有各的图。
+// ⚠️ 别再加回来：别名只在 TS 这边生效、UI 那边忘了镜像的话，卡片上就是一块空白。
 for (const t of tradeTechs) {
-  const iconId = ICON_ALIAS[t.id] ?? t.id
-  const p = `godot/assets/ui/tech/${iconId}.png`
+  const p = `godot/assets/ui/tech/${t.id}.png`
   try {
     const buf = readFileSync(new URL(p, ROOT))
     const w = buf.readUInt32BE(16)

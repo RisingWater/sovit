@@ -431,10 +431,34 @@
       "subject": "a hand holding one gold coin above a small burlap sack"
     },
     {
+      "id": "haggle_buy_2",
+      "kind": "tech",
+      "bg": "green",
+      "subject": "a hand dropping two gold coins into an open burlap sack"
+    },
+    {
+      "id": "haggle_buy_3",
+      "kind": "tech",
+      "bg": "green",
+      "subject": "a brass merchant scale with a small clay jug on one pan and a few gold coins on the other"
+    },
+    {
       "id": "haggle_sell_1",
       "kind": "tech",
       "bg": "green",
       "subject": "two hands scooping coins out of an open leather purse"
+    },
+    {
+      "id": "haggle_sell_2",
+      "kind": "tech",
+      "bg": "green",
+      "subject": "a plump leather coin purse tied at the neck with gold coins spilling out of it"
+    },
+    {
+      "id": "haggle_sell_3",
+      "kind": "tech",
+      "bg": "green",
+      "subject": "a round clay jar overflowing with gold coins"
     },
     {
       "id": "resource",
@@ -568,6 +592,182 @@
       "kind": "panel",
       "bg": "green",
       "subject": "a folded parchment map with a small wooden compass"
+    },
+    {
+      "id": "diplomacy",
+      "kind": "panel",
+      "bg": "green",
+      "subject": "two clasped hands carved from pale wood above a rolled parchment scroll with a red wax seal",
+      "nav": true
+    },
+    {
+      "id": "military",
+      "kind": "panel",
+      "bg": "green",
+      "subject": "two crossed iron swords over a small round wooden shield",
+      "nav": true
+    },
+    {
+      "id": "statecraft",
+      "kind": "tech",
+      "bg": "green",
+      "subject": "a rolled treaty scroll sealed with red wax, a folded silk ribbon and a small brass inkwell"
+    },
+    {
+      "id": "trade_goodwill_1",
+      "kind": "tech",
+      "bg": "green",
+      "subject": "a lacquered wooden gift box with a silk bow and a folded letter on its lid"
+    },
+    {
+      "id": "trade_goodwill_2",
+      "kind": "tech",
+      "bg": "green",
+      "subject": "two interlocking gold rings resting on a small open ledger"
+    },
+    {
+      "id": "trade_goodwill_3",
+      "kind": "tech",
+      "bg": "green",
+      "subject": "a golden crown resting on a heap of foreign tribute: a folded silk cloth, a jade bowl and a carved ivory tusk"
+    },
+    {
+      "id": "court",
+      "kind": "faction",
+      "bg": "green",
+      "subject": "a golden crown resting on a black iron anvil, heraldic emblem"
+    },
+    {
+      "id": "iron_crown",
+      "kind": "faction",
+      "bg": "green",
+      "subject": "a large iron key crossed with a stack of gold coins, heraldic emblem"
+    },
+    {
+      "id": "iron_rook",
+      "kind": "faction",
+      "bg": "green",
+      "subject": "a black raven perched on a broken sword, heraldic emblem"
+    },
+    {
+      "id": "holy_flame",
+      "kind": "faction",
+      "bg": "green",
+      "subject": "a sacred flame burning in a carved stone brazier, heraldic emblem"
+    },
+    {
+      "id": "golden_ear",
+      "kind": "faction",
+      "bg": "green",
+      "subject": "a bundle of golden wheat sheaves tied with twine, heraldic emblem"
+    },
+    {
+      "id": "dawn",
+      "kind": "faction",
+      "bg": "green",
+      "subject": "an open book with a rising sun and long rays behind it, heraldic emblem"
+    },
+    {
+      "id": "blackstone",
+      "kind": "faction",
+      "bg": "green",
+      "subject": "a black stone block with a dagger struck into its top, heraldic emblem"
+    },
+    {
+      "id": "jade",
+      "kind": "faction",
+      "bg": "magenta",
+      "subject": "a single large faceted green gemstone with a thin silver serpent coiled around its base, heraldic emblem"
+    },
+    {
+      "id": "khan",
+      "kind": "faction",
+      "bg": "green",
+      "subject": "a single curved iron scimitar with a wrapped leather hilt and a red tassel, heraldic emblem"
+    },
+    {
+      "id": "peak",
+      "kind": "faction",
+      "bg": "green",
+      "subject": "a snow-capped mountain peak with a heavy war hammer before it, heraldic emblem"
+    },
+    {
+      "id": "holy_see",
+      "kind": "faction",
+      "bg": "green",
+      "subject": "a golden sunburst with a plain cross of light in its centre, heraldic emblem"
+    },
+    {
+      "id": "silverleaf",
+      "kind": "faction",
+      "bg": "green",
+      "subject": "a silver-leafed branch crossed with a slender wooden bow, heraldic emblem"
+    },
+    {
+      "id": "ashen_circle",
+      "kind": "faction",
+      "bg": "green",
+      "subject": "a pale porcelain mask with a dark grey hood behind it, heraldic emblem"
+    },
+    {
+      "id": "rel_enemy",
+      "kind": "relation",
+      "bg": "green",
+      "subject": "two dark iron daggers crossed pointing downward"
+    },
+    {
+      "id": "rel_cold",
+      "kind": "relation",
+      "bg": "green",
+      "subject": "a fist-sized chunk of pale blue ice with white frost"
+    },
+    {
+      "id": "rel_neutral",
+      "kind": "relation",
+      "bg": "green",
+      "subject": "a small brass balance scale with two empty pans"
+    },
+    {
+      "id": "rel_friendly",
+      "kind": "relation",
+      "bg": "magenta",
+      "subject": "a fresh olive branch sprig with a few leaves"
+    },
+    {
+      "id": "rel_respect",
+      "kind": "relation",
+      "bg": "green",
+      "subject": "a golden laurel wreath"
+    },
+    {
+      "id": "rel_ally",
+      "kind": "relation",
+      "bg": "green",
+      "subject": "two interlocking gold rings"
+    },
+    {
+      "id": "rel_vassal",
+      "kind": "relation",
+      "bg": "green",
+      "subject": "a heavy iron chain link with a small brass ring threaded through it"
+    },
+    {
+      "id": "gift",
+      "kind": "action",
+      "bg": "green",
+      "subject": "a wrapped parcel with a red ribbon bow and a small coin tied to it"
+    },
+    {
+      "id": "treaty",
+      "kind": "action",
+      "bg": "green",
+      "subject": "a rolled parchment scroll sealed with a red wax seal and a silk cord"
+    },
+    {
+      "id": "war",
+      "kind": "action",
+      "bg": "green",
+      "subject": "a heavy iron war hammer with a leather-wrapped haft and a red tassel"
     }
   ],
   "post": {
@@ -581,6 +781,24 @@
       "margin": 0.2,
       "contrast": 1.12,
       "color": 1.2,
+      "rim": 1
+    },
+    "faction": {
+      "margin": 0.08,
+      "contrast": 1.06,
+      "color": 1.1,
+      "rim": 1
+    },
+    "relation": {
+      "margin": 0.12,
+      "contrast": 1.12,
+      "color": 1.15,
+      "rim": 1
+    },
+    "action": {
+      "margin": 0.14,
+      "contrast": 1.1,
+      "color": 1.15,
       "rim": 1
     }
   },

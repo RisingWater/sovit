@@ -81,25 +81,12 @@ static func nav_icon(name: String) -> Texture2D:
 ## 文件名就是科技 id，所以这里直接用 id 取。
 const TECH_ICON_DIR := "res://assets/ui/tech/"
 
-## 共用图：内容里**只有 12 张**贸易科技图，议价三档各复用 _1 那张
-## （设计见 docs/trade-routes.md §6.3）。
-##
-## ⚠️ 这张别名表**必须与 `scripts/check-routes.ts::ICON_ALIAS` 逐行一致**：
-## 那边用它去核对"16 项、12 张图、全是 64×64"，这边用它真的把图贴上卡片。
-## 2026-10 用户截图里「砍价的技巧 / 交易的艺术」的后两档卡片是**空图标**——
-## 就是因为别名只在 TS 检查脚本里、UI 没镜像一份（`UIKit.tech_icon` 按 id 找文件，
-## 找不到返回 null，卡片上那块就空着，不报错）。两边各有门槛盯着：
-## `npm run check:routes` + `verify.sh tech`（每张卡片必须有图标）。
-const TECH_ICON_ALIAS := {
-	"haggle_buy_2": "haggle_buy_1",
-	"haggle_buy_3": "haggle_buy_1",
-	"haggle_sell_2": "haggle_sell_1",
-	"haggle_sell_3": "haggle_sell_1",
-}
-
+## 2026-10 之前这里有一张 `TECH_ICON_ALIAS`（议价三档复用 _1 那张图）。用户："用 comfyui
+## 来生成缺失的图标，交易的艺术 / 砍价的技巧这几个图标都重新做" —— 现在六档各有各的图，
+## 别名表连同 `check-routes.ts::ICON_ALIAS` 一起删掉了。**别再引入"复用"**：
+## 别名只写一边（TS 门槛或 UI）时，另一边拿不到图就是一块空白，而且不报错。
 static func tech_icon(tech_id: String) -> Texture2D:
-	var tid := String(TECH_ICON_ALIAS.get(tech_id, tech_id))
-	var p := TECH_ICON_DIR + tid + ".png"
+	var p := TECH_ICON_DIR + tech_id + ".png"
 	if ResourceLoader.exists(p):
 		return load(p)
 	return null
