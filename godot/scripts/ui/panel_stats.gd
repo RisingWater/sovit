@@ -247,6 +247,11 @@ func _grid_in(parent: Control, cols: int) -> GridContainer:
 ## 表格单元格。
 ## 数值和正文**同字号**（12）—— 2026-10 试过给数字单独放大到 18，用户看完否了
 ## （"算了，数字改回来吧，不好看"），见 `UIKit.label()` 上面的注释。
+##
+## `right = true` 表示这一格是**值**：右对齐。
+## ⚠️ 别给它加 `SIZE_EXPAND_FILL`：`GridContainer` 会把多余宽度全分给带 EXPAND 的列，
+##    标签和值之间就会被拉开半个屏幕（2026-10 试过，很丑）。列宽按内容定、
+##    值在自己的列里右对齐，两个值列的右边缘各自对齐，就够了。
 func _cell(g: GridContainer, text: String, color: Color, min_w := 0.0, right := false) -> Label:
 	var l := UIKit.label(text, color)
 	if min_w > 0.0:
@@ -514,8 +519,8 @@ func _people_tab() -> void:
 	_cell(ge, "%d" % sim.covered_people("education"), UIKit.FG_DARK, 60.0, true)
 	_cell(ge, "学校", UIKit.FG_HEAD, 90.0)
 	_cell(ge, "%d 座" % schools, UIKit.FG_DARK, 60.0, true)
-	if schools <= 0:
-		_note("还没有学校 —— 教育满足率会一直是 0，熟练度只能按 ×1.00 慢长。")
+	# ⚠️ 这里原本还有一句提示"还没有学校 —— 教育满足率会一直是 0…"，
+	# 用户 2026-10 让删掉（"学校的话删掉"）：上面那两个 0 已经把话说完了，再补一句是噪音。
 
 	# 左：名单；右：详情。
 	# 用户 2026-10："点名字看详情好像并没有实现，是不是弹到后面去了？"
@@ -648,8 +653,11 @@ func _resident_detail(pane: VBoxContainer, rid: String, s: Dictionary) -> void:
 	elif bool(r.get("privateTenant", false)):
 		tenure = "私租"
 	var g := _grid_in(pane, 4)
+	# ⚠️ **每一格的值都要右对齐**（用户 2026-10 圈出：阶层 / 住房 / 工作 / 今日饥饿 那几个值
+	# 是左对齐的，跟旁边的数字参差不齐）。标签列左对齐、值列右对齐 + EXPAND，两列值的右边缘
+	# 才各自对得齐。
 	_cell(g, "阶层", UIKit.FG_HEAD, 82.0)
-	_cell(g, _class_name_zh(String(r["classId"])), UIKit.FG_DARK, 82.0)
+	_cell(g, _class_name_zh(String(r["classId"])), UIKit.FG_DARK, 82.0, true)
 	_cell(g, "熟练度", UIKit.FG_HEAD, 82.0)
 	_cell(g, "%.1f" % float(r["skill"]), UIKit.FG_DARK, 82.0, true)
 	_cell(g, "满意度", UIKit.FG_HEAD, 82.0)
@@ -657,9 +665,9 @@ func _resident_detail(pane: VBoxContainer, rid: String, s: Dictionary) -> void:
 	_cell(g, "存款", UIKit.FG_HEAD, 82.0)
 	_cell(g, "¥%.1f" % float(r["savings"]), UIKit.FG_DARK, 82.0, true)
 	_cell(g, "住房", UIKit.FG_HEAD, 82.0)
-	_cell(g, "%s·%s" % [tenure, _house_name(int(r.get("housingQuality", 0)))], UIKit.FG_DARK, 82.0)
+	_cell(g, "%s·%s" % [tenure, _house_name(int(r.get("housingQuality", 0)))], UIKit.FG_DARK, 82.0, true)
 	_cell(g, "工作", UIKit.FG_HEAD, 82.0)
-	_cell(g, job, UIKit.FG_DARK, 82.0)
+	_cell(g, job, UIKit.FG_DARK, 82.0, true)
 	# 以下全部读仿真层记录的**个人账目**（resident.account），不是面板重算的
 	var acc: Dictionary = r.get("account", {})
 	if acc.is_empty():
@@ -668,7 +676,7 @@ func _resident_detail(pane: VBoxContainer, rid: String, s: Dictionary) -> void:
 	var is_hungry := bool(acc.get("hungry", false))
 	_cell(g, "今日饥饿", UIKit.FG_HEAD, 82.0)
 	_cell(g, "是" if is_hungry else "否",
-		Color(0.72, 0.22, 0.18) if is_hungry else Color(0.18, 0.45, 0.20), 82.0)
+		Color(0.72, 0.22, 0.18) if is_hungry else Color(0.18, 0.45, 0.20), 82.0, true)
 	_cell(g, "食物满足", UIKit.FG_HEAD, 82.0)
 	_cell(g, "%.0f%%" % (float(acc.get("foodScore", 1.0)) * 100.0),
 		Color(0.72, 0.22, 0.18) if is_hungry else UIKit.FG_DARK, 82.0, true)
@@ -697,8 +705,11 @@ func _resident_detail(pane: VBoxContainer, rid: String, s: Dictionary) -> void:
 		_note_in(pane, "今日未购买任何商品。")
 	else:
 		var gb := _grid_in(pane, 4)
-		for hh in ["商品", "数量"]:
-			_cell(gb, hh, HEAD_COL, 96.0)
+		# 表头 4 格，**对齐方式与下面数据行一致**（数量右对齐）——
+		# 用户 2026-10 圈出的"数量 → 数量"就是这里：第一组"数量"是左对齐、第二组是右对齐，
+		# 一行表头自己先歪了。
+		_cell(gb, "商品", HEAD_COL, 96.0)
+		_cell(gb, "数量", HEAD_COL, 60.0, true)
 		_cell(gb, "商品", HEAD_COL, 96.0)
 		_cell(gb, "数量", HEAD_COL, 60.0, true)
 		var keys: Array = bought.keys()

@@ -701,6 +701,14 @@ func _run() -> void:
 				tab = int(mode.substr(5))
 			panel._select_tab(tab)
 			await process_frame
+			# 人口页：默认选中第一个居民，否则右栏停在"点名字看详情"的空状态，
+			# 截图里根本看不到**详情表格的对齐**（2026-10 用户就是看这种图发现没右对齐的）。
+			if mode == "stats_people":
+				var res_list: Array = (runner.sim.s["residents"] as Array)
+				if not res_list.is_empty():
+					panel._on_pick_resident(String((res_list[0] as Dictionary)["id"]))
+					await process_frame
+					await process_frame
 			print("SCREENSHOT stats tab -> ", tab)
 
 	# 顶栏资源 chip 的 tooltip：合成一个鼠标移动事件悬停到第一条 chip 上，
