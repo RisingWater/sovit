@@ -84,6 +84,22 @@ func _run() -> void:
 		return
 	print("TRADEPANEL TEST 打开：面板可见，%d 个内容块 ✅" % body.get_child_count())
 
+	# 物资图标必须是 **32×32**（用户 2026-10："贸易面板里的图标被放大到了 64x64，
+	# 你要保持 32x32"）。这条防的是 `TextureRect` 的经典坑：只写 `custom_minimum_size`
+	# 而不写 `expand_mode = EXPAND_IGNORE_SIZE` 时，最小尺寸会取**贴图本身**（v7 那批是 64），
+	# 于是"设了 32 却画成 64"。所以这里看 `get_combined_minimum_size()`，不是 `size`。
+	var too_big := 0
+	for tr in body.find_children("*", "TextureRect", true, false):
+		var t := (tr as TextureRect)
+		if t.texture == null:
+			continue
+		if t.get_combined_minimum_size().x > 32.0:
+			too_big += 1
+	if too_big > 0:
+		_fail("有 %d 个图标被放到 64（物资图标应当固定 32×32，检查 expand_mode）" % too_big)
+		return
+	print("TRADEPANEL TEST 图标：物资 32×32 / 金币 16（没有被贴图 64 撑大）✅")
+
 	# 快照：剩余天数 = leaveDay - day + 1
 	var snap: Dictionary = sim.trade_snapshot()
 	var cv: Dictionary = (snap["caravans"] as Array)[0]

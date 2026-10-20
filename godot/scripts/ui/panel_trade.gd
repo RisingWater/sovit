@@ -28,8 +28,14 @@ extends PanelContainer
 var runner: SimRunner
 var world: Node
 
-## 金额 / 数量行的图标显示尺寸：硬币 16（面板图标原生 32，÷2 不糊）、物资 16（同）。
-const ICON_SM := 16
+## 金额行金币图标的显示尺寸（图标原生 16）。
+const ICON_COIN := 16
+## 物资图标的显示尺寸：**32**（用户 2026-10："贸易面板里的图标被放大到了 64x64，你要保持 32x32"）。
+##
+## ⚠️ 光设 `custom_minimum_size` 不够 —— `TextureRect` 默认 `EXPAND_KEEP_SIZE`，
+## 它的最小尺寸会取**贴图本身**的大小（v7 那批商品图是 64×64），于是照样画成 64。
+## 必须同时 `expand_mode = EXPAND_IGNORE_SIZE`，32 才会生效（64 → 32 是整除，像素不糊）。
+const ICON_GOOD := 32
 ## 表格各列的固定宽度（表头与数据行共用同一组，保证列对齐）
 const W_NAME := 150.0
 const W_QTY := 56.0
@@ -254,7 +260,8 @@ func _money(amount: float, color: Color = C_MONEY) -> Control:
 	if coin != null:
 		var tr := TextureRect.new()
 		tr.texture = coin
-		tr.custom_minimum_size = Vector2(ICON_SM, ICON_SM)
+		tr.custom_minimum_size = Vector2(ICON_COIN, ICON_COIN)
+		tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		tr.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 		tr.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		tr.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -264,17 +271,19 @@ func _money(amount: float, color: Color = C_MONEY) -> Control:
 	row.add_child(lb)
 	return row
 
-## 物资图标（用户："所有的物资前面要加物资自己的图标"）
+## 物资图标（用户："所有的物资前面要加物资自己的图标"；尺寸固定 **32×32**）
 func _good_icon(gid: String) -> Control:
 	var tex := GoodIcons.tex(gid)
 	if tex == null:
 		var pad := Control.new()
-		pad.custom_minimum_size = Vector2(ICON_SM, ICON_SM)
+		pad.custom_minimum_size = Vector2(ICON_GOOD, ICON_GOOD)
 		return pad
 	var tr := TextureRect.new()
 	tr.texture = tex
-	tr.custom_minimum_size = Vector2(ICON_SM, ICON_SM)
-	# 手绘图标 32、程序化兜底 16；统一按 16 显示（整数倍 / 整除，不糊）
+	tr.custom_minimum_size = Vector2(ICON_GOOD, ICON_GOOD)
+	# ⚠️ `EXPAND_IGNORE_SIZE` 必须写：否则最小尺寸会取贴图本身（64），32 就不生效。
+	tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	# 手绘图标 64（v7）/ 程序化兜底 16；一律按比例缩到 32（整除，不糊）
 	tr.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	tr.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	tr.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -576,7 +585,8 @@ func _ensure_dialog() -> void:
 	if coin != null:
 		var tr := TextureRect.new()
 		tr.texture = coin
-		tr.custom_minimum_size = Vector2(ICON_SM, ICON_SM)
+		tr.custom_minimum_size = Vector2(ICON_COIN, ICON_COIN)
+		tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		tr.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 		tr.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		total_row.add_child(tr)
