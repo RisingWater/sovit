@@ -327,6 +327,116 @@ func _run() -> void:
 	print("TRADEPANEL TEST 地图页：12 个据点（含自己的城镇）+ 地图 %.0f×%.0f（占满高度）+ 卡片 %.0f 铺满右侧 ✅"
 		% [host.size.x, host.size.y, card_scroll.size.x])
 
+	# ---- 地图必须和「王国地图」是同一张图（用户 2026-10）----------------------
+	# "贸易地图和世界地图为什么不一样啊？第一地图上的字没了，地图上的城镇位置也不对，
+	#  城镇大小也不对。……根据世界地图和贸易地图的比例换算一下坐标和图标/文字尺寸就好了啊。"
+	# 判据用**测试自己算一遍**（不调面板里那两个换算函数），免得两边一起错：
+	#   · 图标高 = 底图高 × ICON_H × scale，脚底中点钉在 (fx, fy)
+	#   · 地名：7 行都在、字体是 Lin Libertine、整句居中在 (fx, fy)、首字母大 4 号
+	var pmap = load("res://scripts/ui/panel_map.gd")
+	var tw2 := float(mtex.get_width())
+	var th2 := float(mtex.get_height())
+	var k2 := minf(host.size.x / tw2, host.size.y / th2)
+	var rect2 := Rect2((host.size - Vector2(tw2, th2) * k2) * 0.5, Vector2(tw2, th2) * k2)
+	var eff: Dictionary = pmap.effective_marks()
+	var dots2: Array = panel.get("_city_dots")
+	for cid3 in ["capital", "dawn", "ashen_vale"]:
+		var mk: Dictionary = eff.get(cid3, {})
+		if mk.is_empty():
+			_fail("坐标表里没有 %s" % cid3)
+			return
+		var btn3: Control = null
+		for d3 in dots2:
+			if String((d3 as Control).name) == "City_" + cid3:
+				btn3 = d3
+		if btn3 == null:
+			_fail("地图上找不到据点按钮 City_%s" % cid3)
+			return
+		var tex3: Texture2D = load("res://assets/ui/map/%s.png" % String(mk["kind"]))
+		var ih3 := rect2.size.y * float(pmap.ICON_H) * float(mk.get("scale", 1.0))
+		var iw3 := ih3
+		if tex3 != null and tex3.get_height() > 0.0:
+			iw3 = ih3 * float(tex3.get_width()) / float(tex3.get_height())
+		var want_pos := Vector2(rect2.position.x + float(mk["fx"]) * rect2.size.x - iw3 * 0.5,
+			rect2.position.y + float(mk["fy"]) * rect2.size.y - ih3)
+		if absf(btn3.position.x - want_pos.x) > 1.0 or absf(btn3.position.y - want_pos.y) > 1.0:
+			_fail("%s 的图标位置是 %s，按坐标/底图比例应当是 %s（脚底中点对齐）"
+				% [cid3, str(btn3.position), str(want_pos)])
+			return
+		if absf(btn3.size.y - ih3) > 1.0:
+			_fail("%s 的图标高 %.1f，应当是 %.1f（底图高 × %.3f × scale %.2f）"
+				% [cid3, btn3.size.y, ih3, float(pmap.ICON_H), float(mk.get("scale", 1.0))])
+			return
+	# 地名：7 行都画了，字是 Lim Libertine，整句居中在 (fx, fy)
+	var regs2: Array = panel.get("_region_labels")
+	if regs2.size() != 7:
+		_fail("贸易地图上有 %d 行地名，应当是 7 行（THE HOLY / WALDEN / …）" % regs2.size())
+		return
+	var lib: Font = null
+	if ResourceLoader.exists(String(pmap.MAP_FONT)):
+		lib = load(String(pmap.MAP_FONT))
+	for rr in regs2:
+		var pieces2: Array = rr["pieces"]
+		var minx := 1e9
+		var maxx := -1e9
+		for pp in pieces2:
+			var lb3: Label = pp["node"]
+			if lib != null and lb3.get_theme_font("font") != lib:
+				_fail("地名「%s」用的不是 Lin Libertine" % String(rr["text"]))
+				return
+			minx = minf(minx, lb3.position.x)
+			maxx = maxf(maxx, lb3.position.x + lb3.size.x - 2.0)
+		var cx2 := rect2.position.x + float(rr["fx"]) * rect2.size.x
+		if absf((minx + maxx) * 0.5 - cx2) > 3.0:
+			_fail("地名「%s」的中心在 %.1f，应当落在 fx 对应的 %.1f 上"
+				% [String(rr["text"]), (minx + maxx) * 0.5, cx2])
+			return
+	print("TRADEPANEL TEST 地图与王国地图同源：图标按底图高 × %.3f × scale、脚底钉点；7 行地名（Lin Libertine）居中 ✅"
+		% float(pmap.ICON_H))
+
+	# 再和**真的那张王国地图**对一遍（不光复算公式）：同一个据点在两张图上的
+	# **归一化**位置与相对大小必须一致 —— 用户要的就是"按比例换算"。
+	var pm2 = node.get("_panel_map")
+	if pm2 == null:
+		_fail("找不到王国地图面板（_panel_map）")
+		return
+	pm2.open()
+	await process_frame
+	await process_frame
+	var p_rect := Rect2(pm2.get("_map").position, pm2.get("_map").size)
+	if p_rect.size.x < 100.0:
+		_fail("王国地图没排版（底图矩形 %.0f×%.0f）" % [p_rect.size.x, p_rect.size.y])
+		return
+	var p_norm: Dictionary = {}
+	for e2 in (pm2.get("_marks") as Array):
+		var d2: Dictionary = e2["data"]
+		var b2: Control = e2["node"]
+		p_norm[String(d2["id"])] = Vector3(
+			(b2.position.x - p_rect.position.x) / p_rect.size.x,
+			(b2.position.y - p_rect.position.y) / p_rect.size.y,
+			b2.size.y / p_rect.size.y)
+	pm2.close_panel()
+	await process_frame
+	for cid4 in ["capital", "dawn", "jade", "ashen_vale"]:
+		var b4: Control = null
+		for d4 in dots2:
+			if String((d4 as Control).name) == "City_" + cid4:
+				b4 = d4
+		if b4 == null or not p_norm.has(cid4):
+			_fail("两张图上都该有 %s（贸易=%s 王国=%s）" % [cid4, str(b4 != null), str(p_norm.has(cid4))])
+			return
+		var mine := Vector3(
+			(b4.position.x - rect2.position.x) / rect2.size.x,
+			(b4.position.y - rect2.position.y) / rect2.size.y,
+			b4.size.y / rect2.size.y)
+		var theirs: Vector3 = p_norm[cid4]
+		if absf(mine.x - theirs.x) > 0.002 or absf(mine.y - theirs.y) > 0.002 \
+				or absf(mine.z - theirs.z) > 0.002:
+			_fail("%s 在两块地图上对不上：贸易 %s / 王国 %s（归一化位置与相对高度）"
+				% [cid4, str(mine), str(theirs)])
+			return
+	print("TRADEPANEL TEST 与王国地图逐点对齐：capital / dawn / jade / ashen_vale 的归一化位置与大小一致 ✅")
+
 	# 统治者：和城名**同一行**（老版式是城名下面单起一行，用户 2026-10 否掉了）
 	panel.set("_sel_city", "dawn")
 	panel._refresh()

@@ -93,6 +93,136 @@ const MARKS := [
 const HOME := {"id": "ashen_vale", "fx": 0.6823, "fy": 0.8854,
 	"lord": "你（第七王子）", "specialty": "木材、石块、粘土"}
 
+# ---------------------------------------------------------------------------
+# 共用换算（**贸易面板的「地图」页也读这一份**）
+#
+# 用户 2026-10："贸易地图和世界地图为什么不一样啊？地图上的字没了，城镇位置也不对，
+# 城镇大小也不对。我记得有一个配置文件记录了城镇位置和字的位置，你为啥不用那个来生成？
+# 根据世界地图和贸易地图的比例换算一下坐标和图标/文字尺寸就好了啊。"
+#
+# 所以：**位置与倍数的唯一真源** = 下面两张内置表 + `data/map_layout.json`（游戏里能拖、
+# 拖完自动写回那份文件）。两块面板都走 `effective_marks()` / `effective_regions()` 取数据，
+# 再用 `map_rect()` / `icon_rect()` / `region_font()` 换算成像素 —— 别再各写一套。
+# ---------------------------------------------------------------------------
+
+## 区域名字号是按**这个底图高度**定的：1600×900 全屏时王国地图那块底图量出来是 820 px。
+## 换到别的尺寸（比如贸易面板里那一小块）就按 `rect.size.y / REF_H` 折算 ——
+## 王国地图自己不折算（它就是那把尺子），贸易地图按这一条换算才算"同一张图"。
+const REF_H := 820.0
+## 底图实际像素（`kingdom_map_bare.webp`）。比例以它为准，别改。
+const MAP_TEX_SIZE := Vector2(2048.0, 1366.0)
+
+## 底图比例坐标 → 像素矩形：居中、保持比例（和 `STRETCH_KEEP_ASPECT_CENTERED` 一个口径）
+static func map_rect(host: Vector2, tex_size: Vector2 = MAP_TEX_SIZE) -> Rect2:
+	if tex_size.x <= 0.0 or tex_size.y <= 0.0 or host.x < 1.0 or host.y < 1.0:
+		return Rect2()
+	var k := minf(host.x / tex_size.x, host.y / tex_size.y)
+	var sz := tex_size * k
+	return Rect2((host - sz) * 0.5, sz)
+
+## 一个据点的图标矩形：**脚底中点**钉在 (fx, fy)，高 = rect.h × ICON_H × scale，宽按素材比例。
+## ⚠️ 别改成"中心对齐" —— 那样整张图上的图标会集体上移半格（贸易地图第一版就是这么错的）。
+static func icon_rect(mark: Dictionary, rect: Rect2, tex: Texture2D) -> Rect2:
+	var ih := rect.size.y * ICON_H * float(mark.get("scale", 1.0))
+	var iw := ih
+	if tex != null and tex.get_height() > 0.0:
+		iw = ih * float(tex.get_width()) / float(tex.get_height())
+	var cx := rect.position.x + float(mark.get("fx", 0.5)) * rect.size.x
+	var by := rect.position.y + float(mark.get("fy", 0.5)) * rect.size.y
+	return Rect2(cx - iw * 0.5, by - ih, iw, ih)
+
+## 区域名字号：按底图高度比例折算（`REGIONS[i].size` 是 `REF_H` 时的字号）
+static func region_font(base_size: int, rect: Rect2) -> int:
+	if rect.size.y <= 1.0:
+		return base_size
+	return maxi(8, int(round(float(base_size) * rect.size.y / REF_H)))
+
+## 一行地名切成「每个单词的首字母（大号）+ 余下（正文）」几块：
+## `[{text, head, space}]`，`head` = 这块是不是首字母，`space` = 前面要不要空一格。
+static func region_pieces(text: String) -> Array:
+	var out := []
+	var words := text.split(" ", false)
+	for wi in words.size():
+		var w := String(words[wi])
+		out.append({"text": w.substr(0, 1), "head": true, "space": wi > 0})
+		if w.length() > 1:
+			out.append({"text": w.substr(1), "head": false, "space": false})
+	return out
+
+## 生效的据点数据：内置 `MARKS` + `HOME`，再叠 `data/map_layout.json` 的覆盖。
+## 返回 `id -> {id, kind, fx, fy, scale, name, lord, specialty}`。
+## ⚠️ `kind` 用内置的那个；我们那一座要随城镇中心段位换，调用方自己改。
+static func effective_marks() -> Dictionary:
+	var out := {}
+	for m in MARKS:
+		var d: Dictionary = (m as Dictionary).duplicate(true)
+		d["scale"] = float(d.get("scale", 1.0))
+		out[String(d["id"])] = d
+	out[String(HOME["id"])] = {"id": String(HOME["id"]), "kind": "village",
+		"fx": float(HOME["fx"]), "fy": float(HOME["fy"]), "scale": 1.0,
+		"name": "", "lord": String(HOME["lord"]), "specialty": String(HOME["specialty"])}
+	var j := read_layout()
+	var marks: Dictionary = (j.get("marks", {}) as Dictionary) if j.has("marks") else {}
+	for id in marks.keys():
+		var key := String(id)
+		if not out.has(key):
+			continue
+		var o: Dictionary = marks[id]
+		if o.has("fx"):
+			out[key]["fx"] = float(o["fx"])
+		if o.has("fy"):
+			out[key]["fy"] = float(o["fy"])
+		if o.has("scale"):
+			out[key]["scale"] = float(o["scale"])
+	return out
+
+## 生效的地名数据：`REGIONS` 叠 JSON 覆盖 → `[{text, fx, fy, size}]`
+static func effective_regions() -> Array:
+	var out := []
+	for r in REGIONS:
+		out.append({"text": String(r["text"]), "fx": float(r["fx"]), "fy": float(r["fy"]),
+			"size": int(r["size"])})
+	var j := read_layout()
+	var regions: Dictionary = (j.get("regions", {}) as Dictionary) if j.has("regions") else {}
+	for r2 in out:
+		var o = regions.get(String(r2["text"]), null)
+		if not (o is Dictionary):
+			continue
+		if (o as Dictionary).has("fx"):
+			r2["fx"] = float(o["fx"])
+		if (o as Dictionary).has("fy"):
+			r2["fy"] = float(o["fy"])
+	return out
+
+## 读那份坐标文件（没有 / 读不懂 → 空字典 = 全用内置坐标）
+static func read_layout() -> Dictionary:
+	var path := layout_path()
+	if not FileAccess.file_exists(path):
+		return {}
+	var j = JSON.parse_string(FileAccess.get_file_as_string(path))
+	return j if typeof(j) == TYPE_DICTIONARY else {}
+
+## `res://` 优先（跟随仓库里的坐标），导出后只读时退 `user://`
+static func layout_path() -> String:
+	if FileAccess.file_exists(LAYOUT_RES):
+		return LAYOUT_RES
+	if FileAccess.file_exists(LAYOUT_USER):
+		return LAYOUT_USER
+	return LAYOUT_RES
+
+## 一块地名 Label（**不加描边**：用户 2026-10-20 "字为什么有白边？白边去掉"）
+static func region_label(t: String, fs: int, f: Font) -> Label:
+	var l := Label.new()
+	l.text = t
+	if f != null:
+		l.add_theme_font_override("font", f)
+	l.add_theme_font_size_override("font_size", fs)
+	l.add_theme_color_override("font_color", INK_DIM)
+	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	l.vertical_alignment = VERTICAL_ALIGNMENT_BOTTOM
+	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	return l
+
 var _map: TextureRect
 var _host: Control
 var _marks: Array = []          # [{data, node, tex, tex_hover}]
@@ -269,17 +399,9 @@ func _pieces_append(arr: Array, node: Label, fs: int, space: bool) -> void:
 	arr.append({"node": node, "fs": fs, "space": space})
 
 ## 一块地名 Label（**不加描边**：用户 2026-10-20 "字为什么有白边？白边去掉"）
+## ⚠️ 实现只有 `region_label()`（静态、两块面板共用）
 func _region_label(t: String, fs: int, f: Font) -> Label:
-	var l := Label.new()
-	l.text = t
-	if f != null:
-		l.add_theme_font_override("font", f)
-	l.add_theme_font_size_override("font_size", fs)
-	l.add_theme_color_override("font_color", INK_DIM)
-	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
-	l.vertical_alignment = VERTICAL_ALIGNMENT_BOTTOM
-	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	return l
+	return region_label(t, fs, f)
 
 ## 据点：图标（默认/hover 两张）+ 底下的城名
 func _build_marks() -> void:
@@ -402,11 +524,7 @@ const LAYOUT_USER := "user://map_layout.json"
 var _layout_path := LAYOUT_RES
 
 func _resolve_layout_path() -> String:
-	if FileAccess.file_exists(LAYOUT_RES):
-		return LAYOUT_RES
-	if FileAccess.file_exists(LAYOUT_USER):
-		return LAYOUT_USER
-	return LAYOUT_RES      # 都不存在时先试 res://（写不进去再退 user://）
+	return layout_path()
 
 func _on_edit_toggled(on: bool) -> void:
 	_edit = on
@@ -623,41 +741,33 @@ func _icon(kind: String, hover: bool) -> Texture2D:
 		_tex_cache[path] = load(path) if ResourceLoader.exists(path) else null
 	return _tex_cache[path]
 
-## 把比例坐标摊成像素：底图居中、保持 MAP_ASPECT，所有图标/地名都按底图矩形算。
+## 把比例坐标摊成像素：底图居中、保持比例，所有图标/地名都按底图矩形算。
+## ⚠️ 换成像素那几步（`map_rect` / `icon_rect`）是**两块面板共用**的静态函数，
+##    别在这里再写一遍 —— 贸易面板的地图页读的就是同一套（见本文件顶部"共用换算"）。
 func _layout() -> void:
 	if _host == null or _map == null:
 		return
 	var vp := _host.size
 	if vp.x < 8.0 or vp.y < 8.0:
 		return
-	var w := minf(vp.x, vp.y * MAP_ASPECT)
-	var h := w / MAP_ASPECT
-	if h > vp.y:
-		h = vp.y
-		w = h * MAP_ASPECT
-	var rect := Rect2(Vector2((vp.x - w) * 0.5, (vp.y - h) * 0.5), Vector2(w, h))
+	var rect := map_rect(vp)
+	if rect.size.x < 8.0:
+		return
 	_rect = rect          # 拖拽换算要用（见 `_to_frac()`）
 	_map.position = rect.position
 	_map.size = rect.size
 	# 图标：统一高度缩放，底部中点钉在点位
 	# `scale` 是**单店覆盖**（用户 2026-10-20 在图上标了「放大显示」给铁王城）——
 	# 首都本来就该比中城镇显眼，而素材里两者差不多大。
-	var icon_h := rect.size.y * ICON_H
 	for e in _marks:
 		var d: Dictionary = e["data"]
 		var tex: Texture2D = e["tex"]
-		var k := float(d.get("scale", 1.0))
-		var ih := icon_h * k
-		var iw := ih
-		if tex != null and tex.get_height() > 0:
-			iw = ih * float(tex.get_width()) / float(tex.get_height())
-		var cx := rect.position.x + float(d["fx"]) * rect.size.x
-		var by := rect.position.y + float(d["fy"]) * rect.size.y
+		var ir := icon_rect(d, rect, tex)
 		var btn: TextureButton = e["node"]
-		btn.size = Vector2(iw, ih)
-		btn.position = Vector2(cx - iw * 0.5, by - ih)
+		btn.size = ir.size
+		btn.position = ir.position
 		# 放大的轴心放在脚底中点：hover 时像是"从地上长出来"，不会飘
-		btn.pivot_offset = Vector2(iw * 0.5, ih)
+		btn.pivot_offset = Vector2(ir.size.x * 0.5, ir.size.y)
 	# 区域名：每个单词切成「首字母（大）+ 余下（正文）」，所有块共用盒高 + 底部对齐，
 	# 宽度用 `Font.get_string_size()` 量，整句按 fx 居中，词与词之间留一个空格的宽度。
 	for r in _labels:

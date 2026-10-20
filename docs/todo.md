@@ -219,14 +219,15 @@
    否则踩 `§1.1 原料不自锁`：货箱链改用 clay，钱箱链补 `ironworking` / `brickmaking`，卖价链补 `coarse_weaving`。
 3. 需求池开局**是满的**（`demandCap`），特产库存从 `specialtyStock` 起步 —— 城市"永远收"，货源"要跑起来才有"。
 
-**验收后又补的四处（2026-10 用户当天上手提的）**：
+**验收后又补的五处（2026-10 用户当天上手提的）**：
 
 | # | 症状 | 改法 | 门槛 |
 |---|---|---|---|
 | ① | 读了一局第 120 天的 **v3 老档**，点左侧「贸易」直接崩：`Invalid access to property or key 'routes'`（栈 `routes_snapshot()`）| `SimCore.repair_routes()` + `_sanitize()` 兜底：`world_view.load_from()` 本来就收 v3 起的档，而 `state.routes` 是 v6 才有的 | `routes` ⑩ |
-| ② | 地图上**没有我们自己的城镇** | 地图页多画一个据点（坐标取 `panel_map.gd::HOME`），点它只出地标卡片，不给「设为目的地」 | `tradepanel` |
+| ② | 地图上**没有我们自己的城镇** | 地图页多画一个据点（坐标走 `panel_map.gd::effective_marks()`），点它只出地标卡片，不给「设为目的地」 | `tradepanel` |
 | ③ | 统治者**另起一行** | 城名 + `统治者 xxx` 同一行，单程/往返挪到行尾 | `tradepanel` |
 | ④ | 地图偏小、右边一条空白给立绘留着 | 地图按高度撑满（宽度由底图比例反算）、卡片吃掉全部剩余宽度；这一页立绘缩到 0.42 | `tradepanel` |
+| ⑤ | **两块地图不一样**：贸易地图没地名、城镇位置/大小都不对 | 坐标/倍数/地名只留一份真源（`MARKS`/`REGIONS` + `data/map_layout.json`），贸易面板改用 `map_rect()` / `icon_rect()` / `region_font()` 按比例换算；顺带把地名层（7 行，Lin Libertine）补上 | `tradepanel`（拿真的王国地图逐点比归一化位置） |
 
 **与游商并存**：游商 = 谷口零散货郎（每周一批、停 7 天、限量）；商路 = 常设车队（量大、有在途时间）。
 两者**共用 `baseValue` 那一份价格锚**，不另立价格表 —— 风险 #2 说的"一件货两个价"就是靠这条避免的。

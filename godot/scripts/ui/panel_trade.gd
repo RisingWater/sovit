@@ -91,6 +91,9 @@ var _map_host: Control
 var _map_tex: TextureRect
 var _map_card: VBoxContainer
 var _city_dots: Array = []
+## 地名层（THE HOLY / WALDEN / …）：和「王国地图」同一条数据、同一个字体，
+## 只有字号按底图高度折算。每项 = {text, pieces, fx, fy, size}。
+var _region_labels: Array = []
 var _sel_city := ""
 
 ## 据点卡片的最小宽度（地图那一侧按"高度占满"算完宽度后，剩下的都归它 —— 见
@@ -292,6 +295,8 @@ func open_trade() -> void:
 	visible = true
 	move_to_front()
 	_last_hour = int(runner.sim.s["hour"]) if runner != null and runner.sim != null else -1
+	# 每次打开都重读一次坐标文件（王国地图那边有「重新读入」，改了坐标这里也得跟上）
+	_build_region_labels()
 	_refresh()
 	if _portrait != null:
 		_portrait.speak()
@@ -767,14 +772,7 @@ func _enqueue_route(a: Dictionary) -> void:
 	runner.enqueue([a])
 	_refresh()
 
-## 内容里的城 id → 地图上的据点（`panel_map.gd::MARKS`，拿坐标与图标）。
-func _city_mark(city_id: String) -> Dictionary:
-	for m in PMAP.MARKS:
-		if String(m["id"]) == city_id:
-			return m
-	return {}
-
-## 我们自己的城镇的据点数据（坐标取自 `panel_map.gd::HOME`，和王国地图是同一处）：
+## 我们自己的城镇的据点数据（坐标同样来自 `panel_map.gd::HOME` / 坐标文件）：
 ## 图标跟着城镇中心的段位换（废墟 = 村庄 → 初步修缮 = 小城 → 修好 = 中城），
 ## 名字跟着村名走。贸易地图上**必须**有它 —— 商队就是从这儿出发的（用户 2026-10）。
 func _home_mark() -> Dictionary:
@@ -789,28 +787,34 @@ func _home_mark() -> Dictionary:
 		var n := String(runner.sim.s.get("villageName", "灰谷")).strip_edges()
 		if n != "":
 			nm = n
-	return {"id": HOME_ID, "kind": kind, "fx": float(PMAP.HOME["fx"]),
-		"fy": float(PMAP.HOME["fy"]), "name": nm}
+	var mark: Dictionary = (PMAP.effective_marks() as Dictionary).get(HOME_ID, {})
+	mark = mark.duplicate(true)
+	mark["kind"] = kind
+	mark["name"] = nm
+	return mark
 
-## 重建地图上的据点按钮（刷新时调；位置由 `_layout_city_dots()` 摆）。
+## 重建地图上的据点按钮（刷新时调；位置/尺寸由 `_layout_city_dots()` 摆）。
+## ⚠️ 位置、倍数、图标大小**一律**从 `panel_map.gd` 那套共用换算来 ——
+##    世界地图和贸易地图必须是同一张图，只是尺寸不同（用户 2026-10）。
 func _build_city_dots(cities: Array) -> void:
 	for b in _city_dots:
 		if is_instance_valid(b):
 			b.queue_free()
 	_city_dots = []
+	var marks: Dictionary = PMAP.effective_marks()
 	# 我们自己的城镇先加（压在下面：别的城的图标若与它重叠，点得到的是别的城）
 	_add_city_dot(_home_mark())
 	for city in cities:
 		var cid := String(city["id"])
-		var mark := _city_mark(cid)
-		if mark.is_empty():
+		if not marks.has(cid):
 			continue
-		_add_city_dot({"id": cid, "kind": String(mark.get("kind", "town_small")),
-			"fx": float(mark.get("fx", 0.5)), "fy": float(mark.get("fy", 0.5)),
-			"name": String(city["nameZh"])})
+		var mark: Dictionary = (marks[cid] as Dictionary).duplicate(true)
+		# 名字用贸易内容里的（和「王国地图」的 hover 卡片一致，但不靠它硬编码）
+		mark["name"] = String(city["nameZh"])
+		_add_city_dot(mark)
 	_layout_city_dots()
 
-## 往地图上放一个据点按钮（`mark` = id / kind / fx / fy / name）。
+## 往地图上放一个据点按钮（`mark` = id / kind / fx / fy / scale / name）。
 func _add_city_dot(mark: Dictionary) -> void:
 	var cid := String(mark["id"])
 	var kind := String(mark.get("kind", "town_small"))
@@ -823,15 +827,38 @@ func _add_city_dot(mark: Dictionary) -> void:
 	btn.texture_normal = tex
 	btn.ignore_texture_size = true
 	btn.stretch_mode = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
-	btn.custom_minimum_size = Vector2(56, 56)
-	btn.size = Vector2(56, 56)
+	# 手绘图标（缩到 50~90 px 显示）：线性过滤比最近邻干净（和王国地图同一口径）
+	btn.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
 	btn.tooltip_text = String(mark.get("name", ""))
 	btn.set_meta("city_id", cid)
-	btn.set_meta("fx", float(mark.get("fx", 0.5)))
-	btn.set_meta("fy", float(mark.get("fy", 0.5)))
+	btn.set_meta("mark", mark)
 	btn.pressed.connect(_on_city_pressed.bind(cid))
 	_map_host.add_child(btn)
 	_city_dots.append(btn)
+
+## 地名层：和「王国地图」同一条数据（`panel_map.effective_regions()`）、同一个字体
+## （Lin Libertine）、同一个墨色；字号按底图高度折算，见 `_layout_region_labels()`。
+## 用户 2026-10："第一地图上的字没了" —— 贸易地图以前一个字都不画。
+## 每块地名切成「每个单词的首字母（大）+ 余下」，和王国地图一样整句居中。
+func _build_region_labels() -> void:
+	for r in _region_labels:
+		for p in (r["pieces"] as Array):
+			if is_instance_valid(p["node"]):
+				(p["node"] as Node).queue_free()
+	_region_labels = []
+	if _map_host == null:
+		return
+	var f: Font = load(PMAP.MAP_FONT) if ResourceLoader.exists(PMAP.MAP_FONT) else null
+	for reg in PMAP.effective_regions():
+		var pieces := []
+		for p in PMAP.region_pieces(String(reg["text"])):
+			var lb: Label = PMAP.region_label(String(p["text"]), int(reg["size"]), f)
+			lb.name = "Region_%s" % String(reg["text"]).replace(" ", "_")
+			_map_host.add_child(lb)
+			pieces.append({"node": lb, "head": bool(p["head"]), "space": bool(p["space"]),
+				"w": 0.0})
+		_region_labels.append({"text": String(reg["text"]), "pieces": pieces,
+			"fx": float(reg["fx"]), "fy": float(reg["fy"]), "size": int(reg["size"])})
 
 ## 地图**按高度占满**剩下的地方（用户 2026-10），宽度由底图比例反算 ——
 ## 这样 `STRETCH_KEEP_ASPECT_CENTERED` 不会在左右留黑边，据点也不会挤在中间一条。
@@ -850,29 +877,62 @@ func _sync_map_host_size() -> void:
 		_map_host.custom_minimum_size = Vector2(w, 240.0)
 	_layout_city_dots()
 
-## 按底图的实际绘制矩形摆城市按钮（`STRETCH_KEEP_ASPECT_CENTERED` 会留黑边，
-## 所以不能直接按控件尺寸算 —— 要拿"图被画在哪儿"来算）。
+## 摆城市按钮与地名：**位置/尺寸都走 `panel_map.gd` 的共用换算**
+## （`map_rect()` 拿底图矩形、`icon_rect()` 拿图标矩形、`region_font()` 拿字号）。
+## 用户 2026-10："根据世界地图和贸易地图的比例换算一下坐标和图标/文字尺寸就好了啊。"
 func _layout_city_dots() -> void:
 	if _map_tex == null or _map_tex.texture == null:
 		return
-	var tw := float(_map_tex.texture.get_width())
-	var th := float(_map_tex.texture.get_height())
-	if tw <= 0.0 or th <= 0.0:
+	var rect := PMAP.map_rect(_map_tex.size, Vector2(float(_map_tex.texture.get_width()),
+		float(_map_tex.texture.get_height())))
+	if rect.size.x < 8.0:
 		return
-	var host := _map_tex.size
-	var k := minf(host.x / tw, host.y / th)
-	var dw := tw * k
-	var dh := th * k
-	var ox := (host.x - dw) * 0.5
-	var oy := (host.y - dh) * 0.5
 	for b in _city_dots:
 		if not is_instance_valid(b):
 			continue
-		var p := Vector2(ox + float(b.get_meta("fx")) * dw, oy + float(b.get_meta("fy")) * dh)
-		var sz := (b as Control).custom_minimum_size
-		(b as Control).position = p - sz * 0.5
+		var mark: Dictionary = b.get_meta("mark")
+		var ir := PMAP.icon_rect(mark, rect, (b as TextureButton).texture_normal)
+		(b as Control).position = ir.position
+		(b as Control).size = ir.size
 		var selected := String(b.get_meta("city_id")) == _sel_city
 		(b as CanvasItem).modulate = Color(1.25, 1.05, 0.55) if selected else Color(1, 1, 1)
+	_layout_region_labels(rect)
+
+## 地名的字号（跟着底图高度折算）。`_region_labels` 里存的是**参考字号**，这里换成本图的。
+func _layout_region_labels(rect: Rect2) -> void:
+	if _region_labels.is_empty():
+		return
+	for r in _region_labels:
+		var pieces: Array = r["pieces"]
+		var body := PMAP.region_font(int(r["size"]), rect)
+		var big := body + PMAP.FIRST_EXTRA
+		var box_h := float(big) * 1.6
+		var total := 0.0
+		var space_w := 0.0
+		for p in pieces:
+			var lb: Label = p["node"]
+			var fs := big if bool(p["head"]) else body
+			lb.add_theme_font_size_override("font_size", fs)
+			var f: Font = lb.get_theme_font("font")
+			var wid := 0.0
+			if f != null:
+				wid = f.get_string_size(lb.text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
+				if space_w <= 0.0:
+					space_w = f.get_string_size(" ", HORIZONTAL_ALIGNMENT_LEFT, -1, body).x
+			p["w"] = wid
+			total += wid + (space_w if bool(p["space"]) else 0.0)
+		var cx := rect.position.x + float(r["fx"]) * rect.size.x
+		var cy := rect.position.y + float(r["fy"]) * rect.size.y
+		var x := cx - total * 0.5
+		var top := cy - box_h * 0.5
+		for p in pieces:
+			var lb2: Label = p["node"]
+			if bool(p["space"]):
+				x += space_w
+			var pw := float(p["w"])
+			lb2.size = Vector2(maxf(pw + 2.0, 8.0), box_h)
+			lb2.position = Vector2(x, top)
+			x += pw
 
 func _on_city_pressed(city_id: String) -> void:
 	_sel_city = city_id
