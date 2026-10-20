@@ -1,7 +1,7 @@
 extends PanelContainer
 
 # ---------------------------------------------------------------------------
-# 科技树上的一张卡片：图标 + 名字 + 状态。
+# 科技树上的一张卡片：图标 + 名字 + **效果** + 状态。
 #
 # 卡片**不判断任何规则**（能不能研究、前置够不够），只做两件事：
 #   1. 把鼠标事件转给 panel_tech
@@ -10,18 +10,31 @@ extends PanelContainer
 #
 # ⚠️ `tooltip_text` 必须非空，Godot 才会去调 `_make_custom_tooltip`。
 #    这里放科技名（真到了没有自定义 tooltip 的那天，至少还能显示个名字）。
+#
+# 2026-10（用户："这科技是干嘛完全看不明白"）：卡片上多一行**效果**
+# （"商队 +1" / "载货 80 件" / "买价 -10%"）。原来只有名字 + "需先研究"，
+# 十六张卡片摆在一起等于十六个黑盒 —— 效果只藏在 tooltip 里，没人会去挨个悬停。
+# 文字由面板拼（`panel_tech._card_effect()`），卡片只负责显示。
 # ---------------------------------------------------------------------------
 
 const CARD_W := 108
+## 没有效果行的高度（「制造」页的那棵树下全是这个尺寸）。
 const CARD_H := 86
+## 有效果行的高度（「效率」「贸易」两页）。多出来的 18 = 一行字 + 行距。
+const CARD_H_EFFECT := 104
 
 const BG_READY := Color(0.94, 0.90, 0.79)
 const BG_LOCKED := Color(0.79, 0.77, 0.73)
+
+## 效果行用绿色：与面板顶部"效率科技：农业食品 +10%"那行同一个含义（加成）。
+## 状态行自己会变色（橙=研究中、绿=已完成、灰=需先研究），所以效果行不能也乱变色。
+const EFFECT_COLOR := Color(0.22, 0.47, 0.24)
 
 var host: Node = null
 var tech_id := ""
 
 var _name_label: Label
+var _effect_label: Label
 var _state_label: Label
 var _icon: TextureRect
 var _sb: StyleBoxFlat
@@ -76,10 +89,25 @@ func setup(p_host: Node, tid: String, disp: String, tex: Texture2D) -> void:
 	_name_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	vb.add_child(_name_label)
 
+	# 效果行：面板调 `set_effect()` 才显示（没有效果就藏着，不占高度）
+	_effect_label = UIKit.label("", EFFECT_COLOR)
+	_effect_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_effect_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_effect_label.custom_minimum_size = Vector2(CARD_W - 14, 0)
+	_effect_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_effect_label.visible = false
+	vb.add_child(_effect_label)
+
 	_state_label = UIKit.label("", UIKit.FG_DIM)
 	_state_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_state_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	vb.add_child(_state_label)
+
+
+## 效果那一行（"商队 +1"）。空串 = 这项科技没有可写的加成（卡片保持矮的那版）。
+func set_effect(text: String) -> void:
+	_effect_label.text = text
+	_effect_label.visible = text != ""
 
 
 ## 由面板调用：更新这张卡片的四种（五种，含"已排队待生效"）外观。

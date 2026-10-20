@@ -638,7 +638,7 @@
     },
     {
       "id": "haggle_buy_1",
-      "nameZh": "低买初阶",
+      "nameZh": "砍价的技巧v1",
       "era": 3,
       "research": 45,
       "cost": { "goods": { "pottery": 15, "wood": 15 } },
@@ -648,7 +648,7 @@
     },
     {
       "id": "haggle_buy_2",
-      "nameZh": "低买中阶",
+      "nameZh": "砍价的技巧v2",
       "era": 4,
       "research": 65,
       "cost": { "goods": { "pottery": 20, "clay": 10 } },
@@ -658,7 +658,7 @@
     },
     {
       "id": "haggle_buy_3",
-      "nameZh": "低买高阶",
+      "nameZh": "砍价的技巧v3",
       "era": 5,
       "research": 85,
       "cost": { "goods": { "pottery": 25, "clay": 20 } },
@@ -668,7 +668,7 @@
     },
     {
       "id": "haggle_sell_1",
-      "nameZh": "高卖初阶",
+      "nameZh": "交易的艺术v1",
       "era": 3,
       "research": 45,
       "cost": { "goods": { "pottery": 15, "coarse_cloth": 15 } },
@@ -678,7 +678,7 @@
     },
     {
       "id": "haggle_sell_2",
-      "nameZh": "高卖中阶",
+      "nameZh": "交易的艺术v2",
       "era": 4,
       "research": 65,
       "cost": { "goods": { "pottery": 20, "coarse_cloth": 20 } },
@@ -688,7 +688,7 @@
     },
     {
       "id": "haggle_sell_3",
-      "nameZh": "高卖高阶",
+      "nameZh": "交易的艺术v3",
       "era": 5,
       "research": 85,
       "cost": { "goods": { "pottery": 25, "coarse_cloth": 30 } },

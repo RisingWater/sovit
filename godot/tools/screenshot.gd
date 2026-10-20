@@ -414,17 +414,35 @@ func _run() -> void:
 			await process_frame
 
 	# 科技树（统计面板在下面另一段 —— 那边要多跑 24 天让折线有内容）
-	if mode == "tech" or mode == "techeff":
+	if mode == "tech" or mode == "techeff" or mode == "techtrade" or mode == "techtip":
 		var t_panel = node.get_node_or_null("UI/Root/Tech")
 		if t_panel != null:
 			t_panel.open()
 			await process_frame
 			await process_frame
-			# 2026-10 科技面板拆成「制造 / 效率 / 研究队列」三页：
-			# `tech` 截第一页（制造），`techeff` 截第二页（效率）。
+			# 2026-10 科技面板拆成「制造 / 效率 / 贸易 / 研究队列」四页：
+			# `tech` 截第一页（制造）、`techeff` 第二页（效率）、`techtrade` 第三页（贸易）。
 			if mode == "techeff":
 				t_panel._select_tab(1)
 				await process_frame
+				await process_frame
+			elif mode == "techtrade" or mode == "techtip":
+				t_panel._select_tab(2)
+				await process_frame
+				await process_frame
+			if mode == "techtip":
+				# tooltip 是**弹出层**，靠"鼠标悬停"截不到（headless 还根本截不到）。
+				# 这里直接把面板拼好的 tooltip 控件摆到桌上 —— 用户 2026-10 就是看着
+				# 悬停框里那句「解锁：无（只解锁科技本身）」发的问。
+				var ui_root = node.get_node_or_null("UI")
+				var ty := 110.0
+				for tip_id in ["trade_caravan_1", "cargo_hold_1", "haggle_buy_2", "strongbox_1"]:
+					var tip: Control = t_panel.build_tooltip(String(tip_id))
+					ui_root.add_child(tip)
+					tip.position = Vector2(880, ty)
+					await process_frame
+					ty += tip.get_combined_minimum_size().y + 10.0
+					print("SCREENSHOT techtip ", tip_id, " 高=", tip.get_combined_minimum_size().y)
 				await process_frame
 
 	if mode == "trade" or mode == "tradedlg":

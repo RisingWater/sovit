@@ -372,10 +372,115 @@ func _run() -> void:
 		_fail("次日研究队列空了（研究不该被吞）；木材=%s" % str(sim.s["goods"].get("wood", -1)))
 		return
 
+	# ---- 9. 「贸易」页：每张卡片要自己说清"给什么"，tooltip 不许拿"解锁科技本身"充数
+	#
+	# 用户 2026-10（丢来一张贸易页的截图）："这科技是干嘛完全看不明白，效果怎么能是解锁
+	# 科技本身呢？不是有的是增加商路数量，有的是增加商路货物容量，金币容量。还有交易的价格嘛？
+	# 写清楚来。" + "高卖/低买低中高阶这条也太土了，叫做交易的艺术v1-3 / 砍价的技巧v1-3。"
+	#
+	# 这一节盯四件事（任何一件回退，用户会再截一次图）：
+	#   1. 六项议价科技的名字
+	#   2. 贸易页每张卡片都有**图标**（议价三档复用 _1 那张，`UIKit.TECH_ICON_ALIAS`；
+	#      别名一度只在 `check-routes.ts` 里，于是后两档的卡片是空的）
+	#   3. 每张卡片都有一行**效果**（不是只有名字 + "需先研究"）
+	#   4. tooltip 的「效果」写成"从多少变到多少"，且**没有**「只解锁科技本身」那句循环废话
+	var want_names := {
+		"haggle_buy_1": "砍价的技巧v1", "haggle_buy_2": "砍价的技巧v2",
+		"haggle_buy_3": "砍价的技巧v3",
+		"haggle_sell_1": "交易的艺术v1", "haggle_sell_2": "交易的艺术v2",
+		"haggle_sell_3": "交易的艺术v3",
+	}
+	for tid in want_names.keys():
+		var got := String(db.techs[String(tid)]["nameZh"])
+		if got != String(want_names[tid]):
+			_fail("「%s」的名字是「%s」，应当是「%s」"
+				% [String(tid), got, String(want_names[tid])])
+			return
+
+	panel._select_tab(2)
+	await process_frame
+	var tcards: Dictionary = panel.get("_cards")
+	if tcards.size() != ids_trade.size():
+		_fail("「贸易」页建出 %d 张卡片（应 %d）" % [tcards.size(), ids_trade.size()])
+		return
+	for tid in ids_trade:
+		var t := String(tid)
+		var card = tcards[t]
+		var got_icon := false
+		for c in card.find_children("*", "TextureRect", true, false):
+			if (c as TextureRect).texture != null:
+				got_icon = true
+		if not got_icon:
+			_fail("贸易页的「%s」没有图标（议价三档要复用 _1 那张图）" % t)
+			return
+
+	# 卡片上的效果行：内容就是 `trade` 块翻过来的短说法
+	var want_card := {
+		"trade_caravan_1": "商队 +1",
+		"cargo_hold_2": "载货 120 件",
+		"strongbox_3": "带钱 6000 金",
+		"haggle_buy_3": "买价 -10%",
+		"haggle_sell_1": "卖价 +10%",
+	}
+	for tid in want_card.keys():
+		var t2 := String(tid)
+		var found := false
+		for c2 in (tcards[t2] as Node).find_children("*", "Label", true, false):
+			var l2 := c2 as Label
+			if l2.visible and String(l2.text) == String(want_card[t2]):
+				found = true
+		if not found:
+			_fail("贸易页卡片「%s」上没有效果文字「%s」" % [t2, String(want_card[t2])])
+			return
+
+	# tooltip：把"研究完会变成多少"算出来（现值取自引擎，这里只是核对那几个数）
+	var want_tip := {
+		"trade_caravan_1": "商队 +1（0 → 1 支，上限 5）",
+		"cargo_hold_1": "单程载货 40 → 80 件",
+		"strongbox_1": "带钱上限 800 → 1800 金",
+		"haggle_buy_1": "买价 -10%（整条线共 -30%）",
+		"haggle_sell_3": "卖价 +10%（整条线共 +30%）",
+	}
+	for tid in want_tip.keys():
+		var t3 := String(tid)
+		var blob := _tip_text(panel, t3)
+		if not blob.contains(String(want_tip[t3])):
+			_fail("「%s」的 tooltip 里应当有「%s」，实际是：%s" % [t3, String(want_tip[t3]), blob])
+			return
+		if blob.contains("只解锁科技本身"):
+			_fail("「%s」的 tooltip 还在写「只解锁科技本身」（用户已否的循环废话）" % t3)
+			return
+	# 效率页的 tooltip 也还写着效果（只换写法，不改口径）
+	var eff_tip := _tip_text(panel, String(ids_eff[0]))
+	if not eff_tip.contains("效果"):
+		_fail("效率科技「%s」的 tooltip 里没有「效果」行" % String(ids_eff[0]))
+		return
+
+	# 顶部汇总：研究过贸易科技之后要报"现在几支车队 / 载货多少 / 价格让了几成"
+	for t4 in ["trade_caravan_1", "cargo_hold_1", "haggle_buy_1"]:
+		if not (sim.s["research"]["done"] as Array).has(String(t4)):
+			sim.s["research"]["done"].append(String(t4))
+	panel._refresh_top()
+	var top_blob := ""
+	for c4 in (panel.get("_top") as Node).find_children("*", "Label", true, false):
+		top_blob += String((c4 as Label).text) + "\n"
+	for want_top in ["贸易科技：", "商队 1 / 5 支", "单程载货 80 件", "买价 -10%"]:
+		if not top_blob.contains(want_top):
+			_fail("科技面板顶部没有「%s」，实际是：\n%s" % [want_top, top_blob])
+			return
+	print("TECH TEST 贸易页：16 张卡片都有图标 + 效果行；tooltip 报现值→研究后；顶部汇总额 ✅")
+
 	print("TECH TEST 科技=%d（制造 %d / 效率 %d） 页内连线=%d 拖动 %s->%s 队列=%s" % [
 		db.tech_ids.size(), ids_make.size(), ids_eff.size(), total_edges, before, after, JSON.stringify(q)])
 	print("TECH TEST RESULT: PASS")
 	quit(0)
+
+## 把一个 tooltip 里所有 Label 的文字拼起来（判断"写了什么"最省事的办法）。
+func _tip_text(panel, tid: String) -> String:
+	var blob := ""
+	for c in (panel.build_tooltip(tid) as Node).find_children("*", "Label", true, false):
+		blob += String((c as Label).text) + "\n"
+	return blob
 
 ## 队列页里找某一行（row_index 起）的按钮（按钮文字是 "↑" / "↓" / "×"）。
 ## 行结构在 `queue_box.gd` 里（每行一个 HBox，按钮是最后三个）。

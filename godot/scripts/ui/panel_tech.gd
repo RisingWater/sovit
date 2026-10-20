@@ -25,6 +25,9 @@ var world: Node
 # --- 树布局 ---------------------------------------------------------------
 const CARD_W := 108
 const CARD_H := 86
+## 有效果行的那版卡片高度。**必须与 `tech_card.gd::CARD_H_EFFECT` 一致** ——
+## 布局、连线端点、画布尺寸都按它算，对不上就会"卡片比格子高、连线插进卡片中间"。
+const CARD_H_EFFECT := 104
 const COL_GAP := 104          # 列间距（连线拐弯要有地方走）
 const ROW_GAP := 26
 const LAYOUT_PAD := 20
@@ -51,6 +54,10 @@ var _lines: Control
 var _cards: Dictionary = {}       # techId -> TechCard（当前这一棵树）
 var _pos: Dictionary = {}         # techId -> Vector2（画布坐标，当前这一棵树）
 var _canvas_size := Vector2.ZERO
+## 当前这棵树的卡片高度（CARD_H 或 CARD_H_EFFECT）。
+## **按页算**：一页里只要有一项科技写得下效果，整页都用高的那版（否则同页卡片高低不一，
+## 连线端点会对不齐）。「制造」页没有效果行，仍旧用矮的那版，不多占纵向空间。
+var _card_h := CARD_H
 ## 已经建好的是哪一棵树（-1 = 还没建）。切页签时按需重建另一棵。
 var _built_kind := -1
 
@@ -378,13 +385,20 @@ func _compute_layout(ids: Array) -> Dictionary:
 		for i in arr.size():
 			pos[arr[i]] = Vector2(
 				LAYOUT_PAD + int(c) * (CARD_W + COL_GAP),
-				LAYOUT_PAD + i * (CARD_H + ROW_GAP))
+				LAYOUT_PAD + i * (_card_h + ROW_GAP))
 	return pos
 
 
 func _build_tree(kind: int) -> void:
 	var db := runner.db
 	var ids := _ids_for(kind)
+
+	# 这一页要不要那行效果（有一项要就整页都高，见 `_card_h` 的注释）
+	_card_h = CARD_H
+	for tid in ids:
+		if _card_effect(String(tid)) != "":
+			_card_h = CARD_H_EFFECT
+			break
 
 	# 先把上一棵树拆掉（`queue_free` 是延迟的，所以还要 remove_child，
 	# 否则切换的那一帧会出现两棵树叠在一起）。
@@ -408,7 +422,7 @@ func _build_tree(kind: int) -> void:
 	for tid in _pos.keys():
 		var p: Vector2 = _pos[tid]
 		maxx = maxf(maxx, p.x + CARD_W)
-		maxy = maxf(maxy, p.y + CARD_H)
+		maxy = maxf(maxy, p.y + _card_h)
 	_canvas_size = Vector2(maxx + LAYOUT_PAD, maxy + LAYOUT_PAD)
 	_canvas.size = _canvas_size
 
@@ -424,8 +438,9 @@ func _build_tree(kind: int) -> void:
 		var card = load("res://scripts/ui/tech_card.gd").new()
 		card.name = "T_" + t
 		card.setup(self, t, String(db.techs[t]["nameZh"]), UIKit.tech_icon(t))
+		card.set_effect(_card_effect(t))
 		card.position = _pos[t]
-		card.size = Vector2(CARD_W, CARD_H)
+		card.size = Vector2(CARD_W, _card_h)
 		_canvas.add_child(card)
 		_cards[t] = card
 	_built_kind = kind
@@ -496,10 +511,33 @@ func _refresh_top() -> void:
 			line += ("　" if not out_parts.is_empty() else "") + "　".join(spd_parts)
 		_top.add_child(UIKit.label(line, Color(0.18, 0.45, 0.20)))
 
+	# 贸易科技的累计量（B3）。**四个量纲各不相同**，所以照用户 2026-10 的原话分开报：
+	# 商路数量 / 货物容量 / 金币容量 / 交易价格。"现在到底几支车队、能带多少"只能在这儿看 ——
+	# 卡片上写的是"这一项给多少"，累计值得有一个地方汇总。
+	var tr: Dictionary = b.get("trade", {})
+	if not tr.is_empty():
+		var tparts := []
+		var n_cv := int(runner.sim.route_caravan_count())
+		if n_cv > 0:
+			var cv_cap := int((db.routes.get("caravan", {}) as Dictionary).get("maxCount", 5))
+			tparts.append("商队 %d / %d 支" % [n_cv, cv_cap])
+		if float(tr.get("cargo", 0.0)) > 0.0:
+			tparts.append("单程载货 %d 件" % int(runner.sim.route_cargo_cap()))
+		if float(tr.get("purse", 0.0)) > 0.0:
+			tparts.append("带钱上限 %s 金" % _fmt(float(runner.sim.route_purse_cap())))
+		if float(tr.get("haggleBuy", 0.0)) > 0.0:
+			tparts.append("买价 -%d%%" % int(round(float(tr["haggleBuy"]) * 100.0)))
+		if float(tr.get("haggleSell", 0.0)) > 0.0:
+			tparts.append("卖价 +%d%%" % int(round(float(tr["haggleSell"]) * 100.0)))
+		if not tparts.is_empty():
+			_top.add_child(UIKit.label("贸易科技：" + "　".join(tparts),
+				Color(0.18, 0.45, 0.20)))
+
 	var q: Array = s["research"]["queue"]
 	if q.is_empty():
 		_top.add_child(UIKit.label("研究队列：空闲", UIKit.FG_DIM))
 		return
+
 	var rate := float(runner.sim._research_rate())
 	var head: Dictionary = q[0]
 	var tech = db.techs.get(String(head["id"]), null)
@@ -545,8 +583,8 @@ func _refresh_lines() -> void:
 				continue
 			var rp: Vector2 = _pos[rt]
 			edges.append({
-				"a": Vector2(rp.x + CARD_W, rp.y + CARD_H * 0.5),
-				"b": Vector2(tp.x, tp.y + CARD_H * 0.5),
+				"a": Vector2(rp.x + CARD_W, rp.y + _card_h * 0.5),
+				"b": Vector2(tp.x, tp.y + _card_h * 0.5),
 				"done": done.has(rt),
 			})
 	_lines.set_edges(edges)
@@ -710,6 +748,136 @@ func _clamp_pan(p: Vector2) -> Vector2:
 
 
 # ===========================================================================
+# 效果文案（卡片上那一行 + tooltip 里的「效果」）
+# ===========================================================================
+
+## 贸易加成键 → 卡片上的短说法。
+## 量纲：`caravans` 是**加几支**；`cargo` / `purse` 是**档位值**（取最高，不是加数）；
+## `haggle*` 是百分比（加法叠加）。
+const TRADE_SHORT := {
+	"caravans": "商队 +%d",
+	"cargo": "载货 %d 件",
+	"purse": "带钱 %d 金",
+	"haggleBuy": "买价 -%d%%",
+	"haggleSell": "卖价 +%d%%",
+}
+
+## 卡片上那一行效果。空串 = 没得写（「制造」页的科技：解锁什么看名字与图标）。
+## 多项用全角空格隔开（卡片够两行，见 `tech_card.gd::CARD_H_EFFECT`）。
+func _card_effect(tid: String) -> String:
+	var tech = runner.db.techs.get(tid, null)
+	if tech == null:
+		return ""
+	var parts: Array = []
+	parts.append_array(_trade_short_parts(tech))
+	var eff: Dictionary = (tech as Dictionary).get("effects", {})
+	for k in eff.keys():
+		parts.append("%s +%d%%" % [
+			EFFECT_NAMES.get(String(k), String(k)), int(round(float(eff[k]) * 100.0))])
+	return "　".join(parts)
+
+
+## `trade` 块 → 短说法（卡片用）。
+func _trade_short_parts(tech: Dictionary) -> Array:
+	var out: Array = []
+	var tr: Dictionary = tech.get("trade", {})
+	if tr.is_empty():
+		return out
+	for k in ["caravans", "cargo", "purse", "haggleBuy", "haggleSell"]:
+		if not tr.has(k):
+			continue
+		var fmt := String(TRADE_SHORT[k])
+		if k == "haggleBuy" or k == "haggleSell":
+			out.append(fmt % int(round(float(tr[k]) * 100.0)))
+		else:
+			out.append(fmt % int(round(float(tr[k]))))
+	return out
+
+
+## 贸易科技的「效果」行 —— **动态**：把"研究完会变成多少"算出来。
+##
+## 数字一律从引擎的读取口来（`route_caravan_count()` / `route_cargo_cap()` /
+## `route_purse_cap()`），再与"这一档"取 max / 相加 —— 这里**不另立规则**
+## （取最高的口径见 `sim_core.gd::route_cargo_cap()` 与 `docs/spec.md` §21）。
+func _trade_effect_lines(tech: Dictionary, researched: bool) -> Array:
+	var out: Array = []
+	var tr: Dictionary = tech.get("trade", {})
+	if tr.is_empty():
+		return out
+	var sim = runner.sim
+	var cv: Dictionary = runner.db.routes.get("caravan", {})
+	if tr.has("caravans"):
+		var add := int(round(float(tr["caravans"])))
+		var now := int(sim.route_caravan_count())
+		var cap := int(cv.get("maxCount", 5))
+		if researched:
+			out.append("商队 +%d（现在 %d 支，上限 %d）" % [add, now, cap])
+		else:
+			out.append("商队 +%d（%d → %d 支，上限 %d）" % [add, now, mini(cap, now + add), cap])
+		# 第一支车队的真正作用是把商路系统打开（面板的「地图」「商路」两页要它才出现）
+		if now == 0:
+			out.append("顺带解锁贸易面板的「地图」「商路」两页")
+	if tr.has("cargo"):
+		var now_c := int(sim.route_cargo_cap())
+		var after_c := maxi(now_c, int(round(float(tr["cargo"]))))
+		if researched:
+			out.append("单程载货 %d 件（已生效）" % after_c)
+		else:
+			out.append("单程载货 %d → %d 件" % [now_c, after_c])
+	if tr.has("purse"):
+		var now_p := float(sim.route_purse_cap())
+		var after_p := maxf(now_p, float(tr["purse"]))
+		if researched:
+			out.append("带钱上限 %s 金（已生效）" % _fmt(after_p))
+		else:
+			out.append("带钱上限 %s → %s 金" % [_fmt(now_p), _fmt(after_p)])
+	if tr.has("haggleBuy"):
+		out.append("买价 -%d%%（整条线共 -%d%%）" % [
+			int(round(float(tr["haggleBuy"]) * 100.0)),
+			int(round(_trade_series_total(String(tech["id"]), "haggleBuy") * 100.0))])
+	if tr.has("haggleSell"):
+		out.append("卖价 +%d%%（整条线共 +%d%%）" % [
+			int(round(float(tr["haggleSell"]) * 100.0)),
+			int(round(_trade_series_total(String(tech["id"]), "haggleSell") * 100.0))])
+	return out
+
+
+## 同一条链上、同一个贸易键的合计（议价三档叠加，得让玩家看见"整条线点完共多少"）。
+##
+## 从这项出发沿 `requires` **双向**走（前驱 + 后继），只穿过带同一个键的科技 ——
+## 碰到不带这个键的（例如 `trade_caravan_1` 没有 `haggleBuy`）就停，
+## 免得把不相干的加成算进来（现在内容是三条独立链，但别写死这个前提）。
+func _trade_series_total(tid: String, key: String) -> float:
+	var db := runner.db
+	var seen := {tid: true}
+	var queue: Array = [tid]
+	var total := 0.0
+	while not queue.is_empty():
+		var t := String(queue.pop_back())
+		var tech = db.techs.get(t, null)
+		if tech == null:
+			continue
+		var td := tech as Dictionary
+		var tr: Dictionary = td.get("trade", {})
+		if not tr.has(key):
+			continue
+		total += float(tr[key])
+		for r in (td.get("requires", []) as Array):
+			var rt := String(r)
+			if not seen.has(rt):
+				seen[rt] = true
+				queue.append(rt)
+		for other in db.tech_ids:
+			var ot := String(other)
+			if seen.has(ot):
+				continue
+			if ((db.techs[ot] as Dictionary).get("requires", []) as Array).has(t):
+				seen[ot] = true
+				queue.append(ot)
+	return total
+
+
+# ===========================================================================
 # tooltip（带图标的 Control —— 默认 tooltip 只有文字，做不到）
 # ===========================================================================
 func build_tooltip(tid: String) -> Control:
@@ -758,14 +926,25 @@ func build_tooltip(tid: String) -> Control:
 	# --- 科研力
 	vb.add_child(UIKit.label("科研力 %s" % _fmt(float(tech["research"])), UIKit.FG_DARK))
 
-	# --- 效果（效率科技才有）：把 effects 翻译成人话
+	# --- 效果：效率科技（effects）与贸易科技（trade）都翻成人话
+	#
+	# 2026-10 用户：「这科技是干嘛完全看不明白，效果怎么能是解锁科技本身呢？
+	# 不是有的是增加商路数量，有的是增加商路货物容量、金币容量，还有交易的价格嘛？写清楚来。」
+	# —— 所以贸易科技的每一项都要落成"具体哪个量、从多少变到多少"，
+	# 而不是"解锁了这项科技"这种循环废话。
+	var researched: bool = (s["research"]["done"] as Array).has(tid)
+	var parts: Array = []
 	var eff: Dictionary = tech.get("effects", {})
-	if not eff.is_empty():
-		var eparts := []
-		for k in eff.keys():
-			eparts.append("%s +%d%%" % [
-				EFFECT_NAMES.get(String(k), String(k)), int(round(float(eff[k]) * 100.0))])
-		_tip_kv(vb, "效果", "　".join(eparts))
+	for k in eff.keys():
+		parts.append("%s +%d%%" % [
+			EFFECT_NAMES.get(String(k), String(k)), int(round(float(eff[k]) * 100.0))])
+	parts.append_array(_trade_effect_lines(tech, researched))
+	if parts.size() == 1:
+		_tip_kv(vb, "效果", String(parts[0]))
+	elif parts.size() > 1:
+		_tip_kv(vb, "效果", "")
+		for p in parts:
+			vb.add_child(UIKit.label("　· " + String(p), UIKit.FG_DARK))
 
 	# --- 材料（带图标）
 	var cost: Dictionary = tech["cost"]["goods"]
@@ -800,12 +979,14 @@ func build_tooltip(tid: String) -> Control:
 				"已研究" if has_it else "未研究"))
 
 	# --- 解锁（带图标）
+	#
+	# ⚠️ 没有解锁项时**整行不画**。原来这里写的是「无（只解锁科技本身）」——
+	# 用户 2026-10 直接把它当 bug 报了上来："效果怎么能是解锁科技本身呢？"
+	# （效率 / 贸易科技本来就不解锁建筑，那句等于"这项科技的作用是让你拥有这项科技"）。
 	var unlocks: Array = []
 	unlocks.append_array(tech["unlocks"]["buildings"])
 	unlocks.append_array(tech["unlocks"]["housing"])
-	if unlocks.is_empty():
-		_tip_kv(vb, "解锁", "无（只解锁科技本身）")
-	else:
+	if not unlocks.is_empty():
 		_tip_kv(vb, "解锁", "")
 		for bid in unlocks:
 			var b := String(bid)

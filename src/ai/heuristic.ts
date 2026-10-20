@@ -147,6 +147,36 @@ const RESEARCH_ORDER: string[] = [
   'domestic_service',
 ]
 
+/**
+ * 基线 AI **明确不研究**的科技 —— "内容里有、但这套 AI 一辈子用不上"的正经出口。
+ *
+ * 现在只有 B3 那 16 项贸易科技（`docs/trade-routes.md` §6）：基线 AI 不会开商路
+ * （`decide()` 里没有任何 `route_*` 动作，它只研究「通商」拿到**游商**那张市场），
+ * 所以商队 / 货箱 / 钱箱 / 议价研究出来也永远不会被用到 —— 排进 `RESEARCH_ORDER`
+ * 只会白烧科研力，还会把 100 天验收的曲线拖偏。等 AI 会派车队了，从这里删掉即可。
+ *
+ * ⚠️ 往这里加之前先问一句"是不是真的一辈子用不上"。自检存在的意义是抓
+ * "漏了一项 → 那支科技树永远点不亮"，**别**把这个名单当成掩盖它的垃圾场。
+ */
+const AI_UNUSED_TECHS = new Set<string>([
+  'trade_caravan_1',
+  'trade_caravan_2',
+  'trade_caravan_3',
+  'trade_caravan_4',
+  'cargo_hold_1',
+  'cargo_hold_2',
+  'cargo_hold_3',
+  'strongbox_1',
+  'strongbox_2',
+  'strongbox_3',
+  'haggle_buy_1',
+  'haggle_buy_2',
+  'haggle_buy_3',
+  'haggle_sell_1',
+  'haggle_sell_2',
+  'haggle_sell_3',
+])
+
 /** "引擎"建筑：不产商品、只产每日产能（建造力 / 科研力）。它们优先于一切生产建筑。 */
 function isEngineBuilding(def: { capacity?: unknown }): boolean {
   return def.capacity !== undefined
@@ -177,10 +207,13 @@ function jobCapacity(state: GameState, ctx: ContentContext): number {
  * 为什么放在这里：漏了一项不会报错，只会让 AI **永远不研究它** ——
  * 那种"村子看着正常、就是有一支科技树点不亮"的问题查起来最费时间。
  * 表里有、内容里没有（换 pack 的冗余项）不算错，只有"内容里有、表里没有"才抛。
+ * 真用不上的（`AI_UNUSED_TECHS`）要**显式**登记，不许悄悄漏。
  */
 function assertResearchOrderComplete(): void {
   const listed = new Set(RESEARCH_ORDER)
-  const missing = Object.keys(ALL_TECHS).filter((id) => !listed.has(id))
+  const missing = Object.keys(ALL_TECHS).filter(
+    (id) => !listed.has(id) && !AI_UNUSED_TECHS.has(id),
+  )
   if (missing.length > 0) {
     throw new Error(`[ai] RESEARCH_ORDER 漏了科技：${missing.join('、')}`)
   }
