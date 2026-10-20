@@ -670,6 +670,8 @@ q23_sweep    剿匪       出击打「马匪窝」并赢 → 战报 + 解锁军�
 | **科技面板「贸易」页看得懂了**（用户："这科技是干嘛完全看不明白，效果怎么能是解锁科技本身呢？……写清楚来"）：卡片第三行加**效果**（`商队 +1` / `载货 80 件` / `带钱 1800 金` / `买价 -10%`）、tooltip 的「效果」写成**现值 → 研究后**、删掉「解锁：无（只解锁科技本身）」那句循环废话、顶部加一行**贸易科技累计量**；顺带修好议价后两档的**空图标**（别名镜像到 `UIKit.TECH_ICON_ALIAS`）| `9df0561` |
 | 六项议价科技改名：低买初/中/高阶 → **砍价的技巧 v1–v3**、高卖初/中/高阶 → **交易的艺术 v1–v3**（用户："高卖低中高阶这条也太土了"）；同提交里补了 `AI_UNUSED_TECHS`，`npm test` 从 B3 起一直是红的（AI 基线漏登记那 16 项贸易科技）| `9df0561` |
 | 通商科技图标 | `3309cc4` |
+| 贸易页**一行一类**（商队 / 载货 / 带钱 / 砍价 / 卖价 各一行，跨行前置走左边干线）+ 议价六张图标用 `gen-icons.py` 补齐（删掉 `ICON_ALIAS` 别名表）| `328538a` `56021ad` |
+| **`docs/technology.md` §三 按内容重写**（72 项 / 4,375 科研力 / 每项带图标列，此前停在 53 项 2,810 且只列解锁型）+ 新增门槛 **`check:techdoc`** 逐行比对文档与内容 | `check-tech-doc.ts` |
 | 瑟拉菲娜「新预言」改**竖排** + 删掉面板底部"送物资"那一行 + **提交物资即时结算** + 预言面板两页签 + 立绘裁水印 + 快存/快读改 `Ctrl+S` / `Ctrl+L` | `678e9c4` `b351804` |
 | 开场曲剧情一结束就切走（`music.end_intro()`）+ 瑟拉菲娜支线不再开局就摊出来 | `f2378ae` |
 
@@ -680,7 +682,7 @@ q23_sweep    剿匪       出击打「马匪窝」并赢 → 战报 + 解锁军�
 | `docs/spec.md` | 公式与顺序的**唯一契约**，每次改行为都同步 |
 | `docs/town.md` | 表现层与占地/门洞/面板口径（§13.9–13.11 占地）|
 | `docs/quests.md` / `docs/needs.md` / `docs/technology.md` / `docs/content.md` | 与内容同版本 |
-| **TS 门槛 12 条**：`check:content` `check:footprint` `check:demolish` `check:storage` `check:housing-upgrade` `check:queues` `check:tools` `check:fuels` `check:needs` `check:merchant` `check:quests` `check:scenes` | `scripts/check-*.ts` |
+| **TS 门槛 13 条**：`check:content` `check:footprint` `check:demolish` `check:storage` `check:housing-upgrade` `check:queues` `check:tools` `check:fuels` `check:needs` `check:merchant` `check:routes` `check:techdoc` `check:quests` `check:scenes` | `scripts/check-*.ts`（`check:techdoc` = 文档 §三 与内容逐行对账）|
 | **对拍**：`npm run golden`（两份引擎逐字节摘要）+ `npm run typecheck` | `tests/golden/` |
 | **Godot 门槛 49 步**：`smoke` `move` `music` `sfx` `daylight` `bartab` `buildlock` `panel` `consumetip` `chiptip` `workerdemolish` `tech` `efficiency` `tools` `sitetip` `keys` `doortest` `footprint` `iron` `coal` `needs` `merchant` `tradepanel` `roofclick` `multisite` `upgrade` `housingupgrade` `logsave` `queue` `sitecancel` `quest` **`scene`** `questpanel` `questtalk` `ai` `glyph` `construction` `research` `imm` `minimap` **`map`** `esc` `savedlg` `inspector` `newgame` `title` `intro` `occlusion` … | `godot/verify.sh`（`--import` → 逐文件 `--check-only` → 测试 → 冒烟）|
 | **门槛可按模块跑**（2026-10-20）| `bash verify.sh` = 全套（**push 前才跑**）；`bash verify.sh map` / `bash verify.sh map quest ai` = 只跑给的几步（几秒，不跑 gdUnit4、不自动 `--import`）；`--list` 列步骤名、`--help` 看用法、`STEP_TIMEOUT=` 放宽超时。见 `godot/AGENTS.md` |

@@ -1,4 +1,4 @@
-﻿{
+{
   "name": "sovit",
   "version": "0.1.0",
   "private": true,
@@ -21,10 +21,11 @@
     "check:needs": "node --experimental-strip-types scripts/check-needs.ts",
     "check:merchant": "node --experimental-strip-types scripts/check-merchant.ts",
     "check:routes": "node --experimental-strip-types scripts/check-routes.ts",
+    "check:techdoc": "node --experimental-strip-types scripts/check-tech-doc.ts",
     "check:quests": "node --experimental-strip-types scripts/check-quests.ts",
     "check:scenes": "node --experimental-strip-types scripts/check-scenes.ts",
     "ai:mock": "node --experimental-strip-types scripts/ai-mock-server.ts",
-    "test": "tsc --noEmit && node --experimental-strip-types scripts/check-content.ts && node --experimental-strip-types scripts/check-footprint.ts && node --experimental-strip-types scripts/check-demolish.ts && node --experimental-strip-types scripts/check-storage.ts && node --experimental-strip-types scripts/check-housing-upgrade.ts && node --experimental-strip-types scripts/check-queues.ts && node --experimental-strip-types scripts/check-tools.ts && node --experimental-strip-types scripts/check-fuels.ts && node --experimental-strip-types scripts/check-needs.ts && node --experimental-strip-types scripts/check-merchant.ts && node --experimental-strip-types scripts/check-routes.ts && node --experimental-strip-types scripts/check-quests.ts && node --experimental-strip-types scripts/check-scenes.ts && node --experimental-strip-types scripts/golden.ts && node --experimental-strip-types scripts/simulate.ts",
+    "test": "tsc --noEmit && node --experimental-strip-types scripts/check-content.ts && node --experimental-strip-types scripts/check-footprint.ts && node --experimental-strip-types scripts/check-demolish.ts && node --experimental-strip-types scripts/check-storage.ts && node --experimental-strip-types scripts/check-housing-upgrade.ts && node --experimental-strip-types scripts/check-queues.ts && node --experimental-strip-types scripts/check-tools.ts && node --experimental-strip-types scripts/check-fuels.ts && node --experimental-strip-types scripts/check-needs.ts && node --experimental-strip-types scripts/check-merchant.ts && node --experimental-strip-types scripts/check-routes.ts && node --experimental-strip-types scripts/check-tech-doc.ts && node --experimental-strip-types scripts/check-quests.ts && node --experimental-strip-types scripts/check-scenes.ts && node --experimental-strip-types scripts/golden.ts && node --experimental-strip-types scripts/simulate.ts",
     "regress": "npm run test",
     "api": "node --experimental-strip-types src/api/server.ts"
   },
