@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "_doc": "建筑贴图：每个 id 一条（画什么 + 目标尺寸）。风格与 v3 建筑素材包一致；抠图/缩放的实现复用 scripts/gen-icons.py。规则见 docs/icons.md 与 docs/buildings.md。",
+  "style": {
+    "models": {
+      "unet": "z_image_turbo_bf16.safetensors",
+      "clip": "qwen_3_4b.safetensors",
+      "vae": "ae.safetensors"
+    },
+    "variants": [
+      {
+        "id": "b1",
+        "note": "v3 建筑口径：2× 密度像素、粗深棕描边、**正面平视**（屋顶略俯视），不是等距转角",
+        "prefix": "Hand-painted 16-bit pixel art building sprite for a cosy medieval town simulation game, dense small visible pixels, thick dark-brown outline around every shape, dithered shading with a few specular highlights, slightly desaturated warm palette, straight-on front elevation with the roof seen slightly from above, the building stands flat on its baseline, one facade only, not an isometric corner view,"
+      }
+    ],
+    "suffix": "No text, no frame, no border, no ground shadow, no glow, no vignette, no gradients, no background texture, no watermark, no side wall; crisp hard pixel edges without anti-aliasing; isolated on a flat solid {BG} background; the single building is centred and fills most of the frame."
+  },
+  "buildings": [
+    {
+      "id": "embassy",
+      "gen_width": 1536,
+      "gen_height": 960,
+      "out_width": 128,
+      "max_height": 78,
+      "bg": "green",
+      "subject": "a wide low royal embassy hall, drawn on a very fine pixel grid with small square pixels like classic 16-bit building sprites, one storey and a half, twice as wide as it is tall: pale sand plaster walls with dark brown timber framing, three tall arched pale-blue windows on each side of a formal wooden double door which sits up three stone steps, two long red-and-gold banners hanging either side of the door, a low triangular pediment over the door, a muted terracotta tile roof with a short flagpole and a red pennant"
+    }
+  ]
+}

@@ -47,7 +47,14 @@ OUT_DIRS = {
     "tech": os.path.join(ROOT, "godot", "assets", "ui", "tech"),
     "panel": os.path.join(ROOT, "godot", "assets", "ui", "panel"),
     "nav": os.path.join(ROOT, "godot", "assets", "ui", "nav"),
+    # B4 邦交：势力徽记 / 关系牌 / 动作按钮——三样都放同一个目录（UI 按 id 取图）
+    "faction": os.path.join(ROOT, "godot", "assets", "ui", "faction"),
+    "relation": os.path.join(ROOT, "godot", "assets", "ui", "faction"),
+    "action": os.path.join(ROOT, "godot", "assets", "ui", "faction"),
 }
+## 每类的原生尺寸（`--size` 可整体覆盖）：科技 64 → 显示 32；面板 32 → 显示 16/24；
+## 徽记 48（面板里 48 或 24，都是整除）；关系牌 / 动作按钮 32（显示 16~24）
+SIZE_BY_KIND = {"tech": 64, "panel": 32, "faction": 48, "relation": 32, "action": 32}
 # 用户 2026-10 定的分组规则：**不带绿的图标 → 亮绿幕；带绿的图标 → 亮品红幕**
 BG_COLORS = {"green": (0, 255, 0), "magenta": (255, 0, 255)}
 BG_NAMES = {"green": "bright green", "magenta": "bright magenta"}
@@ -449,7 +456,7 @@ def main():
                     raw = os.path.join(STAGING, "%s__%s.png" % (tag, ic["id"]))
                     if not os.path.exists(raw):
                         continue
-                    size = args.size or (64 if ic["kind"] == "tech" else 32)
+                    size = args.size or SIZE_BY_KIND[ic["kind"]]
                     im = process(raw, ic, size, post)
                     out = os.path.join(STAGING, "preview_%s_%s.png" % (ic["id"], tag))
                     im.save(out, optimize=True)
@@ -460,7 +467,7 @@ def main():
                     if not os.path.exists(raw):
                         print("  跳过（没有原图，先用 --gen 生成）", ic["id"])
                         continue
-                    size = args.size or (64 if ic["kind"] == "tech" else 32)
+                    size = args.size or SIZE_BY_KIND[ic["kind"]]
                     im = process(raw, ic, size, post)
                     out_dir = OUT_DIRS[ic["kind"]]
                     os.makedirs(out_dir, exist_ok=True)

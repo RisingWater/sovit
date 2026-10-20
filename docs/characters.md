@@ -529,7 +529,7 @@
 设定集 §十一：顾问团 9 人 + 王室与邻国 12 人，**源图都是 1024×1536 纯 `#00FF00` 绿底**，
 统一取景，成品是透明底、可直用。**源图不入库**（与图标、建筑整图同一口径，只提交抠好的 PNG）。
 
-### 6.2 仓库里已有的 7 张
+### 6.2 仓库里已有的 8 张
 
 | 文件 | 尺寸 | 说明 |
 |---|---|---|
@@ -540,6 +540,7 @@
 | `godot/assets/portraits/vera.png` | 640×896 | 默认表情 |
 | `godot/assets/portraits/luna.png` | 640×896 | 默认表情 |
 | `godot/assets/portraits/serafina.png` | 640×896 | 默认表情 |
+| `godot/assets/portraits/milla.png` | 640×896 | 默认表情（2026-10-21 入库）|
 
 ⚠️ **尺寸从 640×960 改成 640×896**（2026-10-20）：出图工具在右下角压了一行
 「AI生成 / WORKBUDDY」水印，四张（`isabella` / `reynard` / `sebastian` / `serafina`）

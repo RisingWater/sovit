@@ -233,11 +233,11 @@
 |---|---|
 | id / 名字 | `embassy` / **使馆** |
 | 建造栏 | **「市政」页**（和贸易市场 / 城镇中心同一页）|
-| 尺寸 | 贴图 **112×72**，`art.foot = [7, 3]`（按公式 `floor(112/16)=7 × (floor(72/16)-1)=3`）|
+| 尺寸 | 贴图 **127×78**（已出，见 §9.2），`art.foot = [7, 3]`（`floor(127/16)=7 × (floor(78/16)-1)=3`）|
 | 门 | `art.doors = [[3, 2]]`（底边那一行的第 4 格）|
 | 造价 / 建造力 | wood 20 / brick 15 / stone 10；`buildWork` 40（比市场重，比研究所轻）|
 | 工人 | 2（`workers: 2, maxWorkers: 4`），**不产出任何商品**（纯功能建筑）|
-| 科技锁 | 新科技 **`diplomacy`「邦交」**（贸易页，前置 `trade` + `construction`）|
+| 科技锁 | 新科技 **`statecraft`「邦交」**（贸易页，前置 `trade` + `construction`）|
 | 解锁 | 建成 → 「外交 / 军事」面板出现（左侧圆钮 + 快捷键 `D`）；只研究科技不建房子**不给面板**（和贸易市场同一套口径："先造出来再说"）|
 
 ---
@@ -469,7 +469,7 @@ applyActions → updateRoutes → activateCompleted → activateResearch → lab
 | `godot/scripts/sim/sim_core.gd` | 全套镜像（`_factions_state()` 兜底同 `routes` 那套）|
 | `godot/scripts/core/content_db.gd` | `factions` 读进来 |
 | `godot/scripts/core/save_manager.gd` | `SAVE_VERSION = 7` + `_sanitize` 补 `factions` 段（**老档要能读**，照 `repair_routes` 的规矩）|
-| `content/technologies.json` | `diplomacy` + `trade_goodwill_1..3`；`diplomacy.unlocks.buildings = ["embassy"]` |
+| `content/technologies.json` | `statecraft` + `trade_goodwill_1..3`；`statecraft.unlocks.buildings = ["embassy"]` |
 | `content/buildings.json` | `embassy`（§5）|
 | `content/quests.json` | 6 条新任务（§7）+ 3 个新 goal 类型 |
 
@@ -484,47 +484,68 @@ applyActions → updateRoutes → activateCompleted → activateResearch → lab
 
 ---
 
-## 9. 美术素材（要生成的）
+## 9. 美术素材
 
 > 用户 2026-10："除了拆分子任务，你还需要把要生成的美术素材整理出来。"
-> 下面 **31 张图标**走现有 ComfyUI 流水线（[`icons.md`](icons.md)，往 `scripts/icon-manifest.json` 加行），
-> **1 张建筑**走建筑贴图那套（`docs/buildings-batch2.md`），**1 张立绘**是美术交付（`docs/characters.md` §六）。
+> **2026-10-21 已经全部出完**（除了 B5 的兵营）：31 张图标走 ComfyUI 流水线
+> （[`icons.md`](icons.md)），使馆走建筑那条（`scripts/gen-building.py`），米拉立绘从
+> `docs/art/npc/08_milla.png` 抠好导入。这一节留作**规格记录**，重出时照它来。
 
-### 9.1 图标（31 张）
+### 9.1 图标（31 张，✅ 已入库）
 
-| 组 | 张数 | 文件 | 尺寸 | 画什么 |
+| 组 | 张数 | 文件 | 尺寸 | 画的是什么（实际用的提示词）|
 |---|---:|---|---|---|
-| **外交 / 军事 面板图标** | 2 | `assets/ui/panel/diplomacy.png`<br>`assets/ui/panel/military.png` | 32×32 | 握手 + 卷轴／交叉的两把剑 |
+| **外交 / 军事 面板图标** | 2 | `assets/ui/panel/diplomacy.png`<br>`assets/ui/panel/military.png` | 32×32 | 握手 + 卷轴与火漆／交叉的两把铁剑压在木盾上（两张都烤了左侧圆盘）|
 | **左侧圆盘** | 2 | `assets/ui/nav/diplomacy.png`<br>`assets/ui/nav/military.png` | 48×48 | 由上面两张**烤盘**（`manifest.navPlate`），不用单独画 |
-| **势力徽记** | 13 | `assets/ui/faction/<id>.png`：`court` `iron_crown` `iron_rook` `holy_flame` `golden_ear` `dawn` `blackstone` `jade` `khan` `peak` `holy_see` `silverleaf` `ashen_circle` | 48×48 | 每家一枚**纹章**：王庭=王冠+铁砧、铁王城=金库钥匙、铁鸦堡=黑鸦、圣火城=火焰、金穗城=麦穗、曙光城=书与塔、黑石堡=黑石与剑、翡翠=海蛇与宝石、沙海=弯刀与帐篷、铁峰=山与锤、圣辉=圣光与十字、银叶=银叶与弓、灰烬=灰烛与面具 |
-| **关系牌** | 7 | `assets/ui/faction/rel_<id>.png`：`enemy` `cold` `neutral` `friendly` `respect` `ally` `vassal` | 32×32 | 一张**小牌**上的符号：敌对=交叉刀、冷淡=裂冰、中立=天平、友善=握手、尊重=桂冠、同盟=双环、附庸=锁链 |
-| **动作按钮** | 3 | `assets/ui/faction/gift.png`<br>`assets/ui/faction/treaty.png`<br>`assets/ui/faction/war.png` | 24×24 | 礼盒／卷起来的盟约／出鞘的剑 |
-| **科技图标** | 4 | `assets/ui/tech/diplomacy.png`<br>`assets/ui/tech/trade_goodwill_1.png`<br>`assets/ui/tech/trade_goodwill_2.png`<br>`assets/ui/tech/trade_goodwill_3.png` | 64×64 | 邦交=两只手与旗；礼数=一卷礼单；邦交友道=两只交握的手；万国来朝=一圈小旗围着王冠 |
+| **势力徽记** | 13 | `assets/ui/faction/<id>.png`：`court` `iron_crown` `iron_rook` `holy_flame` `golden_ear` `dawn` `blackstone` `jade` `khan` `peak` `holy_see` `silverleaf` `ashen_circle` | 48×48 | 王冠+铁砧／铁钥匙+金币／黑鸦立断剑／石炉圣火／金麦束／摊开的书+朝阳／黑石+匕首／**绿宝石+银蛇**（品红幕）／弯刀+红缨／雪山+战锤／金光十字／银叶+木弓／瓷面具+灰兜帽 |
+| **关系牌** | 7 | `assets/ui/faction/rel_<id>.png`：`enemy` `cold` `neutral` `friendly` `respect` `ally` `vassal` | 32×32 | 交叉短刀／蓝色冰块／黄铜天平／**橄榄枝**（品红幕）／金色桂冠／双环相扣／铁链环 |
+| **动作按钮** | 3 | `assets/ui/faction/gift.png`<br>`assets/ui/faction/treaty.png`<br>`assets/ui/faction/war.png` | 32×32 | 礼盒+红丝带／带火漆的卷轴／铁战锤 |
+| **科技图标** | 4 | `assets/ui/tech/statecraft.png`<br>`assets/ui/tech/trade_goodwill_1.png`<br>`assets/ui/tech/trade_goodwill_2.png`<br>`assets/ui/tech/trade_goodwill_3.png` | 64×64 | 火漆卷轴+丝带+墨水瓶／漆盒礼包／双环压在账本上／王冠+异国贡品堆 |
 
-### 9.2 建筑与立绘（各 1 张）
+> 动作按钮做成 **32×32**（不是 24）：`icon_left_button` 显示 16px，32→16 正好整除；
+> 24→16 会出半像素、发糊。
+
+### 9.2 建筑与立绘（各 1 张，✅ 已入库）
 
 | 素材 | 文件 | 规格 | 备注 |
 |---|---|---|---|
-| **使馆** | `godot/assets/buildings/embassy.png` | **112×72** 透明底，v3 建筑画风（等距 3/4、细深棕描边）| `art.foot = [7,3]`、`art.doors = [[3,2]]`；同风格参考「贸易市场」那张 |
-| **米拉立绘** | `godot/assets/portraits/milla.png` | **640×960**（2:3）透明底 | 已在缺图清单里（`todo.md` §2.2）；外交面板 + 章 5 任务对话都要她 |
+| **使馆** | `godot/assets/building_src/embassy.png`（**素材**）→ `godot/assets/buildings/embassy.png`（`npm run gen:art` 生成）| **127×78** 透明底，v3 建筑画风（正面平视 + 屋顶略俯视、2× 密度像素、粗深棕描边）| `art.foot = [7, 3]`（`floor(127/16)=7 × (floor(78/16)−1)=3`）、门 `[[3,2]]`；提示词与候选见 `scripts/building-manifest.json` |
+| **米拉立绘** | `godot/assets/portraits/milla.png` | **640×896**（5:7）透明底 | 源图 `docs/art/npc/08_milla.png`（1024×1536，已带 alpha）→ 裁 `(110,140,910,1260)` → 缩 640×896，再压掉边缘残绿。和另外七张同尺寸同取景 |
 
-> `assets/ui/thumbs/embassy.png` **不用单独出** —— `UIKit.thumb()` 会退回 `buildings/embassy.png`。
+> `assets/ui/thumbs/embassy.png` **不用单独出** —— `gen:art` 顺手做缩略图。
 > 王国地图那张底图**不用重画**：外交面板直接复用 `assets/ui/map/kingdom_map_bare.webp`。
+> ⚠️ 使馆贴图**已经出了，但还没进 `content/buildings.json`** —— 那一行随 B4-4 落地才写进去
+> （现在写了会凭空多出一座能盖、什么都没用的建筑）。
 
 ### 9.3 图标流水线怎么加（照着抄）
 
 ```jsonc
-// scripts/icon-manifest.json 里各加一条；`bg` 按"带不带绿"分：纹章里有绿叶 → magenta，其余 green
+// scripts/icon-manifest.json 里各加一条；`bg` 按"带不带绿"分：主体里有绿 → magenta，其余 green
 { "id": "diplomacy", "kind": "panel", "bg": "green",
-  "prompt": "two hands clasping over a rolled scroll, heraldic, …", "nav": true },
+  "subject": "two clasped hands … above a rolled parchment scroll with a red wax seal", "nav": true },
 { "id": "court", "kind": "faction", "bg": "green",
-  "prompt": "a royal crown above an anvil, heraldic crest, …" }
+  "subject": "a golden crown resting on a black iron anvil, heraldic emblem" }
 ```
 
-- `kind` 新增 `"faction"`（`assets/ui/faction/`，48×48，`post: { margin: 0.08, contrast: 1.10 }`）
+- `kind` 新增三个：`"faction"`（48×48）、`"relation"`（32×32）、`"action"`（32×32），
+  都写进 `godot/assets/ui/faction/`；尺寸表在 `gen-icons.py::SIZE_BY_KIND`
 - `nav`（圆盘）只给 `diplomacy` / `military` 两张开；`post.navPlate` 参数照现有 7 张
-- 关系牌是**小符号**，`post` 用 panel 那套（`margin 0.20 / contrast 1.12 / color 1.20 / rim 1`），
+- 关系牌 / 动作按钮是**小符号**，`post` 用 panel 那套（留白 + 提饱和 + 1px 描边），
   否则 32px 下糊成一团（面板图标踩过这个坑）
+- ⚠️ **有绿就得换品红幕**：`jade`（绿宝石）和 `rel_friendly`（橄榄枝）第一版用绿幕，
+  主体被整块抠掉了 —— 绿幕的图里不能有绿（§4 那条规则）
+
+### 9.4 建筑怎么做（`gen-building.py`）
+
+```sh
+python scripts/gen-building.py --only embassy --candidates 4   # 出 4 个候选
+python scripts/gen-building.py --only embassy --pick 3         # 挑一个落盘
+```
+
+- 清单 `scripts/building-manifest.json`：提示词 + 生成尺寸（**1536×960**，比图标大一号 → 像素更细）
+- 提示词必须带 `straight-on front elevation` + `not an isometric corner view`：
+  少了会画成 45° 转角小楼，和 v3 那批明显不是一套
+- 落盘只写到 `building_src/`；`buildings/` 与 `thumbs/` 由 `npm run gen:art` 生成（需要 content 里有这座建筑）
 - 生成完照旧跑 `python scripts/gen-icons.py --only <id>` → `--sheet` 看审阅图 → 入库
 
 ---
