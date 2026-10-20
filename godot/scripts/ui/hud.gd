@@ -320,9 +320,13 @@ const NAV_LEFT := 10.0
 ## 小地图挂件：custom_minimum_size = RING_Y(26) + RING_D(128) = 154，再加下方那条飘带到 ~168。
 ## 168 就是"紧贴着小地图下方"（2026-10-20 圆盘下移 26px，这里跟着下移）。
 const NAV_TOP := 168.0
-## 圆钮里的图标尺寸。**必须是图标原生尺寸(32)的整数倍**：
-## 32 = 原生 1 倍。非整数倍会把像素拉得大小不一（项目用 Nearest 过滤，肉眼可见）。
-const NAV_ICON := 32
+## 圆钮里的图标尺寸。**图标自带圆盘**（`assets/ui/nav/<id>.png`，48×48 原生，由
+## `scripts/gen-icons.py` 在 32px 图标下面垫一层圆盘烤进去），所以这里 = 按钮边长，1:1 显示。
+##
+## ⚠️ 2026-10 用户："圆框全是马赛克" —— 以前圆钮是 16×16 的贴图拉到 48（3 倍 Nearest），
+## 圆边是锯齿块。现在**不再画圆框**（`_style_round` 用空 StyleBox），圆盘由图标自己带，
+## 48 原生 1:1，边缘是抗锯齿的。
+const NAV_ICON := 48
 ## 圆钮的动作码：`-1` = 科技面板，`-2` = 任务面板，`>= 0` = 统计面板的第 N 个页签。
 ## ⚠️ 任务面板是**浮动对话框**（可拖可关），不是统计那种全屏面板 ——
 ## 但入口一样是左侧这一列（用户："任务面板放在左侧圆形菜单按钮"）。
@@ -369,7 +373,10 @@ func _build_nav() -> void:
 		# 原来被它们占着的 F7 / F8 也空出来了），超过 `NAV_MAX_KEY` 的那些才不给键。
 		var nav_i := _nav_btns.size() + 1
 		b.tooltip_text = "%s（F%d）" % [label, nav_i] if nav_i <= NAV_MAX_KEY else label
-		var ico := UIKit.stat_icon(ico_name)
+		var ico := UIKit.nav_icon(ico_name)
+		if ico == null:
+			# 兼容：还没有 nav 版（`assets/ui/nav/`）时退回面板图标那一张
+			ico = UIKit.stat_icon(ico_name)
 		if ico == null:
 			# 「贸易」没有面板那套图标，但**科技树里那张通商图标**就是它
 			# （`assets/ui/tech/trade.png`）—— 与其让圆钮空着，不如借用它。
@@ -445,36 +452,32 @@ func refresh_nav_buttons() -> void:
 				break
 		_trade_nav_btn.visible = has_market
 
-## 圆钮外观：**手绘像素贴图**（不是代码画的几何圆）。
+## 圆钮外观：**圆盘烤在图标里**，按钮自己不再画框。
 ##
-## 用户嫌原来的 StyleBoxFlat 平滑圆"太精细、没有像素风"，所以改成
-## `scripts/gen-art.ts` 生成的 `ui/nav_btn_*.png`：木盘 + 粗深色外框 +
-## 内圈米色高光 + 正上正下正左正右四段灰色金属卡扣。
-##
-## 三张图分别对应常态 / 悬停 / 按下；focus 与 disabled 复用常态并做色调处理
-## （圆钮 `focus_mode = FOCUS_NONE`，实际用不到 focus）。
+## 2026-10 用户："圆框全是马赛克，像素也太细了吧……这个效果很好啊，要不然就不要画的圆框，
+## 直接用这个带圆形背景的图标吧"。于是：
+##   · 背景 = **空 StyleBox**（透明），一点边框都不画；
+##   · 圆盘由 `assets/ui/nav/<id>.png` 自带（48×48 原生、抗锯齿边缘，脚本烤的）；
+##   · 悬停 / 按下靠 `modulate` 提亮 / 压暗（不再需要三张贴图）。
+## 旧的 `ui/nav_btn_*.png` 保留但不再使用（`gen-art.ts nav` 还能生成）。
 func _style_round(b: Button) -> void:
 	for state in ["normal", "hover", "pressed", "focus", "disabled"]:
-		var src := "normal"
-		if state == "hover" or state == "focus":
-			src = "hover"
-		elif state == "pressed":
-			src = "pressed"
-		var tex: Texture2D = load("res://assets/ui/nav_btn_%s.png" % src)
-		if tex == null:
-			continue
-		var sb := StyleBoxTexture.new()
-		sb.texture = tex
-		# 整张 16x16 直接铺满按钮：图本身就是一个完整的圆，
-		# **不做 9 宫格**（设了 texture_margin 就会把圆拆成九块去拉伸，边角会变形）
-		sb.set_texture_margin_all(0)
-		sb.content_margin_left = 6
-		sb.content_margin_right = 6
-		sb.content_margin_top = 6
-		sb.content_margin_bottom = 6
-		if state == "disabled":
-			sb.modulate_color = Color(0.72, 0.72, 0.72, 0.85)
+		var sb := StyleBoxEmpty.new()
+		sb.content_margin_left = 0
+		sb.content_margin_right = 0
+		sb.content_margin_top = 0
+		sb.content_margin_bottom = 0
 		b.add_theme_stylebox_override(state, sb)
+	b.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	b.mouse_entered.connect(func() -> void:
+		if not b.button_pressed:
+			b.modulate = Color(1.12, 1.12, 1.12))
+	b.mouse_exited.connect(func() -> void:
+		b.modulate = Color(1.0, 1.0, 1.0))
+	b.button_down.connect(func() -> void:
+		b.modulate = Color(0.84, 0.84, 0.84))
+	b.button_up.connect(func() -> void:
+		b.modulate = Color(1.12, 1.12, 1.12) if b.is_hovered() else Color(1.0, 1.0, 1.0))
 
 func _toggle_music() -> void:
 	if music == null:

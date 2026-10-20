@@ -1,0 +1,608 @@
+{
+  "schemaVersion": 1,
+  "_doc": "图标清单：每个 id 出什么题、用哪种幕布。规则（风格提示词 / 分组 / 尺寸 / 流程）在 docs/icons.md。",
+  "style": {
+    "models": {
+      "unet": "z_image_turbo_bf16.safetensors",
+      "clip": "qwen_3_4b.safetensors",
+      "vae": "ae.safetensors"
+    },
+    "variants": [
+      {
+        "id": "v1",
+        "note": "16-bit 库存精灵（默认）",
+        "prefix": "16-bit pixel art inventory sprite of a single object for a medieval fantasy city-building game, hand pixel-shaded with visible square pixels, one-pixel dark warm-brown outline, four tones of flat colour with subtle dithering, muted natural palette,"
+      },
+      {
+        "id": "v2",
+        "note": "手绘 cozy 像素（偏 Stardew）",
+        "prefix": "Hand-painted pixel art item icon from a cosy medieval town simulation game, 64x64 sprite enlarged with nearest neighbour, soft dark-brown outline, rich dithered shading with small specular highlights, slightly desaturated warm palette,"
+      },
+      {
+        "id": "v3",
+        "note": "等距俯视、更写实",
+        "prefix": "Detailed isometric pixel art game icon, three-quarter top-down view, 64x64 sprite upscaled with hard pixel edges, thin dark outline, light from the upper left, dithered highlights, muted earthy fantasy palette,"
+      }
+    ],
+    "suffix": "No text, no frame, no border, no ground shadow, no glow, no vignette, no gradients, no second object, no background texture, no watermark; crisp hard pixel edges without anti-aliasing; isolated on a flat solid {BG} background; the single object is centred and fills most of the frame."
+  },
+  "icons": [
+    {
+      "id": "stonework",
+      "kind": "tech",
+      "bg": "green",
+      "subject": "a stack of squared grey stone blocks with an iron chisel and a wooden mallet"
+    },
+    {
+      "id": "digging",
+      "kind": "tech",
+      "bg": "green",
+      "subject": "a wooden shovel stuck in a mound of brown clay beside a clay brick"
+    },
+    {
+      "id": "firewood",
+      "kind": "tech",
+      "bg": "green",
+      "subject": "a bundle of split firewood tied with rope and a small hatchet"
+    },
+    {
+      "id": "hunting",
+      "kind": "tech",
+      "bg": "green",
+      "subject": "a wooden hunting bow with a quiver of arrows and a snare trap"
+    },
+    {
+      "id": "toolmaking",
+      "kind": "tech",
+      "bg": "green",
+      "subject": "three flint stone tools on a scrap of leather: an axe head, a scraper and a spear point"
+    },
+    {
+      "id": "construction",
+      "kind": "tech",
+      "bg": "green",
+      "subject": "wooden beams, a mason hammer and a rolled parchment plan"
+    },
+    {
+      "id": "brickmaking",
+      "kind": "tech",
+      "bg": "green",
+      "subject": "a small domed brick kiln with a glowing mouth and a stack of red bricks"
+    },
+    {
+      "id": "ironworking",
+      "kind": "tech",
+      "bg": "green",
+      "subject": "a stone bloomery furnace with molten metal glow and a grey iron ingot"
+    },
+    {
+      "id": "iron_tooling",
+      "kind": "tech",
+      "bg": "green",
+      "subject": "a set of iron tools: a hammer, tongs and an axe head on a wooden bench"
+    },
+    {
+      "id": "tempering",
+      "kind": "tech",
+      "bg": "green",
+      "subject": "a glowing red-hot blade being quenched in a wooden bucket of water with steam"
+    },
+    {
+      "id": "refining",
+      "kind": "tech",
+      "bg": "green",
+      "subject": "a clay crucible pouring molten silver metal into a row of small ingots"
+    },
+    {
+      "id": "trade",
+      "kind": "tech",
+      "bg": "green",
+      "subject": "a brass merchant scale with two piles of coins and a small iron-bound chest",
+      "nav": true
+    },
+    {
+      "id": "herbalism",
+      "kind": "tech",
+      "bg": "magenta",
+      "subject": "a bundle of dried herbs tied with twine beside a stone mortar and pestle"
+    },
+    {
+      "id": "medicine",
+      "kind": "tech",
+      "bg": "green",
+      "subject": "a stone mortar and pestle with three glass potion bottles"
+    },
+    {
+      "id": "hospital_ward",
+      "kind": "tech",
+      "bg": "green",
+      "subject": "a narrow hospital bed with white linen, a folded bandage and a potion bottle"
+    },
+    {
+      "id": "schooling",
+      "kind": "tech",
+      "bg": "green",
+      "subject": "an open book with a quill feather and a small inkwell"
+    },
+    {
+      "id": "militia",
+      "kind": "tech",
+      "bg": "green",
+      "subject": "a wooden rack holding a spear, a round wooden shield and a simple iron helmet"
+    },
+    {
+      "id": "weaponry",
+      "kind": "tech",
+      "bg": "green",
+      "subject": "a weapon rack with a sword, two spears and a round shield"
+    },
+    {
+      "id": "pottery",
+      "kind": "tech",
+      "bg": "green",
+      "subject": "a clay pot on a potter wheel with wet clay and a wooden shaping tool"
+    },
+    {
+      "id": "fiber_crops",
+      "kind": "tech",
+      "bg": "magenta",
+      "subject": "a bundle of flax stalks tied with twine beside a coil of linen thread"
+    },
+    {
+      "id": "fishing",
+      "kind": "tech",
+      "bg": "green",
+      "subject": "a fishing rod with a hook and a wicker creel basket with two fish"
+    },
+    {
+      "id": "carpentry",
+      "kind": "tech",
+      "bg": "green",
+      "subject": "a small half-built timber house frame with a saw and wooden planks"
+    },
+    {
+      "id": "fine_milling",
+      "kind": "tech",
+      "bg": "green",
+      "subject": "a round millstone with a heap of fine white flour and a wooden scoop"
+    },
+    {
+      "id": "white_baking",
+      "kind": "tech",
+      "bg": "green",
+      "subject": "a round white bread loaf beside a wooden baker peel"
+    },
+    {
+      "id": "coarse_weaving",
+      "kind": "tech",
+      "bg": "green",
+      "subject": "a wooden hand loom with coarse undyed cloth on the beam"
+    },
+    {
+      "id": "coarse_tailoring",
+      "kind": "tech",
+      "bg": "green",
+      "subject": "a folded burlap tunic with iron scissors and a spool of thread"
+    },
+    {
+      "id": "fine_weaving",
+      "kind": "tech",
+      "bg": "green",
+      "subject": "a wooden loom with a roll of fine coloured cloth and a shuttle"
+    },
+    {
+      "id": "curing",
+      "kind": "tech",
+      "bg": "green",
+      "subject": "a hanging smoked fish and strips of dried meat beside a salt bowl"
+    },
+    {
+      "id": "entertainment",
+      "kind": "tech",
+      "bg": "green",
+      "subject": "a wooden lute leaning on a clay cup of ale and two dice"
+    },
+    {
+      "id": "common_tailoring",
+      "kind": "tech",
+      "bg": "green",
+      "subject": "a neatly folded simple tunic with a needle, thread and a thimble"
+    },
+    {
+      "id": "cash_crops",
+      "kind": "tech",
+      "bg": "magenta",
+      "subject": "cut sugarcane stalks beside a clay pot of purple dye and a dye plant"
+    },
+    {
+      "id": "sugar_refining",
+      "kind": "tech",
+      "bg": "green",
+      "subject": "a cone of white sugar and two sugar loaves beside a small sack"
+    },
+    {
+      "id": "pastry_baking",
+      "kind": "tech",
+      "bg": "green",
+      "subject": "a wooden tray of round pastries with a sprig and a rolling pin"
+    },
+    {
+      "id": "masonry_housing",
+      "kind": "tech",
+      "bg": "green",
+      "subject": "a small stone cottage with a brick chimney and a mortar trowel"
+    },
+    {
+      "id": "leatherwork",
+      "kind": "tech",
+      "bg": "green",
+      "subject": "a stretched animal hide on a wooden frame with a knife and a leather satchel"
+    },
+    {
+      "id": "luxury_tailoring",
+      "kind": "tech",
+      "bg": "green",
+      "subject": "an embroidered noble robe on a wooden dress form with gold trim"
+    },
+    {
+      "id": "porcelain",
+      "kind": "tech",
+      "bg": "green",
+      "subject": "a blue and white porcelain vase with a painted pattern"
+    },
+    {
+      "id": "domestic_service",
+      "kind": "tech",
+      "bg": "green",
+      "subject": "a straw broom, a wooden bucket and a folded cloth"
+    },
+    {
+      "id": "crop_rotation",
+      "kind": "tech",
+      "bg": "magenta",
+      "subject": "ploughed field strips with young wheat and turnip rows"
+    },
+    {
+      "id": "irrigation",
+      "kind": "tech",
+      "bg": "green",
+      "subject": "a wooden sluice channel with a small water wheel and a spade"
+    },
+    {
+      "id": "improved_seeds",
+      "kind": "tech",
+      "bg": "magenta",
+      "subject": "an open seed sack spilling large seeds beside a young sprout in a clay pot"
+    },
+    {
+      "id": "workshop_division",
+      "kind": "tech",
+      "bg": "green",
+      "subject": "a wooden workbench with divided compartments holding different tools"
+    },
+    {
+      "id": "standardization",
+      "kind": "tech",
+      "bg": "green",
+      "subject": "a wooden ruler, brass weights and three identical wooden blocks"
+    },
+    {
+      "id": "assembly_line",
+      "kind": "tech",
+      "bg": "green",
+      "subject": "a long workbench with identical parts in a row, a gear and a hand plane"
+    },
+    {
+      "id": "kiln_upgrade",
+      "kind": "tech",
+      "bg": "green",
+      "subject": "a tall domed brick kiln with an iron grate and a chimney"
+    },
+    {
+      "id": "sawmill_machinery",
+      "kind": "tech",
+      "bg": "green",
+      "subject": "a water-powered sawmill with a big iron saw blade and a log"
+    },
+    {
+      "id": "brick_press",
+      "kind": "tech",
+      "bg": "green",
+      "subject": "an iron brick press with wet clay and three formed bricks"
+    },
+    {
+      "id": "scriptorium",
+      "kind": "tech",
+      "bg": "green",
+      "subject": "a slanted writing desk with parchment, a quill and a stack of books"
+    },
+    {
+      "id": "academy",
+      "kind": "tech",
+      "bg": "green",
+      "subject": "a tall stone library tower with an arched window and a banner"
+    },
+    {
+      "id": "printing_press",
+      "kind": "tech",
+      "bg": "green",
+      "subject": "a wooden printing press with a stack of paper sheets and an inked plate"
+    },
+    {
+      "id": "crane",
+      "kind": "tech",
+      "bg": "green",
+      "subject": "a wooden construction crane with a rope, a pulley and a stone block"
+    },
+    {
+      "id": "scaffolding",
+      "kind": "tech",
+      "bg": "green",
+      "subject": "wooden scaffolding poles lashed around a half-built stone wall"
+    },
+    {
+      "id": "prefab_parts",
+      "kind": "tech",
+      "bg": "green",
+      "subject": "a stack of prefabricated wooden wall panels and beams"
+    },
+    {
+      "id": "training",
+      "kind": "tech",
+      "bg": "green",
+      "subject": "a straw training dummy with a wooden sword and a round shield"
+    },
+    {
+      "id": "public_works",
+      "kind": "tech",
+      "bg": "green",
+      "subject": "a stone well with a wooden roof, a bucket and a rope"
+    },
+    {
+      "id": "governance",
+      "kind": "tech",
+      "bg": "green",
+      "subject": "a rolled charter with a red wax seal, a brass seal stamp and a pen"
+    },
+    {
+      "id": "trade_caravan_1",
+      "kind": "tech",
+      "bg": "green",
+      "subject": "a single wooden merchant wagon with a cream canvas canopy and a small pennant"
+    },
+    {
+      "id": "trade_caravan_2",
+      "kind": "tech",
+      "bg": "green",
+      "subject": "two wooden merchant wagons one behind the other with canvas canopies"
+    },
+    {
+      "id": "trade_caravan_3",
+      "kind": "tech",
+      "bg": "green",
+      "subject": "a line of three covered wooden wagons side by side, the nearest in full view"
+    },
+    {
+      "id": "trade_caravan_4",
+      "kind": "tech",
+      "bg": "green",
+      "subject": "a large wooden wagon wheel in front of a merchant wagon with a hanging guild plaque"
+    },
+    {
+      "id": "cargo_hold_1",
+      "kind": "tech",
+      "bg": "green",
+      "subject": "a wooden cargo crate with iron corner brackets and a rope tied around it"
+    },
+    {
+      "id": "cargo_hold_2",
+      "kind": "tech",
+      "bg": "green",
+      "subject": "a heavy two-wheeled freight cart with big spoked wheels and stacked sacks"
+    },
+    {
+      "id": "cargo_hold_3",
+      "kind": "tech",
+      "bg": "green",
+      "subject": "a pack mule carrying two tied bundles and a barrel"
+    },
+    {
+      "id": "strongbox_1",
+      "kind": "tech",
+      "bg": "green",
+      "subject": "a small iron-banded wooden money chest with a brass padlock"
+    },
+    {
+      "id": "strongbox_2",
+      "kind": "tech",
+      "bg": "green",
+      "subject": "a large strongbox with two padlocks and riveted iron straps"
+    },
+    {
+      "id": "strongbox_3",
+      "kind": "tech",
+      "bg": "green",
+      "subject": "a rolled parchment letter with a red wax seal resting on a small heap of gold coins"
+    },
+    {
+      "id": "haggle_buy_1",
+      "kind": "tech",
+      "bg": "green",
+      "subject": "a hand holding one gold coin above a small burlap sack"
+    },
+    {
+      "id": "haggle_sell_1",
+      "kind": "tech",
+      "bg": "green",
+      "subject": "two hands scooping coins out of an open leather purse"
+    },
+    {
+      "id": "resource",
+      "kind": "panel",
+      "bg": "green",
+      "subject": "a pile of resources: two wooden logs, three grey stone blocks and a bulging cloth sack",
+      "nav": true
+    },
+    {
+      "id": "population",
+      "kind": "panel",
+      "bg": "green",
+      "subject": "two villagers standing side by side in simple medieval clothes",
+      "nav": true
+    },
+    {
+      "id": "finance",
+      "kind": "panel",
+      "bg": "green",
+      "subject": "a stack of gold coins in three steps with a wax-sealed ledger beside it",
+      "nav": true
+    },
+    {
+      "id": "research",
+      "kind": "panel",
+      "bg": "green",
+      "subject": "a brass astrolabe with a rolled scroll and a quill",
+      "nav": true
+    },
+    {
+      "id": "quest_panel",
+      "kind": "panel",
+      "bg": "green",
+      "subject": "a wooden notice board with two pinned parchment notes",
+      "nav": true
+    },
+    {
+      "id": "ai_assist",
+      "kind": "panel",
+      "bg": "green",
+      "subject": "a glowing purple crystal ball on an iron stand with a small candle",
+      "nav": true
+    },
+    {
+      "id": "ai_assist_off",
+      "kind": "panel",
+      "bg": "green",
+      "subject": "a dim cloudy purple crystal ball on an iron stand, not glowing"
+    },
+    {
+      "id": "trade",
+      "kind": "panel",
+      "bg": "green",
+      "subject": "a brass merchant scale with a coin and a locked coin chest",
+      "nav": true
+    },
+    {
+      "id": "employed",
+      "kind": "panel",
+      "bg": "green",
+      "subject": "a leather work belt with a hammer, a chisel and a pair of gloves"
+    },
+    {
+      "id": "satisfaction",
+      "kind": "panel",
+      "bg": "green",
+      "subject": "a round wooden token carved with a smiling face"
+    },
+    {
+      "id": "money",
+      "kind": "panel",
+      "bg": "green",
+      "subject": "three stacks of gold coins of different heights standing side by side"
+    },
+    {
+      "id": "build",
+      "kind": "panel",
+      "bg": "green",
+      "subject": "a mason hammer beside a half-built brick wall section"
+    },
+    {
+      "id": "migration",
+      "kind": "panel",
+      "bg": "green",
+      "subject": "a wooden hourglass with a rolled scroll leaning on it"
+    },
+    {
+      "id": "debug",
+      "kind": "panel",
+      "bg": "green",
+      "subject": "a brass magnifying glass held over a small iron gear"
+    },
+    {
+      "id": "exit",
+      "kind": "panel",
+      "bg": "green",
+      "subject": "a plain wooden door with an iron ring handle"
+    },
+    {
+      "id": "load",
+      "kind": "panel",
+      "bg": "green",
+      "subject": "an open wooden drawer with three rolled parchment scrolls"
+    },
+    {
+      "id": "save",
+      "kind": "panel",
+      "bg": "green",
+      "subject": "a leather-bound ledger with a quill pen resting on it"
+    },
+    {
+      "id": "settings",
+      "kind": "panel",
+      "bg": "green",
+      "subject": "a brass gear with a small iron wrench beside it"
+    },
+    {
+      "id": "music",
+      "kind": "panel",
+      "bg": "green",
+      "subject": "a small round hand drum with two wooden drumsticks"
+    },
+    {
+      "id": "sfx",
+      "kind": "panel",
+      "bg": "green",
+      "subject": "a small brass hand bell"
+    },
+    {
+      "id": "new_game",
+      "kind": "panel",
+      "bg": "green",
+      "subject": "a folded parchment map with a small wooden compass"
+    }
+  ],
+  "post": {
+    "tech": {
+      "margin": 0.05,
+      "contrast": 1.0,
+      "color": 1.0,
+      "rim": 0
+    },
+    "panel": {
+      "margin": 0.2,
+      "contrast": 1.12,
+      "color": 1.2,
+      "rim": 1
+    }
+  },
+  "navPlate": {
+    "size": 48,
+    "ring": [
+      104,
+      74,
+      46
+    ],
+    "frame": [
+      196,
+      156,
+      108
+    ],
+    "fill": [
+      216,
+      188,
+      142
+    ],
+    "ring_px": 2,
+    "frame_px": 2,
+    "icon_px": 32
+  }
+}

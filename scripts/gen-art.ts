@@ -1119,6 +1119,25 @@ function main(): void {
   mkdirSync(`${ROOT}/goods`, { recursive: true })
   mkdirSync(`${ROOT}/ui`, { recursive: true })
 
+  // 只重画某一块：`node scripts/gen-art.ts nav`（导航圆钮贴图 + 拖动条把手）
+  //
+  // 存在的理由：改一个配色不该把 100+ 张建筑 / 角色 / 商品图全重写一遍 ——
+  // 那样 `git status` 一片红，还容易把别处没提交的生成结果混进这次改动。
+  //
+  // ⚠️ 圆钮贴图（`ui/nav_btn_*.png`）**2026-10 起不用了**：左侧圆钮改成"圆盘烤在
+  //    图标里"（`assets/ui/nav/<id>.png`，见 `hud.gd::_style_round`），
+  //    16×16 拉到 48 是 3 倍 Nearest，圆边全是锯齿 —— 用户："圆框全是马赛克"。
+  //    这两个文件留着备查，别再往圆钮上贴。
+  const only = process.argv[2]
+  if (only === 'nav') {
+    for (const k of ['normal', 'hover', 'pressed']) {
+      writeFileSync(`${ROOT}/ui/nav_btn_${k}.png`, navButton(k).toPng())
+    }
+    writeFileSync(`${ROOT}/ui/slider_grabber.png`, sliderGrabber().toPng())
+    console.log(`nav 圆钮 → ${ROOT}/ui/（normal / hover / pressed + slider_grabber）`)
+    return
+  }
+
   const buildings = (JSON.parse(readFileSync('content/buildings.json', 'utf8')) as { buildings: { id: string; art?: Art }[] }).buildings
   const housing = (JSON.parse(readFileSync('content/housing.json', 'utf8')) as { housing: { id: string; art?: Art }[] }).housing
 

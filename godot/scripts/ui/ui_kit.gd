@@ -60,6 +60,23 @@ static func stat_icon(name: String) -> Texture2D:
 		return null
 	return panel_icon(name)
 
+## 左侧圆钮的图标：`assets/ui/nav/<name>.png`（**圆盘烤在图里**，48×48 原生）。
+##
+## 2026-10 用户："圆框全是马赛克……直接用这个带圆形背景的图标吧" ——
+## 圆盘（外圈深木 + 米色盘面）由 `scripts/gen-icons.py` 在 32px 图标下面合成进去，
+## 按钮自己用空 StyleBox 不画框，所以边缘是**抗锯齿**的，不再是 3 倍 Nearest 拉出来的马赛克。
+##
+## 没有 nav 版时退回面板图标（`stat_icon`），这样新加一个圆钮也不会突然没图标。
+const NAV_ICON_DIR := "res://assets/ui/nav/"
+
+static func nav_icon(name: String) -> Texture2D:
+	if name == "":
+		return null
+	var p := NAV_ICON_DIR + name + ".png"
+	if ResourceLoader.exists(p):
+		return load(p)
+	return stat_icon(name)
+
 ## 科技树卡片图标（`assets/ui/tech/<techId>.png`，作者 workbuddy，MIT）。
 ## 文件名就是科技 id，所以这里直接用 id 取。
 const TECH_ICON_DIR := "res://assets/ui/tech/"

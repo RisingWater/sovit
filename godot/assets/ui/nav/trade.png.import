@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://vvsyogltat6e"
-path="res://.godot/imported/housing_works.png-2414c3e6931035131a15d754c608eb1c.ctex"
+uid="uid://djmyswx4kfjmy"
+path="res://.godot/imported/trade.png-175720212eb7d48d8a3350cf2d4d832b.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/ui/tech/housing_works.png"
-dest_files=["res://.godot/imported/housing_works.png-2414c3e6931035131a15d754c608eb1c.ctex"]
+source_file="res://assets/ui/nav/trade.png"
+dest_files=["res://.godot/imported/trade.png-175720212eb7d48d8a3350cf2d4d832b.ctex"]
 
 [params]
 
