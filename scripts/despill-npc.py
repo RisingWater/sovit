@@ -1,4 +1,7 @@
-"""把绿幕立绘上残留的绿压掉（就地改 docs/art/npc/*.png，只动颜色，不动 alpha 形状）。
+"""把绿幕立绘上残留的绿压掉（就地改 docs/art/npc/*.png）。
+
+只动颜色，蒙版轮廓不动；唯一的 alpha 改动是那批**半透明的纯绿像素**会被打薄
+（它们本来就是绿底没抠干净的部分，留着会在成品边缘形成一圈半透绿影）。
 
 用法：
     python scripts/despill-npc.py --probe   # 只出到 shots/npc_probe/despilled/，不动成品
