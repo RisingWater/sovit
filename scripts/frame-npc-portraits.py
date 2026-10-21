@@ -1,11 +1,15 @@
-"""把 docs/art/npc/ 里手抠的立绘做成游戏用的 640x896 立绘（写 godot/assets/portraits/）。
+"""把「手工抠的立绘」做成游戏用的 640x896 立绘（写 godot/assets/portraits/）。
+
+⚠️ 当前流程**不用这个脚本**：`docs/art/npc/` 现在由 `scripts/recut-npc.py` 从
+   `origin/` 全分辨率重抠（顺带就出了 640x896）。这个脚本保留给“有人又手工重抠了
+   一批小图、想拿它的形状 + origin 的全分辨率颜色”这种情况。
 
 用法：
     python scripts/frame-npc-portraits.py --probe   # 只写 shots/npc_probe/framed/ + 诊断
     python scripts/frame-npc-portraits.py           # 写 godot/assets/portraits/
 
 为什么要做“合成”而不是直接缩放：
-    `docs/art/npc/*.png` 是手工抠的**成品**，但只有原图的 1/3 大小（201x332 ~ 392x530）。
+    第三方工具抠出来的图只有原图的 1/3 大小（201x332 ~ 392x530）。
     游戏里立绘要高到 ~700px（`intro.gd` 的 PORTRAIT_H=0.78 × 900），直接放大三倍会糊。
     所以这里只取它的 **alpha（也就是手工抠出来的形状）**，
     颜色回到 `docs/art/npc/origin/` 的全分辨率绿幕图上取：
