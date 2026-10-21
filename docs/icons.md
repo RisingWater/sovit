@@ -34,7 +34,7 @@
 
 > **为什么面板图标不做 64**：它最大只显示到 32（`hud.gd::NAV_ICON`），64 只会白占空间；
 > 科技树卡片显示 32、素材是 64 = 正好 2 倍整数缩放。这条规则写死在 `SIZE_BY_KIND` 里
-> （`tech` 64 / `panel` 32 / `faction` 48 / `relation` 32 / `action` 32），要改就传 `--size`。
+> （`tech` 64 / `panel` 32 / `faction` 48 / `relation` 32 / `action` 32 / `crest` 256 设计稿），要改就传 `--size`。
 
 ---
 
@@ -263,3 +263,30 @@ python scripts/gen-building.py --only embassy --pick 3 --no-gen # 只重跑抠�
   之后 `npm run gen:art` 会做成 `buildings/<id>.png` + `thumbs/<id>.png`，
   前提是 `content/buildings.json` 里有这座建筑（`art.arch: "sprite"`）
 - 占地：`floor(宽/16) × (floor(高/16) − 1)`，写完用 `npm run check:footprint` 核一遍
+
+---
+
+## 11. 势力纹章（设计稿，2026-10-21 换口径）
+
+**用户**："势力徽记重新做，应该是类似纯色抽象的家族纹章，不是你这种图标"，随后贴了一张
+**矢量家族纹章**参考图（王冠 + 盾 + 月桂 + 绶带 + 一个大主纹，单色深墨、白底镂空），
+并说"生成了先放在 docs/art 下"。
+
+- 类别：crest，产物 **docs/art/crests/<势力id>.png（256×256，单色墨稿）**，不进 godot/assets/
+  定稿后才缩 48/64 进游戏（--size 48 + --out-dir）
+- 提示词：6 变体 —— Heraldic coat of arms drawn as a single flat dark ink silhouette … a heater
+  shield with a crown on top, laurel branches flanking it, a ribbon banner below, one bold charge
+  inside the shield, only one ink colour plus paper white
+- 题面模板（13 条共用）：
+   heraldic coat of arms: an ornate heater shield with a noble crown above it, laurel branches
+  flanking the shield, a blank ribbon banner below it. The shield field is solid dark ink, and one
+  large charge is knocked out of it in paper white in the middle: <主纹>.
+  —— **"盾面深色 + 主纹留白"必写**，否则 13 张里会混着"浅盾深纹"，一套就不像一套
+- 后处理：post.crest = { mono: true, ink: [58,44,32], margin: .03 }，走 ink_knockout()：
+  **不要幕布色**（g: "white"），按亮度取反 —— 亮处透明、暗处上墨色，
+  于是"鹰/塔/火焰"是镂空的纸白，跨 13 张颜色完全一致
+- 主纹：王庭=鹰、铁王城=钥匙、铁鸦堡=渡鸦、圣火城=火焰、金穗城=麦穗、曙光城=朝阳、
+  黑石堡=塔、翡翠=盘蛇、沙海=交叉弯刀、铁峰=雪山、圣辉=拉丁十字、银叶=叶子、灰烬=圆环
+
+⚠️ 旧的那 13 张 48×48（ssets/ui/faction/，物品图标风）**暂留**：B4 面板还没做，
+定稿时在同一套题面上跑 --size 48 覆盖即可（post 换成 action 那套，mono 关掉）。

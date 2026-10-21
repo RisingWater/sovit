@@ -34,6 +34,12 @@
         "note": "**纯色抽象纹章 · 不要盾形**（只用徽记符号，方形构图）",
         "prefix": "Flat abstract heraldic emblem of a medieval noble house, a single bold symbol drawn with solid flat colour fills, four or five tinctures at most, no shading, no highlights, no gradients, no dithering, no bevel, no texture, thick uniform dark outline, geometric and minimal so it reads at tiny size, one-pixel pixel-art edges,",
         "suffix": "No text, no letters, no banner, no ground shadow, no glow, no vignette, no gradients, no background texture, no watermark, no second object; crisp hard pixel edges without anti-aliasing; isolated on a flat solid {BG} background; the emblem is centred and fills most of the frame."
+      },
+      {
+        "id": "v6",
+        "note": "**家族纹章设计稿**（2026-10-21 用户给的参考图那套）：盾 + 王冠 + 月桂 + 绶带 + 一个主纹，**单色墨稿**",
+        "prefix": "Heraldic coat of arms drawn as a single flat dark ink silhouette, engraved medieval family crest, ornate but clean: a heater shield with a crown on top, laurel branches flanking it, a ribbon banner below, one bold charge inside the shield, only one ink colour plus paper white, no shading, no gradients, no texture, no hatching, crisp clean vector edges, high contrast,",
+        "suffix": "No text, no letters, no motto, no words on the ribbon, no colour, no ground shadow, no glow, no vignette, no gradients, no paper texture, no watermark, no second emblem; crisp clean edges; isolated on a flat pure {BG} background; the coat of arms is centred and fills most of the frame."
       }
     ],
     "suffix": "No text, no frame, no border, no ground shadow, no glow, no vignette, no gradients, no second object, no background texture, no watermark; crisp hard pixel edges without anti-aliasing; isolated on a flat solid {BG} background; the single object is centred and fills most of the frame."
@@ -645,94 +651,94 @@
     },
     {
       "id": "court",
-      "kind": "faction",
-      "variant": 4,
-      "bg": "green",
-      "subject": "a heater shield parted per pale into a gold left half and a deep crimson right half, a single bold black crown charge in the centre, plain medieval heraldry"
+      "kind": "crest",
+      "variant": 6,
+      "bg": "white",
+      "subject": "a heraldic coat of arms: an ornate heater shield with a noble crown above it, laurel branches flanking the shield, a blank ribbon banner below it. The shield field is solid dark ink, and one large charge is knocked out of it in paper white in the middle: a royal eagle with spread wings, head turned in profile. Engraved medieval heraldry, one solid dark ink colour plus paper white"
     },
     {
       "id": "iron_crown",
-      "kind": "faction",
-      "variant": 4,
-      "bg": "green",
-      "subject": "a heater shield quarterly divided into dark iron grey and gold, a single upright silver key charge in the centre, plain medieval heraldry"
+      "kind": "crest",
+      "variant": 6,
+      "bg": "white",
+      "subject": "a heraldic coat of arms: an ornate heater shield with a noble crown above it, laurel branches flanking the shield, a blank ribbon banner below it. The shield field is solid dark ink, and one large charge is knocked out of it in paper white in the middle: a single large iron key standing upright. Engraved medieval heraldry, one solid dark ink colour plus paper white"
     },
     {
       "id": "iron_rook",
-      "kind": "faction",
-      "variant": 4,
-      "bg": "green",
-      "subject": "a heater shield in plain black, a single white raven silhouette charge, wings folded, in the centre, plain medieval heraldry"
+      "kind": "crest",
+      "variant": 6,
+      "bg": "white",
+      "subject": "a heraldic coat of arms: an ornate heater shield with a noble crown above it, laurel branches flanking the shield, a blank ribbon banner below it. The shield field is solid dark ink, and one large charge is knocked out of it in paper white in the middle: a raven with folded wings perched on a small rock. Engraved medieval heraldry, one solid dark ink colour plus paper white"
     },
     {
       "id": "holy_flame",
-      "kind": "faction",
-      "variant": 4,
-      "bg": "green",
-      "subject": "a heater shield in deep crimson, a single bright gold flame charge rising in the centre, high contrast against the field, plain medieval heraldry"
+      "kind": "crest",
+      "variant": 6,
+      "bg": "white",
+      "subject": "a heraldic coat of arms: an ornate heater shield with a noble crown above it, laurel branches flanking the shield, a blank ribbon banner below it. The shield field is solid dark ink, and one large charge is knocked out of it in paper white in the middle: a single leaping flame. Engraved medieval heraldry, one solid dark ink colour plus paper white"
     },
     {
       "id": "golden_ear",
-      "kind": "faction",
-      "variant": 4,
-      "bg": "magenta",
-      "subject": "a heater shield in deep green, three bright gold wheat ears bound together in the centre, high contrast against the field, plain medieval heraldry"
+      "kind": "crest",
+      "variant": 6,
+      "bg": "white",
+      "subject": "a heraldic coat of arms: an ornate heater shield with a noble crown above it, laurel branches flanking the shield, a blank ribbon banner below it. The shield field is solid dark ink, and one large charge is knocked out of it in paper white in the middle: three wheat ears bound together. Engraved medieval heraldry, one solid dark ink colour plus paper white"
     },
     {
       "id": "dawn",
-      "kind": "faction",
-      "variant": 4,
-      "bg": "green",
-      "subject": "a heater shield in pale sky blue, a gold rising sun with a few straight rays low in the chief, plain medieval heraldry"
+      "kind": "crest",
+      "variant": 6,
+      "bg": "white",
+      "subject": "a heraldic coat of arms: an ornate heater shield with a noble crown above it, laurel branches flanking the shield, a blank ribbon banner below it. The shield field is solid dark ink, and one large charge is knocked out of it in paper white in the middle: a rising sun with long straight rays above a low horizon line. Engraved medieval heraldry, one solid dark ink colour plus paper white"
     },
     {
       "id": "blackstone",
-      "kind": "faction",
-      "variant": 4,
-      "bg": "green",
-      "subject": "a heater shield in plain black, a single pale grey square stone charge in the centre, plain medieval heraldry"
+      "kind": "crest",
+      "variant": 6,
+      "bg": "white",
+      "subject": "a heraldic coat of arms: an ornate heater shield with a noble crown above it, laurel branches flanking the shield, a blank ribbon banner below it. The shield field is solid dark ink, and one large charge is knocked out of it in paper white in the middle: a square stone tower with battlements. Engraved medieval heraldry, one solid dark ink colour plus paper white"
     },
     {
       "id": "jade",
-      "kind": "faction",
-      "variant": 4,
-      "bg": "magenta",
-      "subject": "a heater shield in deep sea green, a single white serpent coiled in a circle in the centre, plain medieval heraldry"
+      "kind": "crest",
+      "variant": 6,
+      "bg": "white",
+      "subject": "a heraldic coat of arms: an ornate heater shield with a noble crown above it, laurel branches flanking the shield, a blank ribbon banner below it. The shield field is solid dark ink, and one large charge is knocked out of it in paper white in the middle: a serpent coiled into a ring. Engraved medieval heraldry, one solid dark ink colour plus paper white"
     },
     {
       "id": "khan",
-      "kind": "faction",
-      "variant": 4,
-      "bg": "green",
-      "subject": "a heater shield in sand gold, two black scimitars crossed in saltire in the centre, plain medieval heraldry"
+      "kind": "crest",
+      "variant": 6,
+      "bg": "white",
+      "subject": "a heraldic coat of arms: an ornate heater shield with no crown, laurel branches flanking the shield, a blank ribbon banner below it. The shield field is solid dark ink, and one large charge is knocked out of it in paper white in the middle: two curved scimitars crossed in saltire. Engraved medieval heraldry, one solid dark ink colour plus paper white"
     },
     {
       "id": "peak",
-      "kind": "faction",
-      "variant": 4,
-      "bg": "green",
-      "subject": "a heater shield in stone grey, a single white mountain peak charge rising from the base, plain medieval heraldry"
+      "kind": "crest",
+      "variant": 6,
+      "bg": "white",
+      "subject": "a heraldic coat of arms: an ornate heater shield with a noble crown above it, laurel branches flanking the shield, a blank ribbon banner below it. The shield field is solid dark ink, and one large charge is knocked out of it in paper white in the middle: a single sharp snow-capped mountain peak. Engraved medieval heraldry, one solid dark ink colour plus paper white"
     },
     {
       "id": "holy_see",
-      "kind": "faction",
-      "variant": 4,
-      "bg": "green",
-      "subject": "a heater shield in plain white, a single deep red latin cross charge in the centre with thin gold sun rays behind its arms, plain medieval heraldry"
+      "kind": "crest",
+      "variant": 6,
+      "bg": "white",
+      "subject": "a heraldic coat of arms: an ornate heater shield with a noble crown above it, laurel branches flanking the shield, a blank ribbon banner below it. The shield field is solid dark ink, and one large charge is knocked out of it in paper white in the middle: a tall latin cross with a long lower arm. Engraved medieval heraldry, one solid dark ink colour plus paper white"
     },
     {
       "id": "silverleaf",
-      "kind": "faction",
-      "variant": 4,
-      "bg": "magenta",
-      "subject": "a heater shield in dark forest green, a single pale silver leaf charge in the centre, plain medieval heraldry"
+      "kind": "crest",
+      "variant": 6,
+      "bg": "white",
+      "subject": "a heraldic coat of arms: an ornate heater shield with no crown, laurel branches flanking the shield, a blank ribbon banner below it. The shield field is solid dark ink, and one large charge is knocked out of it in paper white in the middle: a single large pointed leaf with a central vein and a curved stem. Engraved medieval heraldry, one solid dark ink colour plus paper white"
     },
     {
       "id": "ashen_circle",
-      "kind": "faction",
-      "variant": 4,
-      "bg": "green",
-      "subject": "a heater shield in plain black, a thin pale grey ring charge in the centre, plain medieval heraldry"
+      "kind": "crest",
+      "variant": 6,
+      "bg": "white",
+      "subject": "a heraldic coat of arms: an ornate heater shield with no crown, laurel branches flanking the shield, a blank ribbon banner below it. The shield field is solid dark ink, and one large charge is knocked out of it in paper white in the middle: a plain open ring, thin and even. Engraved medieval heraldry, one solid dark ink colour plus paper white"
     },
     {
       "id": "rel_enemy",
@@ -826,6 +832,13 @@
       "contrast": 1.1,
       "color": 1.15,
       "rim": 1
+    },
+    "crest": {
+      "mono": true,
+      "ink": [58, 44, 32],
+      "ink_lo": 110,
+      "ink_hi": 190,
+      "margin": 0.03
     }
   },
   "navPlate": {

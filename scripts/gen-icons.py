@@ -36,7 +36,7 @@ import urllib.request
 import uuid
 
 import numpy as np
-from PIL import Image, ImageChops, ImageDraw, ImageEnhance, ImageFilter
+from PIL import Image, ImageChops, ImageDraw, ImageEnhance, ImageFilter, ImageOps
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 MANIFEST = os.path.join(ROOT, "scripts", "icon-manifest.json")
@@ -51,13 +51,17 @@ OUT_DIRS = {
     "faction": os.path.join(ROOT, "godot", "assets", "ui", "faction"),
     "relation": os.path.join(ROOT, "godot", "assets", "ui", "faction"),
     "action": os.path.join(ROOT, "godot", "assets", "ui", "faction"),
+    # 势力徽章的**设计稿**（256px 单色墨稿）先落在 docs/art/crests/，定稿再缩 48 进游戏
+    "crest": os.path.join(ROOT, "docs", "art", "crests"),
 }
 ## 每类的原生尺寸（`--size` 可整体覆盖）：科技 64 → 显示 32；面板 32 → 显示 16/24；
-## 徽记 48（面板里 48 或 24，都是整除）；关系牌 / 动作按钮 32（显示 16~24）
-SIZE_BY_KIND = {"tech": 64, "panel": 32, "faction": 48, "relation": 32, "action": 32}
+## 徽记 64（设计稿另存 256，见 "crest"）；关系牌 / 动作按钮 32（显示 16~24）
+SIZE_BY_KIND = {"tech": 64, "panel": 32, "faction": 48, "relation": 32, "action": 32,
+                "crest": 256}
 # 用户 2026-10 定的分组规则：**不带绿的图标 → 亮绿幕；带绿的图标 → 亮品红幕**
-BG_COLORS = {"green": (0, 255, 0), "magenta": (255, 0, 255)}
-BG_NAMES = {"green": "bright green", "magenta": "bright magenta"}
+# 单色墨稿（crest）不要幕布色：直接白底，靠亮度抠（见 ink_knockout）
+BG_COLORS = {"green": (0, 255, 0), "magenta": (255, 0, 255), "white": (255, 255, 255)}
+BG_NAMES = {"green": "bright green", "magenta": "bright magenta", "white": "white"}
 
 
 # ---------------------------------------------------------------------------
@@ -322,10 +326,35 @@ def posterize(im, colors=6):
     return out
 
 
+def ink_knockout(im, ink=(58, 44, 32), lo=110.0, hi=190.0):
+    """单色纹章：**亮的变透明、暗的变墨色**，得到"实心剪影 + 镂空花纹"。
+
+    参考图那种家族纹章是一整块深色墨（盾面 + 王冠 + 月桂 + 绶带），里面的鹰/塔是**留白**。
+    所以不要"抠幕布色"，而是按亮度取反：
+      · 亮度高（纸/留白）→ alpha 0
+      · 亮度低（墨）    → alpha 255，RGB 统一成深棕墨色（跨 13 张颜色完全一致）
+      · 中间给一段软边（原图是矢量边，缩到小尺寸才不锯齿）
+    `lo/hi` 是按实测调的两条线：比 lo 暗算墨，比 hi 亮算纸。
+    """
+    im = im.convert("RGB")
+    g = ImageOps.autocontrast(im.convert("L"))
+    a = np.asarray(g, dtype=np.float32)
+    alpha = np.clip((hi - a) / max(1.0, hi - lo), 0.0, 1.0)
+    out = Image.new("RGBA", im.size, tuple(ink) + (255,))
+    out.putalpha(Image.fromarray((alpha * 255.0).astype(np.uint8), "L"))
+    return out
+
+
 def process(raw_path, icon, size, post=None):
     post = post or {}
     with Image.open(raw_path) as im:
         rgb = im.convert("RGB")
+    if post.get("mono"):
+        cut = ink_knockout(rgb, tuple(post.get("ink", (58, 44, 32))),
+                           float(post.get("ink_lo", 110)), float(post.get("ink_hi", 190)))
+        cut = fit_square(cut, size, margin=post.get("margin", 0.04))
+        cut = harden_alpha(cut, lo=110)
+        return cut
     bgc = BG_COLORS[icon["bg"]]
     score = screen_score(rgb, bgc)
     if score < 25.0:
