@@ -266,27 +266,44 @@ python scripts/gen-building.py --only embassy --pick 3 --no-gen # 只重跑抠�
 
 ---
 
-## 11. 势力纹章（设计稿，2026-10-21 换口径）
+## 11. 势力徽章（`docs/art/crests/`，2026-10-21 定了三轮）
 
-**用户**："势力徽记重新做，应该是类似纯色抽象的家族纹章，不是你这种图标"，随后贴了一张
-**矢量家族纹章**参考图（王冠 + 盾 + 月桂 + 绶带 + 一个大主纹，单色深墨、白底镂空），
-并说"生成了先放在 docs/art 下"。
+**用户三轮纠偏**（越来越简，别再加装饰）：
+1. "势力徽记重新做，应该是类似纯色抽象的家族纹章，不是你这种图标"（贴了一张矢量家族纹章参考图）
+2. "也不要皇冠绶带盾牌" + "不同的徽章要不同的颜色，不要都是同一个颜色，区分度太低" +
+   "绶带都要填充，不要就是个框"
+3. 逐个点名：**沙海只要两刀交叉 · 圣辉只要十字架 · 翡翠只要毒蛇 · 铁峰要实心山峰 + 交叉的剑**
 
-- 类别：crest，产物 **docs/art/crests/<势力id>.png（256×256，单色墨稿）**，不进 godot/assets/
-  定稿后才缩 48/64 进游戏（--size 48 + --out-dir）
-- 提示词：6 变体 —— Heraldic coat of arms drawn as a single flat dark ink silhouette … a heater
-  shield with a crown on top, laurel branches flanking it, a ribbon banner below, one bold charge
-  inside the shield, only one ink colour plus paper white
-- 题面模板（13 条共用）：
-   heraldic coat of arms: an ornate heater shield with a noble crown above it, laurel branches
-  flanking the shield, a blank ribbon banner below it. The shield field is solid dark ink, and one
-  large charge is knocked out of it in paper white in the middle: <主纹>.
-  —— **"盾面深色 + 主纹留白"必写**，否则 13 张里会混着"浅盾深纹"，一套就不像一套
-- 后处理：post.crest = { mono: true, ink: [58,44,32], margin: .03 }，走 ink_knockout()：
-  **不要幕布色**（g: "white"），按亮度取反 —— 亮处透明、暗处上墨色，
-  于是"鹰/塔/火焰"是镂空的纸白，跨 13 张颜色完全一致
-- 主纹：王庭=鹰、铁王城=钥匙、铁鸦堡=渡鸦、圣火城=火焰、金穗城=麦穗、曙光城=朝阳、
-  黑石堡=塔、翡翠=盘蛇、沙海=交叉弯刀、铁峰=雪山、圣辉=拉丁十字、银叶=叶子、灰烬=圆环
+**结论：一枚徽章 = 一个实心剪影符号，没有盾、没有王冠、没有绶带、没有月桂枝，每个势力一个颜色。**
 
-⚠️ 旧的那 13 张 48×48（ssets/ui/faction/，物品图标风）**暂留**：B4 面板还没做，
-定稿时在同一套题面上跑 --size 48 覆盖即可（post 换成 action 那套，mono 关掉）。
+| 项 | 口径 |
+|---|---|
+| 类别 | `crest` → `docs/art/crests/<势力id>.png`，**256×256**，不进 `godot/assets/` |
+| 提示词 | **`v8`**（`Bold flat vector silhouette of a single subject … no decoration around it`）；`v7` 也写了"只要主纹"，但模型仍会自己加月桂枝 —— 提"heraldic"就会招来纹章装饰，别提 |
+| 题面 | `a single symbol only: <主纹>, centred, nothing around it` |
+| 上色 | `ink_knockout()`：白底按亮度取反（亮＝透明、暗＝实心），RGB 直接填 manifest 里每个图标的 `ink` —— 13 个颜色就是这么来的，和模型自己画什么色无关 |
+| `post.crest` | `{ mono: true, ink: [58,44,32], margin: .03 }`（`ink` 是兜底，单个图标可用 `"ink": [r,g,b]` 覆盖） |
+
+### 11.1 13 枚徽章与配色
+
+| 势力 | 主纹 | 颜色 |
+|---|---|---|
+| 瓦尔登王庭 `court` | 展翅雄鹰 | 紫 `#6C3F79` |
+| 铁王城 `iron_crown` | 竖立的大钥匙 | 靛蓝 `#3B4E7A` |
+| 铁鸦堡 `iron_rook` | 立在岩上的渡鸦 | 近黑 `#26221F` |
+| 圣火城 `holy_flame` | 跃动的火焰 | 朱红 `#B43B27` |
+| 金穗城 `golden_ear` | 束在一起的三支麦穗 | 金 `#C9A227` |
+| 曙光城 `dawn` | 带长光芒的朝阳 | 橙 `#C4763A` |
+| 黑石堡 `blackstone` | 带雉堞的石塔 | 深褐 `#59412F` |
+| 翡翠王国 `jade` | 盘起、抬头的蛇 | 翠绿 `#2E7D5B` |
+| 沙海汗国 `khan` | 交叉双弯刀 | 陶红 `#8A4A32` |
+| 铁峰公国 `peak` | 实心山峰 + 交叉的两把剑 | 青灰 `#5B6B72` |
+| 圣辉教国 `holy_see` | 拉丁十字 | 古铜 `#8C6239` |
+| 银叶部落 `silverleaf` | 带中脉的尖叶 | 橄榄绿 `#6B7A35` |
+| 灰烬集会 `ashen_circle` | 断成两截的剑 | 灰 `#6A6A6A` |
+
+总览图：`docs/art/crests/_sheet.png`（13 张拼在一起，米色底）。
+
+⚠️ **旧的那 13 张 48×48**（`assets/ui/faction/`，物品图标风）**暂留**：B4 面板还没做。
+定稿时同一套题面跑 `--kind crest --size 48`，把产物目录指到 `godot/assets/ui/faction/`，
+并把 `post.crest.mono` 关掉（48px 太小，单色剪影要保留描边才看得清）。

@@ -40,6 +40,18 @@
         "note": "**家族纹章设计稿**（2026-10-21 用户给的参考图那套）：盾 + 王冠 + 月桂 + 绶带 + 一个主纹，**单色墨稿**",
         "prefix": "Heraldic coat of arms drawn as a single flat dark ink silhouette, engraved medieval family crest, ornate but clean: a heater shield with a crown on top, laurel branches flanking it, a ribbon banner below, one bold charge inside the shield, only one ink colour plus paper white, no shading, no gradients, no texture, no hatching, crisp clean vector edges, high contrast,",
         "suffix": "No text, no letters, no motto, no words on the ribbon, no colour, no ground shadow, no glow, no vignette, no gradients, no paper texture, no watermark, no second emblem; crisp clean edges; isolated on a flat pure {BG} background; the coat of arms is centred and fills most of the frame."
+      },
+      {
+        "id": "v7",
+        "note": "**只用主纹**（2026-10-21 用户：也不要皇冠绶带盾牌）：一个实心剪影符号占满画面，颜色后期上",
+        "prefix": "Flat heraldic emblem of a medieval noble house, one single bold symbol filling the frame and nothing else, drawn as a solid filled silhouette, one flat colour with a thin darker outline, high contrast, crisp clean vector edges, no shading, no gradients, no texture, no hatching,",
+        "suffix": "No text, no letters, no ribbon, no banner, no crown, no shield, no wreath, no laurel garland, no circular garland, no ornament, no border, no frame, no hollow outlines, no ground shadow, no glow, no vignette, no gradients, no paper texture, no watermark, no second object; crisp clean edges; isolated on a flat pure {BG} background; the emblem is centred and fills most of the frame."
+      },
+      {
+        "id": "v8",
+        "note": "**单个剪影符号**（v7 仍会被加上月桂枝，改用「不要纹章」的说法）：平涂实心、只有一个主体",
+        "prefix": "Bold flat vector silhouette of a single subject, one solid colour, centred on a plain empty background, no decoration around it, clean smooth edges, high contrast,",
+        "suffix": "No text, no letters, no wreath, no branches, no laurel, no ornament, no shield, no crown, no ribbon, no banner, no frame, no border, no outline stroke, no shading, no gradients, no texture, no ground shadow, no glow, no watermark, no second object; isolated on a flat pure {BG} background; the single subject is centred and fills most of the frame."
       }
     ],
     "suffix": "No text, no frame, no border, no ground shadow, no glow, no vignette, no gradients, no second object, no background texture, no watermark; crisp hard pixel edges without anti-aliasing; isolated on a flat solid {BG} background; the single object is centred and fills most of the frame."
@@ -652,93 +664,106 @@
     {
       "id": "court",
       "kind": "crest",
-      "variant": 6,
+      "variant": 7,
+      "ink": [108, 63, 121],
       "bg": "white",
-      "subject": "a heraldic coat of arms: an ornate heater shield with a noble crown above it, laurel branches flanking the shield, a blank ribbon banner below it. The shield field is solid dark ink, and one large charge is knocked out of it in paper white in the middle: a royal eagle with spread wings, head turned in profile. Engraved medieval heraldry, one solid dark ink colour plus paper white"
+      "subject": "a heraldic emblem: a royal eagle with spread wings, head turned in profile. Only this one symbol, drawn as one solid filled shape"
     },
     {
       "id": "iron_crown",
       "kind": "crest",
-      "variant": 6,
+      "variant": 8,
+      "ink": [59, 78, 122],
       "bg": "white",
-      "subject": "a heraldic coat of arms: an ornate heater shield with a noble crown above it, laurel branches flanking the shield, a blank ribbon banner below it. The shield field is solid dark ink, and one large charge is knocked out of it in paper white in the middle: a single large iron key standing upright. Engraved medieval heraldry, one solid dark ink colour plus paper white"
+      "subject": "a single symbol only: a single large iron key standing upright, centred, nothing around it"
     },
     {
       "id": "iron_rook",
       "kind": "crest",
-      "variant": 6,
+      "variant": 7,
+      "ink": [38, 34, 31],
       "bg": "white",
-      "subject": "a heraldic coat of arms: an ornate heater shield with a noble crown above it, laurel branches flanking the shield, a blank ribbon banner below it. The shield field is solid dark ink, and one large charge is knocked out of it in paper white in the middle: a raven with folded wings perched on a small rock. Engraved medieval heraldry, one solid dark ink colour plus paper white"
+      "subject": "a heraldic emblem: a raven with folded wings perched on a small rock. Only this one symbol, drawn as one solid filled shape"
     },
     {
       "id": "holy_flame",
       "kind": "crest",
-      "variant": 6,
+      "variant": 7,
+      "ink": [180, 59, 39],
       "bg": "white",
-      "subject": "a heraldic coat of arms: an ornate heater shield with a noble crown above it, laurel branches flanking the shield, a blank ribbon banner below it. The shield field is solid dark ink, and one large charge is knocked out of it in paper white in the middle: a single leaping flame. Engraved medieval heraldry, one solid dark ink colour plus paper white"
+      "subject": "a heraldic emblem: a single leaping flame. Only this one symbol, drawn as one solid filled shape"
     },
     {
       "id": "golden_ear",
       "kind": "crest",
-      "variant": 6,
+      "variant": 8,
+      "ink": [201, 162, 39],
       "bg": "white",
-      "subject": "a heraldic coat of arms: an ornate heater shield with a noble crown above it, laurel branches flanking the shield, a blank ribbon banner below it. The shield field is solid dark ink, and one large charge is knocked out of it in paper white in the middle: three wheat ears bound together. Engraved medieval heraldry, one solid dark ink colour plus paper white"
+      "subject": "a single symbol only: three wheat ears bound together at the base, centred, nothing around it"
     },
     {
       "id": "dawn",
       "kind": "crest",
-      "variant": 6,
+      "variant": 7,
+      "ink": [196, 118, 58],
       "bg": "white",
-      "subject": "a heraldic coat of arms: an ornate heater shield with a noble crown above it, laurel branches flanking the shield, a blank ribbon banner below it. The shield field is solid dark ink, and one large charge is knocked out of it in paper white in the middle: a rising sun with long straight rays above a low horizon line. Engraved medieval heraldry, one solid dark ink colour plus paper white"
+      "subject": "a heraldic emblem: a rising sun with long straight rays. Only this one symbol, drawn as one solid filled shape"
     },
     {
       "id": "blackstone",
       "kind": "crest",
-      "variant": 6,
+      "variant": 8,
+      "ink": [89, 65, 47],
       "bg": "white",
-      "subject": "a heraldic coat of arms: an ornate heater shield with a noble crown above it, laurel branches flanking the shield, a blank ribbon banner below it. The shield field is solid dark ink, and one large charge is knocked out of it in paper white in the middle: a square stone tower with battlements. Engraved medieval heraldry, one solid dark ink colour plus paper white"
+      "subject": "a single symbol only: a square stone tower with battlements, centred, nothing around it"
     },
     {
       "id": "jade",
       "kind": "crest",
-      "variant": 6,
+      "variant": 7,
+      "ink": [46, 125, 91],
       "bg": "white",
-      "subject": "a heraldic coat of arms: an ornate heater shield with a noble crown above it, laurel branches flanking the shield, a blank ribbon banner below it. The shield field is solid dark ink, and one large charge is knocked out of it in paper white in the middle: a serpent coiled into a ring. Engraved medieval heraldry, one solid dark ink colour plus paper white"
+      "subject": "a heraldic emblem: a single serpent coiled with its head raised. Only this one symbol, drawn as one solid filled shape"
     },
     {
       "id": "khan",
       "kind": "crest",
-      "variant": 6,
+      "variant": 7,
+      "ink": [138, 74, 50],
       "bg": "white",
-      "subject": "a heraldic coat of arms: an ornate heater shield with no crown, laurel branches flanking the shield, a blank ribbon banner below it. The shield field is solid dark ink, and one large charge is knocked out of it in paper white in the middle: two curved scimitars crossed in saltire. Engraved medieval heraldry, one solid dark ink colour plus paper white"
+      "subject": "a heraldic emblem: two curved scimitars crossed in saltire. Only this one symbol, drawn as one solid filled shape"
     },
     {
       "id": "peak",
       "kind": "crest",
-      "variant": 6,
+      "variant": 7,
+      "ink": [91, 107, 114],
       "bg": "white",
-      "subject": "a heraldic coat of arms: an ornate heater shield with a noble crown above it, laurel branches flanking the shield, a blank ribbon banner below it. The shield field is solid dark ink, and one large charge is knocked out of it in paper white in the middle: a single sharp snow-capped mountain peak. Engraved medieval heraldry, one solid dark ink colour plus paper white"
+      "subject": "a heraldic emblem: a solid rocky mountain peak with two crossed swords in front of it. Only this one symbol, drawn as one solid filled shape"
     },
     {
       "id": "holy_see",
       "kind": "crest",
-      "variant": 6,
+      "variant": 8,
+      "ink": [140, 98, 57],
       "bg": "white",
-      "subject": "a heraldic coat of arms: an ornate heater shield with a noble crown above it, laurel branches flanking the shield, a blank ribbon banner below it. The shield field is solid dark ink, and one large charge is knocked out of it in paper white in the middle: a tall latin cross with a long lower arm. Engraved medieval heraldry, one solid dark ink colour plus paper white"
+      "subject": "a single symbol only: a single tall latin cross, nothing beside it, no branches, no leaves, no ornament, centred, nothing around it"
     },
     {
       "id": "silverleaf",
       "kind": "crest",
-      "variant": 6,
+      "variant": 8,
+      "ink": [107, 122, 53],
       "bg": "white",
-      "subject": "a heraldic coat of arms: an ornate heater shield with no crown, laurel branches flanking the shield, a blank ribbon banner below it. The shield field is solid dark ink, and one large charge is knocked out of it in paper white in the middle: a single large pointed leaf with a central vein and a curved stem. Engraved medieval heraldry, one solid dark ink colour plus paper white"
+      "subject": "a single symbol only: a single large pointed leaf with a central vein, centred, nothing around it"
     },
     {
       "id": "ashen_circle",
       "kind": "crest",
-      "variant": 6,
+      "variant": 8,
+      "ink": [106, 106, 106],
       "bg": "white",
-      "subject": "a heraldic coat of arms: an ornate heater shield with no crown, laurel branches flanking the shield, a blank ribbon banner below it. The shield field is solid dark ink, and one large charge is knocked out of it in paper white in the middle: a plain open ring, thin and even. Engraved medieval heraldry, one solid dark ink colour plus paper white"
+      "subject": "a single symbol only: a sword broken in two pieces, the snapped blade tip lying crossed over the hilt, centred, nothing around it"
     },
     {
       "id": "rel_enemy",

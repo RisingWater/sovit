@@ -350,7 +350,9 @@ def process(raw_path, icon, size, post=None):
     with Image.open(raw_path) as im:
         rgb = im.convert("RGB")
     if post.get("mono"):
-        cut = ink_knockout(rgb, tuple(post.get("ink", (58, 44, 32))),
+        # 颜色可以按图标覆盖（manifest 里写 `"ink": [r,g,b]`）：13 个势力纹章各一个色
+        ink = icon.get("ink") or post.get("ink", (58, 44, 32))
+        cut = ink_knockout(rgb, tuple(ink),
                            float(post.get("ink_lo", 110)), float(post.get("ink_hi", 190)))
         cut = fit_square(cut, size, margin=post.get("margin", 0.04))
         cut = harden_alpha(cut, lo=110)

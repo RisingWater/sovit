@@ -497,7 +497,7 @@ applyActions → updateRoutes → activateCompleted → activateResearch → lab
 |---|---:|---|---|---|
 | **外交 / 军事 面板图标** | 2 | `assets/ui/panel/diplomacy.png`<br>`assets/ui/panel/military.png` | 32×32 | 握手 + 卷轴与火漆／交叉的两把铁剑压在木盾上（两张都烤了左侧圆盘）|
 | **左侧圆盘** | 2 | `assets/ui/nav/diplomacy.png`<br>`assets/ui/nav/military.png` | 48×48 | 由上面两张**烤盘**（`manifest.navPlate`），不用单独画 |
-| **势力纹章** | 13 | **设计稿** `docs/art/crests/<id>.png`（256×256，单色墨稿）→ 定稿后缩 48 到 `assets/ui/faction/<id>.png` | 48×48（稿 256）| **王冠 + 盾 + 月桂 + 绶带 + 一个大主纹**，单色深墨、主纹留白（照用户 2026-10-21 给的矢量纹章参考图）：鹰／钥匙／渡鸦／火焰／麦穗／朝阳／石塔／盘蛇／交叉弯刀／雪山／拉丁十字／叶子／圆环 |
+| **势力徽章** | 13 | **设计稿** `docs/art/crests/<id>.png`（256×256）→ 定稿后缩 48 到 `assets/ui/faction/<id>.png` | 48×48（稿 256）| **只有一个实心剪影符号**（用户 2026-10-21：「也不要皇冠绶带盾牌」），**每个势力一个颜色**：紫鹰／靛蓝钥匙／黑渡鸦／朱红火焰／金麦穗／橙朝阳／褐石塔／翠绿蛇／陶红交叉弯刀／青灰山峰+交叉剑／古铜拉丁十字／橄榄绿叶／灰断剑 |
 | **关系牌** | 7 | `assets/ui/faction/rel_<id>.png`：`enemy` `cold` `neutral` `friendly` `respect` `ally` `vassal` | 32×32 | 交叉短刀／蓝色冰块／黄铜天平／**橄榄枝**（品红幕）／金色桂冠／双环相扣／铁链环 |
 | **动作按钮** | 3 | `assets/ui/faction/gift.png`<br>`assets/ui/faction/treaty.png`<br>`assets/ui/faction/war.png` | 32×32 | 礼盒+红丝带／带火漆的卷轴／铁战锤 |
 | **科技图标** | 4 | `assets/ui/tech/statecraft.png`<br>`assets/ui/tech/trade_goodwill_1.png`<br>`assets/ui/tech/trade_goodwill_2.png`<br>`assets/ui/tech/trade_goodwill_3.png` | 64×64 | 火漆卷轴+丝带+墨水瓶／漆盒礼包／双环压在账本上／王冠+异国贡品堆 |
@@ -505,12 +505,12 @@ applyActions → updateRoutes → activateCompleted → activateResearch → lab
 > 动作按钮做成 **32×32**（不是 24）：`icon_left_button` 显示 16px，32→16 正好整除；
 > 24→16 会出半像素、发糊。
 >
-> ⚠️ **徽记是纹章，不是图标**（2026-10-21 用户两次纠偏）：第一版按物品图标出（王冠压铁砧、黑鸦立断剑……）
-> 全带明暗，看着像道具；第二版做成纯色小盾，用户又贴了矢量家族纹章参考图 —— 现在按参考图来：
-> **王冠 + 盾 + 月桂 + 绶带 + 一个大主纹，单色深墨、主纹白镂空**。
-> 走 `icon-manifest.json` 的 **`v6` 提示词** + 后处理 `ink_knockout()`（`post.crest.mono`，
-> 白底不要幕布色），题面模板与 13 个主纹见 [`icons.md`](icons.md) §11。
-> **设计稿在 `docs/art/crests/`（256px）**，定稿后再缩 48 覆盖 `assets/ui/faction/`。
+> ⚠️ **徽章一路在做减法**（用户三轮纠偏）：① 先是物品图标（带光影，像道具）；② 改成纯色小盾；
+> ③ 照参考图加王冠 + 月桂 + 绶带；④ 最后**全砍掉** —— 只剩一个实心剪影符号，13 个势力各一个颜色
+> （"区分度太低"）。提示词用 **`v8`**（`Bold flat vector silhouette of a single subject`），
+> 题面 `a single symbol only: <主纹>, centred, nothing around it`；颜色不是模型画的，是
+> `ink_knockout()` 按 manifest 里每个图标的 `ink` 上色。口径与 13 枚对照表见
+> [`icons.md`](icons.md) §11。
 
 ### 9.2 建筑与立绘（各 1 张，✅ 已入库）
 
