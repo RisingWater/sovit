@@ -22,6 +22,18 @@
         "id": "v3",
         "note": "等距俯视、更写实",
         "prefix": "Detailed isometric pixel art game icon, three-quarter top-down view, 64x64 sprite upscaled with hard pixel edges, thin dark outline, light from the upper left, dithered highlights, muted earthy fantasy palette,"
+      },
+      {
+        "id": "v4",
+        "note": "**纯色抽象家族纹章**（B4 势力徽记用这个）：平涂、无明暗、无渐变、粗描边",
+        "prefix": "Flat heraldic coat of arms of a noble medieval house, a single heater shield with simple abstract charges, only solid flat colour fills, four or five tinctures at most, no shading, no highlights, no gradients, no dithering, no bevel, no texture, thick uniform dark outline, bold minimal shapes that read at tiny size, medieval European heraldry, one-pixel pixel-art edges,",
+        "suffix": "No text, no letters, no banner, no ground shadow, no glow, no vignette, no gradients, no background texture, no watermark, no second object; the shield keeps its own thick dark outline; crisp hard pixel edges without anti-aliasing; isolated on a flat solid {BG} background; the shield is centred and fills most of the frame."
+      },
+      {
+        "id": "v5",
+        "note": "**纯色抽象纹章 · 不要盾形**（只用徽记符号，方形构图）",
+        "prefix": "Flat abstract heraldic emblem of a medieval noble house, a single bold symbol drawn with solid flat colour fills, four or five tinctures at most, no shading, no highlights, no gradients, no dithering, no bevel, no texture, thick uniform dark outline, geometric and minimal so it reads at tiny size, one-pixel pixel-art edges,",
+        "suffix": "No text, no letters, no banner, no ground shadow, no glow, no vignette, no gradients, no background texture, no watermark, no second object; crisp hard pixel edges without anti-aliasing; isolated on a flat solid {BG} background; the emblem is centred and fills most of the frame."
       }
     ],
     "suffix": "No text, no frame, no border, no ground shadow, no glow, no vignette, no gradients, no second object, no background texture, no watermark; crisp hard pixel edges without anti-aliasing; isolated on a flat solid {BG} background; the single object is centred and fills most of the frame."
@@ -634,80 +646,93 @@
     {
       "id": "court",
       "kind": "faction",
+      "variant": 4,
       "bg": "green",
-      "subject": "a golden crown resting on a black iron anvil, heraldic emblem"
+      "subject": "a heater shield parted per pale into a gold left half and a deep crimson right half, a single bold black crown charge in the centre, plain medieval heraldry"
     },
     {
       "id": "iron_crown",
       "kind": "faction",
+      "variant": 4,
       "bg": "green",
-      "subject": "a large iron key crossed with a stack of gold coins, heraldic emblem"
+      "subject": "a heater shield quarterly divided into dark iron grey and gold, a single upright silver key charge in the centre, plain medieval heraldry"
     },
     {
       "id": "iron_rook",
       "kind": "faction",
+      "variant": 4,
       "bg": "green",
-      "subject": "a black raven perched on a broken sword, heraldic emblem"
+      "subject": "a heater shield in plain black, a single white raven silhouette charge, wings folded, in the centre, plain medieval heraldry"
     },
     {
       "id": "holy_flame",
       "kind": "faction",
+      "variant": 4,
       "bg": "green",
-      "subject": "a sacred flame burning in a carved stone brazier, heraldic emblem"
+      "subject": "a heater shield in deep crimson, a single bright gold flame charge rising in the centre, high contrast against the field, plain medieval heraldry"
     },
     {
       "id": "golden_ear",
       "kind": "faction",
-      "bg": "green",
-      "subject": "a bundle of golden wheat sheaves tied with twine, heraldic emblem"
+      "variant": 4,
+      "bg": "magenta",
+      "subject": "a heater shield in deep green, three bright gold wheat ears bound together in the centre, high contrast against the field, plain medieval heraldry"
     },
     {
       "id": "dawn",
       "kind": "faction",
+      "variant": 4,
       "bg": "green",
-      "subject": "an open book with a rising sun and long rays behind it, heraldic emblem"
+      "subject": "a heater shield in pale sky blue, a gold rising sun with a few straight rays low in the chief, plain medieval heraldry"
     },
     {
       "id": "blackstone",
       "kind": "faction",
+      "variant": 4,
       "bg": "green",
-      "subject": "a black stone block with a dagger struck into its top, heraldic emblem"
+      "subject": "a heater shield in plain black, a single pale grey square stone charge in the centre, plain medieval heraldry"
     },
     {
       "id": "jade",
       "kind": "faction",
+      "variant": 4,
       "bg": "magenta",
-      "subject": "a single large faceted green gemstone with a thin silver serpent coiled around its base, heraldic emblem"
+      "subject": "a heater shield in deep sea green, a single white serpent coiled in a circle in the centre, plain medieval heraldry"
     },
     {
       "id": "khan",
       "kind": "faction",
+      "variant": 4,
       "bg": "green",
-      "subject": "a single curved iron scimitar with a wrapped leather hilt and a red tassel, heraldic emblem"
+      "subject": "a heater shield in sand gold, two black scimitars crossed in saltire in the centre, plain medieval heraldry"
     },
     {
       "id": "peak",
       "kind": "faction",
+      "variant": 4,
       "bg": "green",
-      "subject": "a snow-capped mountain peak with a heavy war hammer before it, heraldic emblem"
+      "subject": "a heater shield in stone grey, a single white mountain peak charge rising from the base, plain medieval heraldry"
     },
     {
       "id": "holy_see",
       "kind": "faction",
+      "variant": 4,
       "bg": "green",
-      "subject": "a golden sunburst with a plain cross of light in its centre, heraldic emblem"
+      "subject": "a heater shield in plain white, a single deep red latin cross charge in the centre with thin gold sun rays behind its arms, plain medieval heraldry"
     },
     {
       "id": "silverleaf",
       "kind": "faction",
-      "bg": "green",
-      "subject": "a silver-leafed branch crossed with a slender wooden bow, heraldic emblem"
+      "variant": 4,
+      "bg": "magenta",
+      "subject": "a heater shield in dark forest green, a single pale silver leaf charge in the centre, plain medieval heraldry"
     },
     {
       "id": "ashen_circle",
       "kind": "faction",
+      "variant": 4,
       "bg": "green",
-      "subject": "a pale porcelain mask with a dark grey hood behind it, heraldic emblem"
+      "subject": "a heater shield in plain black, a thin pale grey ring charge in the centre, plain medieval heraldry"
     },
     {
       "id": "rel_enemy",
@@ -784,9 +809,10 @@
       "rim": 1
     },
     "faction": {
-      "margin": 0.08,
-      "contrast": 1.06,
-      "color": 1.1,
+      "margin": 0.06,
+      "contrast": 1.0,
+      "color": 1.0,
+      "posterize": 6,
       "rim": 1
     },
     "relation": {

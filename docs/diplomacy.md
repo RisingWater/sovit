@@ -497,13 +497,18 @@ applyActions → updateRoutes → activateCompleted → activateResearch → lab
 |---|---:|---|---|---|
 | **外交 / 军事 面板图标** | 2 | `assets/ui/panel/diplomacy.png`<br>`assets/ui/panel/military.png` | 32×32 | 握手 + 卷轴与火漆／交叉的两把铁剑压在木盾上（两张都烤了左侧圆盘）|
 | **左侧圆盘** | 2 | `assets/ui/nav/diplomacy.png`<br>`assets/ui/nav/military.png` | 48×48 | 由上面两张**烤盘**（`manifest.navPlate`），不用单独画 |
-| **势力徽记** | 13 | `assets/ui/faction/<id>.png`：`court` `iron_crown` `iron_rook` `holy_flame` `golden_ear` `dawn` `blackstone` `jade` `khan` `peak` `holy_see` `silverleaf` `ashen_circle` | 48×48 | 王冠+铁砧／铁钥匙+金币／黑鸦立断剑／石炉圣火／金麦束／摊开的书+朝阳／黑石+匕首／**绿宝石+银蛇**（品红幕）／弯刀+红缨／雪山+战锤／金光十字／银叶+木弓／瓷面具+灰兜帽 |
+| **势力徽记** | 13 | `assets/ui/faction/<id>.png`：`court` `iron_crown` `iron_rook` `holy_flame` `golden_ear` `dawn` `blackstone` `jade` `khan` `peak` `holy_see` `silverleaf` `ashen_circle` | 48×48 | **纯色抽象家族纹章**（盾形 + 一个主纹，不画立体物件）：金/绯竖分 + 黑王冠、四等分铁灰/金 + 银钥匙、黑底白鸦、深红底金焰、深绿底金麦穗、浅蓝底金朝阳、黑底灰石、海绿底白蛇、沙金底黑双刀、石灰底白山峰、白底红拉丁十字 + 金光线、墨绿底银叶、黑底灰环 |
 | **关系牌** | 7 | `assets/ui/faction/rel_<id>.png`：`enemy` `cold` `neutral` `friendly` `respect` `ally` `vassal` | 32×32 | 交叉短刀／蓝色冰块／黄铜天平／**橄榄枝**（品红幕）／金色桂冠／双环相扣／铁链环 |
 | **动作按钮** | 3 | `assets/ui/faction/gift.png`<br>`assets/ui/faction/treaty.png`<br>`assets/ui/faction/war.png` | 32×32 | 礼盒+红丝带／带火漆的卷轴／铁战锤 |
 | **科技图标** | 4 | `assets/ui/tech/statecraft.png`<br>`assets/ui/tech/trade_goodwill_1.png`<br>`assets/ui/tech/trade_goodwill_2.png`<br>`assets/ui/tech/trade_goodwill_3.png` | 64×64 | 火漆卷轴+丝带+墨水瓶／漆盒礼包／双环压在账本上／王冠+异国贡品堆 |
 
 > 动作按钮做成 **32×32**（不是 24）：`icon_left_button` 显示 16px，32→16 正好整除；
 > 24→16 会出半像素、发糊。
+>
+> ⚠️ **徽记是纹章，不是图标**（2026-10-21 用户："应该是类似纯色抽象的家族纹章，不是你这种图标"）：
+> 第一版按物品图标那套出（王冠压铁砧、黑鸦立断剑……）全带明暗，看着像道具。现在 13 张统一走
+> `icon-manifest.json` 的 **`v4` 提示词**（平涂、无明暗、粗描边、4–5 个色）+ 后处理 **`posterize: 6`**，
+> 题面一律写成"盾面 + 一个主纹"。带绿盾面的（金穗 / 翡翠 / 银叶）用**品红幕**。
 
 ### 9.2 建筑与立绘（各 1 张，✅ 已入库）
 

@@ -106,8 +106,15 @@ def api_bytes(path):
 
 def prompt_for(icon, style, variant):
     v = style["variants"][variant]
+    # 变体可以自带 suffix（例如纹章那套要允许"盾形边框"，而物品图标不许有框）
+    suffix = v.get("suffix") or style["suffix"]
     return "%s Subject: %s. %s" % (v["prefix"], icon["subject"],
-                                   style["suffix"].replace("{BG}", BG_NAMES[icon["bg"]]))
+                                   suffix.replace("{BG}", BG_NAMES[icon["bg"]]))
+
+
+def variant_of(icon, args):
+    """这个图标该用第几套提示词：图标自己写了 `variant`（1 起）就用它，否则听 `--variant`。"""
+    return int(icon.get("variant", args.variant)) - 1
 
 
 def build_workflow(items, style, size):
@@ -306,6 +313,15 @@ def add_rim(im, color=(38, 26, 18), th=128):
     return out
 
 
+def posterize(im, colors=6):
+    """压到 N 个色（不抖动）—— 给"纯色平涂"的纹章用：模型总会偷偷加明暗，这一步把渐变拍平。"""
+    im = im.convert("RGBA")
+    rgb = im.convert("RGB").quantize(colors=colors, method=Image.MEDIANCUT, dither=Image.NONE)
+    out = rgb.convert("RGBA")
+    out.putalpha(im.getchannel("A"))
+    return out
+
+
 def process(raw_path, icon, size, post=None):
     post = post or {}
     with Image.open(raw_path) as im:
@@ -318,6 +334,8 @@ def process(raw_path, icon, size, post=None):
     cut = key_out(rgb, bgc)
     cut = despill(cut, bgc)
     cut = enhance(cut, post.get("color", 1.0), post.get("contrast", 1.0))
+    if post.get("posterize"):
+        cut = posterize(cut, int(post["posterize"]))
     cut = fit_square(cut, size, margin=post.get("margin", 0.05))
     cut = harden_alpha(cut)
     if post.get("rim", 0):
@@ -415,11 +433,11 @@ def main():
         return
 
     if args.dry_run:
-        v = args.variant - 1
         for i in icons:
             print("=" * 78)
-            print("%s / %s / [%s]" % (i["kind"], i["id"], i["bg"]))
-            print(prompt_for(i, style, v))
+            print("%s / %s / [%s] / v%d" % (i["kind"], i["id"], i["bg"],
+                                            variant_of(i, args) + 1))
+            print(prompt_for(i, style, variant_of(i, args)))
         return
 
     preview = args.variants > 1 or args.preview
@@ -436,21 +454,29 @@ def main():
 
     for start in range(0, len(icons), args.batch):
         chunk = icons[start:start + args.batch]
+        # 一个批次里可能混着不同变体（纹章用 v4、其余用 v2）：按**实际变体**分组生成
+        if args.variants > 1:
+            # 试风格模式：整批都按 CLI 给的区间各来一遍，忽略图标自带的 variant
+            groups = {v: list(chunk) for v in range(first, first + count)}
+        else:
+            groups = {}
+            for ic in chunk:
+                groups.setdefault(variant_of(ic, args), []).append(ic)
         if not args.no_gen:
-            for v in range(first, first + count):
+            for v, group in sorted(groups.items()):
                 tag = "v%d" % (v + 1)
-                items = [(ic, prompt_for(ic, style, v)) for ic in chunk]
-                print("生成 %d 个图标 [%s] ..." % (len(chunk), tag), flush=True)
+                items = [(ic, prompt_for(ic, style, v)) for ic in group]
+                print("生成 %d 个图标 [%s] ..." % (len(group), tag), flush=True)
                 hist = run_workflow(build_workflow(items, style, args.gen_size))
                 got = download_outputs(hist, tag)
-                for ic in chunk:
+                for ic in group:
                     if ic["id"] not in got:
                         print("  !! 没拿到", ic["id"])
 
-        for v in range(first, first + count):
+        for v, group in sorted(groups.items()):
             tag = "v%d" % (v + 1)
             post_all = man.get("post", {})
-            for ic in chunk:
+            for ic in group:
                 post = post_all.get(ic["kind"], {})
                 if preview:
                     raw = os.path.join(STAGING, "%s__%s.png" % (tag, ic["id"]))
