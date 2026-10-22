@@ -443,7 +443,8 @@ func _compute_layout(ids: Array, kind: int) -> Dictionary:
 	var root_rows: Array = []
 	for r in roots:
 		root_rows.append(row)
-		row += 2
+		# 根与根之间**只隔一行**（2026-10 用户："这个间隔太大了" —— 之前空两行 = 260px）
+		row += 1
 	var stack: Array = []
 	for i in range(roots.size() - 1, -1, -1):
 		stack.append([String(roots[i]), int(root_rows[i])])
