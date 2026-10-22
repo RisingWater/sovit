@@ -524,32 +524,30 @@
 
 ## 六、立绘
 
-### 6.1 已经产出的 21 张
+### 6.1 已入库的 21 张（2026-10 新批，整批重出）
 
-设定集 §十一：顾问团 9 人 + 王室与邻国 12 人，**源图都是 1024×1536 纯 `#00FF00` 绿底**，
-统一取景，成品是透明底、可直用。**源图不入库**（与图标、建筑整图同一口径，只提交抠好的 PNG）。
+设定集 §十一：顾问团 9 人 + 王室与邻国 12 人。**新批管线**（与旧批的绿幕键控完全不同）：
 
-### 6.2 仓库里已有的 8 张
+1. **生成**：ComfyUI `z-image-turbo` 1024×1536 **白底**立绘（提示词 `prompt.json`）
+2. **抠图**：ComfyUI BiRefNet（`background_removal/birefnet.safetensors` + InvertMask，见 `cutout.py`）→ 1024×1536 透明底
+3. **入库**：alpha bbox 自适应裁 **5:7**（上/侧留 24px、底部贴边、多余高度补在头顶）→ 缩 **640×896** → `godot/assets/portraits/<id>.png`
 
-| 文件 | 尺寸 | 说明 |
+原图 / 抠好图 / 提示词 / 生成与抠图脚本都归档在 `docs/art/game/03_portraits/`
+（`src/` 原图 · `cast/` 抠好图 · `script/` 脚本与提示词），旧目录 `docs/art/npc/` 已删除。
+
+### 6.2 仓库里已有的 21 张
+
+| 组 | id（= 文件名） | 尺寸 |
 |---|---|---|
-| `godot/assets/portraits/sebastian.png` | 640×896 | 默认表情 |
-| `godot/assets/portraits/alvin.png` | 640×896 | 默认表情 |
-| `godot/assets/portraits/reynard.png` | 640×896 | 默认表情 |
-| `godot/assets/portraits/isabella.png` | 640×896 | 默认表情 |
-| `godot/assets/portraits/vera.png` | 640×896 | 默认表情 |
-| `godot/assets/portraits/luna.png` | 640×896 | 默认表情 |
-| `godot/assets/portraits/serafina.png` | 640×896 | 默认表情 |
-| `godot/assets/portraits/milla.png` | 640×896 | 默认表情（2026-10-21 入库）|
+| 顾问团（9）| `sebastian` `alvin` `reynard` `isabella` `vera` `luna` `serafina` `milla` `gareth` | 640×896 透明底 |
+| 王室与邻国（12）| `adderick` `albert` `bernard` `cedric` `theodore` `irena` `edmund` `frederick` `aislin` `batur` `hermann` `gregory` | 640×896 透明底 |
 
-⚠️ **尺寸从 640×960 改成 640×896**（2026-10-20）：出图工具在右下角压了一行
-「AI生成 / WORKBUDDY」水印，四张（`isabella` / `reynard` / `sebastian` / `serafina`）
-**带着它**，所以统一把底部 64px 裁掉 —— 带水印的清掉了，不带的一起裁，
-保证七个人**同尺寸、同纵横比**（面板按宽高比现算宽度，尺寸不一致会让人物忽宽忽窄）。
-以后再出图：**要么别让工具加水印，要么同样从底部裁 64px**。
+**仍缺**：`elise`（艾莉丝，scenes.json 已在引用）、`aelon`、`morgana`（见 §6.3 尾表）。
+表情差分 `<id>_<表情>.png` 一张都没有 —— `Cast.portrait()` 找不到差分自动落回默认脸。
 
-这套图的构图本来就对齐（人物都在 x 118..904 / y 150..1329 之内），所以**同一套裁切框**裁过去，
-人物大小与站位天然一致。以后补表情也照这个框（底部仍留 64px 余量）。
+⚠️ 旧批"统一裁切框 (110,140,910,1260)"是给**绿幕旧图**用的（当时为清水印统一裁底部 64px）。
+新批头顶留白比旧批小、取景各张不同，**不再适用固定框** —— 现在按每张的 alpha bbox 自适应裁，
+人物在画框里的大小与站位天然一致（管线脚本见 `docs/art/game/03_portraits/script/`）。
 
 ### 6.3 命名与 id
 
@@ -573,18 +571,18 @@
 
 | 序号 | id | 中文 |
 |---|---|---|
-| 01 | `aderick` | 奥德里克三世 |
-| 02 | `albert` | 阿尔伯特 |
-| 03 | `bernard` | 伯纳德 |
-| 04 | `cedric` | 塞德里克 |
-| 05 | `theodore` | 狄奥多 |
-| 06 | `irena` | 伊莲娜 |
-| 07 | `edmund` | 埃德蒙 |
-| 08 | `frederick` | 弗雷德里克 |
-| 09 | `aeslin` | 艾瑟琳〔id 待定：英文拼写你定，改名只改文件名〕|
-| 10 | `batur` | 巴图尔 |
-| 11 | `herman` | 赫尔曼 |
-| 12 | `gregory` | 格里高利 |
+| 11 | `adderick` | 奥德里克三世 |
+| 12 | `albert` | 阿尔伯特 |
+| 13 | `bernard` | 伯纳德 |
+| 14 | `cedric` | 塞德里克 |
+| 15 | `theodore` | 狄奥多 |
+| 16 | `edmund` | 埃德蒙 |
+| 17 | `frederick` | 弗雷德里克 |
+| 18 | `aislin` | 艾瑟琳〔拼写以文件名 `aislin` 为准；改名只改文件名〕|
+| 19 | `batur` | 巴图尔 |
+| 20 | `hermann` | 赫尔曼 |
+| 21 | `gregory` | 格里高利 |
+| 22 | `irena` | 伊莲娜 |
 
 **精灵与女巫（3，设定已定，立绘待画）**
 
@@ -594,7 +592,10 @@
 | `aelon` | 艾隆 | 精灵长老 |
 | `morgana` | 莫甘娜 | 灰烬集会领袖 |
 
-### 6.4 抠图口径（要重跑时照这个来）
+### 6.4 抠图口径（**旧批绿幕图**的口径，备查；新批不走这套）
+
+> 2026-10 新批（`docs/art/game/03_portraits/`）是**白底生成 + BiRefNet 抠图**，没有绿幕键控问题，
+> 绿裙/绿衣角色也直接过 `cutout.py` —— 下面这套 `key = G - max(R,B)` 的口径只适用于**旧批绿幕源图**。
 
 `scripts/import-portraits.py` 已经把踩过的坑都写成常量了：
 
@@ -606,10 +607,10 @@
 - 剩下的绿再按 `G → max(R, B)` 压掉。**不要填洞**（头发之间那几道是真实的缝）。
 - 裁切框：1024×1536 源图取 `x 110..910, y 140..1340` → 缩到 **640×960**（2:3）。
 
-> ⚠️ **艾瑟琳是唯一例外，而且抠图由你们自己做**（2026-11 定）：
-> 她的裙子是深翡翠绿，和绿幕同色域，上面这套通用脚本会把裙子吃掉。
-> **不要用 `import-portraits.py` 过她** —— 手工抠好后把成品 PNG 直接放到
-> `godot/assets/portraits/aeslin.png`（640×960、2:3、透明底）即可，后续流程照 §6.5 第 4 步起。
+> ⚠️ **艾瑟琳（`aislin`）的绿裙例外已随新批解决**（2026-10）：新批走白底 + BiRefNet，
+> 不吃绿裙，`18_aislin` 已正常抠出并以 `godot/assets/portraits/aislin.png` 入库（640×896）。
+> 下面这段只记录旧批为什么必须手工：她的裙子是深翡翠绿，和绿幕同色域，
+> 旧的通用脚本会把裙子吃掉。
 
 ### 6.5 导入流程
 

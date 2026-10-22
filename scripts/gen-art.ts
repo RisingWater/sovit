@@ -875,68 +875,9 @@ function coinIcon(): Canvas {
   return c
 }
 
-function navButton(kind: string): Canvas {
-  const c = new Canvas(G, G)
-  const k = kind === 'hover' ? 1.14 : kind === 'pressed' ? 0.82 : 1.0
-  const R_OUT = 7.5 // 圆的外缘半径
-  const R_FRAME = 5.9 // 外框内边界（约 1.6px 厚）
-  const R_HILITE = 5.1 // 高光内边界
-  const cx = 7.5
-  const cy = 7.5
-  const rad = (x: number, y: number) => {
-    const dx = x + 0.5 - cx
-    const dy = y + 0.5 - cy
-    return Math.sqrt(dx * dx + dy * dy)
-  }
-
-  for (let y = 0; y < G; y++) {
-    for (let x = 0; x < G; x++) {
-      const r = rad(x, y)
-      if (r > R_OUT) continue // 圆外留透明
-      if (r > R_FRAME) {
-        c.set(x, y, navShade(NB_FRAME, k))
-      } else if (r > R_HILITE) {
-        c.set(x, y, navShade(NB_HILITE, k))
-      } else {
-        // 单色平涂（不做木纹）
-        c.set(x, y, navShade(NB_FILL, k))
-      }
-    }
-  }
-
-  // 四向金属卡扣：横跨外框与高光、并向内咬进木头 1px，像把木盘"箍住"。
-  // ⚠️ 每一格都必须**仍在圆内**（r <= R_OUT）—— 否则卡扣的边角会戳出圆外，
-  // 整个剪影变成"圆 + 四个灰方块"，第一版就是这么画错的。
-  // 外侧 1px 提亮、内侧 1px 压暗，做出金属反光。
-  const clip = (x0: number, y0: number, w: number, h: number, vertical: boolean, brightOuter: boolean) => {
-    for (let y = y0; y < y0 + h; y++) {
-      for (let x = x0; x < x0 + w; x++) {
-        if (rad(x, y) > R_OUT) continue
-        // 沿"从圆外指向圆心"的方向：第一格是外侧，最后一格是内侧
-        const isOuter = vertical
-          ? (brightOuter ? y === y0 : y === y0 + h - 1)
-          : brightOuter
-            ? x === x0
-            : x === x0 + w - 1
-        const isInner = vertical
-          ? (brightOuter ? y === y0 + h - 1 : y === y0)
-          : brightOuter
-            ? x === x0 + w - 1
-            : x === x0
-        const col = isOuter ? NB_METAL_L : isInner ? NB_METAL_D : NB_METAL
-        c.set(x, y, navShade(col, k))
-      }
-    }
-  }
-  clip(6, 1, 4, 2, true, true) // 正上：亮边朝上
-  clip(6, 13, 4, 2, true, false) // 正下：亮边朝下
-  clip(1, 6, 2, 4, false, true) // 正左：亮边朝左
-  clip(13, 6, 2, 4, false, false) // 正右：亮边朝右
-  return c
-}
-
 // ---------------------------------------------------------------------------
-// 商品图标（16x16，全自绘）
+// 调色板：商品图标那一代定下来的配色，现在被 techIcon / coinIcon 复用
+// （goodIcon() 与 navButton() 已删除：商品图标改手绘、圆钮底图弃用，2026-10）
 // ---------------------------------------------------------------------------
 const I_DARK: RGBA = [58, 40, 30, 255]
 const I_WOOD: RGBA = [166, 110, 68, 255]
@@ -955,186 +896,26 @@ const I_CLAY: RGBA = [186, 124, 80, 255]
 const I_PURPLE: RGBA = [150, 96, 168, 255]
 const I_GREY: RGBA = [128, 134, 144, 255]
 
-function sack(c: Canvas, body: RGBA, tie: RGBA): void {
-  c.rect(4, 5, 8, 9, body)
-  c.stroke(4, 5, 8, 9, I_DARK)
-  c.rect(5, 3, 6, 2, body)
-  c.rect(5, 3, 6, 1, tie)
-}
-
-function loaf(c: Canvas, body: RGBA, crust: RGBA): void {
-  c.rect(3, 6, 10, 6, body)
-  c.rect(3, 6, 10, 2, crust)
-  c.stroke(3, 6, 10, 6, I_DARK)
-  c.rect(5, 9, 2, 1, crust)
-  c.rect(9, 9, 2, 1, crust)
-}
-
-function shirt(c: Canvas, body: RGBA, trim: RGBA): void {
-  c.rect(5, 4, 6, 9, body)
-  c.rect(2, 5, 3, 3, body)
-  c.rect(11, 5, 3, 3, body)
-  c.stroke(5, 4, 6, 9, I_DARK)
-  c.rect(5, 4, 6, 1, trim)
-  c.rect(7, 5, 2, 3, trim)
-}
-
-function ingot(c: Canvas, body: RGBA, lit: RGBA): void {
-  c.rect(3, 9, 10, 4, body)
-  c.rect(4, 7, 8, 2, lit)
-  c.rect(5, 6, 6, 1, lit)
-  c.stroke(3, 9, 10, 4, I_DARK)
-}
-
-function jug(c: Canvas, body: RGBA, lit: RGBA): void {
-  c.rect(5, 3, 3, 2, body)
-  c.rect(4, 5, 8, 7, body)
-  c.rect(3, 7, 1, 4, body)
-  c.rect(12, 7, 1, 4, body)
-  c.stroke(4, 5, 8, 7, I_DARK)
-  c.rect(5, 6, 2, 5, lit)
-}
-
-function goodIcon(id: string): Canvas {
-  const c = new Canvas(G, G)
-  switch (id) {
-    case 'wheat': case 'coarse_flour': case 'fine_flour':
-      sack(c, id === 'wheat' ? I_GOLD : I_CREAM, I_WOOD)
-      if (id === 'wheat') { c.rect(6, 6, 1, 1, I_GOLD_D); c.rect(9, 9, 1, 1, I_GOLD_D) }
-      break
-    case 'vegetable':
-      c.rect(4, 5, 8, 8, I_GREEN); c.stroke(4, 5, 8, 8, I_DARK)
-      c.rect(5, 6, 3, 3, I_GREEN_D); c.rect(6, 4, 4, 1, I_GREEN_D)
-      break
-    case 'flax':
-      c.rect(7, 5, 2, 9, I_GREEN_D)
-      c.rect(5, 3, 6, 3, I_BLUE); c.rect(7, 2, 2, 1, I_BLUE)
-      c.rect(5, 8, 3, 1, I_GREEN); c.rect(8, 10, 3, 1, I_GREEN)
-      break
-    case 'cotton':
-      c.rect(4, 6, 8, 7, I_CREAM); c.stroke(4, 6, 8, 7, I_DARK)
-      c.rect(3, 4, 4, 3, I_CREAM); c.rect(9, 4, 4, 3, I_CREAM)
-      c.rect(6, 8, 4, 3, I_STONE_L)
-      break
-    case 'wood':
-      c.rect(2, 6, 12, 6, I_WOOD); c.stroke(2, 6, 12, 6, I_DARK)
-      c.rect(2, 6, 12, 1, I_WOOD_L)
-      c.disc(5, 9, 2, I_WOOD_L)
-      break
-    case 'firewood':
-      for (const [x, y] of [[2, 9], [7, 9], [4, 5], [9, 5]] as const) {
-        c.rect(x, y, 5, 4, I_WOOD); c.stroke(x, y, 5, 4, I_DARK)
-      }
-      c.rect(6, 2, 4, 2, I_RED)
-      break
-    case 'stone': case 'clay':
-      c.rect(3, 6, 10, 7, id === 'stone' ? I_STONE : I_CLAY)
-      c.rect(5, 4, 6, 3, id === 'stone' ? I_STONE_L : I_CLAY)
-      c.stroke(3, 6, 10, 7, I_DARK)
-      break
-    case 'meat': case 'dried_meat':
-      c.rect(3, 5, 10, 8, I_RED); c.stroke(3, 5, 10, 8, I_DARK)
-      c.rect(4, 6, 5, 3, I_RED_D)
-      c.rect(10, 9, 3, 3, I_CREAM)
-      break
-    case 'fish': case 'smoked_fish':
-      c.rect(4, 7, 8, 5, id === 'fish' ? I_BLUE : I_CLAY)
-      c.rect(2, 6, 2, 7, id === 'fish' ? I_BLUE : I_CLAY)
-      c.rect(3, 9, 1, 2, I_CREAM)
-      c.stroke(4, 7, 8, 5, I_DARK)
-      c.set(10, 8, I_DARK)
-      break
-    case 'hide':
-      c.rect(3, 3, 10, 10, I_CLAY); c.stroke(3, 3, 10, 10, I_DARK)
-      c.rect(5, 5, 6, 6, I_WOOD_L)
-      break
-    case 'sugarcane':
-      c.rect(4, 4, 2, 10, I_GREEN); c.rect(9, 3, 2, 11, I_GREEN_D)
-      c.rect(3, 6, 4, 1, I_GREEN_D); c.rect(8, 9, 4, 1, I_GREEN)
-      break
-    case 'dye':
-      jug(c, I_PURPLE, I_BLUE)
-      break
-    case 'sugar':
-      c.rect(3, 8, 10, 5, I_CREAM); c.stroke(3, 8, 10, 5, I_DARK)
-      c.rect(5, 5, 6, 3, I_CREAM)
-      c.rect(7, 3, 3, 2, I_CREAM)
-      break
-    case 'coarse_cloth': case 'fine_cloth': case 'coarse_clothes':
-    case 'common_clothes': case 'luxury_clothes': case 'leather_clothes':
-      shirt(c,
-        id.includes('luxury') ? I_PURPLE : id === 'leather_clothes' ? I_WOOD : id.includes('fine') ? I_BLUE : I_CREAM,
-        id.includes('luxury') ? I_GOLD : I_WOOD_L)
-      break
-    case 'brick':
-      for (const [x, y] of [[2, 8], [7, 8], [4, 4]] as const) {
-        c.rect(x, y, 5, 4, I_CLAY); c.stroke(x, y, 5, 4, I_DARK)
-      }
-      break
-    case 'pottery': case 'porcelain':
-      jug(c, id === 'pottery' ? I_CLAY : I_CREAM, id === 'pottery' ? I_WOOD_L : I_BLUE)
-      break
-    case 'coarse_bread': case 'white_bread':
-      loaf(c, id === 'white_bread' ? I_CREAM : I_GOLD, I_WOOD)
-      break
-    case 'pastry':
-      loaf(c, I_RED, I_CREAM)
-      c.rect(7, 3, 2, 2, I_RED)
-      break
-    case 'domestic_service':
-      c.rect(7, 3, 2, 8, I_WOOD)
-      c.rect(5, 11, 6, 3, I_GOLD)
-      c.rect(6, 2, 5, 2, I_GOLD_D)
-      break
-    case 'entertainment':
-      c.rect(6, 3, 1, 8, I_DARK)
-      c.rect(7, 3, 5, 1, I_DARK)
-      c.rect(11, 3, 1, 4, I_DARK)
-      c.disc(5, 11, 2, I_PURPLE)
-      break
-    case 'hut': case 'wooden_house': case 'brick_house':
-      c.rect(3, 8, 10, 5, id === 'brick_house' ? I_CLAY : I_WOOD)
-      c.rect(2, 5, 12, 3, id === 'hut' ? I_RED_D : I_STONE)
-      c.rect(7, 10, 2, 3, I_DARK)
-      break
-    case 'stone_tools':
-      // 石锤：木柄 + 石块锤头（工具坊的产出）
-      c.rect(3, 3, 10, 4, I_STONE)
-      c.rect(3, 3, 10, 1, I_STONE_L)
-      c.rect(7, 7, 2, 8, I_WOOD)
-      c.stroke(3, 3, 10, 4, I_DARK)
-      c.stroke(7, 7, 2, 8, I_DARK)
-      break
-    default:
-      ingot(c, I_GOLD, I_GOLD_D)
-  }
-  return c
-}
-
 // ---------------------------------------------------------------------------
 function main(): void {
   mkdirSync(`${ROOT}/buildings`, { recursive: true })
   mkdirSync(`${ROOT}/thumbs`, { recursive: true })
   mkdirSync(`${ROOT}/actors`, { recursive: true })
-  mkdirSync(`${ROOT}/goods`, { recursive: true })
   mkdirSync(`${ROOT}/ui`, { recursive: true })
 
-  // 只重画某一块：`node scripts/gen-art.ts nav`（导航圆钮贴图 + 拖动条把手）
+  // 只重画某一块：`node scripts/gen-art.ts nav`（拖动条把手）
   //
-  // 存在的理由：改一个配色不该把 100+ 张建筑 / 角色 / 商品图全重写一遍 ——
+  // 存在的理由：改一个配色不该把 100+ 张建筑 / 角色图全重写一遍 ——
   // 那样 `git status` 一片红，还容易把别处没提交的生成结果混进这次改动。
   //
-  // ⚠️ 圆钮贴图（`ui/nav_btn_*.png`）**2026-10 起不用了**：左侧圆钮改成"圆盘烤在
-  //    图标里"（`assets/ui/nav/<id>.png`，见 `hud.gd::_style_round`），
-  //    16×16 拉到 48 是 3 倍 Nearest，圆边全是锯齿 —— 用户："圆框全是马赛克"。
-  //    这两个文件留着备查，别再往圆钮上贴。
+  // ⚠️ 圆钮贴图（`ui/nav_btn_*.png`）与商品兜底（`goods/`）**已整体删除**（2026-10）：
+  //    前者被"圆盘烤在图标里"的 `assets/ui/nav/<id>.png` 取代（hud.gd），
+  //    后者被手绘 `assets/icons/<id>.png` 取代 —— 缺图直接显示品红方块
+  //    （`good_icons.gd`），不再静默回滚旧图。
   const only = process.argv[2]
   if (only === 'nav') {
-    for (const k of ['normal', 'hover', 'pressed']) {
-      writeFileSync(`${ROOT}/ui/nav_btn_${k}.png`, navButton(k).toPng())
-    }
     writeFileSync(`${ROOT}/ui/slider_grabber.png`, sliderGrabber().toPng())
-    console.log(`nav 圆钮 → ${ROOT}/ui/（normal / hover / pressed + slider_grabber）`)
+    console.log(`拖动条把手 → ${ROOT}/ui/slider_grabber.png`)
     return
   }
 
@@ -1183,9 +964,6 @@ function main(): void {
   writeFileSync(`${ROOT}/tiny/extra.png`, terrainAtlas().toPng())
   writeFileSync(`${ROOT}/tiny/deco.png`, decoAtlas().toPng())
 
-  const goods = (JSON.parse(readFileSync('content/goods.json', 'utf8')) as { goods: { id: string }[] }).goods
-  for (const g of goods) writeFileSync(`${ROOT}/goods/${g.id}.png`, goodIcon(g.id).toPng())
-
   // 科技图标：**素材包里有就用素材**（`assets/ui/tech/<id>.png` 是外部导入的），
   // 没有的（新增科技）在这里补一个 32×32 的简笔图标 —— 否则科技卡片是空白的，
   // 门槛 `tech` 会红（"卡片没有图标"）。只补**缺的**，不覆盖导入的。
@@ -1205,10 +983,6 @@ function main(): void {
   for (const k of ['pause', '1x', '2x', '4x']) {
     writeFileSync(`${ROOT}/ui/speed_${k}.png`, speedIcon(k).toPng())
   }
-  // 左侧导航圆钮（木盘 + 金属卡扣）
-  for (const k of ['normal', 'hover', 'pressed']) {
-    writeFileSync(`${ROOT}/ui/nav_btn_${k}.png`, navButton(k).toPng())
-  }
   // 用工拖动条的把手
   writeFileSync(`${ROOT}/ui/slider_grabber.png`, sliderGrabber().toPng())
   // 行内金额用的小金币（16×16 原生，价格 / 国库前面那一枚）
@@ -1223,7 +997,6 @@ function main(): void {
     console.log(`     ${spriteMissing.join(', ')}`)
     console.log(`     跑 scripts/import-building-sprites.py 从素材包重新导入`)
   }
-  console.log(`  商品图标 ${goods.length} 个`)
   console.log(`  速度图标 4 个 + 笔刷缩略图 2 个`)
   console.log(`  角色 ${CLASS_IDS.length} 阶层 x 4 向 x 4 帧`)
   console.log(`  地形图集 extra.png（道路 16 + 水面 32 + 桥 2 + 补丁 4（石 / 粘土 / 铁 / 煤）+ 地板 1）`)
@@ -1235,7 +1008,7 @@ main()
 /**
  * 新增科技的**兜底图标**（32×32）。素材包里没有对应科技图时用（`main()` 里只在文件缺失时写）。
  *
- * 只画"一眼能认出来"的简笔：铁匠炉 / 锤子 / 水滴+汽 / 铁锭。颜色沿用 `goodIcon` 那套。
+ * 只画"一眼能认出来"的简笔：铁匠炉 / 锤子 / 水滴+汽 / 铁锭。颜色沿用上面那套 I_* 调色板。
  * 有正式素材时**放到 `assets/ui/tech/<id>.png` 即可**，这里不会覆盖。
  */
 function techIcon(id: string): Canvas {

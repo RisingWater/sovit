@@ -385,22 +385,19 @@ q23_sweep    剿匪       出击打「马匪窝」并赢 → 战报 + 解锁军�
 | 战场地形 / 世界地图 | 0 | ❌ 不需要（王国地图已由用户画好）| — | ✅ |
 | BGM / SFX | 3 首 / 6–10 个 | 🟡 可选 | 战争、宫廷、圣战 | ⬜ 现有开场曲 + 点击音 |
 
-### 2.2 立绘默认脸（缺 16 张）
+### 2.2 立绘默认脸（**2026-10 新批已整批入库**，还缺 3 张待画）
 
-| 批次 | 谁 | 张数 | 怎么来 |
+| 批次 | 谁 | 张数 | 状态 |
 |---|---|---|---|
-| 待导入 | 加雷斯 `gareth` · 奥德里克 `aderick` · 阿尔伯特 `albert` · 伯纳德 `bernard` · 塞德里克 `cedric` · 狄奥多 `theodore` · 伊莲娜 `irena` · 埃德蒙 `edmund` · 弗雷德里克 `frederick` · 巴图尔 `batur` · 赫尔曼 `herman` · 格里高利 `gregory` | **12** | 源图在 `docs/art/npc/`（1024×1536，**已带 alpha**）→ 裁 `(110,140,910,1260)` → 缩 640×896（**照米拉那张的做法**）；见 §2.2 尾注 |
-| 待导入（手工）| 艾瑟琳 `aeslin` | **1** | ⚠️ 绿裙同色域，**不许过脚本**；成品 640×960 直接放 `godot/assets/portraits/aeslin.png` |
-| 待画 | 艾莉丝 `elise` · 艾隆 `aelon` · 莫甘娜 `morgana` | **3** | 设定见 `characters.md` §4.6 / §4.7 |
+| ✅ 已导入（新批 21 张） | 顾问团 9（含加雷斯 `gareth`）+ 王邻 12（`adderick` `albert` `bernard` `cedric` `theodore` `irena` `edmund` `frederick` `aislin` `batur` `hermann` `gregory`） | **21** | 2026-10 整批重出（白底生成 + BiRefNet 抠图）→ alpha bbox 自适应裁 5:7 → **640×896** 入库 `godot/assets/portraits/`。原图/脚本/提示词归档 `docs/art/game/03_portraits/`（`docs/art/npc/` 已删）|
+| 待画 | 艾莉丝 `elise` · 艾隆 `aelon` · 莫甘娜 `morgana` | **3** | 设定见 `characters.md` §4.6 / §4.7。⚠️ `elise` 已被 `content/scenes.json` 引用（立绘为空时面板无图）|
 
-**规格**：源图 1024×1536（`docs/art/npc/` 里那批**已经带 alpha**，不用再抠绿）；成品 **640×896（5:7）透明底**；
-裁切框 `x 110..910, y 140..1260`（比源图底部少 70px —— 那是出图工具压水印的位置，七张统一裁掉）。
-⚠️ 早期文档写 640×960 / 裁到 y1340，**已过时**：现在一律 640×896。
+**规格**：源图 1024×1536（新批白底，BiRefNet 抠成透明底）；成品 **640×896（5:7）透明底**；
+裁切**按每张的 alpha bbox 自适应**（上/侧留 24px、底部贴边、多余高度补在头顶），不再用旧批的固定裁切框
+（旧框 `(110,140,910,1260)` 是给绿幕旧图 + 清水印用的，已过时）。管线见 `characters.md` §6.1。
 
-> ⚠️ 2026-10-21 复核：`docs/art/npc/` 里 20 张源图**都在**（1024×1536，带 alpha，含 8_milla / 9_gareth /
-> 11..21 十二位统治者）。**这批目录不进仓库**（体积大，`docs/art/npc/` 一直是未跟踪状态）。
-> 米拉已经按上表的框导成 `godot/assets/portraits/milla.png`；剩下 12 张照同一套搬即可 ——
-> 先把源图边缘的残绿压一道（`G = min(G, max(R,B))`，只在 `alpha < 248` 处动手），再裁 + 缩。
+> ⚠️ 拼写以文件名为准：`adderick`（非 aderick）· `hermann`（非 herman）· `aislin`（非 aeslin）。
+> 改名只改文件名 + 同步 `Cast.NAME` / 内容引用。
 
 > 表情差分（123 张）**本版不做**：内容里写 `milla_smile` 这种名字也没关系 ——
 > `Cast.portrait()` 找不到差分图会自动落回默认脸，代码一行都不用改。

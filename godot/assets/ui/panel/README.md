@@ -32,10 +32,9 @@
 
 | 目录 | 内容 | 尺寸 |
 |---|---|---|
-| `assets/icons/` | **商品**图标（36 种，作者 doubao） | 32×32 |
+| `assets/icons/` | **商品**图标（48 种，作者 doubao；缺图显示品红方块，无兜底） | 32×32 / 64×64 |
 | `assets/ui/panel/`（本目录） | **面板装饰**图标 | 32×32 |
-| `assets/goods/` | 商品图标的程序化兜底，`gen:art` 生成 | 16×16 |
-| `assets/ui/*.png` | Kenney UI Pack 的 9-slice 框体 | 按索引 |
+| `assets/ui/*.png` | Kenney UI Pack 的 9-slice 框体（只留 tile_0033 / 0034 / 0036） | 按索引 |
 
 > 分开放是有原因的：`GoodIcons.count_hand_drawn()` 按目录数文件，
 > 面板图标混进 `assets/icons/` 会被数成商品图标。

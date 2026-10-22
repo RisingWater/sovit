@@ -22,14 +22,15 @@
 
 | 目录 | 来源 | 尺寸 |
 |---|---|---|
-| `assets/icons/`（本目录） | 手绘，本目录优先 | 32×32 |
-| `assets/goods/` | `npm run gen:art` 程序化生成 | 16×16 |
+| `assets/icons/`（本目录） | 手绘，**唯一图源** | 32×32 / 64×64 |
 
-UI 一律通过 `godot/scripts/ui/good_icons.gd` 取图标：**icons 优先、goods 兜底**。
+UI 一律通过 `godot/scripts/ui/good_icons.gd` 取图标：**没有兜底** ——
+缺图直接显示**亮品红方块**（FF00FF）并在控制台 `push_warning`，一眼定位
+（2026-10 用户拍板：不要静默回滚到旧图）。
 
-> **为什么必须分两个目录**：`gen:art` 每次跑都会**整体重写** `assets/goods/`。
-> 手绘图标如果放在那里会被无声覆盖 —— 4 个速度图标（`assets/ui/speed_*.png`）
-> 就栽在这上面过。
+> `assets/goods/`（程序化 16×16 兜底）连同 `gen:art` 的生成逻辑**已删除**。
+> 历史坑（备查）：`gen:art` 曾整体重写 `assets/goods/`，手绘图标放那个目录
+> 会被无声覆盖 —— 4 个速度图标（`assets/ui/speed_*.png`）就栽在这上面过。
 
 ## 素材包里有、但游戏里用不上的图标
 

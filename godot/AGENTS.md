@@ -41,8 +41,8 @@ Godot_v4.7.2-stable_win64_console.exe --headless --path . --export-release "Wind
 ```
 
 产物 `godot/builds/windows/sovit.exe`（约 128MB，其中 ~109MB 是 Godot 官方模板；`builds/` 不进仓库）。
-`export_presets.cfg` 的 `exclude_filter` 把 `addons/gdUnit4`、`tests`、`tools`、`reports`、
-以及不用的原始素材目录（`Props` / `Characters` / `Tilesets`）排掉。
+`export_presets.cfg` 的 `exclude_filter` 把 `addons/gdUnit4`、`tests`、`tools`、`reports`、`builds`、`data` 排掉。
+（不用的原始素材目录 `Props` / `Characters` / `Tilesets` 与示例场景已于 2026-10 素材清理中**删除**，不再需要排除。）
 
 ⚠️ `verify.sh` 里的条数会随功能增加，**改行为就要回来补一条**（每条都写清"红了说明什么"）。
 最近补的六条：

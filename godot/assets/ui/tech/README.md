@@ -70,8 +70,7 @@
 |---|---|
 | `assets/ui/tech/`（本目录） | **科技**图标 |
 | `assets/ui/panel/` | 面板 / 顶栏 / 圆钮图标（人口·就业·金钱·满意度…） |
-| `assets/icons/` | **商品**图标（36 个，作者 doubao） |
-| `assets/goods/` | 商品图标的程序化兜底（`gen:art` 生成） |
+| `assets/icons/` | **商品**图标（48 个，作者 doubao；缺图显示品红方块，无兜底 —— 旧的 `assets/goods/` 程序化兜底已删除） |
 
 分开是必须的：`GoodIcons.count_hand_drawn()` 按目录数文件，
 科技图标混进 `assets/icons/` 会被数成商品图标。

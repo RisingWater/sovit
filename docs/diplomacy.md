@@ -488,8 +488,9 @@ applyActions → updateRoutes → activateCompleted → activateResearch → lab
 
 > 用户 2026-10："除了拆分子任务，你还需要把要生成的美术素材整理出来。"
 > **2026-10-21 已经全部出完**（除了 B5 的兵营）：31 张图标走 ComfyUI 流水线
-> （[`icons.md`](icons.md)），使馆走建筑那条（`scripts/gen-building.py`），米拉立绘从
-> `docs/art/npc/08_milla.png` 抠好导入。这一节留作**规格记录**，重出时照它来。
+> （[`icons.md`](icons.md)），使馆走建筑那条（`scripts/gen-building.py`），立绘走新批管线
+> （白底生成 + BiRefNet 抠图，归档在 `docs/art/game/03_portraits/`，`docs/art/npc/` 已删）。
+> 这一节留作**规格记录**，重出时照它来。
 
 ### 9.1 图标（31 张，✅ 已入库）
 
@@ -517,7 +518,7 @@ applyActions → updateRoutes → activateCompleted → activateResearch → lab
 | 素材 | 文件 | 规格 | 备注 |
 |---|---|---|---|
 | **使馆** | `godot/assets/building_src/embassy.png`（**素材**）→ `godot/assets/buildings/embassy.png`（`npm run gen:art` 生成）| **127×78** 透明底，v3 建筑画风（正面平视 + 屋顶略俯视、2× 密度像素、粗深棕描边）| `art.foot = [7, 3]`（`floor(127/16)=7 × (floor(78/16)−1)=3`）、门 `[[3,2]]`；提示词与候选见 `scripts/building-manifest.json` |
-| **米拉立绘** | `godot/assets/portraits/milla.png` | **640×896**（5:7）透明底 | 源图 `docs/art/npc/08_milla.png`（1024×1536，已带 alpha）→ 裁 `(110,140,910,1260)` → 缩 640×896，再压掉边缘残绿。和另外七张同尺寸同取景 |
+| **米拉立绘** | `godot/assets/portraits/milla.png` | **640×896**（5:7）透明底 | 源图 `docs/art/game/03_portraits/src/08_milla.png`（1024×1536 白底）→ BiRefNet 抠图 → alpha bbox 自适应裁 5:7 → 缩 640×896（2026-10 新批，与全部 21 张同管线；旧的绿幕裁切框口径已过时）|
 
 > `assets/ui/thumbs/embassy.png` **不用单独出** —— `gen:art` 顺手做缩略图。
 > 王国地图那张底图**不用重画**：外交面板直接复用 `assets/ui/map/kingdom_map_bare.webp`。

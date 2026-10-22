@@ -148,12 +148,12 @@ const EFFECT_NAMES := {
 	"services": "民生服务",
 }
 
-# 取件（来自清册核对）
+# 取件（来自清册核对）。tile 备件库已清过（2026-10）：ui/ 下只留这三张在用的，
+# 其余 Kenney tile 与 T_STRIPE 一并删除（未被任何 box() 调用）。
 const T_PANEL_DARK := 36
 const T_PANEL_CREAM := 33
 const T_BTN := 33
 const T_BTN_ACTIVE := 34
-const T_STRIPE := 6
 
 const FG_DARK := Color(0.23, 0.16, 0.11)
 const FG_LIGHT := Color(1.0, 0.96, 0.86)

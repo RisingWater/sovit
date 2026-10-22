@@ -459,7 +459,7 @@ func refresh_nav_buttons() -> void:
 ##   · 背景 = **空 StyleBox**（透明），一点边框都不画；
 ##   · 圆盘由 `assets/ui/nav/<id>.png` 自带（48×48 原生、抗锯齿边缘，脚本烤的）；
 ##   · 悬停 / 按下靠 `modulate` 提亮 / 压暗（不再需要三张贴图）。
-## 旧的 `ui/nav_btn_*.png` 保留但不再使用（`gen-art.ts nav` 还能生成）。
+## 旧的 `ui/nav_btn_*.png` 已删除（`gen-art.ts` 的对应生成逻辑一并移除，2026-10）。
 func _style_round(b: Button) -> void:
 	for state in ["normal", "hover", "pressed", "focus", "disabled"]:
 		var sb := StyleBoxEmpty.new()

@@ -8,35 +8,35 @@
 | 目录 / 文件 | 来源 | 作者 | 授权 |
 |---|---|---|---|
 | `tiny/town.png` | [Tiny Town](https://kenney.nl/assets/tiny-town) | Kenney | **CC0 1.0** |
-| `tiny/farm.png` | [Tiny Farm](https://kenney.nl/assets/tiny-farm) | Kenney | **CC0 1.0** |
-| `ui/*.png` | [UI Pack - Pixel Adventure](https://kenney.nl/assets/ui-pack-pixel-adventure) | Kenney | **CC0 1.0** |
+| ~~`tiny/farm.png`~~ | [Tiny Farm](https://kenney.nl/assets/tiny-farm) | Kenney | **CC0 1.0**（2026-10 素材清理已删，从未被代码引用） |
+| `ui/*.png` | [UI Pack - Pixel Adventure](https://kenney.nl/assets/ui-pack-pixel-adventure) | Kenney | **CC0 1.0**（只留 tile_0033 / 0034 / 0036） |
 | `cursors/*.png` | [Cursor Pixel Pack](https://kenney.nl/assets/cursor-pixel-pack) | Kenney | **CC0 1.0** |
-| `fonts/fusion-pixel-10px-zh_hans.ttf` | [缝合像素字体 Fusion Pixel Font](https://github.com/TakWolf/fusion-pixel-font) | TakWolf | **OFL-1.1** |
+| ~~`fonts/fusion-pixel-10px-zh_hans.ttf`~~ | [缝合像素字体 Fusion Pixel Font](https://github.com/TakWolf/fusion-pixel-font) | TakWolf | **OFL-1.1**（2026-10 素材清理已删，UI 用 12px 档） |
 | `fonts/fusion-pixel-12px-zh_hans.ttf` | 同上（当前 UI 用的就是这一档） | TakWolf | **OFL-1.1** |
 | `buildings/*.png` | 本项目由 `content/*.json` 的 `art` 字段生成 | — | 同项目授权 |
 | `thumbs/*.png` | 同上（含自绘的道路/地板笔刷卡） | — | 同项目授权 |
 | `icons/*.png` | 用户提供的像素图标包，由 `scripts/import-icons.py` 导入 | **doubao** | **MIT**（见 `icons/LICENSE.txt`） |
 | `ui/panel/*.png` | 面板 / 顶栏 / 圆钮 / ESC 菜单图标（财政·科技·人口·就业·金币·建造力·研究力·移民·资源工业；另有 2026-10 后加的 11 张：任务面板、金色/灰色问号、新游戏·保存·读取·设置·音乐·音效·调试·退出），前一批由 `scripts/import-panel-icons.py` 与 `import-stat-icons.py` 导入 | **workbuddy** | **MIT**（见 `ui/panel/LICENSE.txt`） |
 | `ui/tech/*.png` | 科技树卡片图标（29 个，文件名 = 科技 id），由 `scripts/import-tech-icons.py` 导入 | **workbuddy** | **MIT**（见 `ui/tech/LICENSE.txt`） |
-| `portraits/*.png` | 七人顾问团立绘（7 张，640×960，绿幕图抠成透明底），由 `scripts/import-portraits.py` 导入 | **workbuddy** | 随本项目 |
-| `goods/*.png` | 本项目自绘（36 个商品图标的**程序化兜底**，16×16） | — | 同项目授权 |
+| `portraits/*.png` | 人物立绘 21 张（640×896 透明底）。2026-10 新批：ComfyUI z-image-turbo 白底生成 + BiRefNet 抠图（提示词与脚本在 `docs/art/game/03_portraits/script/`），旧批由 `scripts/import-portraits.py` 导入 | workbuddy（旧批）/ 本项目新批 | 随本项目 |
+| ~~`goods/*.png`~~ | 本项目自绘（商品图标的**程序化兜底** 16×16） | — | **2026-10 已删**：缺图改显示品红方块，不再回滚旧图 |
 | `tiny/extra.png` | 本项目自绘（道路 / 水面 / 桥 / 矿脉 / 砖石地板） | — | 同项目授权 |
 | `tiny/deco.png` | 本项目自绘（树 4 种） | — | 同项目授权 |
 | `actors/*.png` | 本项目自绘（居民 4 阶层 × 4 向 × 4 帧） | — | 同项目授权 |
 | `ui/speed_*.png` | 本项目自绘（暂停 / 1x / 2x / 4x） | — | 同项目授权 |
-| `ui/nav_btn_*.png` | 本项目自绘（左侧导航圆钮：木盘 + 粗外框 + 内圈高光 + 四向金属卡扣，16×16，由 `gen-art.ts` 生成） | — | 同项目授权 |
+| ~~`ui/nav_btn_*.png`~~ | 本项目自绘（左侧导航圆钮底，16×16，`gen-art.ts` 生成） | — | **2026-10 已删**：被"圆盘烤在图标里"的 `ui/nav/` 取代 |
 | `music/shimmer_sill_*.ogg` | [RPG Town Pack](https://talontrueblood.itch.io/) | **Talon Trueblood** | **免费使用 + 需署名** |
 | `sfx/*.ogg` | [UI SFX Set](https://kenney.nl/assets/ui-audio) | Kenney | **CC0 1.0** |
 | `building_src/*.png` | 用户提供的 v3 建筑整图（34 张，workbuddy 生成） | workbuddy | 随本项目 |
 
 ## icons/ —— MIT，需保留版权声明
 
-36 个 32×32 手绘商品图标。UI 一律通过 `scripts/ui/good_icons.gd` 取用
-（`icons/` 优先、`goods/` 程序化兜底）。
+48 个手绘商品 / 服务图标（32×32 与 64×64 两批）。UI 一律通过 `scripts/ui/good_icons.gd` 取用
+（**没有兜底**：`assets/goods/` 已删，缺图直接显示亮品红方块 FF00FF）。
 
 - **作者**：doubao
 - **授权**：MIT，许可证原文见 [`icons/LICENSE.txt`](icons/LICENSE.txt)
-- 素材包本身**不入库**（与 Tiny / UI / Props 包的处理方式一致），只提交导出的 PNG；
+- 素材包本身**不入库**（与 Tiny / UI 包的处理方式一致），只提交导出的 PNG；
   重新导入用 `python scripts/import-icons.py`（读本地素材包）。
 
 > MIT 要求保留版权声明，所以 `LICENSE.txt` 必须随图标一起留在仓库里。
@@ -164,7 +164,7 @@ Music: Talon Trueblood
 - `tiny/extra.png` —— 由 `scripts/gen-art.ts` 生成
 - `actors/*.png` —— 由 `scripts/gen-art.ts` 生成
 
-`tiny/town.png`、`tiny/farm.png`、`ui/*.png` 是上游原图，**不要修改**，升级素材时整个替换。
+`tiny/town.png`、`ui/*.png` 是上游原图，**不要修改**，升级素材时整个替换。
 
 ## 一段历史提醒（Tiny 系列无此问题）
 
