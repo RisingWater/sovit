@@ -170,6 +170,8 @@ const EFFECT_NAMES := {
 	"research": "科研速度",
 	"build": "建造速度",
 	"services": "民生服务",
+	# 工具寿命（取最高，不叠加）：卡片上要写中文，别把 toolLife 直接印出来
+	"toolLife": "工具寿命",
 }
 
 # 取件（来自清册核对）。tile 备件库已清过（2026-10）：ui/ 下只留这三张在用的，

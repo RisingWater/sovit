@@ -836,6 +836,8 @@ const TRADE_SHORT := {
 	"purse": "带钱 %d 金",
 	"haggleBuy": "买价 -%d%%",
 	"haggleSell": "卖价 +%d%%",
+	# 商路好感加成（B4）：三级 0.5 / 0.5 / 1.0，加法累计 +200%
+	"goodwill": "商路好感 +%d%%",
 }
 
 ## 卡片上那一行效果。空串 = 没得写（「制造」页的科技：解锁什么看名字与图标）。
@@ -859,7 +861,7 @@ func _trade_short_parts(tech: Dictionary) -> Array:
 	var tr: Dictionary = tech.get("trade", {})
 	if tr.is_empty():
 		return out
-	for k in ["caravans", "cargo", "purse", "haggleBuy", "haggleSell"]:
+	for k in ["caravans", "cargo", "purse", "haggleBuy", "haggleSell", "goodwill"]:
 		if not tr.has(k):
 			continue
 		var fmt := String(TRADE_SHORT[k])
@@ -1099,10 +1101,16 @@ func _tip_icon_row(tex: Texture2D, text: String, color: Color, right: String) ->
 
 
 ## 解锁项可能是建筑（走建造栏缩略图）也可能是住房（商品图标里就有）。
+## 解锁项的图标：**商品**走商品图标，**建筑 / 住房**走缩略图。
+##
+## ⚠️ 不能一律先问 `GoodIcons.tex()` —— 它对"不认识的 id"不再回退旧图，而是直接返回
+## **亮品红方块**（2026-10 素材清理后定的规矩）。于是建筑解锁项在卡片上是一块品红
+## （用户 2026-10 截图："研究这里解锁的图标都没了"）。判据只有一条：**它是不是商品**。
 func _unlock_icon(id: String) -> Texture2D:
-	var t := GoodIcons.tex(id)
-	if t != null:
-		return t
+	if runner != null and runner.db != null and runner.db.goods.has(id):
+		var t := GoodIcons.tex(id)
+		if t != null:
+			return t
 	return UIKit.thumb(id)
 
 

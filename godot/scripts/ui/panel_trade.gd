@@ -939,6 +939,19 @@ func _on_city_pressed(city_id: String) -> void:
 	UIKit.play_switch()
 	_refresh()
 
+## 某座城的势力对我们的关系档位名（附庸 / 敌对 / 冷淡 …）。取不到返回空串。
+func _city_relation(city: Dictionary) -> String:
+	if runner == null or runner.sim == null:
+		return ""
+	var fid := String(city.get("faction", ""))
+	if fid == "":
+		return ""
+	var snap: Dictionary = runner.sim.factions_snapshot()
+	for f in (snap.get("factions", []) as Array):
+		if String((f as Dictionary).get("id", "")) == fid:
+			return String((f as Dictionary).get("label", ""))
+	return ""
+
 ## 地图页右侧：选中城市的卡片（名字 / 统治者 / 几天 / 特产 / 需求 / 按钮）。
 func _refresh_city_card(snap: Dictionary) -> void:
 	_clear(_map_card)
@@ -964,6 +977,11 @@ func _refresh_city_card(snap: Dictionary) -> void:
 	name_lb.add_theme_font_size_override("font_size", UIKit.BIG_FS)
 	head.add_child(name_lb)
 	head.add_child(_baseline_label("统治者 %s" % String(city.get("lord", ""))))
+	# 邦交（B4）：这座城市的主子对我们的态度 —— 用户 2026-10："商路这里显示一下好感度"。
+	# 只写档位名（和外交面板同一条口径：数字只进 tooltip）。
+	var rel := _city_relation(city)
+	if rel != "":
+		head.add_child(_baseline_label("关系「%s」" % rel))
 	head.add_child(UIKit.spacer())
 	head.add_child(UIKit.label("单程 %d 天 · 往返 %d 天" % [
 		int(city["days"]), int(city["days"]) * 2], C_HINT))
