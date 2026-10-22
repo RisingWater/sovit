@@ -61,6 +61,7 @@ export interface TechBonuses {
    *   · `caravans` **加法**（多几支）
    *   · `cargo` / `purse` **取最高**（档位值，不是累加）
    *   · `haggleBuy` / `haggleSell` **加法**（0.10 = 10%）
+   *   · `goodwill` 商路好感加成 **加法**（0.5 / 1.0 / 2.0 三档，累计 +200%）
    */
   trade: {
     caravans: number
@@ -68,6 +69,7 @@ export interface TechBonuses {
     purse: number
     haggleBuy: number
     haggleSell: number
+    goodwill: number
   }
 }
 
@@ -92,7 +94,7 @@ export function techBonuses(state: GameState, ctx: ContentContext): TechBonuses 
     build: 0,
     services: 0,
     toolLife: 0,
-    trade: { caravans: 0, cargo: 0, purse: 0, haggleBuy: 0, haggleSell: 0 },
+    trade: { caravans: 0, cargo: 0, purse: 0, haggleBuy: 0, haggleSell: 0, goodwill: 0 },
   }
   for (const tid of state.research.done) {
     const tech = ctx.technologies[tid]
@@ -115,6 +117,7 @@ export function techBonuses(state: GameState, ctx: ContentContext): TechBonuses 
       if (trade.purse !== undefined) out.trade.purse = Math.max(out.trade.purse, trade.purse)
       if (trade.haggleBuy !== undefined) out.trade.haggleBuy += trade.haggleBuy
       if (trade.haggleSell !== undefined) out.trade.haggleSell += trade.haggleSell
+      if (trade.goodwill !== undefined) out.trade.goodwill += trade.goodwill
     }
   }
   return out

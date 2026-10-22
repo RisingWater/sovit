@@ -4,6 +4,7 @@ import { DEFAULTS, ECONOMY } from './config.ts'
 import { createRng } from './rng.ts'
 import { defaultWageFor } from './systems/wages.ts'
 import { emptyRoutes } from './systems/routes.ts'
+import { emptyFactions } from './systems/factions.ts'
 
 /** 空白台账 / 空白个人账目。逐人账目与每日台账分开放，方便将来做差异化分配。 */
 export function emptyLedger(day: number): DayLedger {
@@ -162,10 +163,13 @@ export function createInitialState(options: CreateOptions = {}): GameState {
     // 城镇中心是不是**破旧**的（用户 2026-10：一开局是废墟，修好才换回好素材）。
     // ⚠️ 仿真的任何数字都不读它 —— 和 `prophet` 一样"只记事、不演化"。
     townCenter: { stage: 'ruined' },
-    trade: { caravans: [], nextWaveDay: 1, wave: 0, introShown: false },
+    // 游商：soldTimes / boughtTimes 是「和游商成交过几次」的计数器（B4 任务用，只记事）
+    trade: { caravans: [], nextWaveDay: 1, wave: 0, introShown: false, soldTimes: 0, boughtTimes: 0 },
     // 商路（B3）：车队槽位 + 各城市场。`caravan.count` 是**基础**商队数（0 = 得先研究
     // 「常设商队」），科技会往上加，见 systems/routes.ts::syncRouteCount。
     routes: emptyRoutes(ctx),
+    // 邦交（B4）：13 个势力的好感 / 结盟 / 附庸 / 送礼次数 / 翻转记录。见 docs/diplomacy.md
+    factions: emptyFactions(),
     ledgerToday: emptyLedger(0),
     // 当日建造力预算：由黎明 planConstructionDay 钉死（开局为 0，黎明那一小时算出来）
     constructionRateToday: 0,

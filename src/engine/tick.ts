@@ -20,6 +20,7 @@ import { allocateTools } from './systems/tools.ts'
 import { checkQuests } from './systems/quests.ts'
 import { updateCaravans } from './systems/caravan.ts'
 import { updateRoutes } from './systems/routes.ts'
+import { updateFactions } from './systems/factions.ts'
 import { techBonuses } from './systems/tech_bonus.ts'
 
 // ---------------------------------------------------------------------------
@@ -107,6 +108,9 @@ export function runDawn(state: GameState, ctx: ContentContext): { logs: LogEntry
   // 游商：到货 / 离开（M4）。放在任务之后：章节奖励刚记上，这批就能按新章节来人。
   logs.push(...updateCaravans(state, ctx, state.day))
   logs.push(...checkQuests(state, ctx, state.day))
+  // 邦交（B4）：剧情翻转要在**章节奖励记上之后**判 —— 本章刚完成，那几家才翻脸。
+  // 与 quests / caravans 同一批（顺序见 docs/spec.md §22.3；镜像 sim_core.gd::_run_dawn）。
+  logs.push(...updateFactions(state, state.day))
   return { logs, applied }
 }
 
@@ -230,6 +234,10 @@ export const IMMEDIATE_ACTIONS: readonly Action['type'][] = [
   'route_unassign',
   'route_set_budget',
   'route_set_sell',
+  // 邦交（B4）：送礼 / 结盟 / 宣战 —— 钱当场扣、好感当场涨，和 `gift` 同一条口径
+  'faction_gift',
+  'faction_ally',
+  'faction_attack',
 ]
 
 /**

@@ -4,9 +4,15 @@ import type {
   BuildingID,
   BuildingTier,
   CapacityDef,
+  CapBand,
   ClassDef,
   ClassID,
   ContentPack,
+  FactionDef,
+  FactionDefeat,
+  FactionFlip,
+  FactionID,
+  FactionsConfig,
   GoodCategory,
   GoodDef,
   GoodID,
@@ -73,6 +79,8 @@ export interface ParsedContent {
   sceneIds: string[]
   /** 商路（B3）：目的地 + 距离价表 + 商队 / 市场数值，见 `docs/trade-routes.md`。 */
   routes: RoutesConfig
+  /** 邦交（B4）：13 个势力 + 好感的档位表，见 `docs/diplomacy.md`。 */
+  factions: FactionsConfig
 }
 
 const SCHEMA_VERSION = 1
@@ -100,6 +108,8 @@ const QUESTS_SCHEMA_VERSION = 3
 const SCENES_SCHEMA_VERSION = 1
 /** `routes.json` 的 schema 版本（用户 2026-10 · B3 商路）。 */
 const ROUTES_SCHEMA_VERSION = 1
+/** `factions.json` 的 schema 版本（用户 2026-10 · B4 邦交）。 */
+const FACTIONS_SCHEMA_VERSION = 1
 
 const CATEGORIES: readonly GoodCategory[] = [
   'raw', 'food', 'clothing', 'household', 'fuel', 'material', 'housing', 'investment', 'service', 'entertainment', 'tool', 'military',
@@ -249,6 +259,14 @@ function parseTradeEffects(v: unknown, p: string): TradeEffects {
         const n = asNonNeg(o[k], `${p}.${k}`)
         if (n > 0.9) fail(`${p}.${k} 太大（${n}）：最多 0.9）`)
         out[k] = n
+        break
+      }
+      // 商路好感加成（B4）：三级 0.5 / 0.5 / 1.0，**加法累计 +200%**
+      // → 一趟 100 / 150 / 200 / 300 好感（见 docs/diplomacy.md §3.3）
+      case 'goodwill': {
+        const n = asNonNeg(o[k], `${p}.goodwill`)
+        if (n > 2.0) fail(`${p}.goodwill 太大（${n}）：三级累计最多 2.0）`)
+        out.goodwill = n
         break
       }
       default:
@@ -567,8 +585,12 @@ function parseBuildings(
         storagePerLevel: asNonNeg(s.storagePerLevel ?? 0, `${p}.storage.storagePerLevel`),
       }
     }
-    if (recipeId === undefined && capacity === undefined && storage === undefined) {
-      fail(`${p} 既没有 recipe、也没有 capacity / storage：建筑总得产出点什么`)
+    // 纯功能建筑（B4 的使馆）：不产商品、不产产能、也不加仓储 —— 它的"产出"是
+    // **解锁一个面板**（`tech.unlocks.buildings` + 面板入口）。必须显式写 `"utility": true`，
+    // 不放宽成"三者都没有就放行"：那样"忘了写 recipe"会悄悄变成一座没用的房子。
+    const utility = o.utility === undefined ? false : asBool(o.utility, `${p}.utility`)
+    if (recipeId === undefined && capacity === undefined && storage === undefined && !utility) {
+      fail(`${p} 既没有 recipe、也没有 capacity / storage：建筑总得产出点什么（纯功能建筑请写 "utility": true）`)
     }
 
     buildings[id] = {
@@ -581,6 +603,7 @@ function parseBuildings(
       ...(sector !== undefined ? { sector } : {}),
       ...(capacity !== undefined ? { capacity } : {}),
       ...(storage !== undefined ? { storage } : {}),
+      ...(utility ? { utility: true } : {}),
       buildWork,
       ...(Object.keys(buildCost).length > 0 ? { buildCost } : {}),
       ...(art !== undefined ? { art } : {}),
@@ -997,6 +1020,8 @@ function parseRoutes(raw: unknown, goods: Record<GoodID, GoodDef>): RoutesConfig
       id,
       nameZh: asStr(o.nameZh, `${p}.nameZh`),
       lord: asStr(o.lord, `${p}.lord`),
+      // 邦交（B4）：城市归哪个势力。唯一真源是这个字段（见 parseFactions 的反向核对）
+      faction: asStr(o.faction, `${p}.faction`),
       days,
       specialty,
       demand,
@@ -1013,6 +1038,196 @@ function parseRoutes(raw: unknown, goods: Record<GoodID, GoodDef>): RoutesConfig
   }
 
   return { distance, caravan, market, cities, cityIds }
+}
+
+// ---------------------------------------------------------------------------
+// 邦交（content/factions.json，B4）
+//
+// 设计见 docs/diplomacy.md。这里除了字段校验，还强制三条结构性规则：
+//   1. 每座商路城**恰好**属于一个势力，且势力的 `cityIds` 与 `routes.json` 的
+//      `faction` 字段互相对得上（唯一真源是 `routes.json` 那个字段，这里只是核对）
+//   2. `cap` / `defeat.cap` 必须是 `capByBand` 的键（JSON 里写档位 id，不写 -2001 这种魔数）
+//   3. 档位表的 `max` **严格递增**，且最后一档的上界 == 值域上界
+// ---------------------------------------------------------------------------
+
+const RELATION_BANDS = ['enemy', 'cold', 'neutral', 'friendly', 'respect', 'ally'] as const
+const CAP_BANDS = ['cold', 'friendly', 'respect', 'ally'] as const
+
+function parseFactions(raw: unknown, routes: RoutesConfig): FactionsConfig {
+  const root = asObj(raw, 'factions.json')
+  if (root.schemaVersion !== FACTIONS_SCHEMA_VERSION) {
+    fail(`factions.json.schemaVersion 必须是 ${FACTIONS_SCHEMA_VERSION}（实际 ${String(root.schemaVersion)}）`)
+  }
+
+  const rel = asObj(root.relation, 'factions.json.relation')
+  const min = asNum(rel.min, 'factions.json.relation.min')
+  const max = asNum(rel.max, 'factions.json.relation.max')
+  if (!(min < 0 && max > 0 && min < max)) {
+    fail(`factions.json.relation 的值域要跨过 0（min < 0 < max），实际 ${min}..${max}`)
+  }
+
+  const bands = asArr(rel.bands, 'factions.json.relation.bands').map((v, i) => {
+    const p = `factions.json.relation.bands[${i}]`
+    const o = asObj(v, p)
+    return {
+      id: asEnum(o.id, RELATION_BANDS, `${p}.id`),
+      nameZh: asStr(o.nameZh, `${p}.nameZh`),
+      max: asNum(o.max, `${p}.max`),
+      incl: o.incl === undefined ? false : asBool(o.incl, `${p}.incl`),
+    }
+  })
+  if (bands.length !== RELATION_BANDS.length) {
+    fail(`factions.json.relation.bands 要恰好 ${RELATION_BANDS.length} 档（实际 ${bands.length}）`)
+  }
+  bands.forEach((b, i) => {
+    if (b.id !== RELATION_BANDS[i]) {
+      fail(`factions.json.relation.bands[${i}].id 必须是 ${RELATION_BANDS[i]}（实际 ${b.id}）`)
+    }
+    if (i > 0) {
+      const prev = bands[i - 1]!
+      // 上界必须**单调不减**，且相邻两档不许重叠（`10000` 那对是"尊重不含 / 同盟含"）
+      const last = i === bands.length - 1
+      if (!(b.max > prev.max || (last && b.max === prev.max))) {
+        fail(`factions.json.relation.bands[${i}].max 要递增（第 ${i} 档 ${b.max} 不大于前一档 ${prev.max}）`)
+      }
+      if (!last && prev.incl && b.max === prev.max) fail(`factions.json.relation.bands 第 ${i}/${i + 1} 档重叠`)
+    }
+  })
+  if (bands[bands.length - 1]!.max !== max) {
+    fail(`factions.json.relation.bands 最后一档的 max（${bands[bands.length - 1]!.max}）要等于 relation.max（${max}）`)
+  }
+  if (!bands[bands.length - 1]!.incl) fail('factions.json.relation.bands 最后一档 must be 含上界（incl: true）')
+
+  const capRaw = asObj(rel.capByBand, 'factions.json.relation.capByBand')
+  const capByBand = {} as Record<CapBand, number>
+  for (const k of CAP_BANDS) {
+    const v = capRaw[k]
+    if (v === undefined) fail(`factions.json.relation.capByBand 缺 ${k}`)
+    const n = asNum(v, `factions.json.relation.capByBand.${k}`)
+    if (n < min || n > max) fail(`factions.json.relation.capByBand.${k} = ${n} 超出 ${min}..${max}`)
+    capByBand[k] = n
+  }
+  // 天花板要落在自己那一档里（`cold` → 冷淡的上界 −2001 之类），单调递增
+  for (let i = 0; i < CAP_BANDS.length; i++) {
+    const k = CAP_BANDS[i]!
+    if (i > 0 && !(capByBand[k] > capByBand[CAP_BANDS[i - 1]!])) {
+      fail(`factions.json.relation.capByBand 要随档位单调递增（${k} 不大于前一档）`)
+    }
+  }
+
+  const tradeBand = asEnum(rel.tradeBand, RELATION_BANDS, 'factions.json.relation.tradeBand')
+  const relation = {
+    min,
+    max,
+    bands,
+    vassalNameZh: asStr(rel.vassalNameZh, 'factions.json.relation.vassalNameZh'),
+    capByBand,
+    giftStep: asPos(rel.giftStep, 'factions.json.relation.giftStep'),
+    giftRate: asPos(rel.giftRate, 'factions.json.relation.giftRate'),
+    attackHit: asNum(rel.attackHit, 'factions.json.relation.attackHit'),
+    allyCost: asNonNeg(rel.allyCost, 'factions.json.relation.allyCost'),
+    tradeBand,
+    tradeGain: asNonNeg(rel.tradeGain, 'factions.json.relation.tradeGain'),
+  }
+  if (relation.attackHit < min || relation.attackHit > max) {
+    fail(`factions.json.relation.attackHit = ${relation.attackHit} 超出 ${min}..${max}`)
+  }
+
+  const routeCityIds = new Set(routes.cityIds)
+  const factions: FactionDef[] = []
+  const factionIds: FactionID[] = []
+  /** cityId → factionId（查"一座城被两家认领"）。 */
+  const cityOwner = new Map<string, string>()
+
+  for (const [i, v] of asArr(root.factions, 'factions.json.factions').entries()) {
+    const p = `factions.json.factions[${i}]`
+    const o = asObj(v, p)
+    const id = asStr(o.id, `${p}.id`)
+    if (factionIds.includes(id)) fail(`${p}.id 重复：${id}`)
+
+    const cap = asEnum(o.cap, CAP_BANDS, `${p}.cap`)
+    const initial = asNum(o.initial, `${p}.initial`)
+    // ⚠️ 开局好感**可以高于天花板**：沙海汗国就是"开局中立（能通商）、最高也就冷淡"，
+    // 第 6 章翻脸之后一路掉到敌对，打服了才放开到尊重。所以这里只查值域，不拿 cap 卡开局。
+    if (initial < min || initial > max) {
+      fail(`${p}.initial = ${initial} 超出值域 ${min}..${max}`)
+    }
+
+    let flip: FactionFlip | null = null
+    if (o.flip !== undefined && o.flip !== null) {
+      const f = asObj(o.flip, `${p}.flip`)
+      const chapter = asNum(f.chapter, `${p}.flip.chapter`)
+      if (!Number.isInteger(chapter) || chapter < 1 || chapter > 17) {
+        fail(`${p}.flip.chapter 必须是 1..17 的整数（实际 ${chapter}）`)
+      }
+      const to = asNum(f.to, `${p}.flip.to`)
+      if (to < min || to > max) fail(`${p}.flip.to = ${to} 超出 ${min}..${max}`)
+      flip = { chapter, to, reason: asStr(f.reason, `${p}.flip.reason`) }
+    }
+
+    let defeat: FactionDefeat | null = null
+    if (o.defeat !== undefined && o.defeat !== null) {
+      const d = asObj(o.defeat, `${p}.defeat`)
+      const rep = asNum(d.rep, `${p}.defeat.rep`)
+      const dcap = asEnum(d.cap, CAP_BANDS, `${p}.defeat.cap`)
+      if (rep < min || rep > capByBand[dcap]) {
+        fail(`${p}.defeat.rep = ${rep} 要落在 ${min}..${capByBand[dcap]}（defeat.cap = ${dcap}）里`)
+      }
+      defeat = {
+        rep,
+        cap: dcap,
+        vassal: asBool(d.vassal, `${p}.defeat.vassal`),
+        ...(d.reason === undefined ? {} : { reason: asStr(d.reason, `${p}.defeat.reason`) }),
+      }
+    }
+
+    const cityIds = strArr(o.cityIds, `${p}.cityIds`)
+    for (const cid of cityIds) {
+      if (!routeCityIds.has(cid)) fail(`${p}.cityIds 里的 ${cid} 不在 routes.json 的城里`)
+      const prev = cityOwner.get(cid)
+      if (prev !== undefined) fail(`城 ${cid} 同时属于 ${prev} 和 ${id}（一座城只能归一个势力）`)
+      cityOwner.set(cid, id)
+    }
+
+    const vassalable = asBool(o.vassalable, `${p}.vassalable`)
+    if (defeat?.vassal === true && !vassalable) {
+      fail(`${p}：defeat.vassal = true 但 vassalable = false（自相矛盾）`)
+    }
+
+    factions.push({
+      id,
+      nameZh: asStr(o.nameZh, `${p}.nameZh`),
+      short: asStr(o.short, `${p}.short`),
+      lord: asStr(o.lord, `${p}.lord`),
+      cityIds,
+      initial,
+      cap,
+      allyable: asBool(o.allyable, `${p}.allyable`),
+      vassalable,
+      flip,
+      defeat,
+      glyph: asStr(o.glyph, `${p}.glyph`),
+    })
+    factionIds.push(id)
+  }
+  if (factions.length === 0) fail('factions.json.factions 不能为空')
+
+  // 反向核对：routes.json 每座城的 `faction` 都要存在，且那家也把这座城列进 cityIds
+  for (const city of routes.cities) {
+    const fid = city.faction
+    if (fid === undefined || fid === null || String(fid) === '') {
+      fail(`routes.json.cities「${city.id}」缺 faction 字段（邦交要靠它查好感）`)
+    }
+    if (!factionIds.includes(fid)) {
+      fail(`routes.json.cities「${city.id}」的 faction = ${fid} 不在 factions.json 里`)
+    }
+    const owner = cityOwner.get(city.id)
+    if (owner !== fid) {
+      fail(`routes.json 说「${city.id}」归 ${fid}，但 factions.json 里 ${owner ?? '（没人）'} 认领了它`)
+    }
+  }
+
+  return { relation, factions, factionIds }
 }
 
 // ---------------------------------------------------------------------------
@@ -1529,6 +1744,9 @@ export function parseContent(files: RawContent): ParsedContent {
 
   const routes = parseRoutes(files.routes, goods)
 
+  // 邦交（B4）要在 routes 之后解析：势力的 `cityIds` 要拿 routes.json 的城去核。
+  const factions = parseFactions(files.factions, routes)
+
   if (packIds.length === 0) fail('packs.json 至少要有一个内容包')
 
   return {
@@ -1543,5 +1761,6 @@ export function parseContent(files: RawContent): ParsedContent {
     quests, questIds, chapters,
     scenes, sceneIds,
     routes,
+    factions,
   }
 }

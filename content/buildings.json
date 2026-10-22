@@ -571,6 +571,32 @@
       },
       "buildWork": 24
     },    {
+      "id": "embassy",
+      "nameZh": "使馆",
+      "utility": true,
+      "art": {
+        "arch": "sprite",
+        "foot": [
+          7,
+          3
+        ],
+        "doors": [
+          [
+            3,
+            2
+          ]
+        ]
+      },
+      "tier": 3,
+      "workers": 2,
+      "maxWorkers": 4,
+      "buildCost": {
+        "wood": 20,
+        "brick": 15,
+        "stone": 10
+      },
+      "buildWork": 40
+    },    {
       "id": "herbal_farm",
       "sector": "agri",
       "nameZh": "草药农场",

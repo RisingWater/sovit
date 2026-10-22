@@ -70,6 +70,12 @@ export interface TradeEffects {
   haggleBuy?: number
   /** 卖价加成（加法，0.10 = 贵 10%）。 */
   haggleSell?: number
+  /**
+   * 商路跑完一趟的好感加成（**加法**：0.5 / 1.0 / 2.0 三档，累计 +200%）。
+   * 一趟的好感 = `relation.tradeGain × (1 + goodwill)` → 100 / 150 / 200 / 300。
+   * 见 docs/diplomacy.md §3.3。
+   */
+  goodwill?: number
 }
 
 // ---------------------------------------------------------------------------
@@ -242,6 +248,14 @@ export interface BuildingDef {
    * capacity** —— 校验器为此放宽了"建筑总得产出点什么"那条规则。见 docs/town.md §3。
    */
   storage?: StorageDef
+  /**
+   * **纯功能建筑**（B4 的使馆）：不产商品、不产产能、也不加仓储 —— 它的全部作用是
+   * "把某个面板的入口开出来"。
+   *
+   * ⚠️ 必须显式写：校验器只在 `utility === true` 时放行"三样都没有"的建筑，
+   * 否则"忘了写 recipe"会悄悄变成一座没用的房子（见 `validate.ts::parseBuildings`）。
+   */
+  utility?: boolean
   /** 建造成本（实物原料）；全为包外商品时回退为金钱成本。 */
   buildCost?: Partial<Record<GoodID, number>>
   /** 外观规格（缺省时 gen-art 用兜底样式）。 */
@@ -902,6 +916,12 @@ export interface TradeState {
   wave: number
   /** 首遇剧情播过没有。 */
   introShown: boolean
+  /**
+   * 和游商**成交过几次**（B4 任务 `caravan_trade` 用；见 docs/trade-routes.md §12.1）。
+   * 单调递增的计数器，只记事、不参与任何公式，不进黄金摘要。
+   */
+  soldTimes: number
+  boughtTimes: number
 }
 
 // ---------------------------------------------------------------------------
@@ -913,6 +933,13 @@ export interface RouteCityDef {
   id: string
   nameZh: string
   lord: string
+  /**
+   * 这座城市归哪个势力（`content/factions.json` 的 id）。
+   *
+   * **唯一真源就是这个字段** —— 好感门槛（中立及以上才开得了商路）与"跑完一趟 +好感"
+   * 都按它查势力，别在代码里另写映射表。见 docs/diplomacy.md §2.2 / §3。
+   */
+  faction: FactionID
   /** 单程天数（1–5）。 */
   days: number
   /** 特产 2 种：**只能从这里买**。 */
@@ -986,6 +1013,135 @@ export interface RouteState {
   routes: TradeRoute[]
   /** `cityId → 市场`。 */
   market: Record<string, RouteMarket>
+  /**
+   * **累计创建过几条商路**（B4 任务 `route_created` 用；见 docs/trade-routes.md §12.2）。
+   * 单调递增的计数器：取消商路也不减 —— 任务问的是"你会用这套系统了吗"。
+   * 只记事、不参与任何公式，不进黄金摘要。
+   */
+  created: number
+}
+
+// ---------------------------------------------------------------------------
+// 邦交（B4，见 docs/diplomacy.md）
+//
+// 一个势力挂一条好感（-10000..10000），七档；**只有中立及以上才开得了商路**；
+// 主动开战直接打到敌对（-6000）；好感满分再花 2000 钱才能结盟；打服的势力变附庸。
+// ---------------------------------------------------------------------------
+
+export type FactionID = string
+
+/** 好感档位（数值档）。附庸是**状态位**，不是档位 —— 见 `FactionState.vassal`。 */
+export type RelationBand = 'enemy' | 'cold' | 'neutral' | 'friendly' | 'respect' | 'ally'
+/** 可以当**天花板**的档位（`cap`）：不存在"最高敌对"这种东西。 */
+export type CapBand = 'cold' | 'friendly' | 'respect' | 'ally'
+
+/**
+ * 一档好感：`max` 是上界，`incl` 决定含不含它。
+ *
+ * ⚠️ **边界归属是用户口述的**，别自作主张改成统一口径（见 docs/diplomacy.md §1.1）：
+ * 敌对 `≤ -6000` / 冷淡 `(-6000, -2000]` / 中立 `(-2000, 2000)` / 友善 `[2000, 6000)` /
+ * 尊重 `[6000, 10000)` / 同盟 `≥ 10000`。所以**负的两档含上界、正的三档不含**，
+ * 同盟是"兜底那一档"（含 10000）。
+ */
+export interface RelationBandDef {
+  id: RelationBand
+  nameZh: string
+  max: number
+  /** 上界是否包含（缺省 false）。 */
+  incl: boolean
+}
+
+/** `content/factions.json` 的 `relation` 段：档位表 + 各种率。 */
+export interface RelationConfig {
+  min: number
+  max: number
+  /** 从低到高，`max` 单调递增。 */
+  bands: RelationBandDef[]
+  /** 附庸那一档的显示名（不是数值档，UI 拼在档位名后面）。 */
+  vassalNameZh: string
+  /** `cap` 档位 → 数值上限（避免在 JSON 里写 -2001 这种魔数）。 */
+  capByBand: Record<CapBand, number>
+  /** 送钱最少多少（步长）。 */
+  giftStep: number
+  /** 1 钱换多少好感。 */
+  giftRate: number
+  /** 主动开战把关系直接打到这里（不是"减"）。 */
+  attackHit: number
+  /** 结盟要花的钱。 */
+  allyCost: number
+  /** 这一档起才能开商路。 */
+  tradeBand: RelationBand
+  /** 商路每跑完一趟的基础好感（再乘 1 + 科技加成）。 */
+  tradeGain: number
+}
+
+/** 剧情翻转：`completed_chapter() >= chapter` 时把关系直接打到 `to`，只做一次。 */
+export interface FactionFlip {
+  chapter: number
+  to: number
+  reason: string
+}
+
+/** 打赢之后怎么收场：好感打到 `rep`、天花板换成 `cap`、要不要变附庸。 */
+export interface FactionDefeat {
+  rep: number
+  cap: CapBand
+  vassal: boolean
+  /** 打赢那一仗的公告文案（缺省由引擎拼）。 */
+  reason?: string
+}
+
+export interface FactionDef {
+  id: FactionID
+  nameZh: string
+  /** 面板/列表里的短名（王庭 / 铁峰 …）。 */
+  short: string
+  lord: string
+  /** 归它的城市（`routes.json` 的 cityId）。银叶 / 灰烬没有城。 */
+  cityIds: string[]
+  /** 开局好感。 */
+  initial: number
+  cap: CapBand
+  allyable: boolean
+  vassalable: boolean
+  flip: FactionFlip | null
+  /** 打赢之后怎么收场；null = 这个势力在剧情里打不了（王庭 / 铁王城）。 */
+  defeat: FactionDefeat | null
+  /** 徽记图标 id（`assets/ui/faction/<glyph>.png`）。 */
+  glyph: string
+}
+
+export interface FactionsConfig {
+  relation: RelationConfig
+  factions: FactionDef[]
+  factionIds: FactionID[]
+}
+
+/**
+ * 邦交状态（存档 v7）。
+ *
+ * `rep` 是唯一会演化的数值；`ally` / `vassal` 是状态位；`gifts` / `flipped` 是记账。
+ * ⚠️ 它不参与经济的任何公式（好感只决定"能不能开商路"和"跑完一趟加多少"），
+ * 所以黄金摘要不受影响 —— 但 `assign_route` 的行为会变，golden 脚本不碰商路即可。
+ */
+export interface FactionState {
+  /** 好感，夹在 [min, cap]。 */
+  rep: Record<FactionID, number>
+  /** 是否已结盟（好感满分 + 付过钱）。 */
+  ally: Record<FactionID, boolean>
+  /** 是否是我们的附庸（打服的）。 */
+  vassal: Record<FactionID, boolean>
+  /** 送过几次钱（任务 `faction_gift` 用；单调递增，只记事）。 */
+  gifts: Record<FactionID, number>
+  /** 剧情翻转做过没有（只做一次）。 */
+  flipped: Record<FactionID, boolean>
+  /**
+   * 打服过没有（B5 打赢讨伐战才置 true）。
+   *
+   * 它是**天花板**的依据：没打服时按 cap，打服之后按 defeat.cap。
+   * 不能拿 ep 当标记 —— 铁鸦堡打服后是 -4000（和开局一样），看不出变化。
+   */
+  defeated: Record<FactionID, boolean>
 }
 
 export interface Government {  money: number
@@ -1042,6 +1198,8 @@ export interface LogEntry {
     | 'storage'
     /** 商路（B3）：出发 / 到达 / 回家 / 停在村里。 */
     | 'trade'
+    /** 邦交（B4）：送礼 / 结盟 / 宣战 / 剧情翻脸。 */
+    | 'diplomacy'
     | 'info'
   text: string
 }
@@ -1132,6 +1290,11 @@ export interface GameState {
    * 商路是我们自己派出去的车队。
    */
   routes: RouteState
+  /**
+   * 邦交（B4）：13 个势力的好感 / 结盟 / 附庸 / 送礼次数 / 剧情翻转。
+   * 见 `systems/factions.ts` 与 `docs/diplomacy.md`。存档 v7 新增。
+   */
+  factions: FactionState
 
   /** 当日台账累加器：黎明清零，夜间结算时挂到当天快照上。 */
   ledgerToday: DayLedger
@@ -1294,6 +1457,26 @@ export type Action =
   | { type: 'route_set_budget'; routeId: string; value: number }
   /** 商路：改某项出售数量（夹到载货上限）。 */
   | { type: 'route_set_sell'; routeId: string; goodId: GoodID; qty: number }
+  /**
+   * 邦交 · 送礼 / 进贡（B4）：给某个势力送钱换好感（**1 钱 = 1 好感**，最少 100）。
+   *
+   * 和 `research` / `route_assign` 一样**当场生效**（`IMMEDIATE_ACTIONS`）：钱当场扣、
+   * 好感当场涨、面板当场变 —— 送钱这种事没有"等到 6:00"的道理。
+   * 钱不够 / 少于步长 / 已到天花板一律拒绝并给原因。
+   */
+  | { type: 'faction_gift'; factionId: FactionID; amount: number }
+  /**
+   * 邦交 · 结盟（B4）：好感必须**已经到满分 10000**、该势力 `allyable`、
+   * 再花 `relation.allyCost`（2000）钱。当场生效。
+   */
+  | { type: 'faction_ally'; factionId: FactionID }
+  /**
+   * 邦交 · 派兵进攻（B4）：关系**直接打到 -6000（敌对）**，当场生效。
+   *
+   * ⚠️ B4 只做"宣战"这件事，**不打仗**：真正的战斗结算在 B5（讨伐战）。
+   * 附庸 / 已结盟的不许打。
+   */
+  | { type: 'faction_attack'; factionId: FactionID }
   | { type: 'end_turn' }
 
 export interface AppliedAction {

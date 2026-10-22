@@ -4,6 +4,9 @@ import type {
   ClassDef,
   ClassID,
   ContentPack,
+  FactionDef,
+  FactionID,
+  FactionsConfig,
   GoodDef,
   GoodID,
   HousingDef,
@@ -57,6 +60,19 @@ export const SCENE_IDS: string[] = CONTENT.sceneIds
 
 export const ROUTES = CONTENT.routes
 
+// 邦交（B4）：13 个势力 + 好感档位表。见 docs/diplomacy.md
+export const FACTIONS: FactionsConfig = CONTENT.factions
+export const ALL_FACTIONS: Record<FactionID, FactionDef> = Object.fromEntries(
+  CONTENT.factions.factions.map((f) => [f.id, f]),
+)
+export const FACTION_IDS: FactionID[] = CONTENT.factions.factionIds
+
+/** 某座城归哪个势力（outes.json.cities[].faction，查不到返回 undefined）。 */
+export function factionOfCity(cityId: string): FactionDef | undefined {
+  const city = ROUTES.cities.find((c) => c.id === cityId)
+  return city === undefined ? undefined : ALL_FACTIONS[city.faction]
+}
+
 /** 某建筑由哪项科技解锁；返回 undefined 表示「开局即可建」（没有科技锁）。 */
 export function techUnlockingBuilding(buildingId: BuildingID): TechID | undefined {
   for (const id of TECH_IDS) {
@@ -101,6 +117,8 @@ export interface ContentContext {
   sceneIds: string[]
   /** 商路（B3）：目的地 + 距离价表 + 商队 / 市场数值。见 `docs/trade-routes.md`。 */
   routes: RoutesConfig
+  /** 邦交（B4）：势力表与好感档位，见 `docs/diplomacy.md`。 */
+  factions: FactionsConfig
   goodSet: Set<GoodID>
   buildingSet: Set<BuildingID>
   classSet: Set<ClassID>
@@ -123,6 +141,7 @@ export function buildContext(packId: PackID): ContentContext {
     scenes: ALL_SCENES,
     sceneIds: SCENE_IDS,
     routes: ROUTES,
+    factions: FACTIONS,
     goodSet: new Set(pack.goods),
     buildingSet: new Set(pack.buildings),
     classSet: new Set(pack.classes),

@@ -23,7 +23,9 @@ func _init(content: ContentDB) -> void:
 ## 任务当场结算（见 `_apply_immediate` 末尾那一趟 `_check_quests`）。
 const IMMEDIATE_ACTIONS := ["research", "cancel_research", "move_research", "gift",
 	# 商路（B3）：派车 / 取消 / 改预算 / 改数量 —— 都不花资源，只动配置与"把货搬进搬出商队"
-	"route_assign", "route_unassign", "route_set_budget", "route_set_sell"]
+	"route_assign", "route_unassign", "route_set_budget", "route_set_sell",
+	# 邦交（B4）：送礼 / 结盟 / 宣战 —— 钱当场扣、好感当场涨（和 `gift` 同一条口径）
+	"faction_gift", "faction_ally", "faction_attack"]
 
 ## 当场应用一条动作，并把它的公告并进 `s["log"]`（与 `tick_hour` 末尾同一口径，上限 500）。
 ##
@@ -201,10 +203,15 @@ func new_game(pack_id: String, seed_value: int, resource_mult: float = 1.0) -> v
 		# 和 `prophet` 一样"只记事、不演化"，所以黄金摘要（按字段取的）不受影响。
 		"townCenter": {"stage": "ruined"},
 		# 游商（M4）：在场队伍 / 下一批到达日 / 批次号 / 首遇剧情。见 docs/needs.md §9
-		"trade": {"caravans": [], "nextWaveDay": 1, "wave": 0, "introShown": false},
+		# `soldTimes` / `boughtTimes`：和游商**成交过几次**（B4 章 3 任务用；只记事、不演化）
+		"trade": {"caravans": [], "nextWaveDay": 1, "wave": 0, "introShown": false,
+			"soldTimes": 0, "boughtTimes": 0},
 		# 商路（B3）：车队槽位 + 各城市场。见 systems/routes.ts 与 docs/trade-routes.md。
 		# `db.routes.caravan.count` 是**基础**商队数（0 = 得先研究「常设商队」）。
 		"routes": _empty_routes(),
+		# 邦交（B4）：13 个势力的好感 / 结盟 / 附庸 / 送礼次数 / 翻转与打服记录。
+		# 见 docs/diplomacy.md，判定在文件末尾那一段（`_update_factions()` 等）。
+		"factions": empty_factions(db),
 		# 科技：开局已研究的来自 pack.start.techs（见 docs/technology.md）
 		"research": {"done": _start_techs(pack_id), "queue": []},
 		# 任务（引导系统）：完成记录 + 章节奖励记录。判定与发钱都在黎明，
@@ -362,6 +369,9 @@ func _run_dawn() -> Array:
 	# 游商：到货 / 离开（M4）。放在任务之后：章节奖励刚记上，这批就按新章节来人。
 	logs.append_array(_update_caravans(int(s["day"])))
 	logs.append_array(_check_quests())
+	# 邦交（B4）：剧情翻转要在**章节奖励记上之后**判 —— 本章刚完成，那几家才翻脸。
+	# 与 TS 侧 tick.ts::runDawn 的插入点一致（见 docs/spec.md §22.3）。
+	logs.append_array(_update_factions(int(s["day"])))
 	return logs
 
 func _run_night() -> Array:
@@ -514,6 +524,22 @@ func _apply_actions(actions: Array) -> Array:
 					String(action.get("goodId", "")), int(action.get("qty", 0)))
 				if why_sell != "":
 					logs.append({"day": int(s["day"]), "kind": "trade", "text": "改数量被拒：" + why_sell})
+			# ---- 邦交（B4）：三条都当场生效（送钱 / 立约 / 宣战，没理由等 6:00）----
+			# 见 docs/diplomacy.md §4。钱当场扣、好感当场涨，面板与公告立刻能看见。
+			"faction_gift":
+				var gres := faction_gift(String(action.get("factionId", "")),
+					float(action.get("amount", 0.0)))
+				if bool(gres.get("ok", false)) and gres.has("log"):
+					logs.append(gres["log"])
+			"faction_ally":
+				var ares := faction_ally(String(action.get("factionId", "")))
+				if bool(ares.get("ok", false)) and ares.has("log"):
+					logs.append(ares["log"])
+			"faction_attack":
+				# ⚠️ B4 只做"宣战"：关系直接打到 -6000（敌对）。真正的战斗结算在 B5 的讨伐战。
+				var wart := faction_attack(String(action.get("factionId", "")))
+				if bool(wart.get("ok", false)) and wart.has("log"):
+					logs.append(wart["log"])
 			"gift":
 				# 送物资（用户 2026-10 · A4；2026-10-20 改成**即时生效**）：
 				# 玩家当面交东西，货当场出门、任务当场结算 —— 不能等到次日黎明。
@@ -2412,9 +2438,10 @@ const SERVICE_GOODS := ["safety", "medical_service", "education"]
 func tech_bonuses() -> Dictionary:
 	var out := {"agri": 0.0, "goods": 0.0, "material": 0.0, "research": 0.0, "build": 0.0,
 		"services": 0.0, "toolLife": 0.0,
-		# 贸易（商路，B3）—— 量纲各不相同，单独一块：caravans/haggle* 加法，
+		# 贸易（商路，B3）—— 量纲各不相同，单独一块：caravans/haggle*/goodwill 加法，
 		# cargo/purse 取最高。见 systems/tech_bonus.ts::TechBonuses.trade。
-		"trade": {"caravans": 0.0, "cargo": 0.0, "purse": 0.0, "haggleBuy": 0.0, "haggleSell": 0.0}}
+		"trade": {"caravans": 0.0, "cargo": 0.0, "purse": 0.0, "haggleBuy": 0.0, "haggleSell": 0.0,
+			"goodwill": 0.0}}
 	for tid in (s["research"]["done"] as Array):
 		var t = db.techs.get(String(tid), null)
 		if t == null:
@@ -2441,6 +2468,8 @@ func tech_bonuses() -> Dictionary:
 				bt["haggleBuy"] = float(bt["haggleBuy"]) + float(trade["haggleBuy"])
 			if trade.has("haggleSell"):
 				bt["haggleSell"] = float(bt["haggleSell"]) + float(trade["haggleSell"])
+			if trade.has("goodwill"):
+				bt["goodwill"] = float(bt["goodwill"]) + float(trade["goodwill"])
 	return out
 
 ## 某座商店的**产业**产出加成：1 + tech_bonuses()[该建筑的 sector]。
@@ -3784,6 +3813,9 @@ func sell_to_caravan(caravan_id: String, good_id: String, qty: int) -> String:
 	c["cash"] = SimUtil.r2(float(c["cash"]) - money)
 	# ⚠️ 单列一栏，不再混进 `sales`（居民消费回款）—— 用户 2026-10："游商的收益"要单独一行。
 	s["ledgerToday"]["merchantSell"] = SimUtil.r2(float(s["ledgerToday"].get("merchantSell", 0.0)) + money)
+	# 成交次数（B4 章 3 任务 `caravan_trade` 读它）。单调递增，只记事、不进黄金摘要。
+	var tr: Dictionary = _trade()
+	tr["soldTimes"] = int(tr.get("soldTimes", 0)) + 1
 	return ""
 
 ## 玩家从游商买。返回拒绝原因（空串 = 成功）。
@@ -3807,6 +3839,9 @@ func buy_from_caravan(caravan_id: String, good_id: String, qty: int) -> String:
 	s["goods"][good_id] = SimUtil.r2(float(s["goods"].get(good_id, 0.0)) + float(n))
 	c["cash"] = SimUtil.r2(float(c["cash"]) + money)
 	offer["qty"] = SimUtil.r2(float(offer["qty"]) - float(n))
+	# 成交次数（B4 章 3 任务 `caravan_trade` 读它）
+	var tr: Dictionary = _trade()
+	tr["boughtTimes"] = int(tr.get("boughtTimes", 0)) + 1
 	return ""
 
 ## 游商面板的只读快照（UI 只画、不算）：在场队伍 + 剩余天数 + 下一批还差几天。
@@ -3942,7 +3977,7 @@ static func empty_routes(cdb: ContentDB) -> Dictionary:
 	var base := int((cdb.routes.get("caravan", {}) as Dictionary).get("count", 0))
 	for i in base:
 		routes.append(_route_seed(int(i) + 1))
-	return {"routes": routes, "market": market}
+	return {"routes": routes, "market": market, "created": 0}
 
 func _empty_routes() -> Dictionary:
 	return empty_routes(db)
@@ -4004,6 +4039,7 @@ static func repair_routes(st: Dictionary, cdb: ContentDB) -> void:
 			if not (r.get(k3, null) is Dictionary):
 				r[k3] = {}
 	# 把修好的形状写回（`cur` 是 `st["routes"]` 的引用，但地图/车队可能是整份换掉的）
+	cur["created"] = int(cur.get("created", 0))
 	st["routes"] = cur
 
 ## 取商路段（缺了就现补）。**所有**摸 `s["routes"]` 的地方都走这里：
@@ -4203,8 +4239,20 @@ func _finish_return(route: Dictionary, day: int) -> Array:
 	route["backDay"] = 0
 	route["lastTripDay"] = day
 	var suffix := "（%s）" % String(city["nameZh"]) if city != null else ""
-	return [{"day": day, "kind": "trade", "text": "商队回来了：携 %s、余钱 ¥%.0f%s" % [
+	var out := [{"day": day, "kind": "trade", "text": "商队回来了：携 %s、余钱 ¥%.0f%s" % [
 		" ".join(moved) if not moved.is_empty() else "空车", cash_back, suffix]}]
+	# 邦交（B4）：**跑完一趟**给这座城市的主子加好感（空跑不加 —— 走到这里就是"跑完了"）。
+	# 一趟 = `tradeGain × (1 + goodwill)` → 100 / 150 / 200 / 300，夹到天花板。
+	# 见 docs/diplomacy.md §3.2。镜像：TS 的 routes.ts::finishReturn()。
+	if city != null:
+		var fid := String(city.get("faction", ""))
+		var gain := faction_trade_gain()
+		var got := faction_add_rep(fid, gain)
+		if got != 0:
+			out.append({"day": day, "kind": "diplomacy",
+				"text": "%s对我们的好感 +%d（%s）" % [
+					String(_faction_def(fid).get("short", fid)), got, faction_label(fid)]})
+	return out
 
 ## 派第一支空闲商队去这座城。返回失败原因（空串 = 成功）。
 func assign_route(city_id: String) -> String:
@@ -4215,6 +4263,11 @@ func assign_route(city_id: String) -> String:
 		return "还没研究「常设商队」"
 	if _route_chapter() < int(city.get("unlockChapter", 0)):
 		return "%s还没通路" % String(city["nameZh"])
+	# 邦交门槛（B4）：只有**中立及以上**才开得了商路（附庸视为中立）。
+	# 见 docs/diplomacy.md §3.1 —— 敌对 / 冷淡在这座城上「设为目的地」是灰的。
+	var gate := faction_can_trade(String(city.get("faction", "")))
+	if not bool(gate.get("ok", true)):
+		return String(gate.get("why", "关系不够"))
 	sync_route_count()
 	for r in (_routes_state()["routes"] as Array):
 		if String(r["cityId"]) == city_id:
@@ -4229,6 +4282,9 @@ func assign_route(city_id: String) -> String:
 	idle["cityId"] = city_id
 	idle["phase"] = "home"
 	idle["budget"] = minf(float(idle["budget"]), route_purse_cap())
+	# 任务 `route_created` 数这个（单调递增，取消不减；只记事、不演化）
+	var rs: Dictionary = _routes_state()
+	rs["created"] = int(rs.get("created", 0)) + 1
 	return ""
 
 ## 取消一条商路，已锁的货与钱退回。
@@ -4358,3 +4414,326 @@ func routes_snapshot() -> Dictionary:
 		"routes": list,
 		"cities": cities,
 	}
+
+# ===========================================================================
+# 邦交（B4，2026-10 用户口述）—— 13 个势力 · 好感 · 送礼 / 结盟 / 宣战 · 商路门槛
+#
+# 设计唯一契约是 docs/diplomacy.md；TS 侧镜像在 src/engine/systems/factions.ts。
+# 三条硬规则：
+#   1. **只有中立及以上才开得了商路**（附庸视为中立；敌对 / 冷淡按钮灰掉）
+#   2. **主动开战 = 直接打到 -6000（敌对）**，不是"减 6000"
+#   3. **打赢之后**按势力的 `defeat` 规则收场：默认冷淡+附庸，铁峰直接变 6000（尊重）
+# ===========================================================================
+
+## 七档的顺序（与 factions.json 的 bands 同序；`tradeBand` 的比较靠它）。
+const FACTION_BANDS := ["enemy", "cold", "neutral", "friendly", "respect", "ally"]
+
+func _faction_cfg() -> Dictionary:
+	return db.factions.get("relation", {})
+
+func _faction_defs() -> Array:
+	return db.factions.get("factions", [])
+
+## 取某个势力的定义（找不到返回空字典）。
+func _faction_def(fid: String) -> Dictionary:
+	for f in _faction_defs():
+		if String(f.get("id", "")) == fid:
+			return f
+	return {}
+
+## 开局的邦交状态：好感取 `initial`，其余记账全空。
+## ⚠️ 静态 + 显式收 cdb：`repair_factions()` 在读档兜底时也要用它（那时不一定有实例）。
+static func empty_factions(cdb: ContentDB) -> Dictionary:
+	var rep := {}
+	var ally := {}
+	var vassal := {}
+	var gifts := {}
+	var flipped := {}
+	var defeated := {}
+	for f in (cdb.factions.get("factions", []) as Array):
+		var fid := String(f.get("id", ""))
+		rep[fid] = int(f.get("initial", 0))
+		ally[fid] = false
+		vassal[fid] = false
+		gifts[fid] = 0
+		flipped[fid] = false
+		defeated[fid] = false
+	return {"rep": rep, "ally": ally, "vassal": vassal, "gifts": gifts,
+		"flipped": flipped, "defeated": defeated}
+
+## 老存档兜底：把缺的字段补上（**不动已有的好感**）。
+##
+## v6 及更早的存档没有 `state.factions`，不补的话 `faction_band()` 会读空字典 ——
+## B3 的 `routes` 就是这么崩过一次的（见 `docs/spec.md` §21.6）。
+static func repair_factions(st: Dictionary, cdb: ContentDB) -> void:
+	var fresh := empty_factions(cdb)
+	var cur = st.get("factions", null)
+	if not (cur is Dictionary):
+		st["factions"] = fresh
+		return
+	var d: Dictionary = cur
+	for key in ["rep", "ally", "vassal", "gifts", "flipped", "defeated"]:
+		if not (d.get(key, null) is Dictionary):
+			d[key] = fresh[key]
+	# 逐个势力补齐：内容里后加的势力直接取初始值；已有的势力**一个数字都不重置**
+	for fid in (fresh["rep"] as Dictionary).keys():
+		if not (d["rep"] as Dictionary).has(fid):
+			d["rep"][fid] = (fresh["rep"] as Dictionary)[fid]
+		for key2 in ["ally", "vassal", "flipped", "defeated"]:
+			if not (d[key2] as Dictionary).has(fid):
+				d[key2][fid] = false
+		if not (d["gifts"] as Dictionary).has(fid):
+			d["gifts"][fid] = 0
+	st["factions"] = d
+
+## 取邦交段（缺了就现补）。**所有**摸 `s["factions"]` 的地方都走这里。
+func _factions() -> Dictionary:
+	var cur = s.get("factions", null)
+	if not (cur is Dictionary) or not ((cur as Dictionary).get("rep", null) is Dictionary):
+		repair_factions(s, db)
+	return s["factions"]
+
+## 某势力当前的天花板（数值）：打服过按 `defeat.cap`，否则按 `cap`。
+func faction_cap(fid: String) -> int:
+	var def := _faction_def(fid)
+	if def.is_empty():
+		return int(_faction_cfg().get("max", 10000))
+	var band := String(def.get("cap", "respect"))
+	var st: Dictionary = _factions()
+	var dfe = def.get("defeat", null)
+	if bool((st["defeated"] as Dictionary).get(fid, false)) and dfe is Dictionary:
+		band = String((dfe as Dictionary).get("cap", band))
+	var cap_by: Dictionary = _faction_cfg().get("capByBand", {})
+	return int(cap_by.get(band, int(_faction_cfg().get("max", 10000))))
+
+## 好感夹到 [min, 天花板]。
+func faction_clamp(rep: float, cap: int) -> int:
+	var lo := int(_faction_cfg().get("min", -10000))
+	return int(round(clampf(rep, float(lo), float(cap))))
+
+## 好感 → 档位。
+##
+## ⚠️ 边界照用户口述：敌对 `<= -6000`、冷淡 `(-6000, -2000]`、中立 `(-2000, 2000)`、
+## 友善 `[2000, 6000)`、尊重 `[6000, 10000)`、同盟 `>= 10000`。
+## `bands[i].incl` 决定这一档含不含上界 —— **负的两档含、正的三档不含**。
+func faction_band(rep: float) -> String:
+	for b in (_faction_cfg().get("bands", []) as Array):
+		var mx := float(b.get("max", 10000))
+		var incl := bool(b.get("incl", false))
+		var hit := (rep <= mx) if incl else (rep < mx)
+		if hit:
+			return String(b.get("id", "neutral"))
+	return "ally"
+
+## 档位的中文名。
+func faction_band_name(band: String) -> String:
+	for b in (_faction_cfg().get("bands", []) as Array):
+		if String(b.get("id", "")) == band:
+			return String(b.get("nameZh", band))
+	return band
+
+## 某势力当前对外的称呼：附庸 > 好感档。
+func faction_label(fid: String) -> String:
+	var st: Dictionary = _factions()
+	if bool((st["vassal"] as Dictionary).get(fid, false)):
+		return String(_faction_cfg().get("vassalNameZh", "附庸"))
+	return faction_band_name(faction_band(float((st["rep"] as Dictionary).get(fid, 0))))
+
+## 这一档起能不能通商。
+func faction_meets_trade(band: String) -> bool:
+	var want := String(_faction_cfg().get("tradeBand", "neutral"))
+	return FACTION_BANDS.find(band) >= FACTION_BANDS.find(want)
+
+## 某个势力现在能不能开商路。返回 `{ok, why}`（`why` 是能给玩家看的话）。
+func faction_can_trade(fid: String) -> Dictionary:
+	var st: Dictionary = _factions()
+	if _faction_def(fid).is_empty():
+		return {"ok": false, "why": "没有这个势力"}
+	if bool((st["vassal"] as Dictionary).get(fid, false)):
+		return {"ok": true, "why": ""}
+	var band := faction_band(float((st["rep"] as Dictionary).get(fid, 0)))
+	if faction_meets_trade(band):
+		return {"ok": true, "why": ""}
+	return {"ok": false,
+		"why": "%s与我们的关系是「%s」，先送钱缓和" % [
+			String(_faction_def(fid).get("short", fid)), faction_band_name(band)]}
+
+## 商路每跑完一趟的好感（含科技加成：100 / 150 / 200 / 300）。
+func faction_trade_gain() -> int:
+	var bonus := float((tech_bonuses()["trade"] as Dictionary).get("goodwill", 0.0))
+	return int(round(float(_faction_cfg().get("tradeGain", 100)) * (1.0 + bonus)))
+
+## 给某个势力加好感（夹到天花板）。返回实际涨了多少（写公告用）。
+##
+## ⚠️ 天花板是"**最多能推到哪**"，不是"此刻的上界"：开局好感可以高于它
+## （沙海汗国开局中立、天花板冷淡 —— 见 `factions.json` 的注释）。所以这里对
+## **加好感**取 `max(现值, min(天花板, 目标))`：高于天花板时既不涨也不掉，
+## 绝不能"送钱反而把关系送低"。
+func faction_add_rep(fid: String, delta: int) -> int:
+	var st: Dictionary = _factions()
+	var rep: Dictionary = st["rep"]
+	var before := int(rep.get(fid, 0))
+	var cap := faction_cap(fid)
+	var target := faction_clamp(float(before + delta), cap)
+	var after := maxi(before, target) if delta >= 0 else target
+	after = int(clampf(float(after), float(_faction_cfg().get("min", -10000)),
+		float(_faction_cfg().get("max", 10000))))
+	rep[fid] = after
+	return after - before
+
+## 送钱给王都叫「进贡」——父王还在（第 6 章之前）才这么叫，之后就是「送礼」。
+func faction_gift_verb(fid: String) -> String:
+	if fid != "court":
+		return "送礼"
+	return "进贡" if completed_chapter() < 6 else "送礼"
+
+## 送礼 / 进贡：1 钱 = 1 好感，最少 `giftStep`。钱从国库扣。返回 `{ok, reason?, log?}`。
+func faction_gift(fid: String, amount: float) -> Dictionary:
+	var def := _faction_def(fid)
+	if def.is_empty():
+		return {"ok": false, "reason": "没有这个势力"}
+	var money := int(floor(amount))
+	var step := int(_faction_cfg().get("giftStep", 100))
+	if money < step:
+		return {"ok": false, "reason": "一次至少送 %d 钱" % step}
+	if float(s["government"]["money"]) < float(money):
+		return {"ok": false, "reason": "国库没有这么多钱"}
+	var st: Dictionary = _factions()
+	var cur := int((st["rep"] as Dictionary).get(fid, 0))
+	if cur >= faction_cap(fid):
+		return {"ok": false, "reason": "%s对我们的好感已经到顶了" % String(def.get("short", fid))}
+	s["government"]["money"] = SimUtil.r2(float(s["government"]["money"]) - float(money))
+	var rate := float(_faction_cfg().get("giftRate", 1.0))
+	var gained := faction_add_rep(fid, int(round(float(money) * rate)))
+	(st["gifts"] as Dictionary)[fid] = int((st["gifts"] as Dictionary).get(fid, 0)) + 1
+	return {"ok": true, "log": {"day": int(s["day"]), "kind": "diplomacy",
+		"text": "%s：付 ¥%d，%s好感 +%d（%s）" % [
+			faction_gift_verb(fid), money, String(def.get("short", fid)), gained,
+			faction_label(fid)]}}
+
+## 结盟：好感必须已到满分、`allyable`、再花 `allyCost` 钱。返回 `{ok, reason?, log?}`。
+func faction_ally(fid: String) -> Dictionary:
+	var def := _faction_def(fid)
+	if def.is_empty():
+		return {"ok": false, "reason": "没有这个势力"}
+	var st: Dictionary = _factions()
+	var short := String(def.get("short", fid))
+	if bool((st["ally"] as Dictionary).get(fid, false)):
+		return {"ok": false, "reason": "%s已经是盟友了" % short}
+	if not bool(def.get("allyable", false)):
+		return {"ok": false, "reason": "%s不与我们结盟" % String(def.get("nameZh", fid))}
+	var top := int(_faction_cfg().get("max", 10000))
+	var cur := int((st["rep"] as Dictionary).get(fid, 0))
+	if cur < top:
+		return {"ok": false, "reason": "好感还不够（要 %d，现在 %d）" % [top, cur]}
+	var cost := int(_faction_cfg().get("allyCost", 2000))
+	if float(s["government"]["money"]) < float(cost):
+		return {"ok": false, "reason": "结盟要 ¥%d，国库不够" % cost}
+	s["government"]["money"] = SimUtil.r2(float(s["government"]["money"]) - float(cost))
+	(st["ally"] as Dictionary)[fid] = true
+	return {"ok": true, "log": {"day": int(s["day"]), "kind": "diplomacy",
+		"text": "结盟：与%s立约，付 ¥%d（同盟）" % [String(def.get("nameZh", fid)), cost]}}
+
+## 派兵进攻：关系**直接**打到 `attackHit`（-6000，敌对）。B4 只宣战，不打仗。
+func faction_attack(fid: String) -> Dictionary:
+	var def := _faction_def(fid)
+	if def.is_empty():
+		return {"ok": false, "reason": "没有这个势力"}
+	var st: Dictionary = _factions()
+	var short := String(def.get("short", fid))
+	if bool((st["vassal"] as Dictionary).get(fid, false)):
+		return {"ok": false, "reason": "%s是我们的附庸，不能打" % short}
+	if bool((st["ally"] as Dictionary).get(fid, false)):
+		return {"ok": false, "reason": "%s是我们的盟友，先解盟" % short}
+	if faction_band(float((st["rep"] as Dictionary).get(fid, 0))) == "enemy":
+		return {"ok": false, "reason": "已经在和%s交战了" % short}
+	(st["rep"] as Dictionary)[fid] = faction_clamp(
+		float(_faction_cfg().get("attackHit", -6000)), faction_cap(fid))
+	return {"ok": true, "log": {"day": int(s["day"]), "kind": "diplomacy",
+		"text": "宣战：%s（关系变「%s」）" % [String(def.get("nameZh", fid)), faction_label(fid)]}}
+
+## 黎明：剧情翻转（只做一次，幂等）。
+func _update_factions(day: int) -> Array:
+	var st: Dictionary = _factions()
+	var chapter := completed_chapter()
+	var logs := []
+	for def in _faction_defs():
+		var fid := String(def.get("id", ""))
+		var flip = def.get("flip", null)
+		if not (flip is Dictionary):
+			continue
+		if bool((st["flipped"] as Dictionary).get(fid, false)):
+			continue
+		if chapter < int((flip as Dictionary).get("chapter", 99)):
+			continue
+		(st["flipped"] as Dictionary)[fid] = true
+		(st["rep"] as Dictionary)[fid] = faction_clamp(
+			float((flip as Dictionary).get("to", -6000)), faction_cap(fid))
+		(st["ally"] as Dictionary)[fid] = false
+		logs.append({"day": day, "kind": "diplomacy",
+			"text": "%s与我们翻脸：%s（%s）" % [
+				String(def.get("nameZh", fid)),
+				String((flip as Dictionary).get("reason", "局势变了")),
+				faction_label(fid)]})
+	return logs
+
+## 打赢之后的收场（B5 的讨伐战会调它；B4 只把它写好，没有调用点）。
+##
+## 按 `defeat` 规则：好感打到 `rep`、天花板换成 `defeat.cap`（靠 `defeated` 位）、
+## `vassal` 决定要不要变附庸。铁峰是特例：打赢**直接和好成 6000（尊重）**。
+func apply_faction_defeat(fid: String) -> Array:
+	var def := _faction_def(fid)
+	if def.is_empty():
+		return []
+	var rule = def.get("defeat", null)
+	if not (rule is Dictionary):
+		return []
+	var st: Dictionary = _factions()
+	(st["defeated"] as Dictionary)[fid] = true
+	(st["rep"] as Dictionary)[fid] = faction_clamp(
+		float((rule as Dictionary).get("rep", -4000)), faction_cap(fid))
+	(st["vassal"] as Dictionary)[fid] = bool((rule as Dictionary).get("vassal", false))
+	(st["ally"] as Dictionary)[fid] = false
+	var text := String((rule as Dictionary).get("reason", ""))
+	if text == "":
+		text = "打赢了！%s%s" % [String(def.get("nameZh", fid)),
+			"，成为我们的附庸" if bool((rule as Dictionary).get("vassal", false)) \
+				else "，关系「%s」" % faction_label(fid)]
+	return [{"day": int(s["day"]), "kind": "diplomacy", "text": text}]
+
+## 外交面板的只读快照（UI 只画、不算）。
+func factions_snapshot() -> Dictionary:
+	var st: Dictionary = _factions()
+	var out := []
+	for def in _faction_defs():
+		var fid := String(def.get("id", ""))
+		var rep := int((st["rep"] as Dictionary).get(fid, 0))
+		var band := faction_band(float(rep))
+		var gate := faction_can_trade(fid)
+		var top := int(_faction_cfg().get("max", 10000))
+		out.append({
+			"id": fid,
+			"nameZh": String(def.get("nameZh", fid)),
+			"short": String(def.get("short", fid)),
+			"lord": String(def.get("lord", "")),
+			"cityIds": def.get("cityIds", []),
+			"glyph": String(def.get("glyph", fid)),
+			"rep": rep,
+			"cap": faction_cap(fid),
+			"band": band,
+			"bandName": faction_band_name(band),
+			"label": faction_label(fid),
+			"ally": bool((st["ally"] as Dictionary).get(fid, false)),
+			"vassal": bool((st["vassal"] as Dictionary).get(fid, false)),
+			"allyable": bool(def.get("allyable", false)),
+			"canAlly": bool(def.get("allyable", false)) and rep >= top,
+			"allyCost": int(_faction_cfg().get("allyCost", 2000)),
+			"gifts": int((st["gifts"] as Dictionary).get(fid, 0)),
+			"giftStep": int(_faction_cfg().get("giftStep", 100)),
+			"canTrade": bool(gate.get("ok", false)),
+			"tradeWhy": String(gate.get("why", "")),
+			"canAttack": not bool((st["vassal"] as Dictionary).get(fid, false)) \
+				and not bool((st["ally"] as Dictionary).get(fid, false)) and band != "enemy",
+		})
+	return {"relation": _faction_cfg(), "factions": out,
+		"money": SimUtil.r2(float(s["government"]["money"]))}

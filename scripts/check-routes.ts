@@ -124,7 +124,10 @@ console.log(`  城市 ${routes.cities.length} 座；1 天 ${near.length} / 5 天
 // ---------------------------------------------------------------------------
 console.log('=== 贸易科技（content/technologies.json）===')
 const tradeTechs = techs.technologies.filter((t) => t.trade !== undefined)
-ok(tradeTechs.length === 16, `贸易科技应当 16 项（商队 4 + 货箱 3 + 钱箱 3 + 议价买 3 + 议价卖 3），实际 ${tradeTechs.length}`)
+ok(
+  tradeTechs.length === 19,
+  `贸易科技应当 19 项（商队 4 + 货箱 3 + 钱箱 3 + 议价买 3 + 议价卖 3 + 好感 3），实际 ${tradeTechs.length}`,
+)
 
 const count = (pred: (id: string) => boolean): number => tradeTechs.filter((t) => pred(t.id)).length
 ok(count((id) => id.startsWith('trade_caravan_')) === 4, '商队科技应当 4 项')
@@ -132,6 +135,7 @@ ok(count((id) => id.startsWith('cargo_hold_')) === 3, '货箱科技应当 3 项'
 ok(count((id) => id.startsWith('strongbox_')) === 3, '钱箱科技应当 3 项')
 ok(count((id) => id.startsWith('haggle_buy_')) === 3, '买价科技应当 3 项')
 ok(count((id) => id.startsWith('haggle_sell_')) === 3, '卖价科技应当 3 项')
+ok(count((id) => id.startsWith('trade_goodwill_')) === 3, '商路好感科技应当 3 项')
 
 // 商队数：累加后应当正好等于 maxCount
 let caravans = 0
@@ -139,6 +143,7 @@ let cargo = 0
 let purse = 0
 let haggleBuy = 0
 let haggleSell = 0
+let goodwill = 0
 for (const t of tradeTechs) {
   const tr = t.trade!
   if (tr.caravans) caravans += tr.caravans
@@ -146,12 +151,15 @@ for (const t of tradeTechs) {
   if (tr.purse) purse = Math.max(purse, tr.purse)
   if (tr.haggleBuy) haggleBuy += tr.haggleBuy
   if (tr.haggleSell) haggleSell += tr.haggleSell
+  if (tr.goodwill) goodwill += tr.goodwill
 }
 ok(caravans === routes.caravan.maxCount, `商队科技合计 +${caravans} 应当正好等于 maxCount(${routes.caravan.maxCount})`)
 ok(cargo > routes.caravan.cargo, `载货科技的最高档（${cargo}）要大于基础值（${routes.caravan.cargo}）`)
 ok(purse > routes.caravan.purse, `钱箱科技的最高档（${purse}）要大于基础值（${routes.caravan.purse}）`)
 ok(Math.abs(haggleBuy - 0.3) < 1e-9, `买价三级应当合计 -30%（实际 ${haggleBuy}）`)
 ok(Math.abs(haggleSell - 0.3) < 1e-9, `卖价三级应当合计 +30%（实际 ${haggleSell}）`)
+// 好感三级：0.5 / 0.5 / 1.0，加法累计 **+200%** → 一趟 100 → 300（用户："+50% +100% +200%"）
+ok(Math.abs(goodwill - 2.0) < 1e-9, `商路好感三级应当合计 +200%（实际 ${goodwill}）`)
 
 // 前置必须存在 + 根节点挂在「通商」上
 const root = techById.get('trade_caravan_1')

@@ -12,7 +12,7 @@ extends RefCounted
 ##       routeOut·routeIn / merchantSell）；5 = 场次 + 送物资（scenes.shown / gifts）；
 ##       4 = 游商 + 城镇中心三段修缮 + 贸易面板；3 = 住房单体身份；
 ##       2 = 任务 schema 2（giver / outro / building_repaired）+ 剧情对话记账。
-const SAVE_VERSION := 6
+const SAVE_VERSION := 7
 const DEFAULT_PATH := "user://sovit_save.json"
 
 static func save_to(path: String, sim: SimCore) -> Error:
@@ -208,6 +208,17 @@ static func _sanitize(s: Dictionary, db: ContentDB) -> void:
 	# `sim_core.gd::routes_snapshot()` 的 `s["routes"]["routes"]` 上；
 	# 黎明 `_update_routes()` 也是同一处。补形状的逻辑只有一份，在 sim_core 里。
 	SimCore.repair_routes(s, db)
+
+	# 邦交（B4，v7 才有 `state.factions`）：和商路同一条口径 —— 老档 / 半截档必须补，
+	# 不然后面一碰就炸（`faction_band()` 读空字典、黎明 `_update_factions()` 崩）。
+	# 补形状的逻辑只有一份，在 sim_core 里（`repair_factions`）。
+	SimCore.repair_factions(s, db)
+
+	# 游商的两条计数器（B4 章 3 任务用）：老存档没有，补 0（只记事、不参与公式）
+	if s.get("trade", null) is Dictionary:
+		var tr: Dictionary = s["trade"]
+		tr["soldTimes"] = int(tr.get("soldTimes", 0))
+		tr["boughtTimes"] = int(tr.get("boughtTimes", 0))
 
 	# 科技（见 docs/technology.md）：旧存档没有这一段
 	if not (s.get("research", null) is Dictionary):

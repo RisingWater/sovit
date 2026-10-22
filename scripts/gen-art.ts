@@ -925,6 +925,16 @@ function main(): void {
   let n = 0
   const missing: string[] = []
   const spriteMissing: string[] = []
+  /**
+   * 程序化 `arch: "field"` 的农田（6 座）要读 `tiny/farm.png` 那张图集，
+   * 而它**已在 2026-10 的素材清理里删掉**（`docs/art/game/README.md` 那份清单），
+   * 仓库里只留下当年生成的成品 PNG。
+   *
+   * ⚠️ 于是没有 farm 图集时**跳过这几座**、保留已有成品，别再让整条 `gen:art`
+   * 因为一个 `ENOENT` 崩掉（2026-10 加使馆贴图时踩到：一个缺文件把 100+ 张图全卡住）。
+   */
+  const farmAtlasMissing = !existsSync(FARM_PNG)
+  const fieldSkipped: string[] = []
   for (const b of [...buildings, ...housing]) {
     if (!b.art) { missing.push(b.id); continue }
 
@@ -939,10 +949,21 @@ function main(): void {
       continue
     }
 
+    if (b.art.arch === 'field' && farmAtlasMissing) {
+      fieldSkipped.push(b.id)
+      continue
+    }
+
     const cv = renderBuilding(b.art)
     writeFileSync(`${ROOT}/buildings/${b.id}.png`, cv.toPng())
     writeFileSync(`${ROOT}/thumbs/${b.id}.png`, thumbOf(cv).toPng())
     n++
+  }
+  if (fieldSkipped.length > 0) {
+    console.log(
+      `⚠️ 跳过 ${fieldSkipped.length} 座程序化农田（缺 tiny/farm.png，保留已有成品）：` +
+        fieldSkipped.join(' / '),
+    )
   }
   // 地图正中央那座固定建筑现在就是**城镇中心**（`content` 里的 `town_center`，
   // 见 docs/town.md §二），所以它走上面普通的 sprite 分支：贴图 =

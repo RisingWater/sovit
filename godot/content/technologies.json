@@ -695,6 +695,45 @@
       "requires": ["haggle_sell_2"],
       "trade": { "haggleSell": 0.10 },
       "unlocks": { "buildings": [], "housing": [] }
+    },
+    {
+      "id": "trade_goodwill_1",
+      "nameZh": "通使礼数",
+      "era": 3,
+      "research": 55,
+      "cost": { "goods": { "wood": 20, "pottery": 20 } },
+      "requires": ["trade_caravan_1"],
+      "trade": { "goodwill": 0.5 },
+      "unlocks": { "buildings": [], "housing": [] }
+    },
+    {
+      "id": "trade_goodwill_2",
+      "nameZh": "邦交友道",
+      "era": 4,
+      "research": 75,
+      "cost": { "goods": { "pottery": 30, "wood": 25 } },
+      "requires": ["trade_goodwill_1"],
+      "trade": { "goodwill": 0.5 },
+      "unlocks": { "buildings": [], "housing": [] }
+    },
+    {
+      "id": "trade_goodwill_3",
+      "nameZh": "万国来朝",
+      "era": 5,
+      "research": 90,
+      "cost": { "goods": { "pottery": 40, "wood": 30 } },
+      "requires": ["trade_goodwill_2"],
+      "trade": { "goodwill": 1.0 },
+      "unlocks": { "buildings": [], "housing": [] }
+    },
+    {
+      "id": "statecraft",
+      "nameZh": "邦交",
+      "era": 4,
+      "research": 80,
+      "cost": { "goods": { "wood": 30, "pottery": 25 } },
+      "requires": ["trade", "construction"],
+      "unlocks": { "buildings": ["embassy"], "housing": [] }
     }
   ]
 }

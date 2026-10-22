@@ -24,6 +24,11 @@ var scene_ids: Array = []
 ## `{distance: [...], caravan: {...}, market: {...}, cities: [...]}`。
 ## 判定与结算在 `sim_core.gd::_update_routes()`，与 TS `systems/routes.ts` 同口径。
 var routes: Dictionary = {}
+## 邦交（B4，用户 2026-10）：`content/factions.json` 的整份内容 ——
+## `{relation: {bands, capByBand, ...}, factions: [{id, initial, cap, flip, defeat, ...}]}`。
+## 判定在 `sim_core.gd` 末尾那段（`faction_band` / `faction_gift` / `_update_factions` 等），
+## 与 TS `systems/factions.ts` 同口径。结构校验在 TS 侧（`validate.ts::parseFactions`）。
+var factions: Dictionary = {}
 ## `quests.json` 自己的 schema 版本（2 起有 giver / outro / building_repaired）。
 ## 与 `schema_version`（economy.json，还是 1）分开记，见 docs/quests.md §七。
 var quests_schema_version: int = 0
@@ -210,6 +215,10 @@ func _load() -> void:
 	# Godot 这边只需要读，不需要重复校验（`check:routes` 是那道闸）。
 	var rt: Dictionary = _read_json("routes.json")
 	routes = rt if rt != null else {}
+	# 邦交（B4）：同上，整份原样保留（`validate.ts::parseFactions` + `check:factions` 是闸）。
+	var fc: Dictionary = _read_json("factions.json")
+	factions = fc if fc != null else {}
+	routes = rt if rt != null else {}
 
 ## 商品 category 的中文名。
 ##
@@ -268,10 +277,11 @@ const TERRAIN_ZH := {"grass": "草地", "forest": "林地", "stone": "石矿", "
 const CAT_MEDICAL := ["herbal_farm", "potion_workshop", "clinic", "hospital", "school"]
 ## 「军事」页（2026-10 第二批）：治安所 / 瞭望台 / 武器·盔甲·弓箭作坊。
 const CAT_MILITARY := ["guard_station", "watchtower", "weapon_workshop", "armor_workshop", "bow_arrow_workshop"]
-## 「市政」页：仓库 / 建筑工坊 / 研究所 / **贸易市场** —— 别让它们掉进工坊那两页。
+## 「市政」页：仓库 / 建筑工坊 / 研究所 / **贸易市场** / **使馆** —— 别让它们掉进工坊那两页。
 ## 贸易市场 2026-10 从「工业」挪过来：工业页有 14 座、要翻两页，它就藏在第 2 页最后一格，
 ## 用户的原话是"市场这个建筑没了，这样游商系统的入口在哪里？"—— 市政页只有 4 座，一眼看见。
-const CAT_CIVIC := ["warehouse", "construction_works", "research_institute", "trade_market"]
+## 使馆（B4）同理：它是"外交面板的钥匙"，藏在别的页里玩家就找不到面板了。
+const CAT_CIVIC := ["warehouse", "construction_works", "research_institute", "trade_market", "embassy"]
 ## 「民生工业」页（2026-10 拆页）：卖给村民穿衣用饭的那几条链 ——
 ## 布料（粗织坊 / 细织坊）→ 成衣（粗布衣坊 / 常服坊 / 华服坊 / 皮衣坊），
 ## 加上陶器坊 / 瓷窑这两座"摆在家里"的。

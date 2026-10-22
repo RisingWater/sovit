@@ -398,7 +398,7 @@ func _compute_layout(ids: Array, kind: int) -> Dictionary:
 
 ## 「贸易」页的行序 —— **一行一类**，顺序就是玩家该研究的顺序：
 ## 先有车队，再能多装、多带钱，最后才是把价谈好。
-const TRADE_ROW_ORDER := ["caravans", "cargo", "purse", "haggleBuy", "haggleSell"]
+const TRADE_ROW_ORDER := ["caravans", "cargo", "purse", "haggleBuy", "haggleSell", "goodwill"]
 
 ## 贸易页的排法：**行 = `trade` 块的键，列 = 同一条链上的第几档**。
 ##

@@ -23,9 +23,11 @@ extends SceneTree
 ## 53 → 56：新增 3 项**民生服务**科技（培训 / 民生工程 / 治理，治安+医疗+教育一起加成）。
 ## 56 → 72：新增 **16 项贸易科技**（商路 B3：商队 4 / 货箱 3 / 钱箱 3 / 议价买 3 / 议价卖 3），
 ## 它们带 `trade` 块、只出现在科技面板的「贸易」页，见 docs/trade-routes.md §6。
+## 72 → 76：新增 4 项 **B4 邦交**（商路好感 3 档 `trade_goodwill_1..3` + 「邦交」`statecraft`，
+## 后者解锁使馆），它们的好感加成进 `tech_bonuses().trade.goodwill`，见 docs/diplomacy.md §3.3。
 ## **刻意写死**而不是取 `db.tech_ids.size()`：这样"某项科技莫名消失/多出来"
 ## 才会被这条门抓住 —— 用 size 就等于把断言变成恒真式。
-const EXPECTED_TECHS := 72
+const EXPECTED_TECHS := 76
 
 func _init() -> void:
 	call_deferred("_run")
@@ -131,8 +133,10 @@ func _run() -> void:
 		_fail("三页加起来 %d 项，科技总数 %d（有科技哪一页都不显示，或进了两页）"
 			% [ids_make.size() + ids_eff.size() + ids_trade.size(), EXPECTED_TECHS])
 		return
-	if ids_trade.size() != 16:
-		_fail("贸易页应当是 16 项贸易科技，实际 %d" % ids_trade.size())
+	# 19 = 16 商路科技 + 3 档商路好感加成（B4；「邦交」`statecraft` 解锁使馆，
+	# 它没有 `trade` 块 → 进「制造」页，不在这里）
+	if ids_trade.size() != 19:
+		_fail("贸易页应当是 19 项贸易科技，实际 %d" % ids_trade.size())
 		return
 	for t2 in ids_eff:
 		if ids_make.has(t2):
@@ -468,7 +472,8 @@ func _run() -> void:
 		if not top_blob.contains(want_top):
 			_fail("科技面板顶部没有「%s」，实际是：\n%s" % [want_top, top_blob])
 			return
-	print("TECH TEST 贸易页：16 张卡片都有图标 + 效果行；tooltip 报现值→研究后；顶部汇总额 ✅")
+	print("TECH TEST 贸易页：%d 张卡片都有图标 + 效果行；tooltip 报现值→研究后；顶部汇总额 ✅"
+		% ids_trade.size())
 
 	# ---- 10. 「贸易」页**一行一类**（用户 2026-10："要按照解锁排序吧，解锁商路的放一行，
 	# 增加运输量放一行，砍价的放一行等等"）
@@ -529,10 +534,12 @@ func _run() -> void:
 	if segs.size() != page_edges:
 		_fail("贸易页连线 %d 条，页内前置关系 %d 条" % [segs.size(), page_edges])
 		return
-	if bus != 4:
-		_fail("贸易页应当有 4 条跨行干线（后四行的第一档要「常设商队」），实际 %d 条" % bus)
+	# 6 行 = 商队 / 载货 / 带钱 / 砍价 / 卖价 / 好感（B4 加的第六行），除第一行外
+	# 每行第一档都挂「常设商队」，所以 5 条跨行干线。
+	if bus != 5:
+		_fail("贸易页应当有 5 条跨行干线（后五行的第一档要「常设商队」），实际 %d 条" % bus)
 		return
-	print("TECH TEST 贸易页排法：商队/载货/带钱/砍价/卖价 各一行，%d 条连线（%d 条走左边干线）✅"
+	print("TECH TEST 贸易页排法：商队/载货/带钱/砍价/卖价/好感 各一行，%d 条连线（%d 条走左边干线）✅"
 		% [segs.size(), bus])
 
 	print("TECH TEST 科技=%d（制造 %d / 效率 %d） 页内连线=%d 拖动 %s->%s 队列=%s" % [

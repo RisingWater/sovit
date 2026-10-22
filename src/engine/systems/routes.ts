@@ -3,6 +3,13 @@ import type { GameState, GoodID, LogEntry, RouteCityDef, RouteMarket, TradeRoute
 import { ALL_GOODS } from '../content/index.ts'
 import { round2 } from '../util.ts'
 import { completedChapter } from './caravan.ts'
+import {
+  addRep,
+  factionCanTrade,
+  factionDef,
+  factionTradeGain,
+  relationLabel,
+} from './factions.ts'
 import { techBonuses, type TechBonuses } from './tech_bonus.ts'
 
 // ---------------------------------------------------------------------------
@@ -82,7 +89,7 @@ export function emptyRoutes(ctx: ContentContext): GameState['routes'] {
   for (const city of ctx.routes.cities) market[city.id] = emptyMarket(city, ctx)
   const routes: TradeRoute[] = []
   for (let i = 1; i <= ctx.routes.caravan.count; i++) routes.push(emptyRoute(i))
-  return { routes, market }
+  return { routes, market, created: 0 }
 }
 
 function emptyRoute(index: number): TradeRoute {
@@ -321,6 +328,21 @@ function finishReturn(
     text: `商队回来了：携 ${moved.length ? moved.join(' ') : '空车'}、余钱 ¥${cashBack.toFixed(0)}` +
       (city ? `（${city.nameZh}）` : ''),
   })
+  // 邦交（B4）：**跑完一趟**给这座城市的主子加好感（空跑不加 —— 这里就是"跑完了"）。
+  // 一趟 = `tradeGain × (1 + goodwill)` → 100 / 150 / 200 / 300，夹到天花板。
+  // 见 docs/diplomacy.md §3.2。镜像：sim_core.gd::_finish_return()。
+  if (city) {
+    const gain = factionTradeGain(state, ctx)
+    const got = addRep(state, city.faction, gain)
+    if (got !== 0) {
+      const def = factionDef(city.faction)
+      logs.push({
+        day,
+        kind: 'diplomacy',
+        text: `${def?.short ?? city.nameZh}对我们的好感 +${got}（${relationLabel(state, city.faction)}）`,
+      })
+    }
+  }
 }
 
 function goodName(gid: string): string {
@@ -342,6 +364,10 @@ export function assignRoute(
   if (!city) return '没有这座城'
   if (!routesUnlocked(ctx, bonuses)) return '还没研究「常设商队」'
   if (!cityUnlocked(state, city)) return `${city.nameZh}还没通路`
+  // 邦交门槛（B4）：只有**中立及以上**才开得了商路（附庸视为中立）。
+  // 见 docs/diplomacy.md §3.1 —— 敌对 / 冷淡在这座城上「设为目的地」是灰的。
+  const gate = factionCanTrade(state, city.faction)
+  if (!gate.ok) return gate.why
   syncRouteCount(state, ctx, bonuses)
   if (state.routes.routes.some((r) => r.cityId === cityId)) return `${city.nameZh}已经在商路列表里了`
   const idle = state.routes.routes.find((r) => r.cityId === null)
@@ -349,6 +375,8 @@ export function assignRoute(
   idle.cityId = cityId
   idle.phase = 'home'
   idle.budget = Math.min(idle.budget, purseCap(ctx, bonuses))
+  // 任务 `route_created` 数这个（单调递增，取消不减；只记事、不演化）
+  state.routes.created = (state.routes.created ?? 0) + 1
   return ''
 }
 
