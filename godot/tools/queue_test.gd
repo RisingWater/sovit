@@ -26,7 +26,7 @@ const C := "sugar_works"
 ## 三项开局就能研究的科技（无前置、各 20 科研力、纯木材成本）。
 const T1 := "stonework"    # 木 15
 const T2 := "digging"      # 木 15
-const T3 := "firewood"     # 木 20
+const T3 := "hunting"      # 木（无前置；「薪柴」2026-10 起依赖「石作」，不能当开局三项）
 const RSEED := 20261017
 
 var db = null

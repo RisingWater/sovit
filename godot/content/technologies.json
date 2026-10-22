@@ -34,7 +34,7 @@
       "era": 1,
       "research": 20,
       "cost": { "goods": { "wood": 20 } },
-      "requires": [],
+      "requires": ["stonework"],
       "unlocks": { "buildings": ["firewood_works"], "housing": [] }
     },
     {
@@ -80,7 +80,7 @@
       "era": 2,
       "research": 40,
       "cost": { "goods": { "wood": 20, "brick": 10 } },
-      "requires": ["brickmaking", "stonework"],
+      "requires": ["brickmaking"],
       "unlocks": { "buildings": ["smeltery"], "housing": [] }
     },
     {
@@ -161,7 +161,7 @@
       "era": 3,
       "research": 50,
       "cost": { "goods": { "wood": 30, "stone": 15 } },
-      "requires": ["construction", "stonework"],
+      "requires": ["construction"],
       "unlocks": { "buildings": ["guard_station", "watchtower"], "housing": [] }
     },
     {
@@ -206,7 +206,7 @@
       "era": 3,
       "research": 50,
       "cost": { "goods": { "wood": 60, "stone": 20 } },
-      "requires": ["construction", "stonework"],
+      "requires": ["construction"],
       "unlocks": { "buildings": [], "housing": ["wooden_house"] }
     },
     {
@@ -260,7 +260,7 @@
       "era": 3,
       "research": 50,
       "cost": { "goods": { "wood": 40, "stone": 20, "firewood": 20 } },
-      "requires": ["hunting", "fishing", "firewood", "stonework"],
+      "requires": ["firewood", "hunting"],
       "unlocks": { "buildings": ["smokehouse", "dried_meat_works"], "housing": [] }
     },
     {
@@ -622,7 +622,7 @@
       "era": 4,
       "research": 80,
       "cost": { "goods": { "iron": 20, "brick": 15 } },
-      "requires": ["strongbox_1", "brickmaking"],
+      "requires": ["strongbox_1"],
       "trade": { "purse": 3500 },
       "unlocks": { "buildings": [], "housing": [] }
     },

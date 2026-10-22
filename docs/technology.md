@@ -275,7 +275,7 @@ buildingAvailable(defId) =
 |---|---|---|---|---:|---|---|---|
 | 1 | 石作 | `stonework` | 20 | 木材 15 | — | 采石场（石块） | `tech/stonework.png` |
 | 2 | 掘土 | `digging` | 20 | 木材 15 | — | 粘土坑（粘土） | `tech/digging.png` |
-| 3 | 薪柴 | `firewood` | 20 | 木材 20 | — | 木柴坊（木柴） | `tech/firewood.png` |
+| 3 | 薪柴 | `firewood` | 20 | 木材 20 | `stonework` | 木柴坊（木柴） | `tech/firewood.png` |
 | 4 | 田猎 | `hunting` | 20 | 木材 20 | — | 狩猎营地（肉类、兽皮） | `tech/hunting.png` |
 | 5 | **石制工具** | `toolmaking` | 30 | 木材 20 + 石块 20 | `stonework` | **石制工具作坊**（石制工具） | `tech/toolmaking.png` |
 
@@ -292,7 +292,7 @@ buildingAvailable(defId) =
 |---|---|---|---|---:|---|---|---|
 | 6 | 营造 | `construction` | 30 | 木材 30 + 石块 15 | `stonework` | 建筑工坊（建造力） | `tech/construction.png` |
 | 7 | 烧砖 | `brickmaking` | 30 | 粘土 30 + 木柴 25 | `digging`、`firewood` | 砖窑（砖）；铁矿场（铁矿石）；煤矿场（煤） | `tech/brickmaking.png` |
-| 8 | 冶铁 | `ironworking` | 40 | 木材 20 + 砖 10 | `brickmaking`、`stonework` | 冶炼场（铁锭） | `tech/ironworking.png` |
+| 8 | 冶铁 | `ironworking` | 40 | 木材 20 + 砖 10 | `brickmaking` | 冶炼场（铁锭） | `tech/ironworking.png` |
 | 9 | 草药 | `herbalism` | 30 | 木材 20 | `digging` | 草药农场（草药） | `tech/herbalism.png` |
 | 10 | 制陶 | `pottery` | 30 | 粘土 30 + 木柴 25 | `digging`、`firewood` | 陶器坊（陶器） | `tech/pottery.png` |
 | 11 | 纤维作物 | `fiber_crops` | 30 | 木材 30 | — | 亚麻农场（亚麻）；棉花农场（棉花） | `tech/fiber_crops.png` |
@@ -320,14 +320,14 @@ buildingAvailable(defId) =
 | 20 | 通商 | `trade` | 50 | 木材 30 + 陶器 10 | `pottery` | 贸易市场（游商入口） | `tech/trade.png` |
 | 21 | 医道 | `medicine` | 60 | 草药 20 + 木材 20 | `herbalism` | 药水工坊（药水）；诊所（医疗） | `tech/medicine.png` |
 | 22 | 学堂 | `schooling` | 60 | 木材 30 + 砖 10 | `construction`、`brickmaking` | 学校（教育） | `tech/schooling.png` |
-| 23 | 民兵 | `militia` | 50 | 木材 30 + 石块 15 | `construction`、`stonework` | 治安所（治安）；瞭望台（治安） | `tech/militia.png` |
-| 24 | 木作住房 | `carpentry` | 50 | 木材 60 + 石块 20 | `construction`、`stonework` | 木屋（住房，容量 3） | `tech/carpentry.png` |
+| 23 | 民兵 | `militia` | 50 | 木材 30 + 石块 15 | `construction` | 治安所（治安）；瞭望台（治安） | `tech/militia.png` |
+| 24 | 木作住房 | `carpentry` | 50 | 木材 60 + 石块 20 | `construction` | 木屋（住房，容量 3） | `tech/carpentry.png` |
 | 25 | 精磨 | `fine_milling` | 50 | 木材 25 + 石块 20 | `stonework` | 精面粉磨坊（精面粉） | `tech/fine_milling.png` |
 | 26 | 白面包烘焙 | `white_baking` | 50 | 木材 30 + 砖 20 + 精面粉 20 | `fine_milling`、`brickmaking` | 白面包房（白面包） | `tech/white_baking.png` |
 | 27 | 粗织 | `coarse_weaving` | 50 | 木材 40 | `fiber_crops` | 粗织坊（粗织物） | `tech/coarse_weaving.png` |
 | 28 | 粗布裁衣 | `coarse_tailoring` | 50 | 木材 30 + 粗织物 20 | `coarse_weaving` | 粗布衣坊（粗布衣） | `tech/coarse_tailoring.png` |
 | 29 | 细织 | `fine_weaving` | 50 | 木材 40 + 石块 15 | `fiber_crops`、`stonework` | 细织坊（细织物） | `tech/fine_weaving.png` |
-| 30 | 腌熏 | `curing` | 50 | 木材 40 + 石块 20 + 木柴 20 | `hunting`、`fishing`、`firewood`、`stonework` | 熏鱼坊（熏鱼）；肉干坊（肉干） | `tech/curing.png` |
+| 30 | 腌熏 | `curing` | 50 | 木材 40 + 石块 20 + 木柴 20 | `firewood`、`hunting` | 熏鱼坊（熏鱼）；肉干坊（肉干） | `tech/curing.png` |
 | 31 | 娱乐 | `entertainment` | 50 | 木材 60 + 石块 30 + 砖 20 | `carpentry`、`brickmaking` | 剧院（娱乐） | `tech/entertainment.png` |
 | 32 | 灌溉 | `irrigation` | 50 | 木材 30 + 石块 15 | `crop_rotation` | 农业食品 +35% | `tech/irrigation.png` |
 | 33 | 标准化 | `standardization` | 50 | 木材 30 + 石块 15 | `workshop_division` | 工业商品 +35% | `tech/standardization.png` |
@@ -374,7 +374,7 @@ buildingAvailable(defId) =
 | 60 | 副队随行 | `trade_caravan_2` | 80 | 木材 40 + 粘土 20 | `trade_caravan_1` | 商队 +1 | `tech/trade_caravan_2.png` |
 | 61 | 三队并进 | `trade_caravan_3` | 100 | 木材 50 + 粘土 30 | `trade_caravan_2` | 商队 +1 | `tech/trade_caravan_3.png` |
 | 62 | 双辕货车 | `cargo_hold_2` | 85 | 木材 40 + 粘土 20 | `cargo_hold_1` | 单程载货 120 件 | `tech/cargo_hold_2.png` |
-| 63 | 双锁钱柜 | `strongbox_2` | 80 | 铁锭 20 + 砖 15 | `strongbox_1`、`brickmaking` | 带钱上限 3,500 金 | `tech/strongbox_2.png` |
+| 63 | 双锁钱柜 | `strongbox_2` | 80 | 铁锭 20 + 砖 15 | `strongbox_1` | 带钱上限 3,500 金 | `tech/strongbox_2.png` |
 | 64 | 砍价的技巧v2 | `haggle_buy_2` | 65 | 陶器 20 + 粘土 10 | `haggle_buy_1` | 买价 -10%（累计 -20%）| `tech/haggle_buy_2.png` |
 | 65 | 交易的艺术v2 | `haggle_sell_2` | 65 | 陶器 20 + 粗织物 20 | `haggle_sell_1` | 卖价 +10%（累计 +20%）| `tech/haggle_sell_2.png` |
 
@@ -462,9 +462,9 @@ buildingAvailable(defId) =
 
 | 级 | 名称 | id | 纪元 | 科研力 | 花费 | 前置 | 效果 |
 |---|---|---|---|---|---|---|---|
-| 1 | **培训** | `training` | 3 | 50 | 木 40 · 石 20 | `stonework` + `herbalism` | 治安/医疗/教育产出 **+10%** |
-| 2 | **民生工程** | `public_works` | 4 | 80 | 木 50 · 砖 30 | `training` + `brickmaking` | 同上 **+20%** |
-| 3 | **治理** | `governance` | 5 | 120 | 砖 50 · 石 30 | `public_works` | 同上 **+30%** |
+| 1 | **培训** | `training` | 3 | 50 | `stonework`、`herbalism` | `stonework` + `herbalism` | 治安/医疗/教育产出 **+10%** |
+| 2 | **民生工程** | `public_works` | 4 | 80 | `training`、`brickmaking` | `training` + `brickmaking` | 同上 **+20%** |
+| 3 | **治理** | `governance` | 5 | 120 | `public_works` | `public_works` | 同上 **+30%** |
 
 - 加成键是新的 **`services`**，只作用于**产出商品**为 `safety` / `medical_service` /
   `education` 的那几座建筑（治安所 / 瞭望台 / 诊所 / 医院 / 学校）。
