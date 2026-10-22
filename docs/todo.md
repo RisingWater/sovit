@@ -385,12 +385,13 @@ q23_sweep    剿匪       出击打「马匪窝」并赢 → 战报 + 解锁军�
 | 战场地形 / 世界地图 | 0 | ❌ 不需要（王国地图已由用户画好）| — | ✅ |
 | BGM / SFX | 3 首 / 6–10 个 | 🟡 可选 | 战争、宫廷、圣战 | ⬜ 现有开场曲 + 点击音 |
 
-### 2.2 立绘默认脸（**2026-10 新批已整批入库**，还缺 3 张待画）
+### 2.2 立绘默认脸（**2026-10 新批 21 张 + 艾莉丝 = 22 张已入库**，还缺 2 张待画）
 
 | 批次 | 谁 | 张数 | 状态 |
 |---|---|---|---|
 | ✅ 已导入（新批 21 张） | 顾问团 9（含加雷斯 `gareth`）+ 王邻 12（`adderick` `albert` `bernard` `cedric` `theodore` `irena` `edmund` `frederick` `aislin` `batur` `hermann` `gregory`） | **21** | 2026-10 整批重出（白底生成 + BiRefNet 抠图）→ alpha bbox 自适应裁 5:7 → **640×896** 入库 `godot/assets/portraits/`。原图/脚本/提示词归档 `docs/art/game/03_portraits/`（`docs/art/npc/` 已删）|
-| 待画 | 艾莉丝 `elise` · 艾隆 `aelon` · 莫甘娜 `morgana` | **3** | 设定见 `characters.md` §4.6 / §4.7。⚠️ `elise` 已被 `content/scenes.json` 引用（立绘为空时面板无图）|
+| ✅ 已导入（补） | 艾莉丝 `elise` | **1** | 2026-10-21 用户补图（`src/23_elise.png` → `cast/23_elise.png`，1024×1024 白底 + BiRefNet），同管线缩 640×896 入库 —— `scenes.json` 的 `sc_elise_meet` 不再空脸 |
+| 待画 | 艾隆 `aelon` · 莫甘娜 `morgana` | **2** | 设定见 `characters.md` §4.6 / §4.7 |
 
 **规格**：源图 1024×1536（新批白底，BiRefNet 抠成透明底）；成品 **640×896（5:7）透明底**；
 裁切**按每张的 alpha bbox 自适应**（上/侧留 24px、底部贴边、多余高度补在头顶），不再用旧批的固定裁切框

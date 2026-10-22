@@ -5,7 +5,7 @@
 > 每张素材的编号 / 作用 / 分类 / 加载代码引用见 [docs/art-assets.md](../../art-assets.md)。
 >
 > **对齐口径**：除立绘外，目录结构映射 `godot/assets/`（文件名 + 字节数一致）。
-> 立绘是例外：`03_portraits/cast/` 放**全尺寸抠好稿**（`NN_<id>.png`，1024×1536），
+> 立绘是例外：`03_portraits/cast/` 放**全尺寸抠好稿**（`NN_<id>.png`，多数 1024×1536），
 > 引擎里 `godot/assets/portraits/<id>.png` 是它的**裁切缩放版**（640×896，5:7）——
 > 换算管线（bbox 自适应裁 5:7 + LANCZOS）见 `03_portraits/script/`。
 
@@ -31,9 +31,9 @@
 |---|---|---|---|
 | `01_title/` | 游戏标题 | 3 | `ui/logo_title.png`、`icon.png`、`icon.ico` |
 | `02_background/` | 背景 | 1 + 3 | `ui/map/kingdom_map_bare.webp`；`ui/tile_0033\|0034\|0036.png`（Kenney UI Pack 9-slice 底纹） |
-| `03_portraits/cast/` | 立绘（抠好） | 21 | `NN_<id>.png` 1024×1536 透明底（z-image-turbo 白底生成 → BiRefNet 抠图）；引擎用的是缩到 640×896 的版本 |
-| `03_portraits/src/` | 立绘（原图） | 21 | 生成原图（1024×1536 白底） |
-| `03_portraits/script/` | 立绘管线 | 3 | `generate.py` · `cutout.py` · `prompt.json`（21 人提示词）；路径已改成相对本目录，可直接重跑 |
+| `03_portraits/cast/` | 立绘（抠好） | 22 | `NN_<id>.png` 全尺寸透明底（z-image-turbo 白底生成 → BiRefNet 抠图；多数 1024×1536，`23_elise` 为 1024×1024）；引擎用的是缩到 640×896 的版本 |
+| `03_portraits/src/` | 立绘（原图） | 22 | 生成原图（白底） |
+| `03_portraits/script/` | 立绘管线 | 3 | `generate.py` · `cutout.py` · `prompt.json`（22 人提示词）；路径已改成相对本目录，可直接重跑 |
 | `03_portraits/villagers/` | 立绘 | 4 | `actors/*.png`（穷人 / 中产 / 富人 / 老板四阶层小人） |
 | `04_ui_icons/goods_handdrawn/` | UI图标 | 48 | `icons/*.png`（手绘商品 / 服务图标，64×64 为主；缺图显示品红方块，无兜底） |
 | `04_ui_icons/panel/` | UI图标 | 24 | `ui/panel/`（面板标题 / 顶栏状态 / ESC 菜单图标） |
@@ -55,7 +55,7 @@
 
 ## 已知缺口（重绘时优先补）
 
-- **立绘还缺 3 张**：**艾莉丝（elise）**〔⚠️ `content/scenes.json` 已在引用，立绘为空时面板无图〕、艾隆（aelon）、莫甘娜（morgana）；
+- **立绘还缺 2 张**：**艾隆（aelon）、莫甘娜（morgana）**〔`elise` 艾莉丝已于 2026-10-21 补齐，22 张在库〕；
   每人还只有默认一张，表情差分 `<人>_<表情>.png` 一张没有（重出管线见 `03_portraits/script/`）。
 - **商品图标缺一张就显示一块亮品红方块**（不回滚旧图）—— 看到品红块 = `content/goods.json` 里有新商品但没画 `icons/<id>.png`。
 - `04_ui_icons/faction/` 23 张与 `tech/` 里的 `statecraft` + `trade_goodwill_1..3` 共 4 张是 B4 批，`content/*.json` 与引擎端还没接线。
