@@ -1020,7 +1020,7 @@ updateRoutes(day)          # ← B3 插在这里：先结算、后派车
   ├ 1) 市场补给：每座城 特产 +specialtyDaily（封顶 specialtyCap）
   │                    需求 +demandDaily（封顶 demandCap）
   ├ 2) 结算「到达」：按需求卖出 → 记 routeExport / routeOut → 扣需求池
-  │                 → 用「带出的钱 + 卖得的钱」买特产（受载重、库存、钱三重限制）
+  │                 → 买特产：预算 = min(购买预算, 带出的钱 + 卖得的钱)（受载重、库存、钱三重限制）
   │                 → 记 routeImport / routeIn；phase = back
   ├ 3) 结算「回家」：买的货入库、剩的钱回国库；phase = home
   └ 4) 派车：锁货（搬出仓库）→ 货齐 + 国库够 → 扣钱、phase = out

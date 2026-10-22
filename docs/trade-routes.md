@@ -457,7 +457,7 @@ interface TradeRoute {
   departDay: number                // 本趟出发日（0 = 从没跑过）
   arriveDay: number
   backDay: number
-  budget: number                   // 配置：购买预算
+  budget: number                   // 配置：购买预算（**上限**：这趟最多花这么多钱买货；0 = 只卖不买）
   sellPlan: Record<string, number> // 配置：出售数量（每种最多 cargo 件）
   loaded: Record<string, number>   // 已锁的卖货（在家时才有）
   cash: number                     // 已锁的带出钱

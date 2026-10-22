@@ -1165,7 +1165,7 @@ func _route_block(r: Dictionary, cargo: int, purse: float, snap: Dictionary) -> 
 	brow.add_theme_constant_override("separation", 4)
 	brow.add_child(UIKit.label("购买预算"))
 	brow.add_child(_money(float(r.get("budget", 0.0))))
-	brow.add_child(UIKit.label("/ 上限 %s" % _fmt(purse), C_HINT))
+	brow.add_child(UIKit.label("/ 上限 %s（0 = 只卖不买）" % _fmt(purse), C_HINT))
 	var minus := UIKit.button("-100", true)
 	minus.pressed.connect(func() -> void:
 		_enqueue_route({"type": "route_set_budget", "routeId": rid,

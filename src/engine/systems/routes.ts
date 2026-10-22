@@ -215,7 +215,10 @@ export function updateRoutes(
       route.loaded = {}
 
       // 进货：载重、库存、钱三个闸
-      let budget = round2(route.cash + revenue)
+      // 这趟最多花多少：玩家设的「购买预算」是上限，钱来自"带出的现金 + 卖得的钱"。
+      // ⚠️ 2026-10 用户："我都没有设置购买，为什么会有进口？？" —— 原来直接用
+      // `cash + revenue` 当预算，于是预算设 0 也照样用卖得的钱进货。预算 0 = 只卖不买。
+      let budget = round2(Math.min(route.budget, route.cash + revenue))
       let bought = 0
       let spent = 0
       const got: string[] = []

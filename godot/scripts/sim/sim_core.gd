@@ -4167,7 +4167,12 @@ func _update_routes(day: int) -> Array:
 			lt["routeExport"] = SimUtil.r2(float(lt["routeExport"]) + revenue)
 			route["loaded"] = {}
 
-			var budget := SimUtil.r2(float(route["cash"]) + revenue)
+			# 这趟**最多花多少**：玩家设的「购买预算」是上限，钱来自"带出的现金 + 卖得的钱"。
+			# ⚠️ 2026-10 用户："我都没有设置购买，为什么会有进口？？" —— 原来直接用
+			# `cash + revenue` 当预算，于是**预算设 0 也照样用卖得的钱进货**（财务页就冒出
+			# 「商路进口」）。预算 0 现在就是"只卖不买"。
+			var budget := SimUtil.r2(minf(float(route["budget"]),
+				float(route["cash"]) + revenue))
 			var bought := 0
 			var spent := 0.0
 			var got := []
