@@ -47,6 +47,30 @@ static func panel_icon(name: String) -> Texture2D:
 		return load(p)
 	return null
 
+## 邦交（B4）：势力徽记 / 关系牌 / 动作按钮（`assets/ui/faction/`，48 或 32 原生）。
+##
+## 文件名 = 势力 id（`court` / `peak`…）、`rel_<档位>`（`rel_enemy`…）、`gift` / `treaty` / `war`。
+## 取不到返回 null —— 面板那边自己决定要不要留白（别让缺图变成空白方块）。
+const FACTION_ICON_DIR := "res://assets/ui/faction/"
+
+static func faction_icon(name: String) -> Texture2D:
+	if name == "":
+		return null
+	var p := FACTION_ICON_DIR + name + ".png"
+	if ResourceLoader.exists(p):
+		return load(p)
+	return null
+
+## 某势力当前该挂哪张关系牌：**附庸优先**（状态位压过数值档），其余按档位。
+## `f` 是 `SimCore.factions_snapshot()` 里的一项（要 `band` / `vassal`）。
+static func relation_icon(faction_id: String, f: Dictionary) -> Texture2D:
+	var key := "rel_vassal" if bool(f.get("vassal", false)) \
+		else "rel_" + String(f.get("band", "neutral"))
+	var tex := faction_icon(key)
+	if tex == null:
+		tex = faction_icon("rel_neutral")
+	return tex
+
 ## 顶栏 / 侧边圆钮用的"状态"图标（人口 / 就业 / 金币 / 建造力 / 研究力 / 移民 / 资源工业…）。
 ##
 ## 来自用户提供的素材包（作者 workbuddy，MIT），由 `scripts/import-stat-icons.py`

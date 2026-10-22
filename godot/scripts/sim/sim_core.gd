@@ -4732,6 +4732,8 @@ func factions_snapshot() -> Dictionary:
 			"giftStep": int(_faction_cfg().get("giftStep", 100)),
 			"canTrade": bool(gate.get("ok", false)),
 			"tradeWhy": String(gate.get("why", "")),
+			# 送礼的叫法：王都且父王还在世（第 6 章之前）=「进贡」，之后一律「送礼」
+			"giftVerb": faction_gift_verb(fid),
 			"canAttack": not bool((st["vassal"] as Dictionary).get(fid, false)) \
 				and not bool((st["ally"] as Dictionary).get(fid, false)) and band != "enemy",
 		})

@@ -21,6 +21,7 @@
     "check:needs": "node --experimental-strip-types scripts/check-needs.ts",
     "check:merchant": "node --experimental-strip-types scripts/check-merchant.ts",
     "check:routes": "node --experimental-strip-types scripts/check-routes.ts",
+    "check:factions": "node --experimental-strip-types scripts/check-factions.ts",
     "check:techdoc": "node --experimental-strip-types scripts/check-tech-doc.ts",
     "check:quests": "node --experimental-strip-types scripts/check-quests.ts",
     "check:scenes": "node --experimental-strip-types scripts/check-scenes.ts",

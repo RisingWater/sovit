@@ -347,7 +347,7 @@ func _run() -> void:
 	if tech_btn.visible:
 		_fail("研究所已经全部拿掉了，「科技」圆钮还露着")
 		return
-	if not _nav_layout_ok(nav_col, hud, 5):
+	if not _nav_layout_ok(nav_col, hud, 6):
 		return
 	# 加上研究所 → 科技圆钮出现在**中间**，其余整体下移一格，仍然不许留洞
 	var d_inst: Dictionary = node.get("runner").db.buildings["research_institute"]
@@ -362,9 +362,9 @@ func _run() -> void:
 	if not tech_btn.visible:
 		_fail("研究所建起来之后「科技」圆钮没有出现")
 		return
-	if not _nav_layout_ok(nav_col, hud, 6):
+	if not _nav_layout_ok(nav_col, hud, 7):
 		return
-	print("QUESTTALK TEST 圆钮排版：先 5 个（含预言；贸易要市场才露）→ 科技插到第 4 位变 6 个，中间不留洞 ✅")
+	print("QUESTTALK TEST 圆钮排版：先 6 个（含预言与外交；贸易要市场才露）→ 科技插到第 4 位变 7 个，中间不留洞 ✅")
 
 	# 城镇中心：贴图跟着**段位**走（三张：破旧 / 初步修缮 / 修好）
 	var world = node.get_node("World")
@@ -395,8 +395,8 @@ func _run() -> void:
 	print("QUESTTALK TEST 城镇中心：破旧 → 初步修缮 → 修好，三张贴图各就各位 ✅")
 
 	# ---- 5. 存档版本：2 起不兼容老档 -------------------------------------
-	if SaveManager.SAVE_VERSION != 6:
-		_fail("存档版本应当是 6（B3 商路：state.routes + 台账 5 个字段；用户：版本更新，存档不跟之前兼容）")
+	if SaveManager.SAVE_VERSION != 7:
+		_fail("存档版本应当是 7（B4 邦交：state.factions + 三个计数；用户：版本更新，存档不跟之前兼容）")
 		return
 	var path := "user://qtt_v1.json"
 	var f := FileAccess.open(path, FileAccess.WRITE)

@@ -49,6 +49,9 @@ var _tech_nav_btn: Button = null
 var _prophecy_nav_btn: Button = null
 ## 「贸易」那个圆钮（**贸易市场建起来之前藏着**：没有市场就点不进去任何东西）
 var _trade_nav_btn: Button = null
+## 「外交」那个圆钮（**使馆建起来之前藏着**：和贸易市场同一条口径，见 efresh_nav_buttons()）
+var _war_nav_btn: Button = null
+var war_panel: Node = null
 
 ## 速度档位。`+` / `-` 按它步进；**1x 就是最慢**（用户："减速最快 1x"），
 ## 4x 是最快。与顶栏那排按钮一一对应。
@@ -197,6 +200,27 @@ func _open_trade() -> void:
 	else:
 		set_notice("还没有贸易市场")
 
+## 左侧圆钮「外交」：打开「外交 / 军事」面板（B4）。与点地图上的「使馆」同一个面板。
+## 使馆没建好之前按钮本身就藏着（`refresh_nav_buttons()`），这里是第二道闸：
+## 快捷键 / ESC 也进不来。
+func _open_war() -> void:
+	if war_panel == null or not war_panel.has_method("open_war"):
+		set_notice("还没有使馆")
+		return
+	if runner != null and runner.sim != null and not _has_embassy():
+		set_notice("还没有使馆")
+		return
+	war_panel.open_war()
+
+## 村里有没有建成使馆（B4 面板的解锁条件；建筑都在黎明落成，所以刷一次就够）。
+func _has_embassy() -> bool:
+	if runner == null or runner.sim == null:
+		return false
+	for sh in (runner.sim.s["shops"] as Array):
+		if String((sh as Dictionary).get("defId", "")) == "embassy":
+			return true
+	return false
+
 ## 「预言」的两个入口（顶栏那个水晶球、左侧圆钮第 6 个）：都进**全屏预言页**
 ## 并把光标放进问话栏（**不自动发问**，让玩家先写一行字 —— 见 docs/ai-assist.md §六）。
 func _open_ai() -> void:
@@ -336,6 +360,8 @@ const NAV_QUEST := -2
 const NAV_PROPHECY := -3
 ## 贸易（游商面板）。用户 2026-10：它以前只能从地图上的建筑点进去。
 const NAV_TRADE := -4
+## 外交 / 军事（B4，用户 2026-10）：使馆建起来之后才出现。
+const NAV_WAR := -5
 const NAV_ITEMS := [
 	["资源", "resource", 0],
 	["人口", "population", 1],
@@ -344,6 +370,7 @@ const NAV_ITEMS := [
 	["任务", "quest_panel", NAV_QUEST],
 	["预言", "ai_assist", NAV_PROPHECY],
 	["贸易", "trade", NAV_TRADE],
+	["外交", "diplomacy", NAV_WAR],
 ]
 
 func _build_nav() -> void:
@@ -402,6 +429,8 @@ func _build_nav() -> void:
 			b.pressed.connect(_open_ai)
 		elif tab == NAV_TRADE:
 			b.pressed.connect(_open_trade)
+		elif tab == NAV_WAR:
+			b.pressed.connect(_open_war)
 		else:
 			b.pressed.connect(_open_stats_tab.bind(tab))
 		if tab == NAV_TECH:
@@ -410,6 +439,8 @@ func _build_nav() -> void:
 			_prophecy_nav_btn = b
 		elif tab == NAV_TRADE:
 			_trade_nav_btn = b
+		elif tab == NAV_WAR:
+			_war_nav_btn = b
 		col.add_child(b)
 		_nav_btns.append(b)
 	refresh_nav_buttons()
@@ -451,6 +482,10 @@ func refresh_nav_buttons() -> void:
 				has_market = true
 				break
 		_trade_nav_btn.visible = has_market
+	if _war_nav_btn != null:
+		# 「外交」圆钮：**使馆建起来才出现**（用户 2026-10："修建后解锁新增面板外交/军事"）。
+		# 与贸易市场同一条口径：只研究「邦交」不给面板，得真的把房子盖出来。
+		_war_nav_btn.visible = _has_embassy()
 
 ## 圆钮外观：**圆盘烤在图标里**，按钮自己不再画框。
 ##

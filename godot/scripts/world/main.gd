@@ -22,6 +22,7 @@ var _save_dialog
 var _panel_trade
 var _panel_civic
 var _panel_quest
+var _panel_war
 var _ai_panel
 var _dlg_layer: CanvasLayer
 var _title
@@ -164,6 +165,14 @@ func _ready() -> void:
 	root_ui.add_child(_panel_quest)
 	hud.quest_panel = _panel_quest
 
+	# 外交 / 军事（B4，用户 2026-10）：第 1 页世界地图 + 13 个势力，右下角米拉。
+	# 左侧圆钮第 8 个（徽记）；**使馆建起来之前藏着**（和贸易市场同一条口径）。
+	_panel_war = load("res://scripts/ui/panel_war.gd").new()
+	_panel_war.name = "War"
+	_panel_war.setup(runner, world)
+	root_ui.add_child(_panel_war)
+	hud.war_panel = _panel_war
+
 	# AI 辅助（见 docs/ai-assist.md）：ESC 菜单与顶栏按钮共用一个浮动对话框。
 	# **必须建在 `_bar` 之后**并注入它 —— 建议里要写"在建造栏哪一页建"，
 	# 而分组规则在 `build_bar` 那边（现在转发到 `ContentDB.build_category()`）。
@@ -297,7 +306,7 @@ func _ready() -> void:
 	runner.hour_ticked.connect(func(): call_deferred("_poll_quest_talks"))
 	# 面板**关掉之后**再看一眼：对话是黎明产出的，那一刻玩家可能正开着面板在读。
 	# 有面板开着的时候 `_poll_quest_talks()` 会让路（见那段注释），所以关掉时补一次。
-	for p in [_panel_stats, _panel_tech, _panel_civic, _panel_quest, _panel_map, _esc_menu,
+	for p in [_panel_stats, _panel_tech, _panel_civic, _panel_quest, _panel_war, _panel_map, _esc_menu,
 			_new_game, _save_dialog, _ai_panel]:
 		if p != null:
 			(p as CanvasItem).visibility_changed.connect(func():
@@ -424,6 +433,12 @@ func _on_select_building(id: String) -> void:
 		_panel_civic.close_panel()
 		_panel_trade.open_trade()
 		return
+	# 使馆（B4）：点它开「外交 / 军事」面板（和贸易市场同一套入口 —— 先造出来再说）
+	if def_id == "embassy":
+		_inspector.clear()
+		_panel_civic.close_panel()
+		_panel_war.open_war()
+		return
 	_panel_civic.close_panel()
 	_inspector.show_building(id)
 
@@ -470,6 +485,9 @@ func _unhandled_input(event: InputEvent) -> void:
 			return
 		if _panel_trade != null and _panel_trade.visible:
 			_panel_trade.close_panel()
+			return
+		if _panel_war != null and _panel_war.visible:
+			_panel_war.close_panel()
 			return
 		_esc_menu.toggle()
 
@@ -534,6 +552,10 @@ func _shortcut_input(event: InputEvent) -> void:
 			_bar.cycle_tab(-1 if event.shift_pressed else 1)
 		KEY_H:
 			world.focus_town_center()
+		KEY_D:
+			# D = 「外交 / 军事」（B4；用户原话"第一个 tab 就是世界地图"）。
+			# 没使馆就没面板 —— `_open_war()` 自己会挡（并给一句提示）。
+			_hud._open_war()
 		_:
 			if k >= KEY_1 and k <= KEY_9:
 				# 1..9 = 建造栏当前这一页的第 N 张卡片
@@ -564,7 +586,8 @@ func _fullscreen_panel_open() -> bool:
 		or (_panel_tech != null and _panel_tech.visible) \
 		or (_panel_map != null and _panel_map.visible) \
 		or (_panel_quest != null and _panel_quest.visible) \
-		or (_panel_trade != null and _panel_trade.visible)
+		or (_panel_trade != null and _panel_trade.visible) \
+		or (_panel_war != null and _panel_war.visible)
 
 ## 点小地图 → 开王国地图（用户 2026-10-20）。
 func _open_map() -> void:

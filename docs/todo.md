@@ -284,15 +284,27 @@
 
 | # | 干什么 | 交付 | 门槛 | 工期 |
 |---|---|---|---|---:|
-| **B4-1** | 内容：`content/factions.json`（13 势力 · 关系带 · 初始/上限 · 翻转 · 城归属）+ `routes.json` 每城加 `faction` + `parseFactions` 校验 | JSON + 校验 | `check:factions`（新）| 0.5 |
-| **B4-2** | 引擎：`systems/factions.ts` + GDScript 镜像（关系带 / 送礼 / 结盟 / 宣战 / 附庸 / 商路加好感 / 剧情翻转）+ `state.factions`（**v7**）+ 4 条命令 + `SAVE_VERSION = 7` + 老档补段 | 两份引擎 | `factions`（新）+ `golden` 重生成 | 1.0 |
-| **B4-3** | 科技：`statecraft`（邦交，解锁使馆）+ `trade_goodwill_1..3`；贸易页 20 项 | JSON + UI | `tech` + `check:routes` | 0.25 |
-| **B4-4** | 建筑：`embassy`（112×72，`foot [7,3]`，市政页）+ 建造栏缩略图 | JSON + 贴图 | `buildlock` / `footprint` | 0.25 |
-| **B4-5** | 面板：`panel_war.gd` 两页（世界地图复用 `panel_map` 换算；右侧关系牌 / 送礼 / 结盟 / 进攻）+ 左侧圆钮第 8 项 + 米拉立绘 | UI | `diplomacy`（新）| 1.0 |
-| **B4-6** | 任务：章 5 两条（建使馆 / 给王都进贡）+ 新 goal 类型 `faction_gift` | `quests.json` | `quest` + `check:quests` | 0.25 |
+| **B4-1** | OK 内容：`content/factions.json`（13 势力 · 关系带 · 初始/上限 · 翻转 · 城归属）+ `routes.json` 每城加 `faction` + `parseFactions` 校验 | JSON + 校验 | `check:factions`（新）| 0.5 |
+| **B4-2** | OK 引擎：`systems/factions.ts` + GDScript 镜像（关系带 / 送礼 / 结盟 / 宣战 / 附庸 / 商路加好感 / 剧情翻转）+ `state.factions`（**v7**）+ 4 条命令 + `SAVE_VERSION = 7` + 老档补段 | 两份引擎 | `factions`（新）+ `golden` 重生成 | 1.0 |
+| **B4-3** | OK 科技：`statecraft`（邦交，解锁使馆）+ `trade_goodwill_1..3`；贸易页 20 项 | JSON + UI | `tech` + `check:routes` | 0.25 |
+| **B4-4** | OK 建筑：`embassy`（**127×78**，`foot [7,3]`，市政页）+ 建造栏缩略图 | JSON + 贴图 | `buildlock` / `footprint` | 0.25 |
+| **B4-5** | OK 面板：`panel_war.gd` 两页（世界地图复用 `panel_map` 换算；右侧关系牌 / 送礼 / 结盟 / 进攻）+ 左侧圆钮第 8 项 + 米拉立绘 | UI | `diplomacy`（新）| 1.0 |
+| **B4-6** | TODO-还差这一步 · 任务：章 5 两条（建使馆 / 给王都进贡）+ 新 goal 类型 `faction_gift` | `quests.json` | `quest` + `check:quests` | 0.25 |
 | **B4-7** | 美术：31 张图标 + 1 张建筑 + 1 张立绘（见 [`diplomacy.md`](diplomacy.md) §9）| 素材 | 图标尺寸/抠图 | **0（✅ 2026-10-21 已出完）** |
-| **B4-8** | 验证：`factions` / `diplomacy` 两条新门槛 + 回归（`merchant` 闸前移 / `routes` 加好感 / `quest` 新类型 / `tech` 20 项）| — | 全套 | 0.5 |
+| **B4-8** | OK 验证：`factions` / `diplomacy` 两条新门槛 + 回归（`merchant` 闸前移 / `routes` 加好感 / `quest` 新类型 / `tech` 20 项）| — | 全套 | 0.5 |
 | | **合计** | | | **4.0** |
+
+> **2026-10-22 落地核对**（B4-1..B4-5 + B4-8 已合并，B4-6 未做）：
+> - 存档 **v7**：`state.factions = {rep, ally, vassal, gifts, flipped, defeated}`
+>   （比设计多一个 `defeated`：天花板要靠它改写，`rep` 当不了标记 —— 铁鸦堡打服后仍是 -4000）
+> - 好感三级是 **0.5 / 0.5 / 1.0**（加法累计 +200% → 一趟 100/150/200/300；设计稿里
+>   "1.0 + 2.0"那版累计是 +350%，自相矛盾，已按"最高 +300"改正）
+> - 使馆贴图实际 **127×78**（`gen-building.py` 出的，不是设计稿里的 112×72），`foot [7,3]` 不变
+> - 面板入口三条：左侧圆钮第 8 个 + 点地图上的使馆 + 快捷键 **D**
+> - `check:factions`（新）与 `verify.sh diplomacy`（新）都已接上，`tech` / `esc` 两条老门槛
+>   跟着新事实更新（76 项科技 / 贸易页 19 张 / 圆钮 8 个）
+> - **还没做**：B4-6 的 6 条任务（章 3–5）+ `caravan_trade` / `route_created` / `faction_gift`
+>   三个 goal 类型 + 游商闸从"完成第 3 章"前移到"完成第 2 章"（见 [`trade-routes.md`](trade-routes.md) §12.4）
 
 **和 B3 的接口**（先做 B3-补 再做 B4-2，能少返工一次）：
 

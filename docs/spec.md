@@ -1063,3 +1063,87 @@ activateCompleted(...)     # 后面的步骤照旧：买到的货当天就能被
 - 科技给的槽位不在这里补，由 `sync_route_count()` 在黎明 / 打开商路页时加（只加不撤）
 
 门槛：`routes` 第 ⑩ 条（老档 + 半截档各一遍，且补两次不许改库存）。
+
+---
+
+## 22. 邦交 `factions`（B4，用户 2026-10）
+
+设计正文在 [`diplomacy.md`](diplomacy.md)；这一节只钉**公式、顺序与状态**。
+
+### 22.1 好感的加减
+
+```
+好感 ∈ [-10000, 10000]，整数；每个势力另有一条"天花板" cap（档位 → 数值，见 22.2）
+
+送礼：  好感 += 钱 × giftRate(1.0)      # 最少 giftStep(100) 钱；钱从国库扣
+商路一趟：好感 += tradeGain(100) × (1 + goodwill)   # goodwill 是三级贸易科技的**加法**合计
+宣战：  好感 = attackHit(-6000)          # 直接赋值，不是"减 6000"
+剧情翻转：好感 = flip.to                 # 直接赋值；`flipped` 位保证只做一次
+打赢：  好感 = defeat.rep                # 直接赋值；天花板换成 defeat.cap（见 22.4）
+
+加好感时的夹取：好感 = max(现值, min(cap, 好感))     # 天花板是"最多推到哪"，
+                                                    # 开局可以高于它（沙海：开局 0、cap 冷淡）
+```
+
+`goodwill` 三级是 `0.5 / 0.5 / 1.0`（加法累计 +200%），所以一趟从 **100 → 300**。
+
+### 22.2 档位（边界是用户口述的，别改成统一口径）
+
+| 档 | 区间 | 含上界？ |
+|---|---|---|
+| 敌对 `enemy` | `x ≤ -6000` | ✅ 含（开战落在这一档）|
+| 冷淡 `cold` | `-6000 < x ≤ -2000` | ✅ 含 |
+| 中立 `neutral` | `-2000 < x < 2000` | ❌ |
+| 友善 `friendly` | `2000 ≤ x < 6000` | ❌ |
+| 尊重 `respect` | `6000 ≤ x < 10000` | ❌ |
+| 同盟 `ally` | `x ≥ 10000` **且已结盟** | ✅ 含（兜底档）|
+
+`cap` 用档位 id 写在内容里，加载时换算：`cold -2001 / friendly 5999 / respect 9999 / ally 10000`。
+**附庸**是状态位（`vassal`），不是数值档；它压过数值档显示，并且在商路门槛上**视为中立**。
+
+### 22.3 黎明的顺序（`runDawn`）
+
+```
+updateCaravans(day)     # 游商到货 / 离开
+checkQuests(day)        # ← 任务先结算：章节奖励在这一步记上
+updateFactions(day)     # ← B4 插在这里：本章刚完成，那几家才翻脸（flip.chapter）
+```
+
+顺序的理由：翻转条件是 `completed_chapter() >= flip.chapter`，而章节奖励是 `checkQuests`
+写进 `quests.chapters` 的 —— 放在它**之前**会晚整整一章才翻脸。
+
+### 22.4 打赢之后（`defeat`）
+
+| 项 | 规则 |
+|---|---|
+| 触发 | B5 的讨伐战打赢（B4 只把它写好，没有调用点）|
+| 好感 | `= defeat.rep`（夹到 `defeat.cap`）|
+| 天花板 | 换成 `defeat.cap`；用 `defeated` 位记住，不能拿 `rep` 当标记（铁鸦堡打服后仍是 -4000）|
+| 附庸 | `defeat.vassal = true` → 变附庸（能通商、可刷到尊重、不能再宣战）|
+| 铁峰 | `{rep: 6000, cap: respect, vassal: false}` —— **直接和好成尊重**（用户："打赢了自动变成尊重"）|
+
+### 22.5 商路门槛
+
+`assignRoute` 先查 `faction_can_trade(city.faction)`：档位 ≥ `relation.tradeBand`（中立）
+或者对方是附庸才放行，否则返回一句人话（"某某与我们的关系是「冷淡」，先送钱缓和"）。
+**已经在跑的商路不强制停** —— 关系变差只挡"新设目的地"。
+
+### 22.6 三条命令（都走 `IMMEDIATE_ACTIONS`）
+
+`faction_gift`（送礼 / 进贡）/ `faction_ally`（结盟，好感满分 + 2000 钱）/ `faction_attack`
+（宣战）。当场生效：钱当场扣、好感当场涨、面板与公告立刻能看见。
+
+### 22.7 状态（存档 v7）与读档兜底
+
+```ts
+state.factions = { rep, ally, vassal, gifts, flipped, defeated }
+state.trade   += { soldTimes, boughtTimes }   // 和游商成交过几次（章 3 任务用）
+state.routes  += { created }                 // 累计创建过几条商路（章 4 任务用）
+```
+
+⚠️ 三个计数器都**只记事、不演化**，不进黄金摘要。`state.factions` 是 v7 才有 ——
+`_sanitize()` 调 `SimCore.repair_factions()` 补形状（同 §21.6 那条规矩：**只补形状，
+不动已有好感**），否则 v6 老档一开外交面板就崩。
+
+唯一实现：`src/engine/systems/factions.ts` / `godot/scripts/sim/sim_core.gd`（末尾那段）；
+门槛 `diplomacy`（引擎与面板）+ `check:factions`（内容、城市归属、图标尺寸、使馆接线）。

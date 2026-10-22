@@ -38,7 +38,7 @@ while [ $# -gt 0 ]; do
       echo "步骤名（按下面的顺序）："
       echo "  import parse smoke move music sfx daylight bartab buildlock panel"
       echo "  consumetip chiptip workerdemolish tech efficiency tools sitetip keys doortest"
-      echo "  footprint iron coal needs merchant routes tradepanel roofclick multisite upgrade"
+      echo "  footprint iron coal needs merchant routes diplomacy tradepanel roofclick multisite upgrade"
       echo "  housingupgrade logsave queue sitecancel quest scene questpanel ai glyph"
       echo "  construction research imm minimap map esc savedlg inspector newgame title"
       echo "  intro questtalk occlusion"
@@ -189,6 +189,10 @@ step "merchant" "$GODOT_BIN" --headless --path . -s res://tools/merchant_test.gd
 # 商路（B3）：锁货 / 缺货等 / 钱不够 / 到达结算 / 回家入库 / 只买特产只卖需求 / 市场补给 /
 # 状态可存档 / 价格口径。内容侧的体检在 TS：`npm run check:routes`。
 step "routes" "$GODOT_BIN" --headless --path . -s res://tools/routes_test.gd
+# 邦交（B4）：使馆没建之前没圆钮 / 两页签 / 13 个势力 / 关系只写档位名 / 送礼扣钱涨好感
+# 且夹到天花板 / 结盟要好感满分 / 宣战直接 -6000 敌对 / 商路门槛 / 米拉立绘。
+# 内容侧（13 条、档位表、城市归属）在 TS：`npm run check:factions`。
+step "diplomacy" "$GODOT_BIN" --headless --path . -s res://tools/diplomacy_test.gd
 step "tradepanel" "$GODOT_BIN" --headless --path . -s res://tools/tradepanel_test.gd
 step "roofclick" "$GODOT_BIN" --headless --path . -s res://tools/roofclick_test.gd
 step "multisite" "$GODOT_BIN" --headless --path . -s res://tools/multisite_test.gd
