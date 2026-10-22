@@ -413,7 +413,7 @@
 
 ## 缺口（代码引用了、但库里没有的素材）
 
-- **立绘**：`cast.gd` 认识 10 人，`assets/portraits/` 只有 8 张 —— **加雷斯（gareth）、艾莉丝（elise）缺立绘**；表情差分 `<人>_<表情>.png` 一张都还没有（`cast.gd:66` 会自动落回默认立绘）。
+- **立绘**：2026-10 新批整批入库（21 张，含新加 `gareth` 与 12 位统治者）。仍缺 **`elise`（艾莉丝，scenes.json 已引用）**、`aelon`、`morgana`；表情差分 `<人>_<表情>.png` 一张都还没有（`cast.gd:66` 会自动落回默认立绘）。管线与原稿见 `docs/art/game/03_portraits/`。
 - 商品图标：48 个商品 / 服务全部有手绘版；**程序化兜底（`assets/goods/` 48 张）已删除** —— 缺图不再静默回滚旧图，`GoodIcons.tex()` 直接返回**亮品红方块**（FF00FF）并 `push_warning`。
 - 科技图标：`content/technologies.json` 现有科技全部有图标，无缺口。
 - 建筑 / 住房缩略图：content 里的建筑与住房全部有缩略图，无缺口。
