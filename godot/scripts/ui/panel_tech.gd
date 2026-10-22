@@ -434,12 +434,32 @@ func _compute_layout_diplomacy(ids: Array) -> Dictionary:
 		var arr: Array = rows[key]
 		if arr.is_empty():
 			continue
-		for i in arr.size():
-			pos[String(arr[i])] = Vector2(
+		# ⚠️ 行内必须按**解锁顺序**从左到右（用户 2026-10："应该从左到右边解锁吧"）。
+		# 不能直接用内容里的 id 顺序 —— 那是手写的，新科技插在前面就会排成
+		# 「使节驿站 → 常驻使团 → 邦交」这种倒序。判据只有一条：**本页内的前置链深度**。
+		var page_ids: Array = ids.duplicate()
+		var sorted := arr.duplicate()
+		sorted.sort_custom(func(a, b) -> bool:
+			return _page_depth(String(a), page_ids) < _page_depth(String(b), page_ids))
+		for i in sorted.size():
+			pos[String(sorted[i])] = Vector2(
 				LAYOUT_PAD + i * (CARD_W + COL_GAP),
 				LAYOUT_PAD + row * (_card_h + ROW_GAP))
 		row += 1
 	return pos
+
+
+## 一项科技在**这一页**里的前置链深度：前置不在本页就算 0，否则 1 + 前置的最大深度。
+## 用来排序（也用来保证连线是从左往右的）。
+func _page_depth(tid: String, page_ids: Array) -> int:
+	var tech: Dictionary = runner.db.techs.get(tid, {})
+	if tech.is_empty():
+		return 0
+	var best := -1
+	for r in (tech.get("requires", []) as Array):
+		if page_ids.has(String(r)):
+			best = maxi(best, _page_depth(String(r), page_ids))
+	return 0 if best < 0 else best + 1
 
 
 ## 贸易页的排法：**行 = `trade` 块的键，列 = 同一条链上的第几档**。
