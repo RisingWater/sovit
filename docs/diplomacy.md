@@ -234,8 +234,8 @@
 |---|---|
 | id / 名字 | `embassy` / **外交办公室** |
 | 建造栏 | **「市政」页**（和贸易市场 / 城镇中心同一页）|
-| 尺寸 | 贴图 **127×78**（已出，见 §9.2），`art.foot = [7, 3]`（`floor(127/16)=7 × (floor(78/16)-1)=3`）|
-| 门 | `art.doors = [[3, 2]]`（底边那一行的第 4 格）|
+| 尺寸 | 贴图 **139×92**（已出，见 §9.2），`art.foot = [8, 4]`（`floor(139/16)=8 × (floor(92/16)-1)=4`）|
+| 门 | `art.doors = [[4, 3]]`（底边那一行的第 4 格）|
 | 造价 / 建造力 | wood 20 / brick 15 / stone 10；`buildWork` 40（比市场重，比研究所轻）|
 | 工人 | 2（`workers: 2, maxWorkers: 4`），**不产出任何商品**（纯功能建筑）|
 | 科技锁 | 新科技 **`statecraft`「邦交」**（贸易页，前置 `trade` + `construction`）|
@@ -518,7 +518,7 @@ applyActions → updateRoutes → activateCompleted → activateResearch → lab
 
 | 素材 | 文件 | 规格 | 备注 |
 |---|---|---|---|
-| **外交办公室** | `godot/assets/building_src/embassy.png`（**素材**）→ `godot/assets/buildings/embassy.png`（`npm run gen:art` 生成）| **127×78** 透明底，v3 建筑画风（正面平视 + 屋顶略俯视、2× 密度像素、粗深棕描边）| `art.foot = [7, 3]`（`floor(127/16)=7 × (floor(78/16)−1)=3`）、门 `[[3,2]]`；提示词与候选见 `scripts/building-manifest.json` |
+| **外交办公室** | `godot/assets/building_src/embassy.png`（**素材**）→ `godot/assets/buildings/embassy.png`（`npm run gen:art` 生成）| **139×92** 透明底，v3 建筑画风（正面平视 + 屋顶略俯视、2× 密度像素、粗深棕描边）| `art.foot = [8, 4]`（`floor(127/16)=7 × (floor(78/16)−1)=3`）、门 `[[3,2]]`；提示词与候选见 `scripts/building-manifest.json` |
 | **米拉立绘** | `godot/assets/portraits/milla.png` | **640×896**（5:7）透明底 | 源图 `docs/art/game/03_portraits/src/08_milla.png`（1024×1536 白底）→ BiRefNet 抠图 → alpha bbox 自适应裁 5:7 → 缩 640×896（2026-10 新批，与全部 21 张同管线；旧的绿幕裁切框口径已过时）|
 
 > `assets/ui/thumbs/embassy.png` **不用单独出** —— `gen:art` 顺手做缩略图。

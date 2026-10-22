@@ -665,7 +665,11 @@
       "id": "court",
       "kind": "crest",
       "variant": 7,
-      "ink": [108, 63, 121],
+      "ink": [
+        108,
+        63,
+        121
+      ],
       "bg": "white",
       "subject": "a heraldic emblem: a royal eagle with spread wings, head turned in profile. Only this one symbol, drawn as one solid filled shape"
     },
@@ -673,7 +677,11 @@
       "id": "iron_crown",
       "kind": "crest",
       "variant": 8,
-      "ink": [59, 78, 122],
+      "ink": [
+        59,
+        78,
+        122
+      ],
       "bg": "white",
       "subject": "a single symbol only: a single large iron key standing upright, centred, nothing around it"
     },
@@ -681,7 +689,11 @@
       "id": "iron_rook",
       "kind": "crest",
       "variant": 7,
-      "ink": [38, 34, 31],
+      "ink": [
+        38,
+        34,
+        31
+      ],
       "bg": "white",
       "subject": "a heraldic emblem: a raven with folded wings perched on a small rock. Only this one symbol, drawn as one solid filled shape"
     },
@@ -689,7 +701,11 @@
       "id": "holy_flame",
       "kind": "crest",
       "variant": 7,
-      "ink": [180, 59, 39],
+      "ink": [
+        180,
+        59,
+        39
+      ],
       "bg": "white",
       "subject": "a heraldic emblem: a single leaping flame. Only this one symbol, drawn as one solid filled shape"
     },
@@ -697,7 +713,11 @@
       "id": "golden_ear",
       "kind": "crest",
       "variant": 8,
-      "ink": [201, 162, 39],
+      "ink": [
+        201,
+        162,
+        39
+      ],
       "bg": "white",
       "subject": "a single symbol only: three wheat ears bound together at the base, centred, nothing around it"
     },
@@ -705,7 +725,11 @@
       "id": "dawn",
       "kind": "crest",
       "variant": 7,
-      "ink": [196, 118, 58],
+      "ink": [
+        196,
+        118,
+        58
+      ],
       "bg": "white",
       "subject": "a heraldic emblem: a rising sun with long straight rays. Only this one symbol, drawn as one solid filled shape"
     },
@@ -713,7 +737,11 @@
       "id": "blackstone",
       "kind": "crest",
       "variant": 8,
-      "ink": [89, 65, 47],
+      "ink": [
+        89,
+        65,
+        47
+      ],
       "bg": "white",
       "subject": "a single symbol only: a square stone tower with battlements, centred, nothing around it"
     },
@@ -721,7 +749,11 @@
       "id": "jade",
       "kind": "crest",
       "variant": 7,
-      "ink": [46, 125, 91],
+      "ink": [
+        46,
+        125,
+        91
+      ],
       "bg": "white",
       "subject": "a heraldic emblem: a single serpent coiled with its head raised. Only this one symbol, drawn as one solid filled shape"
     },
@@ -729,7 +761,11 @@
       "id": "khan",
       "kind": "crest",
       "variant": 7,
-      "ink": [138, 74, 50],
+      "ink": [
+        138,
+        74,
+        50
+      ],
       "bg": "white",
       "subject": "a heraldic emblem: two curved scimitars crossed in saltire. Only this one symbol, drawn as one solid filled shape"
     },
@@ -737,7 +773,11 @@
       "id": "peak",
       "kind": "crest",
       "variant": 7,
-      "ink": [91, 107, 114],
+      "ink": [
+        91,
+        107,
+        114
+      ],
       "bg": "white",
       "subject": "a heraldic emblem: a solid rocky mountain peak with two crossed swords in front of it. Only this one symbol, drawn as one solid filled shape"
     },
@@ -745,7 +785,11 @@
       "id": "holy_see",
       "kind": "crest",
       "variant": 8,
-      "ink": [140, 98, 57],
+      "ink": [
+        140,
+        98,
+        57
+      ],
       "bg": "white",
       "subject": "a single symbol only: a single tall latin cross, nothing beside it, no branches, no leaves, no ornament, centred, nothing around it"
     },
@@ -753,7 +797,11 @@
       "id": "silverleaf",
       "kind": "crest",
       "variant": 8,
-      "ink": [107, 122, 53],
+      "ink": [
+        107,
+        122,
+        53
+      ],
       "bg": "white",
       "subject": "a single symbol only: a single large pointed leaf with a central vein, centred, nothing around it"
     },
@@ -761,7 +809,11 @@
       "id": "ashen_circle",
       "kind": "crest",
       "variant": 8,
-      "ink": [106, 106, 106],
+      "ink": [
+        106,
+        106,
+        106
+      ],
       "bg": "white",
       "subject": "a single symbol only: a sword broken in two pieces, the snapped blade tip lying crossed over the hilt, centred, nothing around it"
     },
@@ -824,6 +876,18 @@
       "kind": "action",
       "bg": "green",
       "subject": "a heavy iron war hammer with a leather-wrapped haft and a red tassel"
+    },
+    {
+      "id": "diplomacy_range_1",
+      "kind": "tech",
+      "bg": "green",
+      "subject": "a roadside relay post: a tall wooden signpost with two arrow boards, a small thatched hut behind it and a red pennant on the post"
+    },
+    {
+      "id": "diplomacy_range_2",
+      "kind": "tech",
+      "bg": "green",
+      "subject": "a permanent envoy mission: a small stone house with a flagpole flying a red banner, an open ledger on a stand beside the door and a sealed scroll"
     }
   ],
   "post": {
@@ -860,7 +924,11 @@
     },
     "crest": {
       "mono": true,
-      "ink": [58, 44, 32],
+      "ink": [
+        58,
+        44,
+        32
+      ],
       "ink_lo": 110,
       "ink_hi": 190,
       "margin": 0.03

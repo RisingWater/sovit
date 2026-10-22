@@ -350,20 +350,20 @@ export function applyActions(
       // ---- 邦交（B4）：三条都当场生效（送钱 / 立约 / 宣战，没理由等 6:00）----
       // 见 docs/diplomacy.md §4。钱当场扣、好感当场涨，面板与公告立刻能看见。
       case 'faction_gift': {
-        const res = factionGift(state, action.factionId, action.amount, state.day)
+        const res = factionGift(state, action.factionId, action.amount, state.day, ctx)
         if (res.log) logs.push(res.log)
         applied.push({ type: action.type, ok: res.ok, reason: res.reason })
         break
       }
       case 'faction_ally': {
-        const res = factionAlly(state, action.factionId, state.day)
+        const res = factionAlly(state, action.factionId, state.day, ctx)
         if (res.log) logs.push(res.log)
         applied.push({ type: action.type, ok: res.ok, reason: res.reason })
         break
       }
       case 'faction_attack': {
         // ⚠️ B4 只做"宣战"：关系直接打到 -6000（敌对）。真正的战斗结算在 B5 的讨伐战。
-        const res = factionAttack(state, action.factionId, state.day)
+        const res = factionAttack(state, action.factionId, state.day, ctx)
         if (res.log) logs.push(res.log)
         applied.push({ type: action.type, ok: res.ok, reason: res.reason })
         break

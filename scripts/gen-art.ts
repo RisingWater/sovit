@@ -301,6 +301,8 @@ const FORCE_NATIVE: Record<string, true> = {
   // M2：诊所 / 医院 / 学校**不缩小**（用户 2026-10）
   clinic: true,
   trade_market: true,
+  // B4：外交办公室 139×92，占地 [8,4]（用户 2026-10："这个建筑占地可以大一点"）
+  embassy: true,
   watchtower: true,
   hospital: true,
   school: true,

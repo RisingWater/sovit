@@ -27,7 +27,7 @@ extends SceneTree
 ## 后者解锁使馆），它们的好感加成进 `tech_bonuses().trade.goodwill`，见 docs/diplomacy.md §3.3。
 ## **刻意写死**而不是取 `db.tech_ids.size()`：这样"某项科技莫名消失/多出来"
 ## 才会被这条门抓住 —— 用 size 就等于把断言变成恒真式。
-const EXPECTED_TECHS := 76
+const EXPECTED_TECHS := 78
 
 func _init() -> void:
 	call_deferred("_run")
@@ -125,18 +125,19 @@ func _run() -> void:
 	var ids_make: Array = panel._ids_for(0)     # 制造
 	var ids_eff: Array = panel._ids_for(1)      # 效率
 	var ids_trade: Array = panel._ids_for(2)    # 贸易（B3）
+	var ids_dip: Array = panel._ids_for(3)      # 外交（B4：邦交 + 3 档好感 + 2 档范围）
 	if ids_make.is_empty() or ids_eff.is_empty():
 		_fail("制造 %d 项 / 效率 %d 项 —— 有一页是空的" % [ids_make.size(), ids_eff.size()])
 		return
 	# 三棵树加起来必须等于总数：贸易科技只进贸易页，别的科技不进贸易页（`_ids_for` 的互斥）
-	if ids_make.size() + ids_eff.size() + ids_trade.size() != EXPECTED_TECHS:
+	if ids_make.size() + ids_eff.size() + ids_trade.size() + ids_dip.size() != EXPECTED_TECHS:
 		_fail("三页加起来 %d 项，科技总数 %d（有科技哪一页都不显示，或进了两页）"
-			% [ids_make.size() + ids_eff.size() + ids_trade.size(), EXPECTED_TECHS])
+			% [ids_make.size() + ids_eff.size() + ids_trade.size() + ids_dip.size(), EXPECTED_TECHS])
 		return
 	# 19 = 16 商路科技 + 3 档商路好感加成（B4；「邦交」`statecraft` 解锁使馆，
 	# 它没有 `trade` 块 → 进「制造」页，不在这里）
-	if ids_trade.size() != 19:
-		_fail("贸易页应当是 19 项贸易科技，实际 %d" % ids_trade.size())
+	if ids_trade.size() != 16:
+		_fail("贸易页应当是 16 项贸易科技，实际 %d" % ids_trade.size())
 		return
 	for t2 in ids_eff:
 		if ids_make.has(t2):
@@ -298,12 +299,12 @@ func _run() -> void:
 	if qpage == null:
 		_fail("科技面板里没有「研究队列」页（QueuePage）")
 		return
-	if panel.get("_tab_btns").size() != 4:
-		_fail("科技面板应当有四个页签（制造 / 效率 / 贸易 / 研究队列），实际 %d"
+	if panel.get("_tab_btns").size() != 5:
+		_fail("科技面板应当有五个页签（制造 / 效率 / 贸易 / 外交 / 研究队列），实际 %d"
 			% panel.get("_tab_btns").size())
 		return
-	# 页签顺序：制造(0) 效率(1) 贸易(2) 研究队列(3)
-	panel._select_tab(3)
+	# 页签顺序：制造(0) 效率(1) 贸易(2) 外交(3) 研究队列(4)
+	panel._select_tab(4)
 	await process_frame
 	if not (qpage as Control).visible:
 		_fail("切到「研究队列」页之后它没显示出来")
@@ -320,7 +321,7 @@ func _run() -> void:
 	await process_frame
 	var tech2 := String(db.tech_ids[1])
 	sim.enqueue([{"type": "research", "techId": tech2}])
-	panel._select_tab(3)
+	panel._select_tab(4)
 	await process_frame
 	await process_frame
 	var order_before := []
@@ -536,10 +537,10 @@ func _run() -> void:
 		return
 	# 6 行 = 商队 / 载货 / 带钱 / 砍价 / 卖价 / 好感（B4 加的第六行），除第一行外
 	# 每行第一档都挂「常设商队」，所以 5 条跨行干线。
-	if bus != 5:
-		_fail("贸易页应当有 5 条跨行干线（后五行的第一档要「常设商队」），实际 %d 条" % bus)
+	if bus != 4:
+		_fail("贸易页应当有 4 条跨行干线（后四行的第一档要「常设商队」），实际 %d 条" % bus)
 		return
-	print("TECH TEST 贸易页排法：商队/载货/带钱/砍价/卖价/好感 各一行，%d 条连线（%d 条走左边干线）✅"
+	print("TECH TEST 贸易页排法：商队/载货/带钱/砍价/卖价 各一行，%d 条连线（%d 条走左边干线）✅"
 		% [segs.size(), bus])
 
 	print("TECH TEST 科技=%d（制造 %d / 效率 %d） 页内连线=%d 拖动 %s->%s 队列=%s" % [

@@ -71,8 +71,10 @@ const TAB_MAKE := 0
 const TAB_EFF := 1
 ## 贸易（B3，用户 2026-10："科技面板要单独加一个贸易 tab"）：带 `trade` 块的科技。
 const TAB_TRADE := 2
-const TAB_QUEUE := 3
-const TAB_NAMES := ["制造", "效率", "贸易与外交", "研究队列"]
+## 外交（B4）：`tab: "diplomacy"` 的科技（邦交 / 三档商路好感 / 两档外交范围）。
+const TAB_DIPLOMACY := 3
+const TAB_QUEUE := 4
+const TAB_NAMES := ["制造", "效率", "贸易", "外交", "研究队列"]
 var _tab := TAB_MAKE
 var _tab_btns: Array = []
 var _queue_page: Control
@@ -301,6 +303,15 @@ func _ids_for(kind: int) -> Array:
 		# 贸易（B3）：带 `trade` 块的科技**只进贸易页** —— 它既不解锁建筑也不给效率加成，
 		# 混进制造 / 效率页只会让人以为点它没效果（用户 2026-10："科技面板单独加一个贸易 tab"）。
 		var has_trade: bool = not (tech.get("trade", {}) as Dictionary).is_empty()
+		# 外交（B4）：带 `tab: "diplomacy"` 的科技**只进外交页** —— 它们既不解锁建筑、
+		# 也不给效率加成，混在贸易 / 制造页里玩家找不到。
+		var has_dip: bool = String(tech.get("tab", "")) == "diplomacy"
+		if kind == TAB_DIPLOMACY:
+			if has_dip:
+				out.append(t)
+			continue
+		if has_dip:
+			continue
 		if kind == TAB_TRADE:
 			if has_trade:
 				out.append(t)
@@ -343,6 +354,9 @@ func _on_hour_ticked() -> void:
 func _compute_layout(ids: Array, kind: int) -> Dictionary:
 	if kind == TAB_TRADE:
 		return _compute_layout_trade(ids)
+	if kind == TAB_DIPLOMACY:
+		# 外交页只有两行：上面「邦交 → 使节驿站 → 常驻使团」，下面三档商路好感。
+		return _compute_layout_diplomacy(ids)
 	var db := runner.db
 	var order := {}                      # id -> 内容顺序
 	for i in db.tech_ids.size():
@@ -399,6 +413,34 @@ func _compute_layout(ids: Array, kind: int) -> Dictionary:
 ## 「贸易」页的行序 —— **一行一类**，顺序就是玩家该研究的顺序：
 ## 先有车队，再能多装、多带钱，最后才是把价谈好。
 const TRADE_ROW_ORDER := ["caravans", "cargo", "purse", "haggleBuy", "haggleSell", "goodwill"]
+
+## 外交页的排法（B4）：**两行**
+##   邦交 → 使节驿站 → 常驻使团      （外交范围 2 → 4 → 全图）
+##   通使礼数 → 邦交友道 → 万国来朝  （商路好感 +50% / +100% / +200%）
+##
+## 行序写死在这里：`diplomacy` 块（范围）在前、`trade` 块（好感）在后。
+func _compute_layout_diplomacy(ids: Array) -> Dictionary:
+	var rows := {"range": [], "goodwill": []}
+	for tid in ids:
+		var t := String(tid)
+		var tech: Dictionary = runner.db.techs[t]
+		if not (tech.get("diplomacy", {}) as Dictionary).is_empty():
+			(rows["range"] as Array).append(t)
+		else:
+			(rows["goodwill"] as Array).append(t)
+	var pos := {}
+	var row := 0
+	for key in ["range", "goodwill"]:
+		var arr: Array = rows[key]
+		if arr.is_empty():
+			continue
+		for i in arr.size():
+			pos[String(arr[i])] = Vector2(
+				LAYOUT_PAD + i * (CARD_W + COL_GAP),
+				LAYOUT_PAD + row * (_card_h + ROW_GAP))
+		row += 1
+	return pos
+
 
 ## 贸易页的排法：**行 = `trade` 块的键，列 = 同一条链上的第几档**。
 ##
@@ -847,6 +889,11 @@ func _card_effect(tid: String) -> String:
 	if tech == null:
 		return ""
 	var parts: Array = []
+	# 外交（B4）：`diplomacy.range` → 「外交范围 2 天 / 4 天 / 全图」
+	var dip: Dictionary = (tech as Dictionary).get("diplomacy", {})
+	if not dip.is_empty():
+		var rng := int(dip.get("range", 0))
+		parts.append("外交范围 %s" % ("全图" if rng == 0 else "%d 天" % rng))
 	parts.append_array(_trade_short_parts(tech))
 	var eff: Dictionary = (tech as Dictionary).get("effects", {})
 	for k in eff.keys():

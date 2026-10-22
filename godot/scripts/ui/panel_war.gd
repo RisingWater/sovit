@@ -269,6 +269,10 @@ func _build_list() -> void:
 	_cards.clear()
 	var snap := _snap()
 	for f in (snap.get("factions", []) as Array):
+		# 没有城的势力（银叶部落 / 灰烬集会）先不列 —— 它们的接触方式要等
+		# 「精灵驻点 / 女巫驻点」两项科技（用户 2026-10："先当她不存在"）。
+		if not bool((f as Dictionary).get("hasCity", true)):
+			continue
 		var card := _make_card(f as Dictionary)
 		_list_body.add_child(card)
 		_cards[String((f as Dictionary).get("id", ""))] = card

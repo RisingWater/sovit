@@ -87,8 +87,8 @@ func _run() -> void:
 		_fail("势力应当 13 个，快照里只有 %d 个" % list.size())
 		return
 	var cards: Dictionary = panel.get("_cards")
-	if cards.size() != 13:
-		_fail("面板上只建出 %d 张势力卡（应 13）" % cards.size())
+	if cards.size() != 11:
+		_fail("面板上只建出 %d 张势力卡（应 11：13 家减去没城的银叶 / 灰烬）" % cards.size())
 		return
 
 	# ---- ④ 关系只写档位名（不许出现数字）
@@ -111,7 +111,34 @@ func _run() -> void:
 		return
 	var money0 := float(sim.s["government"]["money"])
 	var rep0 := int(peak["rep"])
+	# 外交范围（B4-6）：邦交只给 2 天，铁峰城 4 天 —— 先验"够不着就不许送钱"
+	if bool(peak.get("inRange", true)):
+		_fail("邦交（2 天）刚研究完就够得着 4 天外的铁峰城 —— 范围闸没生效")
+		return
 	sim.s["government"]["money"] = 5000.0
+	panel._on_gift("peak", 500)
+	if float(sim.s["government"]["money"]) != 5000.0:
+		_fail("超出外交范围还把钱扣了（国库 %.2f）" % float(sim.s["government"]["money"]))
+		return
+	# 「使节驿站」→ 范围 4 天：够得着 4 天内的（圣火 / 沙海 / 铁鸦堡），铁峰城 5 天还不够
+	sim.s["research"]["done"].append("diplomacy_range_1")
+	var snap_r: Dictionary = sim.factions_snapshot()
+	if int(snap_r.get("rangeDays", 0)) != 4:
+		_fail("研究「使节驿站」之后范围应当是 4 天，实际 %d" % int(snap_r.get("rangeDays", 0)))
+		return
+	for fr in (snap_r["factions"] as Array):
+		var f0 := fr as Dictionary
+		# 范围 4 天：1/2/3/4 天的九家够得着；5 天的圣都 / 铁峰城还不够
+		# 5 天的圣都 / 铁峰城还不够；没城的银叶 / 灰烬要等「常驻使团」
+		var want := not (String(f0["id"]) in ["holy_see", "peak", "silverleaf", "ashen_circle"])
+		if bool(f0.get("inRange", false)) != want:
+			_fail("范围 4 天时「%s」的够得着应当是 %s" % [String(f0["nameZh"]), str(want)])
+			return
+	# 「常驻使团」→ 全图：铁峰城（5 天）这才够得着
+	sim.s["research"]["done"].append("diplomacy_range_2")
+	if int(sim.factions_snapshot().get("rangeDays", 0)) != -1:
+		_fail("研究「常驻使团」之后应当是全图（-1）")
+		return
 	panel._on_gift("peak", 500)
 	var after: Dictionary = sim.factions_snapshot()
 	var peak2: Dictionary = {}

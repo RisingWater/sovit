@@ -4619,11 +4619,41 @@ func faction_gift_verb(fid: String) -> String:
 		return "送礼"
 	return "进贡" if completed_chapter() < 6 else "送礼"
 
+## 外交范围（单程天数上限）：没研究「邦交」= 0（不能操作），邦交 = 2，
+## 「使节驿站」= 4，「常驻使团」= **-1（全图）**。见 docs/diplomacy.md §4.5。
+func faction_range_days() -> int:
+	var done: Array = s["research"]["done"]
+	if done.has("diplomacy_range_2"):
+		return -1
+	if done.has("diplomacy_range_1"):
+		return 4
+	if done.has("statecraft"):
+		return 2
+	return 0
+
+## 这个势力现在够得着吗：它的城**最近**几天能到 ≤ 外交范围（-1 = 全图）。
+## ⚠️ 没有城的势力（银叶 / 灰烬）距离算不出来 —— 只有全图之后才够得着
+## （用户 2026-10：那两个"先当它不存在"，将来走「精灵驻点 / 女巫驻点」两项科技）。
+func faction_in_range(fid: String) -> bool:
+	var rng := faction_range_days()
+	if rng < 0:
+		return true
+	if rng == 0:
+		return false
+	var best := 999
+	var city_ids: Array = _faction_def(fid).get("cityIds", [])
+	for c in (db.routes.get("cities", []) as Array):
+		if city_ids.has(String(c.get("id", ""))):
+			best = mini(best, int(c.get("days", 99)))
+	return best <= rng
+
 ## 送礼 / 进贡：1 钱 = 1 好感，最少 `giftStep`。钱从国库扣。返回 `{ok, reason?, log?}`。
 func faction_gift(fid: String, amount: float) -> Dictionary:
 	var def := _faction_def(fid)
 	if def.is_empty():
 		return {"ok": false, "reason": "没有这个势力"}
+	if not faction_in_range(fid):
+		return {"ok": false, "reason": "太远了：外交范围只有 %d 天（研究「使节驿站 / 常驻使团」）" % faction_range_days()}
 	var money := int(floor(amount))
 	var step := int(_faction_cfg().get("giftStep", 100))
 	if money < step:
@@ -4648,6 +4678,8 @@ func faction_ally(fid: String) -> Dictionary:
 	var def := _faction_def(fid)
 	if def.is_empty():
 		return {"ok": false, "reason": "没有这个势力"}
+	if not faction_in_range(fid):
+		return {"ok": false, "reason": "太远了：够不着 %s（先研究「使节驿站 / 常驻使团」）" % String(def.get("short", fid))}
 	var st: Dictionary = _factions()
 	var short := String(def.get("short", fid))
 	if bool((st["ally"] as Dictionary).get(fid, false)):
@@ -4671,6 +4703,8 @@ func faction_attack(fid: String) -> Dictionary:
 	var def := _faction_def(fid)
 	if def.is_empty():
 		return {"ok": false, "reason": "没有这个势力"}
+	if not faction_in_range(fid):
+		return {"ok": false, "reason": "太远了：打不到 %s（先研究「使节驿站 / 常驻使团」）" % String(def.get("short", fid))}
 	var st: Dictionary = _factions()
 	var short := String(def.get("short", fid))
 	if bool((st["vassal"] as Dictionary).get(fid, false)):
@@ -4766,8 +4800,13 @@ func factions_snapshot() -> Dictionary:
 			"tradeWhy": String(gate.get("why", "")),
 			# 送礼的叫法：王都且父王还在世（第 6 章之前）=「进贡」，之后一律「送礼」
 			"giftVerb": faction_gift_verb(fid),
+			"rangeDays": faction_range_days(),
+			# 没有城的势力（银叶 / 灰烬）：外交面板先不列（用户 2026-10："先当她不存在"）
+			"hasCity": not (def.get("cityIds", []) as Array).is_empty(),
+			"inRange": faction_in_range(fid),
 			"canAttack": not bool((st["vassal"] as Dictionary).get(fid, false)) \
 				and not bool((st["ally"] as Dictionary).get(fid, false)) and band != "enemy",
 		})
 	return {"relation": _faction_cfg(), "factions": out,
-		"money": SimUtil.r2(float(s["government"]["money"]))}
+		"money": SimUtil.r2(float(s["government"]["money"])),
+		"rangeDays": faction_range_days()}

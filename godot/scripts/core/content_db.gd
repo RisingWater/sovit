@@ -142,6 +142,10 @@ func _load() -> void:
 			# 贸易加成（可选，B3）：{caravans / cargo / purse / haggleBuy / haggleSell}。
 			# 聚合方式见 sim_core.gd::tech_bonuses()（商队加法、载货/带钱取最高、议价加法）。
 			"trade": it.get("trade", {}),
+			# 外交（B4）：`tab: "diplomacy"` 决定进科技面板哪一页；
+			# `diplomacy.range` 是外交范围（2 / 4 / 0=全图）。见 docs/diplomacy.md §4.5。
+			"tab": String(it.get("tab", "")),
+			"diplomacy": it.get("diplomacy", {}),
 			"unlocks": {
 				"buildings": unlocks.get("buildings", []),
 				"housing": unlocks.get("housing", []),

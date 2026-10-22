@@ -539,6 +539,18 @@ export interface TechDef {
    */
   trade?: TradeEffects
   /** 本科技解锁的建筑与住房。每座建筑至多被一项科技解锁。 */
+  /**
+   * 这一项进科技面板的哪一页（缺省按"解锁型 / 加成型"自动分）。
+   *
+   * `"diplomacy"` = 进「外交」页（B4）：邦交、三档商路好感、两档外交范围 ——
+   * 它们既不是"解锁建筑"也不是"效率加成"，混在贸易页里玩家找不到。
+   */
+  tab?: 'diplomacy'
+  /**
+   * 外交科技的效果（B4）：`range` = 外交范围（**单程天数**上限）。
+   * `2` = 初始（邦交）、`4` = 使节驿站、`0` = 全图（常驻使团）。
+   */
+  diplomacy?: { range: number }
   unlocks: { buildings: BuildingID[]; housing: GoodID[] }
 }
 

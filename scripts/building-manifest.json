@@ -21,10 +21,10 @@
       "id": "embassy",
       "gen_width": 1536,
       "gen_height": 960,
-      "out_width": 128,
-      "max_height": 78,
+      "out_width": 144,
+      "max_height": 92,
       "bg": "green",
-      "subject": "a wide low royal embassy hall, drawn on a very fine pixel grid with small square pixels like classic 16-bit building sprites, one storey and a half, twice as wide as it is tall: pale sand plaster walls with dark brown timber framing, three tall arched pale-blue windows on each side of a formal wooden double door which sits up three stone steps, two long red-and-gold banners hanging either side of the door, a low triangular pediment over the door, a muted terracotta tile roof with a short flagpole and a red pennant"
+      "subject": "a wide two-storey royal chancellery (diplomacy office), seen from a slight three-quarter angle so a sliver of the left side wall is visible, pale sand plaster walls with dark brown timber framing, tall arched pale-blue windows, a formal wooden double door up three stone steps in the centre, two long red-and-gold banners hanging either side of the door, a low triangular pediment over the door, a muted terracotta tile roof with a short flagpole and a red pennant, a small side wing with one window"
     }
   ]
 }

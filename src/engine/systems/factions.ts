@@ -177,6 +177,35 @@ export function addRep(state: GameState, id: FactionID, delta: number): number {
 }
 
 // ---------------------------------------------------------------------------
+// 外交范围（单程天数上限）
+//
+// 没研究「邦交」= 0（不能操作），邦交 = 2，「使节驿站」= 4，「常驻使团」= -1（全图）。
+// 没有城的势力（银叶 / 灰烬）距离算不出来 —— 只有全图之后才够得着
+// （用户 2026-10：那两个"先当它不存在"，将来走「精灵驻点 / 女巫驻点」两项科技）。
+// ---------------------------------------------------------------------------
+
+export function factionRangeDays(state: GameState): number {
+  const done = state.research?.done ?? []
+  if (done.includes('diplomacy_range_2')) return -1
+  if (done.includes('diplomacy_range_1')) return 4
+  if (done.includes('statecraft')) return 2
+  return 0
+}
+
+export function factionInRange(state: GameState, id: FactionID, ctx: ContentContext): boolean {
+  const rng = factionRangeDays(state)
+  if (rng < 0) return true
+  if (rng === 0) return false
+  const def = ALL_FACTIONS[id]
+  if (!def) return false
+  let best = 999
+  for (const city of ctx.routes.cities) {
+    if (def.cityIds.includes(city.id)) best = Math.min(best, city.days)
+  }
+  return best <= rng
+}
+
+// ---------------------------------------------------------------------------
 // 三条命令（都是 IMMEDIATE_ACTIONS：当场生效）
 // ---------------------------------------------------------------------------
 
@@ -198,9 +227,13 @@ export function factionGift(
   id: FactionID,
   amount: number,
   day: number,
+  ctx?: ContentContext,
 ): FactionCommandResult {
   const def = ALL_FACTIONS[id]
   if (!def) return { ok: false, reason: '没有这个势力' }
+  if (ctx && !factionInRange(state, id, ctx)) {
+    return { ok: false, reason: `太远了：外交范围只有 ${factionRangeDays(state)} 天` }
+  }
   const money = Math.floor(amount)
   if (!Number.isFinite(money) || money < REL.giftStep) {
     return { ok: false, reason: `一次至少送 ${REL.giftStep} 钱` }
@@ -224,9 +257,17 @@ export function factionGift(
 }
 
 /** 结盟：好感必须已到满分 10000、`allyable`、再花 `allyCost` 钱。 */
-export function factionAlly(state: GameState, id: FactionID, day: number): FactionCommandResult {
+export function factionAlly(
+  state: GameState,
+  id: FactionID,
+  day: number,
+  ctx?: ContentContext,
+): FactionCommandResult {
   const def = ALL_FACTIONS[id]
   if (!def) return { ok: false, reason: '没有这个势力' }
+  if (ctx && !factionInRange(state, id, ctx)) {
+    return { ok: false, reason: `太远了：够不着 ${def.short}` }
+  }
   const st = factions(state)
   if (st.ally[id] === true) return { ok: false, reason: `${def.short}已经是盟友了` }
   if (!def.allyable) return { ok: false, reason: `${def.nameZh}不与我们结盟` }
@@ -248,9 +289,17 @@ export function factionAlly(state: GameState, id: FactionID, day: number): Facti
 }
 
 /** 派兵进攻：关系**直接**打到 `attackHit`（-6000，敌对）。B4 只宣战，不打仗。 */
-export function factionAttack(state: GameState, id: FactionID, day: number): FactionCommandResult {
+export function factionAttack(
+  state: GameState,
+  id: FactionID,
+  day: number,
+  ctx?: ContentContext,
+): FactionCommandResult {
   const def = ALL_FACTIONS[id]
   if (!def) return { ok: false, reason: '没有这个势力' }
+  if (ctx && !factionInRange(state, id, ctx)) {
+    return { ok: false, reason: `太远了：打不到 ${def.short}` }
+  }
   const st = factions(state)
   if (st.vassal[id] === true) return { ok: false, reason: `${def.short}是我们的附庸，不能打` }
   if (st.ally[id] === true) return { ok: false, reason: `${def.short}是我们的盟友，先解盟` }

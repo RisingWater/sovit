@@ -1286,12 +1286,23 @@ function parseTechnologies(
     if (unlocks.buildings.length + unlocks.housing.length === 0) {
       // 纯效率科技（只给 effects、不解锁任何东西）也是合法的 —— 它的价值在加成上。
       // 但两者都没有 = 一项什么都不做的科技，直接报错。
-      if (o.effects === undefined && o.trade === undefined) {
-        fail(`${p} 既没有 unlocks 也没有 effects / trade：科技至少要解锁一座建筑 / 一种住房，或给一项加成`)
+      if (o.effects === undefined && o.trade === undefined && o.diplomacy === undefined) {
+        fail(`${p} 既没有 unlocks 也没有 effects / trade：科技至少要解锁一座建筑 / 一种住房，或给一项加成（effects / trade / diplomacy）`)
       }
     }
     const effects = o.effects === undefined ? undefined : parseTechEffects(o.effects, `${p}.effects`)
     const trade = o.trade === undefined ? undefined : parseTradeEffects(o.trade, `${p}.trade`)
+    // 外交（B4）：`tab` 决定进哪一页；`diplomacy.range` = 外交范围（2 / 4 / 0=全图）
+    const tab = o.tab === undefined ? undefined : asEnum(o.tab, ['diplomacy'] as const, `${p}.tab`)
+    let diplomacy: { range: number } | undefined
+    if (o.diplomacy !== undefined) {
+      const d = asObj(o.diplomacy, `${p}.diplomacy`)
+      const range = asNonNeg(d.range, `${p}.diplomacy.range`)
+      if (![0, 2, 4].includes(range)) {
+        fail(`${p}.diplomacy.range 只能是 0（全图）/ 2 / 4，实际 ${range}`)
+      }
+      diplomacy = { range }
+    }
     technologies[id] = {
       id,
       nameZh: asStr(o.nameZh, `${p}.nameZh`),
@@ -1301,6 +1312,8 @@ function parseTechnologies(
       requires: strList(o.requires, `${p}.requires`),
       ...(effects !== undefined ? { effects } : {}),
       ...(trade !== undefined ? { trade } : {}),
+      ...(tab !== undefined ? { tab } : {}),
+      ...(diplomacy !== undefined ? { diplomacy } : {}),
       unlocks,
     }
     techIds.push(id)

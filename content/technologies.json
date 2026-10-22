@@ -703,6 +703,7 @@
       "research": 55,
       "cost": { "goods": { "wood": 20, "pottery": 20 } },
       "requires": ["trade_caravan_1"],
+      "tab": "diplomacy",
       "trade": { "goodwill": 0.5 },
       "unlocks": { "buildings": [], "housing": [] }
     },
@@ -713,6 +714,7 @@
       "research": 75,
       "cost": { "goods": { "pottery": 30, "wood": 25 } },
       "requires": ["trade_goodwill_1"],
+      "tab": "diplomacy",
       "trade": { "goodwill": 0.5 },
       "unlocks": { "buildings": [], "housing": [] }
     },
@@ -723,7 +725,30 @@
       "research": 90,
       "cost": { "goods": { "pottery": 40, "wood": 30 } },
       "requires": ["trade_goodwill_2"],
+      "tab": "diplomacy",
       "trade": { "goodwill": 1.0 },
+      "unlocks": { "buildings": [], "housing": [] }
+    },
+    {
+      "id": "diplomacy_range_1",
+      "nameZh": "使节驿站",
+      "era": 4,
+      "research": 70,
+      "cost": { "goods": { "wood": 30, "pottery": 20 } },
+      "requires": ["statecraft"],
+      "tab": "diplomacy",
+      "diplomacy": { "range": 4 },
+      "unlocks": { "buildings": [], "housing": [] }
+    },
+    {
+      "id": "diplomacy_range_2",
+      "nameZh": "常驻使团",
+      "era": 5,
+      "research": 95,
+      "cost": { "goods": { "pottery": 40, "wood": 30 } },
+      "requires": ["diplomacy_range_1"],
+      "tab": "diplomacy",
+      "diplomacy": { "range": 0 },
       "unlocks": { "buildings": [], "housing": [] }
     },
     {
@@ -733,6 +758,8 @@
       "research": 80,
       "cost": { "goods": { "wood": 30, "pottery": 25 } },
       "requires": ["trade", "construction"],
+      "tab": "diplomacy",
+      "diplomacy": { "range": 2 },
       "unlocks": { "buildings": ["embassy"], "housing": [] }
     }
   ]
