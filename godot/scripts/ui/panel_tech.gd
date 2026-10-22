@@ -384,10 +384,17 @@ func _compute_layout(ids: Array, kind: int) -> Dictionary:
 				depth[t] = d
 				changed = true
 
+	# 列 = 前置深度；**但非「商队」那几行整体右移一格** ——
+	# 用户 2026-10 截图："这个下面的从第二行开始应该向右移动一格，因为常设商队是依赖项，
+	# 依赖项一定要在左边。" 载货 / 带钱 / 砍价 / 卖价 都要先有车队才有意义，
+	# 而内容里它们的 `requires` 只写到了 `trade`，深度算出来是 0，于是压在了常设商队正下方。
 	var cols := {}
 	for tid in ids:
 		var t := String(tid)
 		var c := int(depth[t])
+		var is_caravan: bool = (db.techs[t]["trade"] as Dictionary).has("caravans")
+		if not is_caravan:
+			c += 1
 		if not cols.has(c):
 			cols[c] = []
 		cols[c].append(t)
