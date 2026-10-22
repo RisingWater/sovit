@@ -388,32 +388,84 @@ func _compute_layout(ids: Array, kind: int) -> Dictionary:
 	# 用户 2026-10 截图："这个下面的从第二行开始应该向右移动一格，因为常设商队是依赖项，
 	# 依赖项一定要在左边。" 载货 / 带钱 / 砍价 / 卖价 都要先有车队才有意义，
 	# 而内容里它们的 `requires` 只写到了 `trade`，深度算出来是 0，于是压在了常设商队正下方。
-	var cols := {}
+	# ---- 排成"树"，不是"一层一层"（用户 2026-10："这个科技树，没有树的感觉，
+	#      感觉就是一层一层的。得改一下"）
+	#
+	# 三条规则，都是为了**链要直、线不交叉**：
+	#   ① 列 = 页内前置深度（依赖在左，被依赖在右）
+	#   ② **一条链占一行**：第一个孩子继承父节点的行，其余孩子各开新行
+	#      —— 「草药 → 医道 → 病房」正好落在同一行的 0/1/2 列
+	#   ③ 行按先序分配，子树大的先继承父行；兄弟之间空一行、根与根之间空两行
+	#      （用户："第一列可以多空几行"）
+	var children := {}
+	var roots: Array = []
 	for tid in ids:
 		var t := String(tid)
-		var c := int(depth[t])
-		var is_caravan: bool = (db.techs[t]["trade"] as Dictionary).has("caravans")
-		if not is_caravan:
-			c += 1
-		if not cols.has(c):
-			cols[c] = []
-		cols[c].append(t)
-	for c in cols.keys():
-		var arr: Array = cols[c]
-		arr.sort_custom(func(a, b):
-			var ea := int(db.techs[a]["era"])
-			var eb := int(db.techs[b]["era"])
-			if ea != eb:
-				return ea < eb
-			return int(order[a]) < int(order[b]))
+		var parents: Array = []
+		for r in db.techs[t]["requires"]:
+			if depth.has(String(r)):
+				parents.append(String(r))
+		if parents.is_empty():
+			roots.append(t)
+			continue
+		# 挂到 requires 的**最后一项**下面（内容里那一项就是主链）
+		var main := String(parents[parents.size() - 1])
+		if not children.has(main):
+			children[main] = []
+		(children[main] as Array).append(t)
+
+	var by_era := func(a, b) -> bool:
+		var ea := int(db.techs[a]["era"])
+		var eb := int(db.techs[b]["era"])
+		if ea != eb:
+			return ea < eb
+		return int(order[a]) < int(order[b])
+	roots.sort_custom(by_era)
+	for k in children.keys():
+		(children[k] as Array).sort_custom(by_era)
+
+	# 子树大小：大的先继承父行，主链才不会被小分支挤断。
+	# ⚠️ GDScript 的 lambda 不能递归调用自己，所以这里按**深度倒序**自底向上累加
+	# （深度大的先算，父节点轮到它时孩子都已经有值了）。
+	var weight := {}
+	for tid in ids:
+		weight[String(tid)] = 1
+	var by_depth: Array = ids.duplicate()
+	by_depth.sort_custom(func(a, b) -> bool:
+		return int(depth[String(a)]) > int(depth[String(b)]))
+	for tid in by_depth:
+		var t2 := String(tid)
+		for c in (children.get(t2, []) as Array):
+			weight[t2] = int(weight[t2]) + int(weight.get(String(c), 1))
 
 	var pos := {}
-	for c in cols.keys():
-		var arr: Array = cols[c]
-		for i in arr.size():
-			pos[arr[i]] = Vector2(
-				LAYOUT_PAD + int(c) * (CARD_W + COL_GAP),
-				LAYOUT_PAD + i * (_card_h + ROW_GAP))
+	var row := 0
+	var root_rows: Array = []
+	for r in roots:
+		root_rows.append(row)
+		row += 2
+	var stack: Array = []
+	for i in range(roots.size() - 1, -1, -1):
+		stack.append([String(roots[i]), int(root_rows[i])])
+	while not stack.is_empty():
+		var item: Array = stack.pop_back()
+		var tid2 := String(item[0])
+		var my_row := int(item[1])
+		pos[tid2] = Vector2(
+			LAYOUT_PAD + int(depth[tid2]) * (CARD_W + COL_GAP),
+			LAYOUT_PAD + my_row * (_card_h + ROW_GAP))
+		var kids: Array = (children.get(tid2, []) as Array).duplicate()
+		kids.sort_custom(func(a, b) -> bool:
+			return int(weight[a]) > int(weight[b]))
+		var pending: Array = []
+		for k in kids.size():
+			var r2 := my_row
+			if k > 0:
+				row += 1
+				r2 = row
+			pending.append([String(kids[k]), r2])
+		for i in range(pending.size() - 1, -1, -1):
+			stack.append(pending[i])
 	return pos
 
 
@@ -522,9 +574,12 @@ func _compute_layout_trade(ids: Array) -> Dictionary:
 				if d != int(idx[t]):
 					idx[t] = d
 					changed = true
+		# 非「商队」行整体右移一格 —— 用户 2026-10："从第二行开始应该向右移动一格，
+		# 因为常设商队是依赖项，依赖项一定要在左边。"
+		var shift := 0 if String(key) == "caravans" else 1
 		for t in arr:
 			pos[t] = Vector2(
-				LAYOUT_PAD + int(idx[t]) * (CARD_W + COL_GAP),
+				LAYOUT_PAD + (int(idx[t]) + shift) * (CARD_W + COL_GAP),
 				LAYOUT_PAD + row * (_card_h + ROW_GAP))
 		row += 1
 	return pos

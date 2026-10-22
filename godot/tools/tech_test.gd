@@ -537,9 +537,20 @@ func _run() -> void:
 		return
 	# 6 行 = 商队 / 载货 / 带钱 / 砍价 / 卖价 / 好感（B4 加的第六行），除第一行外
 	# 每行第一档都挂「常设商队」，所以 5 条跨行干线。
-	if bus != 4:
-		_fail("贸易页应当有 4 条跨行干线（后四行的第一档要「常设商队」），实际 %d 条" % bus)
-		return
+	# 用户 2026-10 的硬规则：**依赖项一定在左边**。所以不只数干线条数，
+	# 直接验“每一条页内前置关系，前置的 x 都严格小于它”（并且列号就是相邻一档）。
+	var pos_map: Dictionary = panel.get("_pos")
+	for tid in ids_trade:
+		for r in (db.techs[String(tid)]["requires"] as Array):
+			var rt := String(r)
+			if not pos_map.has(rt):
+				continue
+			var ax := (pos_map[rt] as Vector2).x
+			var bx := (pos_map[String(tid)] as Vector2).x
+			if ax >= bx:
+				_fail("贸易页里「%s」没排在它的依赖「%s」右边" % [
+					String(db.techs[String(tid)]["nameZh"]), String(db.techs[rt]["nameZh"])])
+				return
 	print("TECH TEST 贸易页排法：商队/载货/带钱/砍价/卖价 各一行，%d 条连线（%d 条走左边干线）✅"
 		% [segs.size(), bus])
 
