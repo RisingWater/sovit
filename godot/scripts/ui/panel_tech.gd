@@ -72,7 +72,7 @@ const TAB_EFF := 1
 ## 贸易（B3，用户 2026-10："科技面板要单独加一个贸易 tab"）：带 `trade` 块的科技。
 const TAB_TRADE := 2
 const TAB_QUEUE := 3
-const TAB_NAMES := ["制造", "效率", "贸易", "研究队列"]
+const TAB_NAMES := ["制造", "效率", "贸易与外交", "研究队列"]
 var _tab := TAB_MAKE
 var _tab_btns: Array = []
 var _queue_page: Control

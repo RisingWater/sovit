@@ -634,6 +634,18 @@ export type QuestGoal =
    * 东西得真的走 `gift` 命令出门（扣货 + 记进 `state.gifts[to][good]`）才算数。
    */
   | { type: 'gifted'; to: string; id: GoodID; min: number }
+  /**
+   * 和**游商**成交过 N 次（B4 章 3："购买一次 / 出售一次"）。
+   * `side` = `sell`（卖给游商）/ `buy`（从他那儿买），判的是 `state.trade.soldTimes/boughtTimes`。
+   */
+  | { type: 'caravan_trade'; side: 'sell' | 'buy'; min: number }
+  /** **累计**创建过 N 条商路（B4 章 4）。取消商路不减 —— 问的是"会不会用这套系统"。 */
+  | { type: 'route_created'; min: number }
+  /**
+   * 给某个势力**送过 N 次钱**（B4 章 5）；`id` 缺省 = 任意一家都算。
+   * 判的是 `state.factions.gifts[factionId]`（送一次 +1，与金额无关）。
+   */
+  | { type: 'faction_gift'; id?: string; min: number }
 
 /**
  * 一条任务的**种类**（用户 2026-10，B2）。
@@ -1139,7 +1151,8 @@ export interface FactionState {
    * 打服过没有（B5 打赢讨伐战才置 true）。
    *
    * 它是**天花板**的依据：没打服时按 cap，打服之后按 defeat.cap。
-   * 不能拿 ep 当标记 —— 铁鸦堡打服后是 -4000（和开局一样），看不出变化。
+   * 不能拿 
+ep 当标记 —— 铁鸦堡打服后是 -4000（和开局一样），看不出变化。
    */
   defeated: Record<FactionID, boolean>
 }

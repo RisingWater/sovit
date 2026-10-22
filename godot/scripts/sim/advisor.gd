@@ -37,7 +37,7 @@ const MAX_PLAN := 6
 ## 而且不报错）。门槛 `ai_test.gd` 会拿内容里的全部类型跟这份表对拍。
 const KNOWN_GOAL_TYPES := ["building", "housing", "housing_capacity", "population",
 	"class", "tech", "tech_count", "good", "produced", "avg_satisfaction", "private_housing",
-	"building_repaired", "gifted"]
+	"building_repaired", "gifted", "caravan_trade", "route_created", "faction_gift"]
 ## 提示词里"可建清单"最多列几项。
 const MAX_BUILD_LIST := 28
 ## 任务那一段最多细讲几个任务。
@@ -808,6 +808,21 @@ func _quest_goal_suggestion(out: Array, q: Dictionary, g: Dictionary) -> void:
 				"已送出 %s，目标 %s（还差 %s）" % [_n(have), _n(need), _n(need - have)],
 				["送物资走「预言家」面板底部那一行：选 %s、填 %s、点「送去」" % [gname(gid), _n(need - have)],
 				"命令次日黎明生效，扣的是仓库里的货（现在库存 %s）" % _n(float(sim.s["goods"].get(gid, 0.0)))])
+		"caravan_trade":
+			# 和游商成交（B4 章 3）：去「贸易市场」的游商页点「出售 / 购买」。
+			_add(out, "quest_%s_caravan" % qid, P_HIGH, "任务", lead,
+				"已成交 %s 次，目标 %s 次（还差 %s）" % [_n(have), _n(need), _n(need - have)],
+				["打开左侧「贸易」圆钮（要先建贸易市场）→ 游商页", "点「出售」或「购买」成交一次就算"])
+		"route_created":
+			# 建商路（B4 章 4）：研究「常设商队」，再在地图页选一座城。
+			_add(out, "quest_%s_route" % qid, P_HIGH, "任务", lead,
+				"已建 %s 条商路，目标 %s 条（还差 %s）" % [_n(have), _n(need), _n(need - have)],
+				["先研究贸易页的「常设商队」，然后左侧「贸易」→ 地图页", "点一座城「设为目的地」，这条就算建好了（取消也不减）"])
+		"faction_gift":
+			# 送礼 / 进贡（B4 章 5）：要有外交办公室才能开面板。
+			_add(out, "quest_%s_faction" % qid, P_HIGH, "任务", lead,
+				"已送 %s 次，目标 %s 次（还差 %s）" % [_n(have), _n(need), _n(need - have)],
+				["先建「外交办公室」（科技「邦交」），再点左侧「外交」圆钮", "在势力卡上点一个金额就是送一次（王都叫进贡）"])
 		_:
 			pass
 

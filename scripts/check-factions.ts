@@ -1,4 +1,4 @@
-// 邦交内容门槛（B4）：content/factions.json + 城市归属 + 图标尺寸 + 使馆接线。
+// 邦交内容门槛（B4）：content/factions.json + 城市归属 + 图标尺寸 + 外交办公室接线。
 //
 // 为什么要有这一条：邦交全部是"数据驱动"的（13 个势力的 initial / cap / flip / defeat
 // 写在 JSON 里），写错一个字不会崩、只会**悄悄**把某个势力变成永远冷淡或永远敌对；
@@ -179,19 +179,19 @@ for (const t of ['statecraft', 'trade_goodwill_1', 'trade_goodwill_2', 'trade_go
 }
 
 // ---------------------------------------------------------------------------
-console.log('=== 使馆 ===')
+console.log('=== 外交办公室 ===')
 const embassy = buildings.buildings.find((b) => b.id === 'embassy')
 ok(embassy !== undefined, 'content/buildings.json 里有 embassy')
-ok(embassy?.utility === true, '使馆是纯功能建筑（utility: true）')
+ok(embassy?.utility === true, '外交办公室是纯功能建筑（utility: true）')
 ok(
   JSON.stringify(embassy?.art?.foot) === JSON.stringify([7, 3]),
-  `使馆占地 [7,3]（实际 ${JSON.stringify(embassy?.art?.foot)}）`,
+  `外交办公室占地 [7,3]（实际 ${JSON.stringify(embassy?.art?.foot)}）`,
 )
 const statecraft = techs.technologies.find((t) => t.id === 'statecraft')
 ok(statecraft !== undefined, 'content/technologies.json 里有 statecraft')
-ok(statecraft?.unlocks.buildings.includes('embassy') === true, '「邦交」解锁使馆')
+ok(statecraft?.unlocks.buildings.includes('embassy') === true, '「邦交」解锁外交办公室')
 const unlocking = techs.technologies.filter((t) => t.unlocks.buildings.includes('embassy'))
-ok(unlocking.length === 1, '使馆只被一项科技解锁')
+ok(unlocking.length === 1, '外交办公室只被一项科技解锁')
 
 if (fails > 0) {
   console.error(`\n邦交内容检查：${fails} 处不通过`)

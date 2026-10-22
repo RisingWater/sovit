@@ -461,7 +461,8 @@
           "min": 10
         }
       ]
-    },    {
+    },
+    {
       "id": "q06_pop50",
       "chapter": 3,
       "giver": "luna",
@@ -771,7 +772,8 @@
           "min": 5
         }
       ]
-    },    {
+    },
+    {
       "id": "q12_medicine",
       "chapter": 5,
       "giver": "luna",
@@ -815,7 +817,8 @@
           "min": 1
         }
       ]
-    },    {
+    },
+    {
       "id": "q11_middle",
       "chapter": 5,
       "giver": "vila",
@@ -1465,6 +1468,133 @@
           "to": "serafina",
           "id": "pastry",
           "min": 50
+        }
+      ]
+    },
+    {
+      "id": "q05g_caravan_sell",
+      "chapter": 3,
+      "giver": "vera",
+      "giverPortrait": "vera_neutral",
+      "title": "头一笔买卖",
+      "hint": "打开「贸易市场」的游商页，把仓库里多的那几件卖给他。",
+      "brief": "大人，谷口来人了。他车上有些我们做不出的东西，手里也有现钱。先别急着买，让他先看看我们的货 —— 一单生意开张，后面的价钱才好谈。",
+      "reward": 500,
+      "requires": [
+        "q04_institute"
+      ],
+      "goals": [
+        {
+          "type": "caravan_trade",
+          "side": "sell",
+          "min": 1
+        }
+      ]
+    },
+    {
+      "id": "q05h_caravan_buy",
+      "chapter": 3,
+      "giver": "vera",
+      "giverPortrait": "vera_neutral",
+      "title": "他的货",
+      "hint": "同一页的「他可出售」那一栏，挑一样买回来。",
+      "brief": "卖给他只是让他记住我们。他车上那几样东西，我们一时半会儿还造不出来 ——买一件回来看看，认认料，也认认他的价。",
+      "reward": 500,
+      "requires": [
+        "q05g_caravan_sell"
+      ],
+      "goals": [
+        {
+          "type": "caravan_trade",
+          "side": "buy",
+          "min": 1
+        }
+      ]
+    },
+    {
+      "id": "q10h_market",
+      "chapter": 4,
+      "giver": "vera",
+      "giverPortrait": "vera_excited",
+      "title": "市场",
+      "hint": "研究「通商」，然后在「市政」页建一座「贸易市场」。",
+      "brief": "大人，我们不能总等游商来。得有个自己的市场：他们的车有地方停，我们的货有地方摆 —— 村子才算真的接上了外面的路。",
+      "reward": 600,
+      "requires": [
+        "q09_pop100"
+      ],
+      "goals": [
+        {
+          "type": "tech",
+          "id": "trade"
+        },
+        {
+          "type": "building",
+          "id": "trade_market",
+          "min": 1
+        }
+      ]
+    },
+    {
+      "id": "q10i_route",
+      "chapter": 4,
+      "giver": "vera",
+      "giverPortrait": "vera_neutral",
+      "title": "走一趟",
+      "hint": "研究「常设商队」，在贸易面板的地图页选一座城「设为目的地」。",
+      "brief": "市场立起来了，接下来该我们自己的车出门了。选一座城 —— 近的先来，把车装满、把钱带上，跑完一趟再说话。",
+      "reward": 800,
+      "requires": [
+        "q10h_market"
+      ],
+      "goals": [
+        {
+          "type": "route_created",
+          "min": 1
+        }
+      ]
+    },
+    {
+      "id": "q16_embassy",
+      "chapter": 5,
+      "giver": "milla",
+      "giverPortrait": "milla_neutral",
+      "title": "外交办公室",
+      "hint": "研究「邦交」，在「市政」页建一座「外交办公室」。",
+      "brief": "大人，光有车不够 —— 人家得知道该跟谁谈。给我一间屋子、一张桌子、两面旗，我就能把十三个势力的名字摆在您面前。",
+      "reward": 800,
+      "requires": [
+        "q09_pop100"
+      ],
+      "goals": [
+        {
+          "type": "tech",
+          "id": "statecraft"
+        },
+        {
+          "type": "building",
+          "id": "embassy",
+          "min": 1
+        }
+      ]
+    },
+    {
+      "id": "q17_tribute",
+      "chapter": 5,
+      "giver": "milla",
+      "giverPortrait": "milla_smile",
+      "title": "给王都的礼",
+      "hint": "在外交面板给「瓦尔登王庭」送一次钱（父王还在，这叫进贡）。",
+      "brief": "王都那边还没把我们忘了，这是好事。第一次开口别空着手 ——钱不多没关系，礼数要到。",
+      "reward": 500,
+      "requires": [
+        "q16_embassy"
+      ],
+      "goals": [
+        {
+          "type": "faction_gift",
+          "id": "court",
+          "min": 1
         }
       ]
     }

@@ -100,6 +100,10 @@ function stageThroughChapter3(s: GameState): void {
   s.goods['brick'] = 100
   // 城镇中心：第 3 章多了「初步修缮」那条任务（q05e），先把这一步做掉
   s.townCenter = { stage: 'patched' }
+  // 第 3 章又多了两条游商任务（B4：头一笔买卖 / 他的货）—— 判的是**成交次数**，
+  // 所以这里直接把两个计数器记上（等价于"玩家已经在游商页买卖过各一次"）。
+  s.trade.soldTimes = Math.max(1, s.trade.soldTimes ?? 0)
+  s.trade.boughtTimes = Math.max(1, s.trade.boughtTimes ?? 0)
   // 第 3 章多了「凿子崩了三把」（q05f_tools）：要有石制工具作坊 + 10 件石制工具
   s.shops.push({
     id: 'tool_works#probe',
@@ -258,8 +262,8 @@ console.log('\n=== 任务系统引擎自检 ===\n')
   runDawn(s2, ctx)
   ok('前置齐了 → 人口早过 50 也当场算完成（可追溯）',
     s2.quests.done['q06_pop50'] === s2.day, `第 ${s2.quests.done['q06_pop50']} 天`)
-  ok('同一次黎明把 1~3 章主线连锁结算完（14 条任务 + 3 个章节奖励）',
-    s2.government.money - moneyA === 14 * 500 + 3 * 1000, `+${s2.government.money - moneyA} 金`)
+  ok('同一次黎明把 1~3 章主线连锁结算完（16 条任务 + 3 个章节奖励）',
+    s2.government.money - moneyA === 16 * 500 + 3 * 1000, `+${s2.government.money - moneyA} 金`)
   const doneDay = s2.quests.done['q06_pop50']
   s2.residents.length = 10
   runDawn(s2, ctx)

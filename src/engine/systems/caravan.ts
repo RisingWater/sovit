@@ -53,9 +53,12 @@ export function completedChapter(state: GameState): number {
 
 /** 这一批同时来几个游商（第 3 章 1 个 / 第 4 章 2 个 / 第 5 章 3 个）。 */
 export function waveSize(chapter: number): number {
+  // ⚠️ 2026-10（B4）：闸从"完成第 3 章"前移到**"完成第 2 章"**。
+  // 章 3 的任务要"和游商买卖各一次"，如果第 3 章结算之后他才来，那两条任务
+  // 在章 3 期间永远做不了（见 docs/trade-routes.md §12.4）。
   if (chapter >= 5) return 3
   if (chapter >= 4) return 2
-  if (chapter >= 3) return 1
+  if (chapter >= 2) return 1
   return 0
 }
 

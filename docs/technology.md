@@ -241,7 +241,7 @@ buildingAvailable(defId) =
 | `图标` | `godot/assets/ui/tech/<id>.png`（64×64，卡片上显示 32），见本节末尾「科技图标」 |
 
 - 构成：**解锁型 36 项** · **效率型 20 项**（15 项产业/速度 + 3 项民生服务 + 2 项工具寿命）·
-  **贸易型 16 项**（B3 商路，只进「贸易」页，见 §十一）
+  **贸易型 16 项**（B3 商路，只进「贸易与外交」页，见 §十一）
 - 纪元分布：1 → 5 项 / 110 点；2 → 12 项 / 370 点；3 → 25 项 / 1,295 点；
   4 → 23 项 / 1,845 点；5 → 7 项 / 755 点
 - 图标**一项一张**，全部由 `scripts/gen-icons.py` 按 `scripts/icon-manifest.json` 生成
@@ -403,7 +403,7 @@ buildingAvailable(defId) =
 
 ### 邦交与商路好感（B4 新增，4 项 / 300 科研力）
 
-> 用户 2026-10："B4 设计……新增建筑使馆，修建后解锁新增面板外交/军事"，
+> 用户 2026-10："B4 设计……新增建筑外交办公室，修建后解锁新增面板外交/军事"，
 > 以及贸易科技里的三级好感加成（"+50% +100% +200%"）。
 > 三档好感是**加法累计**：0.5 + 0.5 + 1.0 = **+200%** → 商路跑完一趟的好感
 > 100 / 150 / 200 / 300（见 [`diplomacy.md`](diplomacy.md) §3.3）。
@@ -413,7 +413,7 @@ buildingAvailable(defId) =
 | 73 | 通使礼数 | `trade_goodwill_1` | 55 | 木材 20 + 陶器 20 | `trade_caravan_1` | 商路好感 +50%（一趟 150）| `tech/trade_goodwill_1.png` |
 | 74 | 邦交友道 | `trade_goodwill_2` | 75 | 陶器 30 + 木材 25 | `trade_goodwill_1` | 商路好感再 +50%（累计 +100%，一趟 200）| `tech/trade_goodwill_2.png` |
 | 75 | 万国来朝 | `trade_goodwill_3` | 90 | 陶器 40 + 木材 30 | `trade_goodwill_2` | 商路好感再 +100%（累计 +200%，一趟 300）| `tech/trade_goodwill_3.png` |
-| 76 | 邦交 | `statecraft` | 80 | 木材 30 + 陶器 25 | `trade`、`construction` | **使馆**（`embassy`，市政页）→ 解锁「外交 / 军事」面板 | `tech/statecraft.png` |
+| 76 | 邦交 | `statecraft` | 80 | 木材 30 + 陶器 25 | `trade`、`construction` | **外交办公室**（`embassy`，市政页）→ 解锁「外交 / 军事」面板 | `tech/statecraft.png` |
 
 > 邦交排在这里而不是"制造"页：它解锁的**不是产商品的建筑**，而是面板入口；
 > 卡片照样进「制造」页（带 `unlocks.buildings` 就算解锁型），只是效果一栏写的是"开面板"。
@@ -1037,7 +1037,7 @@ GD   `sim_core.IMMEDIATE_ACTIONS`  + `enqueue()` / `tick_hour()` 分流
 > 科技的名字你自己编一下，列一个表格给我，我去做图标。"
 
 `content/technologies.json` 里带 **`trade` 块**的科技 = 贸易科技，它们**只出现在
-`panel_tech.gd` 的「贸易」页**（`TAB_TRADE`），既不进「制造」也不进「效率」——
+`panel_tech.gd` 的「贸易与外交」页**（`TAB_TRADE`），既不进「制造」也不进「效率」——
 它们不解锁建筑、也不给效率加成，混进去只会让人以为点它没效果。
 
 页签顺序：**制造 / 效率 / 贸易 / 研究队列**（`TAB_NAMES`）。
@@ -1096,7 +1096,7 @@ GD   `sim_core.IMMEDIATE_ACTIONS`  + `enqueue()` / `tick_hour()` 分流
 门槛：`npm run check:routes`（内容 + 科技链 + 图标尺寸）、`verify.sh tech`（四个页签 + 三页互补覆盖
 \+ 贸易页 16 张卡片各自的**图标 / 效果行 / tooltip 文案** + 顶部累计行 + **一行一类的排法**）。
 
-### 11.4 「贸易」页一行一类（2026-10）
+### 11.4 「贸易与外交」页一行一类（2026-10）
 
 > 用户："要按照解锁排序吧，解锁商路的放一行，增加运输量放一行，砍价的放一行等等。"
 

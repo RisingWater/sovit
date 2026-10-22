@@ -49,7 +49,7 @@ var _tech_nav_btn: Button = null
 var _prophecy_nav_btn: Button = null
 ## 「贸易」那个圆钮（**贸易市场建起来之前藏着**：没有市场就点不进去任何东西）
 var _trade_nav_btn: Button = null
-## 「外交」那个圆钮（**使馆建起来之前藏着**：和贸易市场同一条口径，见 efresh_nav_buttons()）
+## 「外交」那个圆钮（**外交办公室建起来之前藏着**：和贸易市场同一条口径，见 `refresh_nav_buttons()`）
 var _war_nav_btn: Button = null
 var war_panel: Node = null
 
@@ -200,19 +200,19 @@ func _open_trade() -> void:
 	else:
 		set_notice("还没有贸易市场")
 
-## 左侧圆钮「外交」：打开「外交 / 军事」面板（B4）。与点地图上的「使馆」同一个面板。
-## 使馆没建好之前按钮本身就藏着（`refresh_nav_buttons()`），这里是第二道闸：
+## 左侧圆钮「外交」：打开「外交 / 军事」面板（B4）。与点地图上的「外交办公室」同一个面板。
+## 外交办公室没建好之前按钮本身就藏着（`refresh_nav_buttons()`），这里是第二道闸：
 ## 快捷键 / ESC 也进不来。
 func _open_war() -> void:
 	if war_panel == null or not war_panel.has_method("open_war"):
-		set_notice("还没有使馆")
+		set_notice("还没有外交办公室")
 		return
 	if runner != null and runner.sim != null and not _has_embassy():
-		set_notice("还没有使馆")
+		set_notice("还没有外交办公室")
 		return
 	war_panel.open_war()
 
-## 村里有没有建成使馆（B4 面板的解锁条件；建筑都在黎明落成，所以刷一次就够）。
+## 村里有没有建成外交办公室（B4 面板的解锁条件；建筑都在黎明落成，所以刷一次就够）。
 func _has_embassy() -> bool:
 	if runner == null or runner.sim == null:
 		return false
@@ -360,7 +360,7 @@ const NAV_QUEST := -2
 const NAV_PROPHECY := -3
 ## 贸易（游商面板）。用户 2026-10：它以前只能从地图上的建筑点进去。
 const NAV_TRADE := -4
-## 外交 / 军事（B4，用户 2026-10）：使馆建起来之后才出现。
+## 外交 / 军事（B4，用户 2026-10）：外交办公室建起来之后才出现。
 const NAV_WAR := -5
 const NAV_ITEMS := [
 	["资源", "resource", 0],
@@ -483,7 +483,7 @@ func refresh_nav_buttons() -> void:
 				break
 		_trade_nav_btn.visible = has_market
 	if _war_nav_btn != null:
-		# 「外交」圆钮：**使馆建起来才出现**（用户 2026-10："修建后解锁新增面板外交/军事"）。
+		# 「外交」圆钮：**外交办公室建起来才出现**（用户 2026-10："修建后解锁新增面板外交/军事"）。
 		# 与贸易市场同一条口径：只研究「邦交」不给面板，得真的把房子盖出来。
 		_war_nav_btn.visible = _has_embassy()
 

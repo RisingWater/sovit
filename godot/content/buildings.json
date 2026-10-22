@@ -572,7 +572,7 @@
       "buildWork": 24
     },    {
       "id": "embassy",
-      "nameZh": "使馆",
+      "nameZh": "外交办公室",
       "utility": true,
       "art": {
         "arch": "sprite",

@@ -3109,6 +3109,31 @@ func _quest_goal_progress(goal: Dictionary) -> Dictionary:
 		var bag: Dictionary = (s.get("gifts", {}) as Dictionary).get(to, {})
 		have = float(bag.get(gid, 0.0))
 		text = "%s 已送出 %d/%d" % [_quest_name("good", gid), _quest_shown(have), int(need)]
+	elif type == "caravan_trade":
+		# 和游商成交过几次（B4 章 3）。两个计数器都只记事、不演化。
+		var tr: Dictionary = _trade()
+		var selling := String(goal.get("side", "sell")) == "sell"
+		have = float(int(tr.get("soldTimes", 0)) if selling else int(tr.get("boughtTimes", 0)))
+		text = "%s游商 %d/%d 次" % ["卖给" if selling else "买自",
+			_quest_shown(have), int(need)]
+	elif type == "route_created":
+		# 累计创建过几条商路（B4 章 4）：取消不减。
+		have = float(int((_routes_state() as Dictionary).get("created", 0)))
+		text = "创建商路 %d/%d 条" % [_quest_shown(have), int(need)]
+	elif type == "faction_gift":
+		# 给势力送过几次钱（B4 章 5）；没写 id = 任意一家都算。
+		var fid := String(goal.get("id", ""))
+		var gifts: Dictionary = (_factions() as Dictionary).get("gifts", {})
+		if fid == "":
+			var total := 0
+			for v in gifts.values():
+				total += int(v)
+			have = float(total)
+			text = "送礼 %d/%d 次" % [_quest_shown(have), int(need)]
+		else:
+			have = float(int(gifts.get(fid, 0)))
+			text = "给%s送礼 %d/%d 次" % [
+				String(_faction_def(fid).get("short", fid)), _quest_shown(have), int(need)]
 	# 连带把目标的"身份"也摊出来：任务面板要在要求后面长一个「提交」按钮
 	# （用户 2026-10-20），它得知道这是哪一类目标、交什么、交给谁、要多少。
 	return {
@@ -3664,12 +3689,14 @@ func completed_chapter() -> int:
 
 ## 这一批同时来几个（第 3 章 1 / 第 4 章 2 / 第 5 章 3）。
 func caravan_wave_size() -> int:
+	# ⚠️ 2026-10（B4）：闸从"完成第 3 章"前移到**"完成第 2 章"** —— 章 3 的任务要
+	# "和游商买卖各一次"，第 3 章结算之后他才来的话那两条任务永远做不了。
 	var c := completed_chapter()
 	if c >= 5:
 		return 3
 	if c >= 4:
 		return 2
-	if c >= 3:
+	if c >= 2:
 		return 1
 	return 0
 

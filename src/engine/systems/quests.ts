@@ -11,6 +11,12 @@ import type {
   StoryTalk,
 } from '../types.ts'
 import type { ContentContext } from '../content/index.ts'
+import { ALL_FACTIONS } from '../content/index.ts'
+
+/** 势力短名（任务文案用；查不到就原样返回 id）。 */
+function factionShort(id: string): string {
+  return ALL_FACTIONS[id]?.short ?? id
+}
 import { housingCapacity } from './housing.ts'
 import { TOWN_CENTER_STAGES, townCenterStage } from './investment.ts'
 import { markSceneShown, scenesAfterChapter } from './scenes.ts'
@@ -187,6 +193,34 @@ export function goalProgress(state: GameState, ctx: ContentContext, goal: QuestG
       have = state.gifts?.[goal.to]?.[goal.id] ?? 0
       need = goal.min
       text = `${nameOf(goal.id, 'good')} 已送出 ${shown(have)}/${need}`
+      break
+    }
+    case 'caravan_trade': {
+      // 和游商成交过几次（B4 章 3）。两个计数器都只记事、不演化。
+      const sell = goal.side === 'sell'
+      have = sell ? (state.trade?.soldTimes ?? 0) : (state.trade?.boughtTimes ?? 0)
+      need = goal.min
+      text = `${sell ? '卖给' : '买自'}游商 ${shown(have)}/${need} 次`
+      break
+    }
+    case 'route_created': {
+      // 累计创建过几条商路（B4 章 4）：取消不减。
+      have = state.routes?.created ?? 0
+      need = goal.min
+      text = `创建商路 ${shown(have)}/${need} 条`
+      break
+    }
+    case 'faction_gift': {
+      // 给势力送过几次钱（B4 章 5）；没写 id = 任意一家都算。
+      const st = (state as unknown as { factions?: { gifts?: Record<string, number> } }).factions
+      const gifts = st?.gifts ?? {}
+      have = goal.id
+        ? (gifts[goal.id] ?? 0)
+        : Object.values(gifts).reduce((a, b) => a + b, 0)
+      need = goal.min
+      text = goal.id
+        ? `给${factionShort(goal.id)}送礼 ${shown(have)}/${need} 次`
+        : `送礼 ${shown(have)}/${need} 次`
       break
     }
   }

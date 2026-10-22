@@ -1475,6 +1475,23 @@ function parseQuestGoal(v: unknown, p: string, sets: QuestSets): QuestGoal {
         id: asRef(g.id, sets.goodSet, `${p}.id`, '商品'),
         min: need(),
       }
+    case 'caravan_trade':
+      // 和游商成交过几次（B4 章 3）：`side` = sell（卖给游商）/ buy（从他那儿买）。
+      return {
+        type,
+        side: asEnum(g.side, ['sell', 'buy'] as const, `${p}.side`),
+        min: need(),
+      }
+    case 'route_created':
+      // 累计创建过几条商路（B4 章 4）—— 取消不减，问的是"会不会用这套系统"。
+      return { type, min: need() }
+    case 'faction_gift':
+      // 给某个势力送过几次钱（B4 章 5）；`id` 留空 = 任意势力。
+      return {
+        type,
+        ...(g.id === undefined ? {} : { id: asStr(g.id, `${p}.id`) }),
+        min: need(),
+      }
     default:
       fail(`${p}.type 取值非法：${type}`)
   }

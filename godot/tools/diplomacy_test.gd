@@ -3,7 +3,7 @@ extends SceneTree
 # 外交 / 军事面板门槛（B4，2026-10）。见 docs/diplomacy.md §11。
 #
 # 红了说明什么：
-#   ① 使馆建起来之后左侧圆钮还是 7 个 / 第 8 个点不开（面板进不去）
+#   ① 外交办公室建起来之后左侧圆钮还是 7 个 / 第 8 个点不开（面板进不去）
 #   ② 面板不是两个页签，或者「世界」页没有地图 / 没有 13 个势力
 #   ③ 关系写的是数字而不是档位名（用户："右侧是好感（只显示敌对，友善等状态）"）
 #   ④ 送礼不扣钱 / 不涨好感，或者送到天花板还在收钱
@@ -42,28 +42,28 @@ func _run() -> void:
 		_fail("main.tscn 里没有创建外交面板（_panel_war）")
 		return
 
-	# ---- ① 没有使馆：圆钮藏着、面板也打不开
+	# ---- ① 没有外交办公室：圆钮藏着、面板也打不开
 	hud.refresh_nav_buttons()
 	var war_btn: Button = hud.get("_war_nav_btn")
 	if war_btn == null:
 		_fail("HUD 里没有第 8 个圆钮（_war_nav_btn）")
 		return
 	if war_btn.visible:
-		_fail("还没建使馆，左侧「外交」圆钮就已经露出来了")
+		_fail("还没建外交办公室，左侧「外交」圆钮就已经露出来了")
 		return
 	hud._open_war()
 	if panel.visible:
-		_fail("还没建使馆就能打开外交面板")
+		_fail("还没建外交办公室就能打开外交面板")
 		return
 
-	# ---- ② 建一座使馆（直接塞进 shops，绕开建造流程），圆钮该出现
+	# ---- ② 建一座外交办公室（直接塞进 shops，绕开建造流程），圆钮该出现
 	var emb := {"id": "embassy#1", "defId": "embassy", "owner": "state", "targetWorkers": 2,
 		"wage": 3.0, "wageCap": 6.0, "level": 1, "active": true, "profit": 0.0,
 		"skill": 1.0, "planned": 0.0}
 	(sim.s["shops"] as Array).append(emb)
 	hud.refresh_nav_buttons()
 	if not war_btn.visible:
-		_fail("使馆建起来了，左侧「外交」圆钮还是藏着")
+		_fail("外交办公室建起来了，左侧「外交」圆钮还是藏着")
 		return
 	hud.activate_nav(7)   # 第 8 个圆钮
 	await process_frame

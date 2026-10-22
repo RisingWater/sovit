@@ -2,7 +2,7 @@ extends SceneTree
 
 # 游商门槛（M4，2026-10）。与 TS `scripts/check-merchant.ts` 同口径。
 #
-# red 的含义：① 第 3 章之前就来了 ② 章节数与队伍数不对
+# red 的含义：① 第 2 章之前就来了（B4 起闸是"完成第 2 章"）② 章节数与队伍数不对
 #              ③ 不是停留 7 天 / 不是每周一批
 #              ④ 报价不是收 4 卖 4，或价格加成不是 1.6 / 1.3
 #              ⑤ 买他的货不会让他现金变多（"买得越多他越有钱收你的货"）
@@ -28,7 +28,8 @@ func _run() -> void:
 	var sim_script = load("res://scripts/sim/sim_core.gd")
 
 	# ---- 1. 章节节奏 ------------------------------------------------------
-	for case in [[2, 0], [3, 1], [4, 2], [5, 3]]:
+	# B4 起闸前移到"完成第 2 章"：章 2 → 1 队（章 3 的任务要在章 3 期间就能买卖）
+	for case in [[1, 0], [2, 1], [3, 1], [4, 2], [5, 3]]:
 		var sim = sim_script.new(db)
 		sim.new_game("v0.3", SEED, 1.0)
 		for i in range(1, int(case[0]) + 1):
@@ -39,7 +40,7 @@ func _run() -> void:
 		if got != int(case[1]):
 			_fail("第 %d 章应当来 %d 队，实际 %d 队" % [case[0], case[1], got])
 			return
-	print("MERCHANT TEST 章节节奏：第 2 章 0 / 第 3 章 1 / 第 4 章 2 / 第 5 章 3 ✅")
+	print("MERCHANT TEST 章节节奏：第 1 章 0 / 第 2 章 1 / 第 3 章 1 / 第 4 章 2 / 第 5 章 3 ✅")
 
 	# ---- 2. 停留 7 天 + 每周一批 ------------------------------------------
 	var sim2 = sim_script.new(db)

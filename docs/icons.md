@@ -15,7 +15,7 @@
 > 面板 2（`diplomacy` / `military`）+ 圆盘 2（烤出来的）、**势力徽记 13**、**关系牌 7**、**动作按钮 3**
 > —— 后三样都在 `godot/assets/ui/faction/`。同一套提示词与后处理，只是多了三个类别
 > （`faction` 48 / `relation` 32 / `action` 32，见 §1 与 §5.2）。
-> 建筑贴图（使馆）走另一条流水线：`scripts/gen-building.py`，见 §10。
+> 建筑贴图（外交办公室）走另一条流水线：`scripts/gen-building.py`，见 §10。
 >
 > 脚本：[`scripts/gen-icons.py`](../scripts/gen-icons.py) · 清单：[`scripts/icon-manifest.json`](../scripts/icon-manifest.json)
 

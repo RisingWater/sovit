@@ -51,14 +51,20 @@ function village(chapter: number): GameState {
 
 // ---- 1. 章节节奏 ---------------------------------------------------------
 {
-  check(waveSize(0) === 0 && waveSize(1) === 0 && waveSize(2) === 0, '第 3 章之前不来游商')
+  // ⚠️ B4 起闸前移到「完成第 2 章」：章 3 的任务要和游商买卖各一次，
+  // 第 3 章结算之后他再来就永远做不了（见 docs/trade-routes.md §12.4）。
+  check(waveSize(0) === 0 && waveSize(1) === 0, '第 2 章之前不来游商')
   check(waveSize(3) === 1, `第 3 章 1 队（实际 ${waveSize(3)}）`)
   check(waveSize(4) === 2, `第 4 章 2 队（实际 ${waveSize(4)}）`)
   check(waveSize(5) === 3, `第 5 章 3 队（实际 ${waveSize(5)}）`)
 
+  const s1 = village(1)
+  updateCaravans(s1, ctx, 5)
+  check(s1.trade.caravans.length === 0, '第 1 章跑 5 天：一队都没有')
+
   const s = village(2)
   updateCaravans(s, ctx, 5)
-  check(s.trade.caravans.length === 0, '第 2 章跑 5 天：一队都没有')
+  check(s.trade.caravans.length === 1, '第 2 章：1 队（章 3 的任务要靠他）')
 
   const s3 = village(3)
   check(completedChapter(s3) === 3, `completedChapter = ${completedChapter(s3)}`)

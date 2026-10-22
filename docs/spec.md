@@ -1146,4 +1146,4 @@ state.routes  += { created }                 // 累计创建过几条商路（�
 不动已有好感**），否则 v6 老档一开外交面板就崩。
 
 唯一实现：`src/engine/systems/factions.ts` / `godot/scripts/sim/sim_core.gd`（末尾那段）；
-门槛 `diplomacy`（引擎与面板）+ `check:factions`（内容、城市归属、图标尺寸、使馆接线）。
+门槛 `diplomacy`（引擎与面板）+ `check:factions`（内容、城市归属、图标尺寸、外交办公室接线）。
