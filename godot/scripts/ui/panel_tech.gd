@@ -28,7 +28,8 @@ const CARD_H := 86
 ## 有效果行的那版卡片高度。**必须与 `tech_card.gd::CARD_H_EFFECT` 一致** ——
 ## 布局、连线端点、画布尺寸都按它算，对不上就会"卡片比格子高、连线插进卡片中间"。
 const CARD_H_EFFECT := 104
-const COL_GAP := 104          # 列间距（连线拐弯要有地方走）
+const COL_GAP := 72           # 列间距（2026-10 用户："这里间隔太大" —— 原 104 太宽；
+                              #   树形排布之后连线基本是同一行的直连，用不着留这么大拐弯空间）
 const ROW_GAP := 26
 const LAYOUT_PAD := 20
 
@@ -438,6 +439,19 @@ func _compute_layout(ids: Array, kind: int) -> Dictionary:
 		for c in (children.get(t2, []) as Array):
 			weight[t2] = int(weight[t2]) + int(weight.get(String(c), 1))
 
+	# 深度 → 列号要**压缩**：某一层没有科技时（深度 0 → 3 这种跳号），
+	# 按深度直接当列号会空出整列（用户 2026-10 截图："这里间隔太大"，
+	# 620px 宽度里有一段 425px 的空白就是两个空列）。
+	var used: Array = []
+	for tid in ids:
+		var d := int(depth[String(tid)])
+		if not used.has(d):
+			used.append(d)
+	used.sort()
+	var col_of := {}
+	for i in used.size():
+		col_of[int(used[i])] = i
+
 	var pos := {}
 	var row := 0
 	var root_rows: Array = []
@@ -453,7 +467,7 @@ func _compute_layout(ids: Array, kind: int) -> Dictionary:
 		var tid2 := String(item[0])
 		var my_row := int(item[1])
 		pos[tid2] = Vector2(
-			LAYOUT_PAD + int(depth[tid2]) * (CARD_W + COL_GAP),
+			LAYOUT_PAD + int(col_of[int(depth[tid2])]) * (CARD_W + COL_GAP),
 			LAYOUT_PAD + my_row * (_card_h + ROW_GAP))
 		var kids: Array = (children.get(tid2, []) as Array).duplicate()
 		kids.sort_custom(func(a, b) -> bool:
